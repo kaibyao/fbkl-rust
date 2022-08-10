@@ -8,6 +8,8 @@ edition = "2021"
 [dependencies]
 actix-web = "4.1.0"
 color-eyre = "0.6.2"
+diesel = { version = "1.4.8", features = ["postgres"] }
+dotenv = "0.15.0"
 tokio = {version = "1.20.1", features = ["full"]}
 tracing = "0.1.36"
 tracing-subscriber = { version = "0.3.15", features = ["env-filter", "fmt"] }
