@@ -1,5 +1,6 @@
 use actix_web::{get, web, App, HttpServer, Responder};
 use color_eyre::{Result};
+use tracing_subscriber::EnvFilter;
 
 #[get("/hello/{name}")]
 async fn greet(name: web::Path<String>) -> impl Responder {
@@ -30,6 +31,13 @@ fn setup() -> Result<()> {
         std::env::set_var("RUST_LIB_BACKTRACE", "1")
     }
     color_eyre::install()?;
+
+    if std::env::var("RUST_LOG").is_err() {
+        std::env::set_var("RUST_LOG", "info")
+    }
+    tracing_subscriber::fmt::fmt()
+        .with_env_filter(EnvFilter::from_default_env())
+        .init();
 
     Ok(())
 }
