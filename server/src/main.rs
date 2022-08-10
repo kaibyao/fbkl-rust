@@ -1,5 +1,8 @@
+#![deny(clippy::all)]
+
 use actix_web::{get, web, App, HttpServer, Responder};
 use color_eyre::{Result};
+use tracing::info;
 use tracing_subscriber::EnvFilter;
 
 #[get("/hello/{name}")]
@@ -12,7 +15,7 @@ async fn main() -> Result<()> {
     setup()?;
 
     match HttpServer::new(|| {
-        println!("Starting fbkl/server on port 5432...");
+        info!("Starting fbkl/server on port 5432...");
 
         App::new()
             .route("/hello", web::get().to(|| async { "Hello World!" }))
