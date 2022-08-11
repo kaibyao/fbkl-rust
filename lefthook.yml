@@ -2,7 +2,7 @@ pre-commit:
   parallel: true
   commands:
     clippy:
-      glob: "server/**/*.{rs,sql}"
+      glob: "*.{rs,sql}"
       run: cargo clippy
 
 # EXAMPLE USAGE:
