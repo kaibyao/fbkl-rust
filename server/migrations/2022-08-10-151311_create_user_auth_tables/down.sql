@@ -1,0 +1,7 @@
+DROP INDEX IF EXISTS user_tokens_user_ids CASCADE;
+
+DROP TABLE IF EXISTS user_tokens CASCADE;
+
+DROP INDEX IF EXISTS users_unique_email CASCADE;
+
+DROP TABLE IF EXISTS users CASCADE;
