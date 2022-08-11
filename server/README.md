@@ -10,6 +10,13 @@ The server app that powers FBKL.
 4. `cargo install diesel_cli`.
 5. Copy/paste `.env.dev` -> `.env` (TODO: replace with `config` crate and load/override via config file < ENV < CLI flags).
 6. Update `.env`.
-7. Run: `diesel setup`.
+7. `cd ../db`.
 8. Run: `diesel migration run`.
-9. Install lefthook: `lefthook install && lefthook run pre-commit`.
+9. `cd ..`.
+10. Install lefthook: `lefthook install && lefthook run pre-commit`.
+
+TODO: move the above steps into a shell script.
+
+## When changing the database schema...
+
+After making a database change, in case your schema.rs or model.rs breaks, run: `diesel print-schema > schema.rs` from `db/`.
