@@ -7,8 +7,8 @@ edition = "2021"
 
 [dependencies]
 chrono = "0.4.21"
-diesel = { version = "1.4.8", features = ["chrono", "postgres", "r2d2"] }
-diesel-citext = "0.3.0"
+diesel = { version = "2.0.0-rc.1", features = ["chrono", "postgres", "r2d2"] }
+diesel-derive-enum = { version = "2.0.0-rc.0", features = ["postgres"] }
 
 [target.aarch64-apple-darwin]
 rustflags = '-L /opt/homebrew/opt/libpq/lib -L /opt/homebrew/lib'
