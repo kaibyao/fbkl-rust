@@ -1,7 +1,7 @@
 #![deny(clippy::all)]
 
 mod handlers;
-mod dao;
+mod queries;
 
 use actix_identity::IdentityMiddleware;
 use actix_session::{storage::CookieSessionStore, SessionMiddleware};
