@@ -13,7 +13,7 @@ diesel::table! {
     user_tokens (id) {
         id -> Int8,
         user_id -> Int8,
-        token -> Text,
+        token -> Bytea,
         token_type -> TokenTypeEnum,
         sent_to -> Nullable<Text>,
         inserted_at -> Timestamptz,

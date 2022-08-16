@@ -26,7 +26,7 @@ pub enum TokenTypeEnum {
 pub struct UserToken {
     pub id: i32,
     pub user_id: i32,
-    pub token: String,
+    pub token: Vec<u8>,
     pub token_type: TokenTypeEnum,
     pub sent_to: Option<String>,
     pub inserted_at: DateTime<Utc>,
