@@ -2,8 +2,9 @@ extern crate diesel;
 
 use diesel::{r2d2::{ConnectionManager, Pool}, PgConnection};
 
-pub mod schema;
 pub mod models;
+pub mod queries;
+pub mod schema;
 
 pub fn create_pool<S>(database_url: S) -> Pool<ConnectionManager<PgConnection>> where S: Into<String>{
     let manager = ConnectionManager::<PgConnection>::new(database_url);
