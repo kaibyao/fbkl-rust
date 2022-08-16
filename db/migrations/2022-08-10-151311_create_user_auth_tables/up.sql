@@ -16,7 +16,7 @@ CREATE TYPE token_type_enum AS ENUM ('registration_confirm', 'session');
 
 CREATE TABLE user_tokens (
   id BIGSERIAL PRIMARY KEY,
-  user_id BIGSERIAL NOT NULL REFERENCES users ON DELETE CASCADE,
+  user_id BIGINT NOT NULL REFERENCES users ON DELETE CASCADE,
   token BYTEA NOT NULL,
   token_type token_type_enum NOT NULL,
   sent_to TEXT,
