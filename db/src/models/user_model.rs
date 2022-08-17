@@ -21,6 +21,4 @@ pub struct InsertUser {
     pub hashed_password: String,
     pub confirmed_at: Option<DateTime<Utc>>,
     pub is_superadmin: bool,
-    pub inserted_at: DateTime<Utc>,
-    pub updated_at: DateTime<Utc>
 }

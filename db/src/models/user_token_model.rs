@@ -10,7 +10,7 @@ pub enum TokenTypeEnum {
     Session
 }
 
-#[derive(Identifiable, Insertable, Queryable, Associations, Debug)]
+#[derive(Identifiable, Queryable, Associations, Debug)]
 #[diesel(table_name = user_tokens, belongs_to(User))]
 pub struct UserToken {
     pub id: i64,
@@ -19,4 +19,13 @@ pub struct UserToken {
     pub token_type: TokenTypeEnum,
     pub sent_to: Option<String>,
     pub inserted_at: DateTime<Utc>,
+}
+
+#[derive(Insertable, Associations, Debug)]
+#[diesel(table_name = user_tokens, belongs_to(User))]
+pub struct InsertUserToken {
+    pub user_id: i64,
+    pub token: Vec<u8>,
+    pub token_type: TokenTypeEnum,
+    pub sent_to: Option<String>,
 }
