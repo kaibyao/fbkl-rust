@@ -1,5 +1,5 @@
 use crate::{
-    models::{InsertUser, User},
+    models::user_model::{InsertUser, User},
     schema::users,
 };
 use diesel::{Insertable, QueryResult, RunQueryDsl, r2d2::{PooledConnection, ConnectionManager}, PgConnection};
