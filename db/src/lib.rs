@@ -6,7 +6,9 @@ pub mod models;
 pub mod queries;
 pub mod schema;
 
-pub fn create_pool<S>(database_url: S) -> Pool<ConnectionManager<PgConnection>> where S: Into<String>{
+pub type FbklPool = Pool<ConnectionManager<PgConnection>>;
+
+pub fn create_pool<S>(database_url: S) -> FbklPool where S: Into<String>{
     let manager = ConnectionManager::<PgConnection>::new(database_url);
     Pool::builder().build(manager).expect("Failed to create pool.")
 }

@@ -1,6 +1,7 @@
-use actix_web::{get, web, Responder, post, Result as ActixResult, HttpResponse, http::header::ContentType};
+use actix_web::{get, web, Responder, post, Result as ActixResult, HttpResponse, http::header::ContentType, Error as ActixError};
 use rand::{rngs::OsRng, RngCore};
 use serde::Deserialize;
+use db::{queries::user_queries, FbklPool, models::user_model::InsertUser};
 
 #[derive(Debug, Deserialize)]
 pub struct RegistrationFormData {
@@ -30,9 +31,24 @@ pub async fn register() -> impl Responder {
 }
 
 #[post("/register")]
-pub async fn process_registration(form: web::Form<RegistrationFormData>) -> ActixResult<impl Responder> {
+pub async fn process_registration(form: web::Form<RegistrationFormData>, pool: web::Data<FbklPool>) -> ActixResult<impl Responder> {
+    let conn = match pool.get() {
+        Ok(conn) => {
+
+        },
+        Err(e) => return Err(e.into())
+    };
+
     let mut token = [0u8; 16];
     OsRng.fill_bytes(&mut token);
+
+    let insert_user = InsertUser {
+        email: form.email,
+        hashed_password: form.password,
+        confirmed_at: None,
+        is_superadmin: false
+    };
+    let (new_user, new_user_token) = user_queries::insert(insert_user, token.iter().collect(), conn)?;
 
     dbg!(token);
 
