@@ -9,7 +9,6 @@ edition = "2021"
 chrono = "0.4.21"
 diesel = { version = "2.0.0-rc.1", features = ["chrono", "postgres", "r2d2"] }
 diesel-derive-enum = { version = "2.0.0-rc.0", features = ["postgres"] }
-rand = "0.8.5"
 
 [target.aarch64-apple-darwin]
 rustflags = '-L /opt/homebrew/opt/libpq/lib -L /opt/homebrew/lib'
