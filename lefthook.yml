@@ -3,10 +3,10 @@ pre-commit:
   commands:
     clippy:
       glob: "*.{rs,sql}"
-      run: cargo clippy
+      run: cargo clippy && git add {staged_files}
     format:
       glob: "*.rs"
-      run: cargo fmt
+      run: cargo fmt && git add {staged_files}
 
 # EXAMPLE USAGE:
 #
