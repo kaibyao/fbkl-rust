@@ -12,11 +12,6 @@ use handlers::user_registration::{process_registration, register};
 use tracing::info;
 use tracing_subscriber::EnvFilter;
 
-// #[get("/hello/{name}")]
-// async fn greet(name: web::Path<String>) -> impl Responder {
-//     format!("Hello {name}!")
-// }
-
 #[tokio::main]
 async fn main() -> Result<()> {
     setup()?;
@@ -28,14 +23,17 @@ async fn main() -> Result<()> {
 
     info!("Starting fbkl/server on port 9001...");
 
-    // TODO: insert Row into user_token table
-    // TODO: User registration
-    // TODO: Save session ID to cookie on browser side
+    // TODO: account confirmation
+    // TODO: hash password
+    // TODO: Save session ID to cookie on browser side (/login)
     // TODO: "Secure" cookie
+    // TODO: break out user auth steps into its own crate
+    // TODO: Switch from Actix to Axum
     // TODO: Separate out "public" from "application"
     // TODO: Get front-end build pipeline working
     // TODO: eventually convert to GraphQL, but let's just focus on shipping / making progress instead of codewriter's block.
     // TODO: maybe break out user token generation into its own file + fn or even its own crate. or its own scheduled job.
+    // TODO: Actual user confirmation.
 
     match server.await {
         Ok(_) => Ok(()),

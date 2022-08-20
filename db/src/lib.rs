@@ -1,3 +1,4 @@
+pub extern crate chrono;
 pub extern crate diesel;
 
 use diesel::{

@@ -24,5 +24,3 @@ CREATE TABLE user_tokens (
 );
 
 CREATE INDEX user_tokens_user_ids ON user_tokens (user_id);
-
-/* TODO: check what context (session or confirm) and sent_to (email address if confirm) do */

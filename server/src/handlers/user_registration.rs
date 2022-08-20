@@ -52,8 +52,6 @@ pub async fn process_registration(
     let (new_user, new_user_token) =
         user_queries::insert(insert_user, token.into_iter().collect(), &mut conn)?;
 
-    // dbg!(token);
-
     let html = format!(
         r#"
 <!doctype html>
