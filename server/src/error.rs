@@ -16,7 +16,7 @@ impl Display for ErrorType {
         match self {
             Self::Actix(actix_error) => write!(fmt, "{}", actix_error),
             Self::Diesel(diesel_error) => write!(fmt, "{}", diesel_error),
-            Self::R2D2(r2d2_error) => write!(fmt, "{}", r2d2_error)
+            Self::R2D2(r2d2_error) => write!(fmt, "{}", r2d2_error),
         }
     }
 }
