@@ -1,5 +1,6 @@
 #![deny(clippy::all)]
 
+mod error;
 mod handlers;
 
 use actix_identity::IdentityMiddleware;
@@ -34,6 +35,7 @@ async fn main() -> Result<()> {
     // TODO: Separate out "public" from "application"
     // TODO: Get front-end build pipeline working
     // TODO: eventually convert to GraphQL, but let's just focus on shipping / making progress instead of codewriter's block.
+    // TODO: maybe break out user token generation into its own file + fn or even its own crate. or its own scheduled job.
 
     match server.await {
         Ok(_) => Ok(()),

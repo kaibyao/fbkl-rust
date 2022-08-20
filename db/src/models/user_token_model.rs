@@ -1,13 +1,13 @@
-use chrono::{DateTime, Utc};
-use diesel::{Identifiable, Queryable, Associations, Insertable};
-use crate::schema::*;
 use super::user_model::User;
+use crate::schema::*;
+use chrono::{DateTime, Utc};
+use diesel::{Associations, Identifiable, Insertable, Queryable};
 
 #[derive(diesel_derive_enum::DbEnum, Debug)]
 #[DieselTypePath = "crate::schema::sql_types::TokenTypeEnum"]
 pub enum TokenTypeEnum {
     RegistrationConfirm,
-    Session
+    Session,
 }
 
 #[derive(Identifiable, Queryable, Associations, Debug)]

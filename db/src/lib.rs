@@ -1,6 +1,9 @@
-extern crate diesel;
+pub extern crate diesel;
 
-use diesel::{r2d2::{ConnectionManager, Pool}, PgConnection};
+use diesel::{
+    r2d2::{ConnectionManager, Pool},
+    PgConnection,
+};
 
 pub mod models;
 pub mod queries;
@@ -8,9 +11,14 @@ pub mod schema;
 
 pub type FbklPool = Pool<ConnectionManager<PgConnection>>;
 
-pub fn create_pool<S>(database_url: S) -> FbklPool where S: Into<String>{
+pub fn create_pool<S>(database_url: S) -> FbklPool
+where
+    S: Into<String>,
+{
     let manager = ConnectionManager::<PgConnection>::new(database_url);
-    Pool::builder().build(manager).expect("Failed to create pool.")
+    Pool::builder()
+        .build(manager)
+        .expect("Failed to create pool.")
 }
 
 #[cfg(test)]

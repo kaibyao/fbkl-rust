@@ -4,6 +4,9 @@ pre-commit:
     clippy:
       glob: "*.{rs,sql}"
       run: cargo clippy
+    format:
+      glob: "*.rs"
+      run: cargo fmt
 
 # EXAMPLE USAGE:
 #

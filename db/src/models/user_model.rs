@@ -1,8 +1,9 @@
-use chrono::{DateTime, Utc};
-use diesel::{Identifiable, Queryable, Insertable};
 use crate::schema::*;
+use chrono::{DateTime, Utc};
+use diesel::{Identifiable, Insertable, Queryable};
+use serde::{Deserialize, Serialize};
 
-#[derive(Identifiable, Queryable, Debug)]
+#[derive(Identifiable, Queryable, Debug, Deserialize, Serialize)]
 #[diesel(table_name = users)]
 pub struct User {
     pub id: i64,
@@ -11,7 +12,7 @@ pub struct User {
     pub confirmed_at: Option<DateTime<Utc>>,
     pub is_superadmin: bool,
     pub inserted_at: DateTime<Utc>,
-    pub updated_at: DateTime<Utc>
+    pub updated_at: DateTime<Utc>,
 }
 
 #[derive(Insertable, Debug)]
