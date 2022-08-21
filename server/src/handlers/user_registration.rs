@@ -1,5 +1,6 @@
 use crate::error::FbklError;
 use actix_web::{get, http::header::ContentType, post, web, HttpResponse, Responder};
+use argon2::{password_hash::SaltString, Argon2, PasswordHasher};
 use db::{models::user_model::InsertUser, queries::user_queries, FbklPool};
 use rand::{rngs::OsRng, RngCore};
 use serde::Deserialize;
@@ -43,9 +44,16 @@ pub async fn process_registration(
     let mut token = [0u8; 16];
     OsRng.fill_bytes(&mut token);
 
+    let password_bytes = form.0.password.as_bytes();
+    let salt = SaltString::generate(&mut OsRng);
+
+    let argon2 = Argon2::default();
+    // Hash password to PHC string ($argon2id$v=19$...)
+    let password_hash = argon2.hash_password(password_bytes, &salt)?.to_string();
+
     let insert_user = InsertUser {
-        email: form.email.clone(),
-        hashed_password: form.password.clone(),
+        email: form.0.email,
+        hashed_password: password_hash,
         confirmed_at: None,
         is_superadmin: false,
     };

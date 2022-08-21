@@ -24,7 +24,6 @@ async fn main() -> Result<()> {
     info!("Starting fbkl/server on port 9001...");
 
     // TODO: account confirmation
-    // TODO: hash password
     // TODO: Save session ID to cookie on browser side (/login)
     // TODO: "Secure" cookie
     // TODO: break out user auth steps into its own crate
@@ -34,6 +33,7 @@ async fn main() -> Result<()> {
     // TODO: eventually convert to GraphQL, but let's just focus on shipping / making progress instead of codewriter's block.
     // TODO: maybe break out user token generation into its own file + fn or even its own crate. or its own scheduled job.
     // TODO: Actual user confirmation.
+    // TODO: Handle errors with actual HTTP status codes
 
     match server.await {
         Ok(_) => Ok(()),
