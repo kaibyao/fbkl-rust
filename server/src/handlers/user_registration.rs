@@ -80,3 +80,8 @@ pub async fn process_registration(
         .content_type(ContentType::html())
         .body(html))
 }
+
+#[get("/confirm_registration")]
+pub async fn confirm_registration() -> Result<impl Responder, FbklError> {
+    Ok(HttpResponse::Ok())
+}
