@@ -1,6 +1,10 @@
 use crate::error::FbklError;
 use actix_web::{get, http::header::ContentType, post, web, HttpResponse, Responder};
 use argon2::{password_hash::SaltString, Argon2, PasswordHasher};
+use db::chrono::Utc;
+use db::models::user_model::UpdateUser;
+use db::models::user_token_model::TokenTypeEnum;
+use db::queries::user_token_queries;
 use db::{models::user_model::InsertUser, queries::user_queries, FbklPool};
 use rand::{rngs::OsRng, RngCore};
 use serde::Deserialize;
@@ -58,7 +62,7 @@ pub async fn process_registration(
         is_superadmin: false,
     };
     let (new_user, new_user_token) =
-        user_queries::insert(insert_user, token.into_iter().collect(), &mut conn)?;
+        user_queries::insert_user(insert_user, token.into_iter().collect(), &mut conn)?;
 
     let html = format!(
         r#"
@@ -81,7 +85,38 @@ pub async fn process_registration(
         .body(html))
 }
 
+#[derive(Deserialize)]
+pub struct TokenQuery {
+    token: String,
+}
+
 #[get("/confirm_registration")]
-pub async fn confirm_registration() -> Result<impl Responder, FbklError> {
+pub async fn confirm_registration(
+    token_query: web::Query<TokenQuery>,
+    pool: web::Data<FbklPool>,
+) -> Result<impl Responder, FbklError> {
+    let token = token_query.0.token.trim();
+    if token.is_empty() {
+        return Ok(HttpResponse::BadRequest());
+    }
+
+    let token_bytes = token.as_bytes().to_owned();
+    let mut conn = pool.get()?;
+    let user_token = user_token_queries::find_by_token_and_type(
+        token_bytes,
+        TokenTypeEnum::RegistrationConfirm,
+        &mut conn,
+    )?;
+
+    let update_user = UpdateUser {
+        id: user_token.user_id,
+        confirmed_at: Some(Some(Utc::now())),
+        email: None,
+        hashed_password: None,
+        is_superadmin: None,
+    };
+
+    user_queries::update_user(update_user, &mut conn)?;
+
     Ok(HttpResponse::Ok())
 }

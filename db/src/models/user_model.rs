@@ -1,6 +1,6 @@
 use crate::schema::*;
 use chrono::{DateTime, Utc};
-use diesel::{Identifiable, Insertable, Queryable};
+use diesel::{AsChangeset, Identifiable, Insertable, Queryable};
 use serde::{Deserialize, Serialize};
 
 #[derive(Identifiable, Queryable, Debug, Deserialize, Serialize)]
@@ -22,4 +22,14 @@ pub struct InsertUser {
     pub hashed_password: String,
     pub confirmed_at: Option<DateTime<Utc>>,
     pub is_superadmin: bool,
+}
+
+#[derive(AsChangeset, Debug, Identifiable)]
+#[diesel(table_name = users)]
+pub struct UpdateUser {
+    pub id: i64,
+    pub email: Option<String>,
+    pub hashed_password: Option<String>,
+    pub confirmed_at: Option<Option<DateTime<Utc>>>,
+    pub is_superadmin: Option<bool>,
 }

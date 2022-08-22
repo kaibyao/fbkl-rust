@@ -1,20 +1,19 @@
-use crate::models::user_token_model::TokenTypeEnum;
 use crate::{
     models::{
-        user_model::{InsertUser, User},
-        user_token_model::{InsertUserToken, UserToken},
+        user_model::{InsertUser, UpdateUser, User},
+        user_token_model::{InsertUserToken, TokenTypeEnum, UserToken},
     },
     schema::{user_tokens, users},
 };
-use diesel::insert_into;
-use diesel::result::Error;
 use diesel::{
+    insert_into,
     r2d2::{ConnectionManager, PooledConnection},
-    Connection, Insertable, PgConnection, RunQueryDsl,
+    result::Error,
+    Connection, Insertable, PgConnection, RunQueryDsl, SaveChangesDsl,
 };
 
-/// Inserts a new user. Requires a
-pub fn insert(
+/// Inserts a new user. Requires a token that's used for registration confirmation.
+pub fn insert_user(
     user: InsertUser,
     token: Vec<u8>,
     conn: &mut PooledConnection<ConnectionManager<PgConnection>>,
@@ -33,4 +32,11 @@ pub fn insert(
 
         Ok((inserted_user, inserted_user_token))
     })
+}
+
+pub fn update_user(
+    user: UpdateUser,
+    conn: &mut PooledConnection<ConnectionManager<PgConnection>>,
+) -> Result<User, Error> {
+    user.save_changes(conn)
 }
