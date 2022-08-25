@@ -13,6 +13,7 @@ argon2 = "0.4.1"
 color-eyre = "0.6.2"
 db = { path = "../db" }
 dotenv = "0.15.0"
+hex = "0.4.3"
 rand = { version = "0.8.5", features = ["getrandom"] }
 serde = { version = "1.0.143", features = ["derive"] }
 tokio = {version = "1.20.1", features = ["full"]}

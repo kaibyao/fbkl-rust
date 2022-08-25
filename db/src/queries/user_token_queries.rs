@@ -1,6 +1,6 @@
 use crate::{
     models::user_token_model::{TokenTypeEnum, UserToken},
-    schema::user_tokens::{dsl::user_tokens, token, token_type},
+    schema::user_tokens::{dsl::user_tokens, id, token, token_type},
 };
 use diesel::{
     prelude::*,
@@ -8,6 +8,13 @@ use diesel::{
     result::Error,
     PgConnection,
 };
+
+pub fn find_by_id(
+    id_param: i64,
+    conn: &mut PooledConnection<ConnectionManager<PgConnection>>,
+) -> Result<UserToken, Error> {
+    user_tokens.filter(id.eq(id_param)).first(conn)
+}
 
 pub fn find_by_token_and_type(
     token_param: Vec<u8>,

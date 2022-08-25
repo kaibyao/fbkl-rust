@@ -23,7 +23,6 @@ async fn main() -> Result<()> {
 
     info!("Starting fbkl/server on port 9001...");
 
-    // TODO: account confirmation
     // TODO: Save session ID to cookie on browser side (/login)
     // TODO: "Secure" cookie
     // TODO: break out user auth steps into its own crate
@@ -34,6 +33,7 @@ async fn main() -> Result<()> {
     // TODO: maybe break out user token generation into its own file + fn or even its own crate. or its own scheduled job.
     // TODO: Actual user confirmation.
     // TODO: Handle errors with actual HTTP status codes
+    // TODO: Check if user confirmation already happened
 
     match server.await {
         Ok(_) => Ok(()),

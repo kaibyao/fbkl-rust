@@ -100,8 +100,9 @@ pub async fn confirm_registration(
         return Ok(HttpResponse::BadRequest());
     }
 
-    let token_bytes = token.as_bytes().to_owned();
+    let token_bytes = hex::decode(token)?;
     let mut conn = pool.get()?;
+
     let user_token = user_token_queries::find_by_token_and_type(
         token_bytes,
         TokenTypeEnum::RegistrationConfirm,
