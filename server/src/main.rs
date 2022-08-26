@@ -8,7 +8,10 @@ use actix_session::{storage::CookieSessionStore, SessionMiddleware};
 use actix_web::{cookie::Key, dev::Server, middleware, web, App, HttpServer};
 use color_eyre::Result;
 use db::create_pool;
-use handlers::user_registration::{confirm_registration, process_registration, register};
+use handlers::{
+    login::login_page,
+    user_registration::{confirm_registration, process_registration, register},
+};
 use tracing::info;
 use tracing_subscriber::EnvFilter;
 
@@ -85,6 +88,7 @@ where
             .service(register)
             .service(process_registration)
             .service(confirm_registration)
+            .service(login_page)
     })
     .bind(("127.0.0.1", 9001))?
     .run();
