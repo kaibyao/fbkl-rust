@@ -28,6 +28,7 @@ pub async fn register() -> impl Responder {
         <form method="POST" action="/register">
             <input type="email" name="email" placeholder="Email">
             <input type="password" name="password">
+            <input type="password" name="confirm_password">
             <button type="submit">Submit</button>
         </form>
     </body>

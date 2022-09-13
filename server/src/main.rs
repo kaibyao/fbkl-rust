@@ -9,7 +9,7 @@ use actix_web::{cookie::Key, dev::Server, middleware, web, App, HttpServer};
 use color_eyre::Result;
 use db::create_pool;
 use handlers::{
-    login::login_page,
+    login::{attempt_login, login_page},
     user_registration::{confirm_registration, process_registration, register},
 };
 use tracing::info;
@@ -89,6 +89,7 @@ where
             .service(process_registration)
             .service(confirm_registration)
             .service(login_page)
+            .service(attempt_login)
     })
     .bind(("127.0.0.1", 9001))?
     .run();
