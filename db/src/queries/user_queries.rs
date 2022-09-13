@@ -3,14 +3,27 @@ use crate::{
         user_model::{InsertUser, UpdateUser, User},
         user_token_model::{InsertUserToken, TokenTypeEnum, UserToken},
     },
-    schema::{user_tokens, users},
+    schema::{
+        user_tokens,
+        users::{self, email},
+    },
 };
 use diesel::{
     insert_into,
+    prelude::*,
     r2d2::{ConnectionManager, PooledConnection},
     result::Error,
     Connection, Insertable, PgConnection, RunQueryDsl, SaveChangesDsl,
 };
+
+pub fn find_user_by_email(
+    email_param: String,
+    conn: &mut PooledConnection<ConnectionManager<PgConnection>>,
+) -> Result<User, Error> {
+    users::dsl::users
+        .filter(email.eq(email_param))
+        .first::<User>(conn)
+}
 
 /// Inserts a new user. Requires a token that's used for registration confirmation.
 pub fn insert_user(

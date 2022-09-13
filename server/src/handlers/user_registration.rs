@@ -13,6 +13,7 @@ use serde::Deserialize;
 pub struct RegistrationFormData {
     email: String,
     password: String,
+    confirm_password: String,
 }
 
 #[get("/register")]
@@ -43,6 +44,12 @@ pub async fn process_registration(
     form: web::Form<RegistrationFormData>,
     pool: web::Data<FbklPool>,
 ) -> Result<impl Responder, FbklError> {
+    if form.0.password != form.0.confirm_password {
+        return Ok(HttpResponse::BadRequest()
+            .reason("PASSWORDS_NOT_MATCHING")
+            .finish());
+    }
+
     let mut conn = pool.get()?;
 
     let mut token = [0u8; 16];
@@ -97,7 +104,9 @@ pub async fn confirm_registration(
 ) -> Result<impl Responder, FbklError> {
     let token = token_query.0.token.trim();
     if token.is_empty() {
-        return Ok(HttpResponse::BadRequest());
+        return Ok(HttpResponse::BadRequest()
+            .reason("REQUIRED_TOKEN_MISSING")
+            .finish());
     }
 
     let token_bytes = hex::decode(token)?;
@@ -119,5 +128,5 @@ pub async fn confirm_registration(
 
     user_queries::update_user(update_user, &mut conn)?;
 
-    Ok(HttpResponse::Ok())
+    Ok(HttpResponse::Ok().finish())
 }
