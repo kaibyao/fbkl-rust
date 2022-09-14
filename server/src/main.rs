@@ -28,15 +28,14 @@ async fn main() -> Result<()> {
 
     // TODO: Save session ID to cookie on browser side (/login)
     // TODO: "Secure" cookie
-    // TODO: break out user auth steps into its own crate
     // TODO: Switch from Actix to Axum
     // TODO: Separate out "public" from "application"
     // TODO: Get front-end build pipeline working
     // TODO: eventually convert to GraphQL, but let's just focus on shipping / making progress instead of codewriter's block.
-    // TODO: maybe break out user token generation into its own file + fn or even its own crate. or its own scheduled job.
-    // TODO: Actual user confirmation.
+    // TODO: login/registration needs validation (password length, email is correct, etc.)
     // TODO: Handle errors with actual HTTP status codes
     // TODO: Check if user confirmation already happened
+    // TODO: hook up user registration to sendgrid/similar.
 
     match server.await {
         Ok(_) => Ok(()),
