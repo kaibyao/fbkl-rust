@@ -1,6 +1,6 @@
 use crate::error::FbklError;
 use actix_web::{get, http::header::ContentType, post, web, HttpResponse, Responder};
-use fbkl_auth::{generate_password_hash, generate_token};
+use fbkl_auth::{decode_token, generate_password_hash, generate_token};
 use fbkl_db::{
     chrono::Utc,
     models::{
@@ -55,7 +55,7 @@ pub async fn process_registration(
     }
 
     let token = generate_token();
-    let password_hash = generate_password_hash(form.0.password)?;
+    let password_hash = generate_password_hash(&form.0.password)?;
 
     let insert_user = InsertUser {
         email: form.0.email,
@@ -106,7 +106,7 @@ pub async fn confirm_registration(
             .finish());
     }
 
-    let token_bytes = hex::decode(token)?;
+    let token_bytes = decode_token(token)?;
     let mut conn = pool.get()?;
 
     let user_token = user_token_queries::find_by_token_and_type(

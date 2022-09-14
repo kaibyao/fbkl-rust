@@ -1,10 +1,9 @@
 use std::fmt::Display;
 
 use actix_web::error::{Error as ActixError, ResponseError};
-use fbkl_auth::argon2::password_hash::Error as Argon2Error;
+use fbkl_auth::{argon2::password_hash::Error as Argon2Error, hex::FromHexError};
 use fbkl_db::diesel::r2d2::PoolError as R2D2Error;
 use fbkl_db::diesel::result::Error as DieselError;
-use hex::FromHexError;
 
 #[derive(Debug)]
 pub enum ErrorType {

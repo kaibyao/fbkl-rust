@@ -40,12 +40,11 @@ pub async fn attempt_login(
     pool: web::Data<FbklPool>,
 ) -> Result<impl Responder, FbklError> {
     let email = form.0.email;
-    let password = form.0.password;
 
     let mut conn = pool.get()?;
     let matching_user = user_queries::find_user_by_email(email, &mut conn)?;
 
-    verify_password_against_hash(password, matching_user.hashed_password)?;
+    verify_password_against_hash(&form.0.password, &matching_user.hashed_password)?;
 
     Ok(HttpResponse::Ok())
 }
