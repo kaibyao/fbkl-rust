@@ -1,12 +1,15 @@
 use crate::error::FbklError;
 use actix_web::{get, http::header::ContentType, post, web, HttpResponse, Responder};
-use argon2::{password_hash::SaltString, Argon2, PasswordHasher};
-use db::chrono::Utc;
-use db::models::user_model::UpdateUser;
-use db::models::user_token_model::TokenTypeEnum;
-use db::queries::user_token_queries;
-use db::{models::user_model::InsertUser, queries::user_queries, FbklPool};
-use rand::{rngs::OsRng, RngCore};
+use fbkl_auth::{generate_password_hash, generate_token};
+use fbkl_db::{
+    chrono::Utc,
+    models::{
+        user_model::{InsertUser, UpdateUser},
+        user_token_model::TokenTypeEnum,
+    },
+    queries::{user_queries, user_token_queries},
+    FbklPool,
+};
 use serde::Deserialize;
 
 #[derive(Debug, Deserialize)]
@@ -51,17 +54,8 @@ pub async fn process_registration(
             .finish());
     }
 
-    let mut conn = pool.get()?;
-
-    let mut token = [0u8; 16];
-    OsRng.fill_bytes(&mut token);
-
-    let password_bytes = form.0.password.as_bytes();
-    let salt = SaltString::generate(&mut OsRng);
-
-    let argon2 = Argon2::default();
-    // Hash password to PHC string ($argon2id$v=19$...)
-    let password_hash = argon2.hash_password(password_bytes, &salt)?.to_string();
+    let token = generate_token();
+    let password_hash = generate_password_hash(form.0.password)?;
 
     let insert_user = InsertUser {
         email: form.0.email,
@@ -69,6 +63,8 @@ pub async fn process_registration(
         confirmed_at: None,
         is_superadmin: false,
     };
+
+    let mut conn = pool.get()?;
     let (new_user, new_user_token) =
         user_queries::insert_user(insert_user, token.into_iter().collect(), &mut conn)?;
 

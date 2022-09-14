@@ -7,7 +7,7 @@ use actix_identity::IdentityMiddleware;
 use actix_session::{storage::CookieSessionStore, SessionMiddleware};
 use actix_web::{cookie::Key, dev::Server, middleware, web, App, HttpServer};
 use color_eyre::Result;
-use db::create_pool;
+use fbkl_db::create_pool;
 use handlers::{
     login::{attempt_login, login_page},
     user_registration::{confirm_registration, process_registration, register},
