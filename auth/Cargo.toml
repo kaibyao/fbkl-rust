@@ -9,3 +9,10 @@ edition = "2021"
 argon2 = "0.4.1"
 hex = "0.4.3"
 rand = { version = "0.8.5", features = ["getrandom"] }
+
+[dev-dependencies]
+criterion = "0.4"
+
+[[bench]]
+name = "benchmarks"
+harness = false
