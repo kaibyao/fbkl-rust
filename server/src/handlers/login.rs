@@ -46,5 +46,19 @@ pub async fn attempt_login(
 
     verify_password_against_hash(&form.0.password, &matching_user.hashed_password)?;
 
-    Ok(HttpResponse::Ok())
+    let html = r#"
+<!doctype html>
+<html>
+    <head>
+        <title>Login successful</title>
+    </head>
+    <body>
+        OK!
+    </body>
+</html>
+    "#;
+
+    Ok(HttpResponse::Ok()
+        .content_type(ContentType::html())
+        .body(html))
 }
