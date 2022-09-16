@@ -7,8 +7,10 @@ edition = "2021"
 
 [dependencies]
 actix-identity = "0.5.2"
-actix-session = {version = "0.7.1", features= ["cookie-session"]}
+actix-session = {version = "0.7.1", features = ["cookie-session"]}
 actix-web = "4.1.0"
+axum = {version = "0.6.0-rc.2"}
+axum-macros = "0.2.3"
 color-eyre = "0.6.2"
 dotenv = "0.15.0"
 fbkl-auth = { path = "../auth" }

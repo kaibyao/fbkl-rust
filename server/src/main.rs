@@ -2,18 +2,22 @@
 
 mod error;
 mod handlers;
+mod setup_actix_server;
 
-use actix_identity::IdentityMiddleware;
-use actix_session::{storage::CookieSessionStore, SessionMiddleware};
-use actix_web::{cookie::Key, dev::Server, middleware, web, App, HttpServer};
-use color_eyre::Result;
-use fbkl_db::create_pool;
-use handlers::{
-    login::{attempt_login, login_page},
-    user_registration::{confirm_registration, process_registration, register},
+use std::sync::Arc;
+
+use crate::handlers::user_registration_axum::{
+    confirm_registration, get_registration_page, process_registration,
 };
+use axum::{routing::get, Router};
+use color_eyre::Result;
+use fbkl_db::{create_pool, FbklPool};
 use tracing::info;
 use tracing_subscriber::EnvFilter;
+
+pub struct AppState {
+    pub db_pool: FbklPool,
+}
 
 #[tokio::main]
 async fn main() -> Result<()> {
@@ -21,8 +25,18 @@ async fn main() -> Result<()> {
 
     // DB connection pool
     let database_url = std::env::var("DATABASE_URL").expect("DATABASE_URL must be set");
+    let db_pool = create_pool(database_url);
 
-    let server = generate_server(database_url)?;
+    // let server = setup_actix_server::generate_server_actix(db_pool)?;
+
+    let shared_state = Arc::new(AppState { db_pool });
+    let app = Router::with_state(shared_state)
+        .route(
+            "/register",
+            get(get_registration_page).post(process_registration),
+        )
+        .route("/confirm_registration", get(confirm_registration));
+    let server = axum::Server::bind(&"127.0.0.1:9001".parse()?).serve(app.into_make_service());
 
     info!("Starting fbkl/server on port 9001...");
 
@@ -60,39 +74,4 @@ fn setup() -> Result<()> {
     dotenv::dotenv().ok();
 
     Ok(())
-}
-
-fn generate_server<S>(database_url: S) -> Result<Server>
-where
-    S: Into<String>,
-{
-    let pool = create_pool(database_url);
-
-    // session tokens
-    let secret_key = Key::generate();
-
-    let server = HttpServer::new(move || {
-        App::new()
-            .app_data(web::Data::new(pool.clone()))
-            // Install the identity framework
-            .wrap(IdentityMiddleware::default())
-            // The identity system is built on top of sessions. You must install the session
-            // middleware to leverage `actix-identity`. The session middleware must be mounted
-            // AFTER the identity middleware: `actix-web` invokes middleware in the OPPOSITE
-            // order of registration when it receives an incoming request.
-            .wrap(SessionMiddleware::new(
-                CookieSessionStore::default(),
-                secret_key.clone(),
-            ))
-            .wrap(middleware::Logger::default())
-            .service(register)
-            .service(process_registration)
-            .service(confirm_registration)
-            .service(login_page)
-            .service(attempt_login)
-    })
-    .bind(("127.0.0.1", 9001))?
-    .run();
-
-    Ok(server)
 }
