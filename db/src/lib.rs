@@ -1,6 +1,5 @@
-pub extern crate chrono;
-pub extern crate diesel;
-
+pub use chrono;
+pub use diesel;
 use diesel::{
     r2d2::{ConnectionManager, Pool},
     PgConnection,
@@ -22,11 +21,11 @@ where
         .expect("Failed to create pool.")
 }
 
-#[cfg(test)]
-mod tests {
-    #[test]
-    fn it_works() {
-        let result = 2 + 2;
-        assert_eq!(result, 4);
-    }
-}
+// #[cfg(test)]
+// mod tests {
+//     #[test]
+//     fn it_works() {
+//         let result = 2 + 2;
+//         assert_eq!(result, 4);
+//     }
+// }

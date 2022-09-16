@@ -12,3 +12,6 @@ Cargo.lock
 # Mac cruft
 .DS_Store
 .awcache
+
+# Project-wide
+.env

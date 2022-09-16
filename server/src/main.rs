@@ -6,6 +6,7 @@ mod server;
 
 use color_eyre::Result;
 use fbkl_db::{create_pool, FbklPool};
+// use migration::{Migrator, MigratorTrait};
 use tracing::info;
 use tracing_subscriber::EnvFilter;
 
