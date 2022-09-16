@@ -1,5 +1,11 @@
-use crate::error::FbklError;
-use actix_web::{get, http::header::ContentType, post, web, HttpResponse, Responder};
+use crate::{error::FbklError, AppState};
+use axum::{
+    body::Full,
+    extract::{Query, State},
+    http::StatusCode,
+    response::{Html, IntoResponse, Response},
+    Form,
+};
 use fbkl_auth::{decode_token, generate_password_hash, generate_token};
 use fbkl_db::{
     chrono::Utc,
@@ -8,20 +14,20 @@ use fbkl_db::{
         user_token_model::TokenTypeEnum,
     },
     queries::{user_queries, user_token_queries},
-    FbklPool,
 };
 use serde::Deserialize;
+use std::sync::Arc;
 
 #[derive(Debug, Deserialize)]
 pub struct RegistrationFormData {
-    email: String,
-    password: String,
-    confirm_password: String,
+    pub email: String,
+    pub password: String,
+    pub confirm_password: String,
 }
 
-#[get("/register")]
-pub async fn register() -> impl Responder {
-    let html = r#"
+pub async fn get_registration_page() -> Html<&'static str> {
+    Html(
+        r#"
 <!doctype html>
 <html>
     <head>
@@ -36,35 +42,33 @@ pub async fn register() -> impl Responder {
         </form>
     </body>
 </html>
-    "#;
-
-    HttpResponse::Ok()
-        .content_type(ContentType::html())
-        .body(html)
+    "#,
+    )
 }
 
-#[post("/register")]
 pub async fn process_registration(
-    form: web::Form<RegistrationFormData>,
-    pool: web::Data<FbklPool>,
-) -> Result<impl Responder, FbklError> {
-    if form.0.password != form.0.confirm_password {
-        return Ok(HttpResponse::BadRequest()
-            .reason("PASSWORDS_NOT_MATCHING")
-            .finish());
+    State(state): State<Arc<AppState>>,
+    Form(form): Form<RegistrationFormData>,
+) -> Result<Response, FbklError> {
+    if form.password != form.confirm_password {
+        let err_response = Response::builder()
+            .status(StatusCode::BAD_REQUEST)
+            .body(Full::from("PASSWORDS_NOT_MATCHING"))
+            .expect("PASSWORDS_NOT_MATCHING_STATUS");
+        return Ok(err_response.into_response());
     }
 
     let token = generate_token();
-    let password_hash = generate_password_hash(&form.0.password)?;
+    let password_hash = generate_password_hash(&form.password)?;
 
     let insert_user = InsertUser {
-        email: form.0.email,
+        email: form.email,
         hashed_password: password_hash,
         confirmed_at: None,
         is_superadmin: false,
     };
 
-    let mut conn = pool.get()?;
+    let mut conn = state.db_pool.get()?;
     let (new_user, new_user_token) =
         user_queries::insert_user(insert_user, token.into_iter().collect(), &mut conn)?;
 
@@ -84,9 +88,7 @@ pub async fn process_registration(
         new_user, new_user_token
     );
 
-    Ok(HttpResponse::Ok()
-        .content_type(ContentType::html())
-        .body(html))
+    Ok(Html(html).into_response())
 }
 
 #[derive(Deserialize)]
@@ -94,20 +96,21 @@ pub struct TokenQuery {
     token: String,
 }
 
-#[get("/confirm_registration")]
 pub async fn confirm_registration(
-    token_query: web::Query<TokenQuery>,
-    pool: web::Data<FbklPool>,
-) -> Result<impl Responder, FbklError> {
+    token_query: Query<TokenQuery>,
+    State(state): State<Arc<AppState>>,
+) -> Result<Response, FbklError> {
     let token = token_query.0.token.trim();
     if token.is_empty() {
-        return Ok(HttpResponse::BadRequest()
-            .reason("REQUIRED_TOKEN_MISSING")
-            .finish());
+        let err_response = Response::builder()
+            .status(StatusCode::BAD_REQUEST)
+            .body(Full::from("REQUIRED_TOKEN_MISSING"))
+            .expect("REQUIRED_TOKEN_MISSING_STATUS");
+        return Ok(err_response.into_response());
     }
 
     let token_bytes = decode_token(token)?;
-    let mut conn = pool.get()?;
+    let mut conn = state.db_pool.get()?;
 
     let user_token = user_token_queries::find_by_token_and_type(
         token_bytes,
@@ -125,5 +128,5 @@ pub async fn confirm_registration(
 
     user_queries::update_user(update_user, &mut conn)?;
 
-    Ok(HttpResponse::Ok().finish())
+    Ok(StatusCode::OK.into_response())
 }

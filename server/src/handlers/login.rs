@@ -1,9 +1,15 @@
-use actix_web::{get, http::header::ContentType, post, web, HttpResponse, Responder};
+use std::sync::Arc;
+
+use axum::{
+    extract::State,
+    response::{Html, IntoResponse, Response},
+    Form,
+};
 use fbkl_auth::verify_password_against_hash;
-use fbkl_db::{queries::user_queries, FbklPool};
+use fbkl_db::queries::user_queries;
 use serde::Deserialize;
 
-use crate::error::FbklError;
+use crate::{error::FbklError, AppState};
 
 #[derive(Debug, Deserialize)]
 pub struct LoginFormData {
@@ -11,8 +17,7 @@ pub struct LoginFormData {
     password: String,
 }
 
-#[get("/login")]
-pub async fn login_page() -> impl Responder {
+pub async fn login_page() -> Html<&'static str> {
     let html = r#"
 <!doctype html>
 <html>
@@ -29,22 +34,19 @@ pub async fn login_page() -> impl Responder {
 </html>
     "#;
 
-    HttpResponse::Ok()
-        .content_type(ContentType::html())
-        .body(html)
+    Html(html)
 }
 
-#[post("/login")]
-pub async fn attempt_login(
-    form: web::Form<LoginFormData>,
-    pool: web::Data<FbklPool>,
-) -> Result<impl Responder, FbklError> {
-    let email = form.0.email;
+pub async fn process_login(
+    State(state): State<Arc<AppState>>,
+    Form(form): Form<LoginFormData>,
+) -> Result<Response, FbklError> {
+    let email = form.email;
 
-    let mut conn = pool.get()?;
+    let mut conn = state.db_pool.get()?;
     let matching_user = user_queries::find_user_by_email(email, &mut conn)?;
 
-    verify_password_against_hash(&form.0.password, &matching_user.hashed_password)?;
+    verify_password_against_hash(&form.password, &matching_user.hashed_password)?;
 
     let html = r#"
 <!doctype html>
@@ -58,7 +60,5 @@ pub async fn attempt_login(
 </html>
     "#;
 
-    Ok(HttpResponse::Ok()
-        .content_type(ContentType::html())
-        .body(html))
+    Ok(Html(html).into_response())
 }

@@ -18,8 +18,8 @@ pub fn encode_token(token_bytes: &Vec<u8>) -> String {
 }
 
 /// Generates a token with high entropy. See [OWASP Session Management Cheat Sheet](https://cheatsheetseries.owasp.org/cheatsheets/Session_Management_Cheat_Sheet.html#session-id-length) for details.
-pub fn generate_token() -> [u8; 32] {
-    let mut token = [0u8; 32];
+pub fn generate_token() -> [u8; 64] {
+    let mut token = [0u8; 64];
     OsRng.fill_bytes(&mut token);
 
     token
@@ -74,7 +74,7 @@ mod tests {
     #[test]
     fn token_encoding() {
         let token = generate_token();
-        assert_eq!(token.len(), 32);
+        assert_eq!(token.len(), 64);
 
         let token_owned = token.into_iter().collect::<Vec<u8>>();
         let encoded_token = encode_token(&token_owned);
