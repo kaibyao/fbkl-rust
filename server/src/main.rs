@@ -23,8 +23,7 @@ async fn main() -> Result<()> {
 
     info!("Starting fbkl/server on port 9001...");
 
-    // TODO: Base Entity query functions
-    // TODO: auto-updating updated_at columns
+    // TODO: auto-updating updated_at columns + remove Diesel
     // TODO: Save session ID to cookie on browser side (/login) + DB using https://docs.rs/async-sqlx-session/0.4.0/async_sqlx_session/struct.PostgresSessionStore.html
     // TODO: "Secure" + "HttpOnly" cookie attributes
     // TODO: Separate out "public" from "application"

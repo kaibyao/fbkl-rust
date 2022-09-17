@@ -12,7 +12,7 @@ use fbkl_entity::{
     user_registration::{self, UserRegistrationStatus},
     user_registration_queries,
 };
-use migration::sea_orm::{ActiveValue::NotSet, Set};
+use migration::sea_orm::{ActiveModelTrait, ActiveValue::NotSet, Set};
 use serde::Deserialize;
 use std::sync::Arc;
 
@@ -123,7 +123,7 @@ pub async fn confirm_registration(
         };
 
     found_user_registration.status = Set(UserRegistrationStatus::Confirmed);
-    user_registration_queries::update_user_registration(found_user_registration, &state.db).await?;
+    found_user_registration.update(&state.db).await?;
 
     Ok(StatusCode::OK.into_response())
 }

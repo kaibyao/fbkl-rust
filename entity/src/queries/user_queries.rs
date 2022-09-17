@@ -1,4 +1,4 @@
-use crate::{entities, user_registration_queries::insert_user_registration};
+use crate::entities;
 use entities::{user, user_registration};
 use sea_orm::{
     ActiveModelTrait, ColumnTrait, ConnectionTrait, DbErr, EntityTrait, QueryFilter, Set,
@@ -17,14 +17,12 @@ where
     let transaction = conn.begin().await?;
 
     let inserted_user = user_to_insert.insert(&transaction).await?;
-    let inserted_user_registration = insert_user_registration(
-        user_registration::ActiveModel {
-            user_id: Set(inserted_user.id),
-            token: Set(token),
-            ..Default::default()
-        },
-        &transaction,
-    )
+    let inserted_user_registration = user_registration::ActiveModel {
+        user_id: Set(inserted_user.id),
+        token: Set(token),
+        ..Default::default()
+    }
+    .insert(&transaction)
     .await?;
 
     transaction.commit().await?;
