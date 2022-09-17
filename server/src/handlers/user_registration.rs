@@ -7,14 +7,12 @@ use axum::{
     Form,
 };
 use fbkl_auth::{decode_token, generate_password_hash, generate_token};
-use fbkl_db::{
-    chrono::Utc,
-    models::{
-        user_model::{InsertUser, UpdateUser},
-        user_token_model::TokenTypeEnum,
-    },
-    queries::{user_queries, user_token_queries},
+use fbkl_entity::{
+    user, user_queries,
+    user_registration::{self, UserRegistrationStatus},
+    user_registration_queries,
 };
+use migration::sea_orm::{ActiveValue::NotSet, Set};
 use serde::Deserialize;
 use std::sync::Arc;
 
@@ -59,18 +57,19 @@ pub async fn process_registration(
     }
 
     let token = generate_token();
-    let password_hash = generate_password_hash(&form.password)?;
+    let hashed_password = generate_password_hash(&form.password)?;
 
-    let insert_user = InsertUser {
-        email: form.email,
-        hashed_password: password_hash,
-        confirmed_at: None,
-        is_superadmin: false,
-    };
-
-    let mut conn = state.db_pool.get()?;
-    let (new_user, new_user_token) =
-        user_queries::insert_user(insert_user, token.into_iter().collect(), &mut conn)?;
+    let (new_user, new_user_token) = user_queries::insert_user(
+        user::ActiveModel {
+            id: NotSet,
+            email: Set(form.email),
+            hashed_password: Set(hashed_password),
+            ..Default::default()
+        },
+        token.into_iter().collect(),
+        &state.db,
+    )
+    .await?;
 
     let html = format!(
         r#"
@@ -104,29 +103,27 @@ pub async fn confirm_registration(
     if token.is_empty() {
         let err_response = Response::builder()
             .status(StatusCode::BAD_REQUEST)
-            .body(Full::from("REQUIRED_TOKEN_MISSING"))
-            .expect("REQUIRED_TOKEN_MISSING_STATUS");
+            .body(Full::from("REQUIRED_TOKEN_MISSING"))?;
         return Ok(err_response.into_response());
     }
 
     let token_bytes = decode_token(token)?;
-    let mut conn = state.db_pool.get()?;
 
-    let user_token = user_token_queries::find_by_token_and_type(
-        token_bytes,
-        TokenTypeEnum::RegistrationConfirm,
-        &mut conn,
-    )?;
+    let mut found_user_registration: user_registration::ActiveModel =
+        match user_registration_queries::find_user_registration_by_token(token_bytes, &state.db)
+            .await?
+        {
+            Some(user_registration) => user_registration.into(),
+            None => {
+                let err_response = Response::builder()
+                    .status(StatusCode::NOT_FOUND)
+                    .body(Full::from("USER_REGISTRATION_NOT_FOUND"))?;
+                return Ok(err_response.into_response());
+            }
+        };
 
-    let update_user = UpdateUser {
-        id: user_token.user_id,
-        confirmed_at: Some(Some(Utc::now())),
-        email: None,
-        hashed_password: None,
-        is_superadmin: None,
-    };
-
-    user_queries::update_user(update_user, &mut conn)?;
+    found_user_registration.status = Set(UserRegistrationStatus::Confirmed);
+    user_registration_queries::update_user_registration(found_user_registration, &state.db).await?;
 
     Ok(StatusCode::OK.into_response())
 }

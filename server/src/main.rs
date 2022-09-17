@@ -5,13 +5,15 @@ mod handlers;
 mod server;
 
 use color_eyre::Result;
-use fbkl_db::{create_pool, FbklPool};
-// use migration::{Migrator, MigratorTrait};
+use migration::{
+    sea_orm::{Database, DatabaseConnection},
+    Migrator, MigratorTrait,
+};
 use tracing::info;
 use tracing_subscriber::EnvFilter;
 
 pub struct AppState {
-    pub db_pool: FbklPool,
+    pub db: DatabaseConnection,
 }
 
 #[tokio::main]
@@ -20,14 +22,17 @@ async fn main() -> Result<()> {
 
     // DB connection pool
     let database_url = std::env::var("DATABASE_URL").expect("DATABASE_URL must be set");
-    let db_pool = create_pool(database_url);
+    let db_connection = Database::connect(&database_url).await?;
+    Migrator::up(&db_connection, None).await?;
 
-    let app = server::generate_server(db_pool);
+    let app = server::generate_server(db_connection);
     let server = axum::Server::bind(&"127.0.0.1:9001".parse()?).serve(app.into_make_service());
 
     info!("Starting fbkl/server on port 9001...");
 
-    // TODO: Switch from Diesel to SeaORM
+    // TODO: Unwrap FbklError
+    // TODO: Base Entity query functions
+    // TODO: auto-updating updated_at columns
     // TODO: Save session ID to cookie on browser side (/login) + DB using https://docs.rs/async-sqlx-session/0.4.0/async_sqlx_session/struct.PostgresSessionStore.html
     // TODO: "Secure" + "HttpOnly" cookie attributes
     // TODO: Separate out "public" from "application"

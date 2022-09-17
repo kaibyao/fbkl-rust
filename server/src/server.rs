@@ -3,7 +3,7 @@ use std::sync::Arc;
 use axum::{routing::get, Router};
 use axum_sessions::{async_session::MemoryStore, SessionLayer};
 use fbkl_auth::generate_token;
-use fbkl_db::FbklPool;
+use migration::sea_orm::DatabaseConnection;
 use tower_cookies::CookieManagerLayer;
 
 use crate::{
@@ -14,8 +14,8 @@ use crate::{
     AppState,
 };
 
-pub fn generate_server(db_pool: FbklPool) -> Router<Arc<AppState>> {
-    let shared_state = Arc::new(AppState { db_pool });
+pub fn generate_server(db: DatabaseConnection) -> Router<Arc<AppState>> {
+    let shared_state = Arc::new(AppState { db });
 
     // sessions
     let session_store = MemoryStore::new();

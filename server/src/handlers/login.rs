@@ -1,13 +1,14 @@
-use std::sync::Arc;
-
 use axum::{
+    body::Full,
     extract::State,
+    http::StatusCode,
     response::{Html, IntoResponse, Response},
     Form,
 };
 use fbkl_auth::verify_password_against_hash;
-use fbkl_db::queries::user_queries;
+use fbkl_entity::user_queries;
 use serde::Deserialize;
+use std::sync::Arc;
 
 use crate::{error::FbklError, AppState};
 
@@ -43,8 +44,15 @@ pub async fn process_login(
 ) -> Result<Response, FbklError> {
     let email = form.email;
 
-    let mut conn = state.db_pool.get()?;
-    let matching_user = user_queries::find_user_by_email(email, &mut conn)?;
+    let matching_user = match user_queries::find_user_by_email(&email, &state.db).await? {
+        Some(matching_user) => matching_user,
+        None => {
+            let err_response = Response::builder()
+                .status(StatusCode::NOT_FOUND)
+                .body(Full::from("USER_NOT_FOUND"))?;
+            return Ok(err_response.into_response());
+        }
+    };
 
     verify_password_against_hash(&form.password, &matching_user.hashed_password)?;
 

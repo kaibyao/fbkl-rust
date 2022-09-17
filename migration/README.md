@@ -1,5 +1,15 @@
 # Running Migrator CLI
 
+## Steps to creating a new database table
+
+1. Create your migration file: `sea-orm-cli migrate generate <name_of_your_migration>`.
+2. Update your migration file code.
+3. Run your migration: `sea-orm-cli migrate up`.
+4. Generate your entity file: `sea-orm-cli generate entity -o entity/src/entities --tables <table_name> --with-serde both`. **IT IS IMPORTANT THAT YOU INCLUDE `--tables <table_name>` or else you will override all custom changes to existing entity files.**
+5. If your new table has an `id` column, you probably don't want the application to be able to overwrite that column. Add the `#[serde(skip_deserializing)]` macro above the column definition. See `entities/user.rs` for example.
+
+## Commands
+
 - Generate a new migration file
     ```sh
     cargo run -- migrate generate MIGRATION_NAME
