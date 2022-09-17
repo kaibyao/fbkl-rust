@@ -10,7 +10,7 @@ use fbkl_entity::user_queries;
 use serde::Deserialize;
 use std::sync::Arc;
 
-use crate::{error::FbklError, AppState};
+use crate::{error::FbklError, server::AppState};
 
 #[derive(Debug, Deserialize)]
 pub struct LoginFormData {

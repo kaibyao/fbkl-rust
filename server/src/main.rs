@@ -5,16 +5,9 @@ mod handlers;
 mod server;
 
 use color_eyre::Result;
-use migration::{
-    sea_orm::{Database, DatabaseConnection},
-    Migrator, MigratorTrait,
-};
+use migration::{sea_orm::Database, Migrator, MigratorTrait};
 use tracing::info;
 use tracing_subscriber::EnvFilter;
-
-pub struct AppState {
-    pub db: DatabaseConnection,
-}
 
 #[tokio::main]
 async fn main() -> Result<()> {

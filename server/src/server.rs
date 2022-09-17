@@ -6,13 +6,14 @@ use fbkl_auth::generate_token;
 use migration::sea_orm::DatabaseConnection;
 use tower_cookies::CookieManagerLayer;
 
-use crate::{
-    handlers::{
-        login::{login_page, process_login},
-        user_registration::{confirm_registration, get_registration_page, process_registration},
-    },
-    AppState,
+use crate::handlers::{
+    login::{login_page, process_login},
+    user_registration::{confirm_registration, get_registration_page, process_registration},
 };
+
+pub struct AppState {
+    pub db: DatabaseConnection,
+}
 
 pub fn generate_server(db: DatabaseConnection) -> Router<Arc<AppState>> {
     let shared_state = Arc::new(AppState { db });

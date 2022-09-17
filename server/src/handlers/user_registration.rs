@@ -1,4 +1,4 @@
-use crate::{error::FbklError, AppState};
+use crate::{error::FbklError, server::AppState};
 use axum::{
     body::Full,
     extract::{Query, State},
