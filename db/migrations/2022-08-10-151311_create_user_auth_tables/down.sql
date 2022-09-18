@@ -1,9 +1,0 @@
-DROP INDEX IF EXISTS user_tokens_user_ids CASCADE;
-
-DROP TABLE IF EXISTS user_tokens CASCADE;
-
-DROP TYPE IF EXISTS token_type_enum;
-
-DROP INDEX IF EXISTS users_unique_email CASCADE;
-
-DROP TABLE IF EXISTS users CASCADE;

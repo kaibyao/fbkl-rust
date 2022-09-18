@@ -12,7 +12,6 @@ axum-sessions = "0.3.1"
 color-eyre = "0.6.2"
 dotenv = "0.15.0"
 fbkl-auth = { path = "../auth" }
-fbkl-db = { path = "../db" }
 fbkl-entity = { path = "../entity" }
 fbkl-migration = { path = "../migration" }
 serde = { version = "1.0.143", features = ["derive"] }
