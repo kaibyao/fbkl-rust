@@ -1,7 +1,11 @@
 use std::sync::Arc;
 
+use async_sea_orm_session::{
+    prelude::Migrator as SessionMigrator, prelude::MigratorTrait, DatabaseSessionStore,
+};
 use axum::{routing::get, Router};
-use axum_sessions::{async_session::MemoryStore, SessionLayer};
+use axum_sessions::{SameSite, SessionLayer};
+use color_eyre::Result;
 use fbkl_auth::generate_token;
 use fbkl_entity::sea_orm::DatabaseConnection;
 use tower_cookies::CookieManagerLayer;
@@ -15,15 +19,20 @@ pub struct AppState {
     pub db: DatabaseConnection,
 }
 
-pub fn generate_server(db: DatabaseConnection) -> Router<Arc<AppState>> {
+pub async fn generate_server(db: DatabaseConnection) -> Result<Router<Arc<AppState>>> {
     let shared_state = Arc::new(AppState { db });
 
     // sessions
-    let session_store = MemoryStore::new();
+    let session_store = DatabaseSessionStore::new(shared_state.db.clone());
     let secret = generate_token();
-    let session_layer = SessionLayer::new(session_store, &secret);
+    let session_layer = SessionLayer::new(session_store, &secret)
+        .with_cookie_name("fbkl_id")
+        .with_same_site_policy(SameSite::Strict)
+        .with_secure(true);
 
-    Router::with_state(shared_state)
+    SessionMigrator::up(&shared_state.db, None).await?;
+
+    Ok(Router::with_state(shared_state)
         .route(
             "/register",
             get(get_registration_page).post(process_registration),
@@ -33,5 +42,5 @@ pub fn generate_server(db: DatabaseConnection) -> Router<Arc<AppState>> {
 
         // Layers only apply to routes preceding them. Make sure layers are applied after all routes.
         .layer(session_layer)
-        .layer(CookieManagerLayer::new())
+        .layer(CookieManagerLayer::new()))
 }

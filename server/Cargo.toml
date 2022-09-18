@@ -6,6 +6,7 @@ edition = "2021"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
+async-sea-orm-session = { git = "https://github.com/dcchut/async-sea-orm-session", rev = "aa800f0b417c3a711ba4aac2453ff8040bd7e506" }
 axum = {version = "0.6.0-rc.2"}
 axum-macros = "0.2.3"
 axum-sessions = "0.3.1"
@@ -13,7 +14,6 @@ color-eyre = "0.6.2"
 dotenv = "0.15.0"
 fbkl-auth = { path = "../auth" }
 fbkl-entity = { path = "../entity" }
-fbkl-migration = { path = "../migration" }
 serde = { version = "1.0.143", features = ["derive"] }
 tokio = {version = "1.20.1", features = ["full"]}
 tower-cookies = "0.7.0"

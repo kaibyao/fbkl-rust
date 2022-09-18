@@ -6,7 +6,6 @@ mod server;
 
 use color_eyre::Result;
 use fbkl_entity::sea_orm::Database;
-use migration::{Migrator, MigratorTrait};
 use tracing::info;
 use tracing_subscriber::EnvFilter;
 
@@ -17,9 +16,8 @@ async fn main() -> Result<()> {
     // DB connection pool
     let database_url = std::env::var("DATABASE_URL").expect("DATABASE_URL must be set");
     let db_connection = Database::connect(&database_url).await?;
-    Migrator::up(&db_connection, None).await?;
 
-    let app = server::generate_server(db_connection);
+    let app = server::generate_server(db_connection).await?;
     let server = axum::Server::bind(&"127.0.0.1:9001".parse()?).serve(app.into_make_service());
 
     info!("Starting fbkl/server on port 9001...");
