@@ -19,6 +19,3 @@ tokio = {version = "1.20.1", features = ["full"]}
 tower-cookies = "0.7.0"
 tracing = "0.1.36"
 tracing-subscriber = { version = "0.3.15", features = ["env-filter", "fmt"] }
-
-[target.aarch64-apple-darwin]
-rustflags = '-L /opt/homebrew/opt/libpq/lib -L /opt/homebrew/lib'

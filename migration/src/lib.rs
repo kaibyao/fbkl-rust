@@ -1,5 +1,9 @@
-pub use sea_orm_migration::prelude::*;
-use sea_orm_migration::sea_orm::{ConnectionTrait, DatabaseBackend, Statement};
+pub use sea_orm_migration::MigratorTrait;
+use sea_orm_migration::{
+    async_trait,
+    sea_orm::{ConnectionTrait, DatabaseBackend, Statement},
+    DbErr, MigrationTrait, SchemaManager,
+};
 
 mod m20220916_131201_create_auto_updated_at_fn;
 mod m20220916_131202_create_user_table;

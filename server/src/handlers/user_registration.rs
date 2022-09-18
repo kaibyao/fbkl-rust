@@ -8,11 +8,11 @@ use axum::{
 };
 use fbkl_auth::{decode_token, generate_password_hash, generate_token};
 use fbkl_entity::{
+    sea_orm::{ActiveModelTrait, ActiveValue::NotSet, Set},
     user, user_queries,
     user_registration::{self, UserRegistrationStatus},
     user_registration_queries,
 };
-use migration::sea_orm::{ActiveModelTrait, ActiveValue::NotSet, Set};
 use serde::Deserialize;
 use std::sync::Arc;
 

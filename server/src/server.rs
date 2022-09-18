@@ -3,7 +3,7 @@ use std::sync::Arc;
 use axum::{routing::get, Router};
 use axum_sessions::{async_session::MemoryStore, SessionLayer};
 use fbkl_auth::generate_token;
-use migration::sea_orm::DatabaseConnection;
+use fbkl_entity::sea_orm::DatabaseConnection;
 use tower_cookies::CookieManagerLayer;
 
 use crate::handlers::{

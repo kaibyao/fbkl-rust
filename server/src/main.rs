@@ -5,7 +5,8 @@ mod handlers;
 mod server;
 
 use color_eyre::Result;
-use migration::{sea_orm::Database, Migrator, MigratorTrait};
+use fbkl_entity::sea_orm::Database;
+use migration::{Migrator, MigratorTrait};
 use tracing::info;
 use tracing_subscriber::EnvFilter;
 
@@ -23,7 +24,6 @@ async fn main() -> Result<()> {
 
     info!("Starting fbkl/server on port 9001...");
 
-    // TODO: remove migration depencency in /server
     // TODO: Save session ID to cookie on browser side (/login) + DB using https://docs.rs/async-sqlx-session/0.4.0/async_sqlx_session/struct.PostgresSessionStore.html
     // TODO: "Secure" + "HttpOnly" cookie attributes
     // TODO: Separate out "public" from "application"
