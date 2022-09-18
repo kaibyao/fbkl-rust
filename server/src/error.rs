@@ -2,7 +2,7 @@ use axum::http::Error as AxumError;
 use axum::http::StatusCode;
 use axum::response::{IntoResponse, Response};
 use fbkl_auth::{argon2::password_hash::Error as Argon2Error, hex::FromHexError};
-use migration::DbErr;
+use fbkl_entity::sea_orm::DbErr;
 use std::error::Error;
 use std::fmt::Display;
 

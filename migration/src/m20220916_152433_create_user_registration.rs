@@ -1,6 +1,6 @@
 use sea_orm_migration::prelude::*;
 
-use crate::m20220916_131202_create_user_table::User;
+use crate::{m20220916_131202_create_user_table::User, set_auto_updated_at_on_table};
 
 #[derive(DeriveMigrationName)]
 pub struct Migration;
@@ -47,6 +47,8 @@ impl MigrationTrait for Migration {
                     .to_owned(),
             )
             .await?;
+
+        set_auto_updated_at_on_table(manager, UserRegistration::Table.to_string()).await?;
 
         manager
             .create_foreign_key(

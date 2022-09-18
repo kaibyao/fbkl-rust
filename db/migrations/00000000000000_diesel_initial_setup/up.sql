@@ -14,16 +14,16 @@
 -- ```sql
 -- CREATE TABLE users (id SERIAL PRIMARY KEY, updated_at TIMESTAMP NOT NULL DEFAULT NOW());
 --
--- SELECT diesel_manage_updated_at('users');
+-- SELECT set_auto_updated_at_on_table('users');
 -- ```
-CREATE OR REPLACE FUNCTION diesel_manage_updated_at(_tbl regclass) RETURNS VOID AS $$
+CREATE OR REPLACE FUNCTION set_auto_updated_at_on_table(_tbl regclass) RETURNS VOID AS $$
 BEGIN
     EXECUTE format('CREATE TRIGGER set_updated_at BEFORE UPDATE ON %s
-                    FOR EACH ROW EXECUTE PROCEDURE diesel_set_updated_at()', _tbl);
+                    FOR EACH ROW EXECUTE PROCEDURE on_update_set_updated_at()', _tbl);
 END;
 $$ LANGUAGE plpgsql;
 
-CREATE OR REPLACE FUNCTION diesel_set_updated_at() RETURNS trigger AS $$
+CREATE OR REPLACE FUNCTION on_update_set_updated_at() RETURNS trigger AS $$
 BEGIN
     IF (
         NEW IS DISTINCT FROM OLD AND

@@ -1,5 +1,7 @@
 use sea_orm_migration::prelude::*;
 
+use crate::set_auto_updated_at_on_table;
+
 #[derive(DeriveMigrationName)]
 pub struct Migration;
 
@@ -41,6 +43,8 @@ impl MigrationTrait for Migration {
                     .to_owned(),
             )
             .await?;
+
+        set_auto_updated_at_on_table(manager, User::Table.to_string()).await?;
 
         manager
             .create_index(
