@@ -1,8 +1,6 @@
 use std::sync::Arc;
 
-use async_sea_orm_session::{
-    prelude::Migrator as SessionMigrator, prelude::MigratorTrait, DatabaseSessionStore,
-};
+use async_sea_orm_session::DatabaseSessionStore;
 use axum::{routing::get, Router};
 use axum_sessions::{SameSite, SessionLayer};
 use color_eyre::Result;
@@ -29,8 +27,6 @@ pub async fn generate_server(db: DatabaseConnection) -> Result<Router<Arc<AppSta
         .with_cookie_name("fbkl_id")
         .with_same_site_policy(SameSite::Strict)
         .with_secure(true);
-
-    SessionMigrator::up(&shared_state.db, None).await?;
 
     Ok(Router::with_state(shared_state)
         .route(
