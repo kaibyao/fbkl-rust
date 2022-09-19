@@ -9,7 +9,7 @@ use fbkl_entity::sea_orm::DatabaseConnection;
 use tower_cookies::CookieManagerLayer;
 
 use crate::handlers::{
-    login::{login_page, process_login},
+    login::{login_page, logout, process_login},
     user_registration::{confirm_registration, get_registration_page, process_registration},
 };
 
@@ -35,6 +35,7 @@ pub async fn generate_server(db: DatabaseConnection) -> Result<Router<Arc<AppSta
         )
         .route("/confirm_registration", get(confirm_registration))
         .route("/login", get(login_page).post(process_login))
+        .route("/logout", get(logout))
 
         // Layers only apply to routes preceding them. Make sure layers are applied after all routes.
         .layer(session_layer)

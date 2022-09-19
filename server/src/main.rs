@@ -22,9 +22,7 @@ async fn main() -> Result<()> {
 
     info!("Starting fbkl/server on port 9001...");
 
-    // TODO: Save session ID to cookie on browser side (/login) + DB using https://docs.rs/async-sqlx-session/0.4.0/async_sqlx_session/struct.PostgresSessionStore.html
-    // TODO: "Secure" + "HttpOnly" cookie attributes
-    // TODO: Separate out "public" from "application"
+    // TODO: Separate out "public" from "application". Probably requires middleware to require user to be logged in.
     // TODO: Get front-end build pipeline working
     // TODO: eventually convert to GraphQL, but let's just focus on shipping / making progress instead of codewriter's block.
     // TODO: login/registration needs validation (password length, email is correct, etc.)

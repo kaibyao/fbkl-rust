@@ -1,7 +1,3 @@
-use async_sea_orm_session::{
-    prelude::{Session, SessionStore},
-    DatabaseSessionStore,
-};
 use axum::{
     body::Full,
     extract::State,
@@ -9,12 +5,11 @@ use axum::{
     response::{Html, IntoResponse, Response},
     Form,
 };
-use axum_sessions::{extractors::WritableSession, SameSite};
+use axum_sessions::extractors::WritableSession;
 use fbkl_auth::verify_password_against_hash;
 use fbkl_entity::user_queries;
 use serde::Deserialize;
-use std::sync::Arc;
-use tower_cookies::{Cookie, Cookies};
+use std::{sync::Arc, time::Duration};
 
 use crate::{error::FbklError, server::AppState};
 
@@ -46,8 +41,8 @@ pub async fn login_page() -> Html<&'static str> {
 
 pub async fn process_login(
     State(state): State<Arc<AppState>>,
-    Form(form): Form<LoginFormData>,
     mut session: WritableSession,
+    Form(form): Form<LoginFormData>,
     // cookies: Cookies,
 ) -> Result<Response, FbklError> {
     let email = form.email;
@@ -65,13 +60,8 @@ pub async fn process_login(
     verify_password_against_hash(&form.password, &matching_user.hashed_password)?;
 
     // create session
+    session.expire_in(Duration::from_secs(90 * 24 * 60 * 60)); // 90 days
     session.insert("user_id", matching_user.id)?;
-    // create new cookie with token
-    // let mut cookie = Cookie::new("fbkl_id", session.id().to_string());
-    // cookie.set_http_only(true);
-    // cookie.set_secure(true);
-    // cookie.set_same_site(SameSite::Strict);
-    // cookies.add(cookie);
 
     let html = r#"
 <!doctype html>
@@ -86,4 +76,10 @@ pub async fn process_login(
     "#;
 
     Ok(Html(html).into_response())
+}
+
+pub async fn logout(mut session: WritableSession) -> Result<Response, FbklError> {
+    session.destroy();
+
+    Ok(StatusCode::OK.into_response())
 }
