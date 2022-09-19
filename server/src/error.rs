@@ -16,6 +16,7 @@ pub enum FbklError {
     Json(JsonError),
     PasswordHasher(Argon2Error),
     Session(SessionError),
+    StatusCode(StatusCode),
 }
 
 impl Display for FbklError {
@@ -27,6 +28,7 @@ impl Display for FbklError {
             Self::Json(err) => write!(fmt, "{}", err),
             Self::PasswordHasher(err) => write!(fmt, "{}", err),
             Self::Session(err) => write!(fmt, "{}", err),
+            Self::StatusCode(err) => write!(fmt, "{}", err),
         }
     }
 }
@@ -69,6 +71,12 @@ impl From<SessionError> for FbklError {
     }
 }
 
+impl From<StatusCode> for FbklError {
+    fn from(err: StatusCode) -> Self {
+        FbklError::StatusCode(err)
+    }
+}
+
 impl IntoResponse for FbklError {
     fn into_response(self) -> Response {
         let body = match self {
@@ -89,6 +97,9 @@ impl IntoResponse for FbklError {
             }
             Self::Session(err) => {
                 format!("Couldn't retrieve/store user session: {:?}", err)
+            }
+            Self::StatusCode(err) => {
+                return err.into_response();
             }
         };
 
