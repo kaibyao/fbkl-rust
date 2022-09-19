@@ -1,6 +1,8 @@
-use axum::http::Error as AxumError;
-use axum::http::StatusCode;
-use axum::response::{IntoResponse, Response};
+use axum::{
+    http::{Error as AxumError, StatusCode},
+    response::{IntoResponse, Response},
+};
+use axum_sessions::async_session::{serde_json::Error as JsonError, Error as SessionError};
 use fbkl_auth::{argon2::password_hash::Error as Argon2Error, hex::FromHexError};
 use fbkl_entity::sea_orm::DbErr;
 use std::error::Error;
@@ -11,16 +13,20 @@ pub enum FbklError {
     Axum(AxumError),
     Db(DbErr),
     HexStringConversion(FromHexError),
+    Json(JsonError),
     PasswordHasher(Argon2Error),
+    Session(SessionError),
 }
 
 impl Display for FbklError {
     fn fmt(&self, fmt: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            Self::Axum(axum_error) => write!(fmt, "{}", axum_error),
-            Self::Db(db_err) => write!(fmt, "{}", db_err),
-            Self::HexStringConversion(hex_error) => write!(fmt, "{}", hex_error),
-            Self::PasswordHasher(argon2_error) => write!(fmt, "{}", argon2_error),
+            Self::Axum(err) => write!(fmt, "{}", err),
+            Self::Db(err) => write!(fmt, "{}", err),
+            Self::HexStringConversion(err) => write!(fmt, "{}", err),
+            Self::Json(err) => write!(fmt, "{}", err),
+            Self::PasswordHasher(err) => write!(fmt, "{}", err),
+            Self::Session(err) => write!(fmt, "{}", err),
         }
     }
 }
@@ -45,26 +51,44 @@ impl From<FromHexError> for FbklError {
     }
 }
 
+impl From<JsonError> for FbklError {
+    fn from(err: JsonError) -> Self {
+        FbklError::Json(err)
+    }
+}
+
 impl From<Argon2Error> for FbklError {
     fn from(err: Argon2Error) -> Self {
         FbklError::PasswordHasher(err)
     }
 }
 
+impl From<SessionError> for FbklError {
+    fn from(err: SessionError) -> Self {
+        FbklError::Session(err)
+    }
+}
+
 impl IntoResponse for FbklError {
     fn into_response(self) -> Response {
         let body = match self {
-            Self::Axum(axum_error) => {
-                format!("Web server encountered an error: {:?}", axum_error)
+            Self::Axum(err) => {
+                format!("Web server encountered an error: {:?}", err)
             }
-            Self::Db(db_error) => {
-                format!("Database connection encountered an error: {:?}", db_error)
+            Self::Db(err) => {
+                format!("Database connection encountered an error: {:?}", err)
             }
-            Self::HexStringConversion(hex_error) => {
-                format!("Tokenization encountered an error: {:?}", hex_error)
+            Self::HexStringConversion(err) => {
+                format!("Tokenization encountered an error: {:?}", err)
             }
-            Self::PasswordHasher(argon2_error) => {
-                format!("Password hasher encountered an error: {:?}", argon2_error)
+            Self::Json(err) => {
+                format!("JSON0 conversion encountered an error: {:?}", err)
+            }
+            Self::PasswordHasher(err) => {
+                format!("Password hasher encountered an error: {:?}", err)
+            }
+            Self::Session(err) => {
+                format!("Couldn't retrieve/store user session: {:?}", err)
             }
         };
 
