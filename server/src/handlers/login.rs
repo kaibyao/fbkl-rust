@@ -43,7 +43,6 @@ pub async fn process_login(
     State(state): State<Arc<AppState>>,
     mut session: WritableSession,
     Form(form): Form<LoginFormData>,
-    // cookies: Cookies,
 ) -> Result<Response, FbklError> {
     let email = form.email;
 

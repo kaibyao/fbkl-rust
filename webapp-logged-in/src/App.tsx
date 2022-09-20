@@ -1,4 +1,3 @@
-import "@logged-in/src/App.css";
 import { ApolloClient, ApolloProvider, InMemoryCache } from "@apollo/client";
 import { AppRoutes } from "@logged-in/src/AppRoutes";
 import { FunctionComponent } from "react";

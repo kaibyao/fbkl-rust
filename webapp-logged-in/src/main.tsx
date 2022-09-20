@@ -1,4 +1,5 @@
 import "@fontsource/open-sans";
+import "@logged-in/src/App.css";
 import "@logged-in/src/preload-polyfill";
 import * as React from "react";
 import { App } from "@logged-in/src/App";

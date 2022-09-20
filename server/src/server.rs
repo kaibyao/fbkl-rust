@@ -1,4 +1,4 @@
-use std::sync::Arc;
+use std::{sync::Arc, time::Duration};
 
 use async_sea_orm_session::DatabaseSessionStore;
 use axum::{http::StatusCode, routing::get, Router};
@@ -30,6 +30,7 @@ pub async fn generate_server(
     // sessions
     let session_store = DatabaseSessionStore::new(shared_state.db.clone());
     let session_layer = SessionLayer::new(session_store, session_secret.as_bytes())
+        .with_session_ttl(Some(Duration::from_secs(90 * 24 * 60 * 60)))
         .with_cookie_name("fbkl_id")
         .with_same_site_policy(SameSite::Strict)
         .with_secure(true);
