@@ -9,7 +9,7 @@ name = "fbkl_migration"
 path = "src/lib.rs"
 
 [dependencies]
-async-sea-orm-session = { git = "https://github.com/dcchut/async-sea-orm-session", rev = "aa800f0b417c3a711ba4aac2453ff8040bd7e506" }
+async-sea-orm-session = "0.1.2"
 async-std = { version = "^1", features = ["attributes", "tokio1"] }
 
 [dependencies.sea-orm-migration]
