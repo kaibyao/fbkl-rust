@@ -8,5 +8,6 @@
       "@routes/*": ["./src/routes/*"]
     }
   },
-  "include": ["./src", "./generated"]
+  "include": ["./src", "./generated"],
+  "references": [{ "path": "./tsconfig.node.json" }]
 }

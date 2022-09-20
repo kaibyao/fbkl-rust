@@ -6,8 +6,7 @@ import { createRoot } from "react-dom/client";
 
 const rootEl = document.getElementById("fbkl-public");
 if (rootEl) {
-  const root = createRoot(rootEl);
-  root.render(
+  createRoot(rootEl).render(
     <React.StrictMode>
       <App />
     </React.StrictMode>,
