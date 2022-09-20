@@ -1,0 +1,12 @@
+{
+  "extends": "../tsconfig.json",
+  "compilerOptions": {
+    "baseUrl": ".",
+    "paths": {
+      "@public/*": ["./*"],
+      "@components/*": ["./src/components/*"],
+      "@routes/*": ["./src/routes/*"]
+    }
+  },
+  "include": ["./src", "./generated"]
+}

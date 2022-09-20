@@ -27,7 +27,6 @@ async fn main() -> Result<()> {
 
     info!("Starting fbkl/server on port 9001...");
 
-    // TODO: Get front-end build pipeline working
     // TODO: eventually convert to GraphQL, but let's just focus on shipping / making progress instead of codewriter's block.
     // TODO: login/registration needs validation (password length, email is correct, etc.)
     // TODO: Handle errors with actual HTTP status codes

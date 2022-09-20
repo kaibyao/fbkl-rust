@@ -1,0 +1,25 @@
+{
+  "name": "@fbkl/fbkl",
+  "private": true,
+  "workspaces": [
+    "webapp-logged-in",
+    "webapp-public"
+  ],
+  "packageManager": "pnpm@7.12.0",
+  "devDependencies": {
+    "@evilmartians/lefthook": "^1.1.1",
+    "@typescript-eslint/eslint-plugin": "^5.27.0",
+    "@typescript-eslint/parser": "^5.27.0",
+    "eslint": "^8.23.1",
+    "eslint-config-prettier": "^8.5.0",
+    "eslint-import-resolver-typescript": "^3.5.1",
+    "eslint-plugin-graphql": "^4.0.0",
+    "eslint-plugin-import": "^2.26.0",
+    "eslint-plugin-react": "^7.30.0",
+    "eslint-plugin-react-hooks": "^4.5.0",
+    "eslint-plugin-sort-imports-es6-autofix": "^0.6.0",
+    "graphql": "^16.6.0",
+    "prettier": "^2.7.1",
+    "typescript": "^4.8.3"
+  }
+}

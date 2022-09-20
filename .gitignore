@@ -13,5 +13,14 @@ Cargo.lock
 .DS_Store
 .awcache
 
+# NodeJs
+npm-debug.log
+node_modules
+
 # Project-wide
 .env
+*.log
+
+# generated assets
+generated
+.eslintcache

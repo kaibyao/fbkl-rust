@@ -1,0 +1,12 @@
+{
+  "extends": "../tsconfig.json",
+  "compilerOptions": {
+    "baseUrl": ".",
+    "paths": {
+      "@logged-in/*": ["./*"],
+      "@components/*": ["./src/components/*"],
+      "@routes/*": ["./src/routes/*"]
+    }
+  },
+  "include": ["./src", "./generated"]
+}
