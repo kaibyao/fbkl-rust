@@ -18,15 +18,16 @@ async fn main() -> Result<()> {
     let database_url = std::env::var("DATABASE_URL").expect("DATABASE_URL must be set");
     let db_connection = Database::connect(&database_url).await?;
 
-    let session_secret = std::env::var("SESSION_SECRET").map_or_else(
+    let session_secret = dbg!(std::env::var("SESSION_SECRET").map_or_else(
         |_| encode_token(&generate_token().into_iter().collect()),
         |session_str| session_str,
-    );
+    ));
     let app = server::generate_server(db_connection, session_secret).await?;
     let server = axum::Server::bind(&"127.0.0.1:9001".parse()?).serve(app.into_make_service());
 
     info!("Starting fbkl/server on port 9001...");
 
+    // TODO: need to figure out why sessions aren't persisting.
     // TODO: eventually convert to GraphQL, but let's just focus on shipping / making progress instead of codewriter's block.
     // TODO: login/registration needs validation (password length, email is correct, etc.)
     // TODO: Handle errors with actual HTTP status codes

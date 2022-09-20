@@ -9,10 +9,13 @@ export default defineConfig(() => {
     },
     resolve: {
       alias: {
-        "@logged-in/": "../",
+        "@public/": "../",
         "@components/": "../src/components/",
         "@routes/": "../src/routes/",
       },
+    },
+    server: {
+      port: 3200,
     },
   };
 });

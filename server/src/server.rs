@@ -37,12 +37,16 @@ pub async fn generate_server(
     Ok(Router::with_state(shared_state)
         .route("/", get(get_public_page))
         .route("/app", get(get_application))
+        .route("/app/*app_path", get(get_application))
         .route("/confirm_registration", get(confirm_registration))
         .route("/login", get(login_page).post(process_login))
         .route("/logout", get(logout))
         .route(
             "/register",
             get(get_registration_page).post(process_registration),
+        )
+        .route(
+            "/*public_path", get(get_public_page)
         )
 
         // Layers only apply to routes preceding them. Make sure layers are applied after all routes.
@@ -52,7 +56,7 @@ pub async fn generate_server(
 
 /// Used within a handler that checks if a user is currently logged in and if not, return an error.
 pub fn enforce_logged_in(session: ReadableSession) -> Result<i64, StatusCode> {
-    match dbg!(session).get("user_id") {
+    match session.get("user_id") {
         Some(user_id) => Ok(user_id),
         None => Err(StatusCode::UNAUTHORIZED),
     }
