@@ -1,5 +1,7 @@
 use sea_orm_migration::{prelude::*, sea_orm::TransactionTrait};
 
+use crate::set_auto_updated_at_on_table;
+
 #[derive(DeriveMigrationName)]
 pub struct Migration;
 
@@ -39,6 +41,8 @@ impl MigrationTrait for Migration {
             )
             .await?;
 
+        set_auto_updated_at_on_table(manager, Position::Table.to_string()).await?;
+
         manager
             .create_table(
                 Table::create()
@@ -73,6 +77,8 @@ impl MigrationTrait for Migration {
             )
             .await?;
 
+        set_auto_updated_at_on_table(manager, RealTeam::Table.to_string()).await?;
+
         manager
             .create_table(
                 Table::create()
@@ -106,6 +112,8 @@ impl MigrationTrait for Migration {
                     .to_owned(),
             )
             .await?;
+
+        set_auto_updated_at_on_table(manager, Player::Table.to_string()).await?;
 
         manager
             .create_index(
