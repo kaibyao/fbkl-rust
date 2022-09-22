@@ -2,7 +2,7 @@
 /// When called, this will cause all updates to table rows that have an `updated_at` column to automatically update that column value to the current datetime.
 use sea_orm_migration::{
     prelude::*,
-    sea_orm::{ConnectionTrait, DatabaseBackend, Statement},
+    sea_orm::{ConnectionTrait, DatabaseBackend, Statement, TransactionTrait},
 };
 
 /// Sets up a trigger for the given table to automatically set a column called
@@ -22,8 +22,9 @@ pub struct Migration;
 #[async_trait::async_trait]
 impl MigrationTrait for Migration {
     async fn up(&self, manager: &SchemaManager) -> Result<(), DbErr> {
-        manager
-            .get_connection()
+        let transaction = manager.get_connection().begin().await?;
+
+        transaction
             .execute(Statement::from_string(
                 DatabaseBackend::Postgres,
                 r#"
@@ -38,8 +39,7 @@ $$ LANGUAGE plpgsql;
             ))
             .await?;
 
-        manager
-            .get_connection()
+        transaction
             .execute(Statement::from_string(
                 DatabaseBackend::Postgres,
                 r#"
@@ -59,7 +59,7 @@ $$ LANGUAGE plpgsql;
             ))
             .await?;
 
-        Ok(())
+        transaction.commit().await
     }
 
     async fn down(&self, manager: &SchemaManager) -> Result<(), DbErr> {

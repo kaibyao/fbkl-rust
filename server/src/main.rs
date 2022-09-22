@@ -27,11 +27,12 @@ async fn main() -> Result<()> {
 
     info!("Starting fbkl/server on port 9001...");
 
-    // TODO: need to figure out why sessions aren't persisting.
-    // TODO: eventually convert to GraphQL, but let's just focus on shipping / making progress instead of codewriter's block.
+    // TODO: Rest of DB migrations
+    // TODO: Implement GraphQL
     // TODO: login/registration needs validation (password length, email is correct, etc.)
     // TODO: Handle errors with actual HTTP status codes
     // TODO: Check if user confirmation already happened
+    // TODO: Add CSP header: https://developer.mozilla.org/en-US/docs/Web/HTTP/CSP
     // TODO: hook up user registration to sendgrid/similar.
 
     match server.await {
