@@ -2,5 +2,11 @@
 
 pub mod prelude;
 
+pub mod league;
+pub mod player;
+pub mod position;
+pub mod real_team;
+pub mod team;
+pub mod team_user;
 pub mod user;
 pub mod user_registration;

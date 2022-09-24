@@ -10,6 +10,7 @@ mod m20220916_131201_create_auto_updated_at_fn;
 mod m20220916_131202_create_user_table;
 mod m20220916_152433_create_user_registration;
 mod m20220922_012310_create_real_world_tables;
+mod m20220924_004529_create_league_tables;
 
 pub struct Migrator;
 
@@ -22,6 +23,7 @@ impl MigratorTrait for Migrator {
             Box::new(m20220916_131202_create_user_table::Migration),
             Box::new(m20220916_152433_create_user_registration::Migration),
             Box::new(m20220922_012310_create_real_world_tables::Migration),
+            Box::new(m20220924_004529_create_league_tables::Migration),
         ]
     }
 }

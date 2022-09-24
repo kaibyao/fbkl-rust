@@ -1,5 +1,4 @@
-use crate::entities;
-use entities::{user, user_registration};
+use crate::entities::{user, user_registration};
 use sea_orm::{
     ActiveModelTrait, ColumnTrait, ConnectionTrait, DbErr, EntityTrait, QueryFilter, Set,
     TransactionTrait,
