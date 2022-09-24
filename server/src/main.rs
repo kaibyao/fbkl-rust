@@ -27,7 +27,7 @@ async fn main() -> Result<()> {
 
     info!("Starting fbkl/server on port 9001...");
 
-    // TODO: Rest of DB migrations
+    // TODO: Rest of DB migrations (incl. FK relations)
     // TODO: Implement GraphQL
     // TODO: login/registration needs validation (password length, email is correct, etc.)
     // TODO: Handle errors with actual HTTP status codes
