@@ -1,17 +1,22 @@
 use std::{sync::Arc, time::Duration};
 
+use async_graphql::{EmptyMutation, EmptySubscription, Schema};
 use async_sea_orm_session::DatabaseSessionStore;
-use axum::{http::StatusCode, routing::get, Router};
+use axum::{http::StatusCode, routing::get, Extension, Router};
 use axum_sessions::{extractors::ReadableSession, SameSite, SessionLayer};
 use color_eyre::Result;
 use fbkl_entity::sea_orm::DatabaseConnection;
 use tower_cookies::CookieManagerLayer;
 
-use crate::handlers::{
-    application::get_application,
-    login::{login_page, logout, process_login},
-    public::get_public_page,
-    user_registration::{confirm_registration, get_registration_page, process_registration},
+use crate::{
+    graphql::QueryRoot,
+    handlers::{
+        application::get_application,
+        graphql::{graphiql, process_graphql},
+        login::{login_page, logout, process_login},
+        public::get_public_page,
+        user_registration::{confirm_registration, get_registration_page, process_registration},
+    },
 };
 
 /// Application state.
@@ -35,11 +40,17 @@ pub async fn generate_server(
         .with_same_site_policy(SameSite::Strict)
         .with_secure(true);
 
+    // graphql setup
+    let graphql_schema = Schema::build(QueryRoot::default(), EmptyMutation, EmptySubscription)
+        .data(shared_state.db.clone()) // maybe clone AppState?
+        .finish();
+
     Ok(Router::with_state(shared_state)
         .route("/", get(get_public_page))
         .route("/app", get(get_application))
         .route("/app/*app_path", get(get_application))
         .route("/confirm_registration", get(confirm_registration))
+        .route("/gql", get(graphiql).post(process_graphql))
         .route("/login", get(login_page).post(process_login))
         .route("/logout", get(logout))
         .route(
@@ -52,7 +63,8 @@ pub async fn generate_server(
 
         // Layers only apply to routes preceding them. Make sure layers are applied after all routes.
         .layer(session_layer)
-        .layer(CookieManagerLayer::new()))
+        .layer(CookieManagerLayer::new())
+        .layer(Extension(graphql_schema)))
 }
 
 /// Used within a handler that checks if a user is currently logged in and if not, return an error.

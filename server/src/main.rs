@@ -1,6 +1,7 @@
 #![deny(clippy::all)]
 
 mod error;
+mod graphql;
 mod handlers;
 mod server;
 
@@ -27,8 +28,8 @@ async fn main() -> Result<()> {
 
     info!("Starting fbkl/server on port 9001...");
 
+    // TODO: import data
     // TODO: Rest of DB migrations (incl. FK relations)
-    // TODO: Implement GraphQL
     // TODO: login/registration needs validation (password length, email is correct, etc.)
     // TODO: Handle errors with actual HTTP status codes
     // TODO: Check if user confirmation already happened
