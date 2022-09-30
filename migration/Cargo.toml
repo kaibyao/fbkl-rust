@@ -1,8 +1,8 @@
 [package]
-name = "fbkl-migration"
-version = "0.1.0"
 edition = "2021"
+name = "fbkl-migration"
 publish = false
+version = "0.1.0"
 
 [lib]
 name = "fbkl_migration"
@@ -10,11 +10,12 @@ path = "src/lib.rs"
 
 [dependencies]
 async-sea-orm-session = "0.1.2"
-async-std = { version = "^1", features = ["attributes", "tokio1"] }
+async-std = {version = "^1", features = ["attributes", "tokio1"]}
+fbkl-entity = {path = "../entity"}
 
 [dependencies.sea-orm-migration]
-version = "^0.9.0"
 features = [
   "runtime-tokio-rustls",
-  "sqlx-postgres"
+  "sqlx-postgres",
 ]
+version = "^0.9.0"
