@@ -2,6 +2,7 @@
 
 members = [
   "entity",
+  "import-data",
   "migration",
   "server",
   "auth"

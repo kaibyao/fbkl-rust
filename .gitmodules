@@ -1,0 +1,3 @@
+[submodule "import-data"]
+	path = import-data
+	url = git@github.com:kaibyao/fbkl-rust-import-data.git
