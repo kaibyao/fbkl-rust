@@ -59,7 +59,7 @@ impl MigrationTrait for Migration {
                     .col(ColumnDef::new(RealTeam::Name).string().not_null())
                     .col(ColumnDef::new(RealTeam::Code).string().not_null())
                     .col(ColumnDef::new(RealTeam::EspnId).small_integer().not_null())
-                    .col(ColumnDef::new(RealTeam::NbaId).small_integer().not_null())
+                    .col(ColumnDef::new(RealTeam::NbaId).integer().not_null())
                     .col(ColumnDef::new(RealTeam::LogoUrl).string().not_null())
                     .col(
                         ColumnDef::new(RealTeam::CreatedAt)

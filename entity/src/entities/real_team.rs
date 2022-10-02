@@ -12,7 +12,7 @@ pub struct Model {
     pub name: String,
     pub code: String,
     pub espn_id: i16,
-    pub nba_id: i16,
+    pub nba_id: i32,
     pub logo_url: String,
     pub created_at: DateTimeWithTimeZone,
     pub updated_at: DateTimeWithTimeZone,
