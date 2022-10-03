@@ -77,6 +77,37 @@ impl MigrationTrait for Migration {
             )
             .await?;
 
+        manager
+            .create_index(
+                IndexCreateStatement::new()
+                    .name("real_team_unique_code")
+                    .unique()
+                    .table(RealTeam::Table)
+                    .col(RealTeam::Code)
+                    .to_owned(),
+            )
+            .await?;
+        manager
+            .create_index(
+                IndexCreateStatement::new()
+                    .name("real_team_unique_espn_id")
+                    .unique()
+                    .table(RealTeam::Table)
+                    .col(RealTeam::EspnId)
+                    .to_owned(),
+            )
+            .await?;
+        manager
+            .create_index(
+                IndexCreateStatement::new()
+                    .name("real_team_unique_nba_id")
+                    .unique()
+                    .table(RealTeam::Table)
+                    .col(RealTeam::NbaId)
+                    .to_owned(),
+            )
+            .await?;
+
         set_auto_updated_at_on_table(manager, RealTeam::Table.to_string()).await?;
 
         manager
