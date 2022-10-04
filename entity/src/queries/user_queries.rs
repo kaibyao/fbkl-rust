@@ -1,7 +1,11 @@
-use crate::entities::{user, user_registration};
+use crate::{
+    entities::{user, user_registration},
+    league, team, team_user,
+};
 use sea_orm::{
-    ActiveModelTrait, ColumnTrait, ConnectionTrait, DbErr, EntityTrait, QueryFilter, Set,
-    TransactionTrait,
+    sea_query::{Expr, IntoCondition},
+    ActiveModelTrait, ColumnTrait, ConnectionTrait, DbErr, EntityTrait, JoinType, QueryFilter,
+    QuerySelect, RelationTrait, Set, TransactionTrait,
 };
 
 /// Inserts a new user + registration. Requires a token that's used for registration confirmation.
@@ -35,5 +39,26 @@ where
     user::Entity::find()
         .filter(user::Column::Email.eq(email))
         .one(conn)
+        .await
+}
+
+pub async fn find_users_by_league_id<C>(league_id: i64, conn: &C) -> Result<Vec<user::Model>, DbErr>
+where
+    C: ConnectionTrait + TransactionTrait,
+{
+    user::Entity::find()
+        .join(JoinType::LeftJoin, user::Relation::TeamUser.def())
+        .join(JoinType::LeftJoin, team_user::Relation::Team.def())
+        .join(
+            JoinType::LeftJoin,
+            team::Relation::League
+                .def()
+                .on_condition(move |_left, right| {
+                    Expr::tbl(right, league::Column::Id)
+                        .eq(league_id)
+                        .into_condition()
+                }),
+        )
+        .all(conn)
         .await
 }

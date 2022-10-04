@@ -60,6 +60,7 @@ pub async fn process_login(
 
     // create session
     session.expire_in(Duration::from_secs(90 * 24 * 60 * 60)); // 90 days
+    session.remove("user_id");
     session.insert("user_id", matching_user.id)?;
 
     let html = r#"
