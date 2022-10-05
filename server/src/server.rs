@@ -2,13 +2,10 @@ use std::{sync::Arc, time::Duration};
 
 use async_graphql::{EmptySubscription, Schema};
 use async_sea_orm_session::DatabaseSessionStore;
-use axum::{http::StatusCode, routing::get, Extension, Router};
-use axum_sessions::{extractors::ReadableSession, SameSite, SessionLayer};
+use axum::{routing::get, Extension, Router};
+use axum_sessions::{SameSite, SessionLayer};
 use color_eyre::Result;
-use fbkl_entity::{
-    sea_orm::{DatabaseConnection, EntityTrait},
-    user,
-};
+use fbkl_entity::sea_orm::DatabaseConnection;
 use tower_cookies::CookieManagerLayer;
 
 use crate::{
@@ -68,28 +65,4 @@ pub async fn generate_server(
         .layer(session_layer)
         .layer(CookieManagerLayer::new())
         .layer(Extension(graphql_schema)))
-}
-
-/// Used within a handler/resolver that checks if a user is currently logged in and if not, return an error.
-pub fn enforce_logged_in(session: &ReadableSession) -> Result<i64, StatusCode> {
-    match session.get("user_id") {
-        Some(user_id) => Ok(user_id),
-        None => Err(StatusCode::UNAUTHORIZED),
-    }
-}
-
-/// Used within a handler/resolver to get the current user from DB.
-pub async fn get_current_user(
-    session: &ReadableSession,
-    db: &DatabaseConnection,
-) -> Option<user::Model> {
-    let user_id = match session.get("user_id") {
-        None => return None,
-        Some(user_id) => user_id,
-    };
-
-    match user::Entity::find_by_id(user_id).one(db).await {
-        Err(_) => None,
-        Ok(maybe_user) => maybe_user,
-    }
 }

@@ -4,6 +4,7 @@ mod error;
 mod graphql;
 mod handlers;
 mod server;
+mod session;
 
 use color_eyre::Result;
 use fbkl_auth::{encode_token, generate_token};

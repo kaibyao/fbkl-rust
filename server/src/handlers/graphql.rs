@@ -9,10 +9,7 @@ use axum::{
 };
 use axum_sessions::extractors::ReadableSession;
 
-use crate::{
-    graphql::FbklSchema,
-    server::{get_current_user, AppState},
-};
+use crate::{graphql::FbklSchema, server::AppState, session::get_current_user};
 
 /// This handler is the endpoint for all graphql queries.
 pub async fn process_graphql(

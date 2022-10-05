@@ -1,6 +1,6 @@
 use crate::{
     graphql::team::{Team, TeamUser},
-    server::enforce_logged_in,
+    session::enforce_logged_in,
 };
 
 use super::League;
