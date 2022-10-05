@@ -2,15 +2,16 @@ use async_graphql::Object;
 use fbkl_entity::team;
 
 use crate::graphql::{league::League, user::User};
-// use fbkl_entity::team;
 
-#[derive(Default)]
+use super::TeamUser;
+
+#[derive(Clone, Default)]
 pub struct Team {
     pub id: i64,
     pub name: String,
     pub league: Option<League>,
     pub league_id: i64,
-    pub users: Option<Vec<User>>,
+    pub users: Option<Vec<TeamUser>>,
 }
 
 impl Team {

@@ -1,6 +1,6 @@
 use std::{sync::Arc, time::Duration};
 
-use async_graphql::{EmptyMutation, EmptySubscription, Schema};
+use async_graphql::{EmptySubscription, Schema};
 use async_sea_orm_session::DatabaseSessionStore;
 use axum::{http::StatusCode, routing::get, Extension, Router};
 use axum_sessions::{extractors::ReadableSession, SameSite, SessionLayer};
@@ -12,7 +12,7 @@ use fbkl_entity::{
 use tower_cookies::CookieManagerLayer;
 
 use crate::{
-    graphql::QueryRoot,
+    graphql::{MutationRoot, QueryRoot},
     handlers::{
         application::get_application,
         graphql::{graphiql, process_graphql},
@@ -44,7 +44,7 @@ pub async fn generate_server(
         .with_secure(true);
 
     // graphql setup
-    let graphql_schema = Schema::build(QueryRoot::default(), EmptyMutation, EmptySubscription)
+    let graphql_schema = Schema::build(QueryRoot::default(), MutationRoot::default(), EmptySubscription)
         .data(shared_state.db.clone()) // maybe clone AppState?
         .finish();
 
@@ -71,7 +71,7 @@ pub async fn generate_server(
 }
 
 /// Used within a handler/resolver that checks if a user is currently logged in and if not, return an error.
-pub fn enforce_logged_in(session: ReadableSession) -> Result<i64, StatusCode> {
+pub fn enforce_logged_in(session: &ReadableSession) -> Result<i64, StatusCode> {
     match session.get("user_id") {
         Some(user_id) => Ok(user_id),
         None => Err(StatusCode::UNAUTHORIZED),

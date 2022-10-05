@@ -27,7 +27,12 @@ pub async fn process_graphql(
     dbg!(&user_model);
 
     schema
-        .execute(req.into_inner().data(session).data(user_model).data(state))
+        .execute(
+            req.into_inner()
+                .data(session)
+                .data(user_model)
+                .data(state.db.clone()),
+        )
         .await
         .into()
 }

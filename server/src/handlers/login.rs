@@ -59,8 +59,8 @@ pub async fn process_login(
     verify_password_against_hash(&form.password, &matching_user.hashed_password)?;
 
     // create session
+    session.regenerate();
     session.expire_in(Duration::from_secs(90 * 24 * 60 * 60)); // 90 days
-    session.remove("user_id");
     session.insert("user_id", matching_user.id)?;
 
     let html = r#"

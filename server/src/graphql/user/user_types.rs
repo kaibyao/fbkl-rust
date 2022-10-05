@@ -1,7 +1,7 @@
 use async_graphql::Object;
 use fbkl_entity::user;
 
-#[derive(Default)]
+#[derive(Clone, Default)]
 pub struct User {
     pub id: i64,
     pub email: String,
