@@ -13,6 +13,12 @@ pre-commit:
     lint_webapp_public:
       glob: "webapp-public/**/*.{js,jsx,ts,tsx}"
       run: 'pnpm --filter "@fbkl/webapp-public" lint --cache && git add {staged_files}'
+    typecheck_webapp_logged_in:
+      glob: "webapp-logged-in/**/*.{js,jsx,ts,tsx}"
+      run: 'pnpm --filter "@fbkl/webapp-logged-in" tsc && git add {staged_files}'
+    typecheck_webapp_public:
+      glob: "webapp-public/**/*.{js,jsx,ts,tsx}"
+      run: 'pnpm --filter "@fbkl/webapp-public" tsc && git add {staged_files}'
 
 # EXAMPLE USAGE:
 #
