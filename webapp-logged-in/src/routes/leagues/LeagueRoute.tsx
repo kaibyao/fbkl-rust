@@ -15,7 +15,7 @@ import { gql } from "@apollo/client";
 // import { useGetLeagueLazyQuery } from "@logged-in/generated/graphql";
 
 gql`
-  query GetLeague($leagueId: ID!) {
+  query GetLeague($leagueId: Int!) {
     league(id: $leagueId) {
       id
       ...LeagueRoute
@@ -28,9 +28,11 @@ gql`
     teams {
       id
       name
+      teamUsers {
+        leagueRole
+        nickname
+      }
     }
-    userNickname
-    userRole
   }
 `;
 

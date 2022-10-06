@@ -1,12 +1,15 @@
 use crate::{
+    error::FbklError,
     graphql::team::{Team, TeamUser},
     session::enforce_logged_in,
 };
 
 use super::League;
 use async_graphql::{Context, Object, Result};
+use axum::http::StatusCode;
 use axum_sessions::extractors::ReadableSession;
 use fbkl_entity::{
+    league,
     league_queries::{create_league, find_leagues_by_user},
     sea_orm::DatabaseConnection,
     user,
@@ -27,6 +30,24 @@ impl LeagueQuery {
 
         let leagues = league_models.into_iter().map(League::from_model).collect();
         Ok(leagues)
+    }
+
+    async fn league(&self, ctx: &Context<'_>, id: i64) -> Result<League, FbklError> {
+        let user_model = match ctx.data_unchecked::<Option<user::Model>>().to_owned() {
+            None => return Err(StatusCode::NOT_FOUND.into()),
+            Some(user) => user,
+        };
+        let db = ctx.data_unchecked::<DatabaseConnection>();
+
+        let user_league_models = find_leagues_by_user(&user_model, db)
+            .await?
+            .into_iter()
+            .filter(|league_model| league_model.id == id)
+            .collect::<Vec<league::Model>>();
+        match user_league_models.first() {
+            None => Err(StatusCode::NOT_FOUND.into()),
+            Some(league_model) => Ok(League::from_model(league_model.to_owned())),
+        }
     }
 }
 
@@ -56,7 +77,7 @@ impl LeagueMutation {
             ..Default::default()
         };
         let mut team = Team::from_model(team_model);
-        team.users = Some(vec![team_user]);
+        team.team_users = Some(vec![team_user]);
         let mut league = League::from_model(league_model);
         league.teams = vec![team];
 

@@ -22,7 +22,7 @@ fn main() {
     sdl_file.flush().unwrap();
 
     println!(
-        "Successfully wrote {} byltes to generated schema file at: {}.",
+        "Successfully wrote {} bytes to generated schema file at: {}.",
         size_bytes_written, SCHEMA_FILE_PATH
     );
 }

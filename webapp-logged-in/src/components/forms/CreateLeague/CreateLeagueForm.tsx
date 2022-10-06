@@ -44,13 +44,12 @@ gql`
     }
   }
 
-  fragment CreateLeagueTeam on Team {
+  fragment CreateLeagueTeam on League {
     id
     name
-    league {
+    teams {
       id
       name
-      userNickname
     }
   }
 `;

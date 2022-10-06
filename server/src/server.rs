@@ -41,9 +41,14 @@ pub async fn generate_server(
         .with_secure(true);
 
     // graphql setup
-    let graphql_schema = Schema::build(QueryRoot::default(), MutationRoot::default(), EmptySubscription)
-        .data(shared_state.db.clone()) // maybe clone AppState?
-        .finish();
+    let graphql_schema = Schema::build(
+        QueryRoot::default(),
+        MutationRoot::default(),
+        EmptySubscription,
+    )
+    .data(shared_state.db.clone())
+    .limit_depth(5)
+    .finish();
 
     Ok(Router::with_state(shared_state)
         .route("/", get(get_public_page))

@@ -1,0 +1,3 @@
+# This tells the VSCode and ESLint GraphQL plugins where the schema is
+
+schema: './graphql-generation/generated/fbkl-schema.graphql'

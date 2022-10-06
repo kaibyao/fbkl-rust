@@ -8,7 +8,7 @@ export const CreateLeagueRoute: FunctionComponent = () => {
   return (
     <CreateLeagueForm
       onClose={navigateToLeaguesHome}
-      onCreateDone={navigateToLeaguesHome}
+      // onCreateDone={navigateToLeaguesHome}
     />
   );
 };

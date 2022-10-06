@@ -1,21 +1,13 @@
 use async_graphql::{Context, Object, Result};
-use fbkl_entity::{
-    league, sea_orm::DatabaseConnection, team_queries::find_teams_by_user, user,
-    user_queries::find_users_by_league_id,
-};
+use fbkl_entity::{league, sea_orm::DatabaseConnection, team_queries::find_teams_by_user, user};
 
-use crate::graphql::{
-    team::{Team, TeamUser},
-    user::User,
-};
-// use fbkl_entity::league;
+use crate::graphql::team::Team;
 
 #[derive(Clone, Default)]
 pub struct League {
     pub id: i64,
     pub name: String,
     pub teams: Vec<Team>,
-    pub users: Vec<TeamUser>,
 }
 
 impl League {
@@ -24,7 +16,6 @@ impl League {
             id: entity.id,
             name: entity.name,
             teams: vec![],
-            users: vec![],
         }
     }
 }
@@ -55,7 +46,6 @@ impl League {
                     id: self.id,
                     name: self.name.clone(),
                     teams: vec![],
-                    users: vec![],
                 });
 
                 team
@@ -63,16 +53,5 @@ impl League {
             .collect();
 
         Ok(user_teams)
-    }
-
-    async fn users(&self, ctx: &Context<'_>) -> Result<Vec<User>> {
-        let db = ctx.data_unchecked::<DatabaseConnection>();
-        let league_user_models = find_users_by_league_id(self.id, db).await?;
-        let league_users = league_user_models
-            .into_iter()
-            .map(User::from_model)
-            .collect();
-
-        Ok(league_users)
     }
 }

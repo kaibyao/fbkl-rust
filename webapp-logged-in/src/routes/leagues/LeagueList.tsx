@@ -15,8 +15,9 @@ export const LEAGUE_LIST_FRAGMENT = gql`
   fragment LeagueList on League {
     id
     name
-    userRole
-    userNickname
+    teams {
+      id
+    }
   }
 `;
 

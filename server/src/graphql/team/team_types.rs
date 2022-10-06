@@ -1,7 +1,7 @@
 use async_graphql::Object;
 use fbkl_entity::team;
 
-use crate::graphql::{league::League, user::User};
+use crate::graphql::league::League;
 
 use super::TeamUser;
 
@@ -11,7 +11,7 @@ pub struct Team {
     pub name: String,
     pub league: Option<League>,
     pub league_id: i64,
-    pub users: Option<Vec<TeamUser>>,
+    pub team_users: Option<Vec<TeamUser>>,
 }
 
 impl Team {
@@ -21,7 +21,7 @@ impl Team {
             name: entity.name,
             league_id: entity.league_id,
             league: None,
-            users: None,
+            team_users: None,
         }
     }
 }
@@ -36,15 +36,15 @@ impl Team {
         self.name.clone()
     }
 
-    async fn league(&self) -> Option<League> {
-        None
-    }
-
     async fn league_id(&self) -> i64 {
         self.league_id
     }
 
-    async fn users(&self) -> Option<Vec<User>> {
-        None
+    async fn league(&self) -> Option<League> {
+        self.league.clone()
+    }
+
+    async fn team_users(&self) -> Option<Vec<TeamUser>> {
+        self.team_users.clone()
     }
 }

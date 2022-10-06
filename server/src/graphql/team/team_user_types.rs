@@ -7,15 +7,24 @@ use super::Team;
 
 #[derive(Clone, Default)]
 pub struct TeamUser {
+    pub league_role: LeagueRole,
+    pub nickname: String,
     pub team: Option<Team>,
     pub team_id: i64,
     pub user: Option<User>,
     pub user_id: i64,
-    pub league_role: LeagueRole,
 }
 
 #[Object]
 impl TeamUser {
+    async fn league_role(&self) -> LeagueRole {
+        self.league_role
+    }
+
+    async fn nickname(&self) -> String {
+        self.nickname.clone()
+    }
+
     async fn team(&self) -> Option<Team> {
         self.team.clone()
     }
@@ -30,9 +39,5 @@ impl TeamUser {
 
     async fn user_id(&self) -> i64 {
         self.user_id
-    }
-
-    async fn league_role(&self) -> LeagueRole {
-        self.league_role
     }
 }
