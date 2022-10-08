@@ -17,7 +17,7 @@ async fn main() -> Result<()> {
     setup()?;
 
     // DB connection pool
-    let database_url = std::env::var("DATABASE_URL").expect("DATABASE_URL must be set");
+    let database_url = std::env::var("FBKL_DATABASE_URL").expect("FBKL_DATABASE_URL must be set");
     let db_connection = Database::connect(&database_url).await?;
 
     let session_secret = std::env::var("SESSION_SECRET").map_or_else(

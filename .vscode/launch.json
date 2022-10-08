@@ -9,12 +9,7 @@
       "request": "launch",
       "name": "Debug unit tests in library 'fbkl-entity'",
       "cargo": {
-        "args": [
-          "test",
-          "--no-run",
-          "--lib",
-          "--package=fbkl-entity"
-        ],
+        "args": ["test", "--no-run", "--lib", "--package=fbkl-entity"],
         "filter": {
           "name": "fbkl-entity",
           "kind": "lib"
@@ -28,12 +23,7 @@
       "request": "launch",
       "name": "Debug unit tests in library 'fbkl_migration'",
       "cargo": {
-        "args": [
-          "test",
-          "--no-run",
-          "--lib",
-          "--package=fbkl-migration"
-        ],
+        "args": ["test", "--no-run", "--lib", "--package=fbkl-migration"],
         "filter": {
           "name": "fbkl_migration",
           "kind": "lib"
@@ -47,11 +37,7 @@
       "request": "launch",
       "name": "Debug executable 'fbkl-migration'",
       "cargo": {
-        "args": [
-          "build",
-          "--bin=fbkl-migration",
-          "--package=fbkl-migration"
-        ],
+        "args": ["build", "--bin=fbkl-migration", "--package=fbkl-migration"],
         "filter": {
           "name": "fbkl-migration",
           "kind": "bin"
@@ -84,13 +70,9 @@
       "request": "launch",
       "name": "Debug executable 'server'",
       "cargo": {
-        "args": [
-          "build",
-          "--bin=server",
-          "--package=server"
-        ],
+        "args": ["build", "--bin=fbkl-server", "--package=fbkl-server"],
         "filter": {
-          "name": "server",
+          "name": "fbkl-server",
           "kind": "bin"
         }
       },
@@ -102,12 +84,7 @@
       "request": "launch",
       "name": "Debug unit tests in executable 'server'",
       "cargo": {
-        "args": [
-          "test",
-          "--no-run",
-          "--bin=server",
-          "--package=server"
-        ],
+        "args": ["test", "--no-run", "--bin=server", "--package=server"],
         "filter": {
           "name": "server",
           "kind": "bin"
@@ -121,12 +98,7 @@
       "request": "launch",
       "name": "Debug unit tests in library 'fbkl-auth'",
       "cargo": {
-        "args": [
-          "test",
-          "--no-run",
-          "--lib",
-          "--package=fbkl-auth"
-        ],
+        "args": ["test", "--no-run", "--lib", "--package=fbkl-auth"],
         "filter": {
           "name": "fbkl-auth",
           "kind": "lib"

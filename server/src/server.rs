@@ -37,7 +37,7 @@ pub async fn generate_server(
     let session_layer = SessionLayer::new(session_store, session_secret.as_bytes())
         .with_session_ttl(Some(Duration::from_secs(90 * 24 * 60 * 60)))
         .with_cookie_name("fbkl_id")
-        .with_same_site_policy(SameSite::Strict)
+        .with_same_site_policy(SameSite::None)
         .with_secure(true);
 
     // graphql setup
