@@ -10,6 +10,6 @@ impl UserQuery {
     async fn current_user<'a>(&self, ctx: &Context<'a>) -> Option<User> {
         let user_model = ctx.data_unchecked::<Option<user::Model>>().to_owned();
 
-        user_model.map(User::from_model)
+        user_model.map(|model| User::from_model(&model))
     }
 }

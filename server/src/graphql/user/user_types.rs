@@ -8,10 +8,10 @@ pub struct User {
 }
 
 impl User {
-    pub fn from_model(entity: user::Model) -> Self {
+    pub fn from_model(entity: &user::Model) -> Self {
         Self {
             id: entity.id,
-            email: entity.email,
+            email: entity.email.clone(),
         }
     }
 }

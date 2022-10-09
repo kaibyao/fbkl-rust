@@ -1,36 +1,41 @@
-import { FunctionComponent } from "react";
 import {
-  // Box,
-  // Card,
-  // CardActionArea,
-  // CardContent,
+  Box,
+  Card,
+  CardActionArea,
+  CardContent,
   Grid,
-  // Typography,
+  Typography,
 } from "@mui/material";
-// import { LeagueListFragment } from "@logged-in/generated/graphql";
+import { FunctionComponent } from "react";
+import { LeagueListFragment } from "@logged-in/generated/graphql";
 import { gql } from "@apollo/client";
-// import { useNavigate } from "react-router-dom";
+import { useNavigate } from "react-router-dom";
 
-export const LEAGUE_LIST_FRAGMENT = gql`
+gql`
   fragment LeagueList on League {
     id
     name
-    teams {
-      id
+    currentTeamUser {
+      leagueRole
+      nickname
+      team {
+        id
+        name
+      }
     }
   }
 `;
 
-// interface Props {
-//   leagues: LeagueListFragment[];
-// }
+interface Props {
+  leagues: LeagueListFragment[];
+}
 
-export const LeagueList: FunctionComponent /*<Props>*/ = (/*{ leagues }*/) => {
-  // const navigate = useNavigate();
+export const LeagueList: FunctionComponent<Props> = ({ leagues }) => {
+  const navigate = useNavigate();
 
   return (
     <Grid container spacing={2}>
-      {/* {leagues.map((league) => (
+      {leagues.map((league) => (
         <Grid key={league.id} item xs={12} sm={6} md={4} lg={3} xl={2}>
           <Card variant="outlined">
             <CardActionArea onClick={() => navigate(`/leagues/${league.id}`)}>
@@ -40,17 +45,17 @@ export const LeagueList: FunctionComponent /*<Props>*/ = (/*{ leagues }*/) => {
                 </Typography>
                 <Box sx={{ display: "flex", alignItems: "flex-end" }}>
                   <Typography variant="body1" sx={{ mr: 1 }}>
-                    {league.userNickname}
+                    {league.currentTeamUser?.nickname}
                   </Typography>
                   <Typography variant="body2" color="GrayText">
-                    ({league.userRole.toLowerCase()})
+                    ({league.currentTeamUser?.leagueRole})
                   </Typography>
                 </Box>
               </CardContent>
             </CardActionArea>
           </Card>
         </Grid>
-      ))} */}
+      ))}
     </Grid>
   );
 };
