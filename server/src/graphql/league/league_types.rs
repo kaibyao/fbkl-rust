@@ -71,19 +71,18 @@ impl League {
         };
 
         let db = ctx.data_unchecked::<DatabaseConnection>();
-        let team_user_model =
+        let (team_user_model, team_model) =
             match get_team_user_by_user_and_league(&current_user.id, &self.id, db).await {
                 Err(_) => return None,
-                Ok(maybe_team_user) => match maybe_team_user {
-                    None => return None,
-                    Some(team_user) => team_user,
-                },
+                Ok(None) => return None,
+                Ok(Some((_, None))) => return None,
+                Ok(Some((team_user, Some(team)))) => (team_user, team),
             };
 
         Some(Box::new(TeamUser {
             league_role: team_user_model.league_role,
             nickname: team_user_model.nickname,
-            team: None,
+            team: Some(Team::from_model(team_model)),
             team_id: team_user_model.team_id,
             user: Some(User::from_model(current_user)),
             user_id: current_user.id,

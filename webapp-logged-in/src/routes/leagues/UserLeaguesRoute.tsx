@@ -43,7 +43,7 @@ export const UserLeaguesRoute: FunctionComponent = () => {
       ) : (
         <Typography variant="body2">
           Looks like you have no leagues.{" "}
-          <Link to="/leagues/create">Create one</Link>.
+          <Link to="/app/create">Create one</Link>.
         </Typography>
       )}
 

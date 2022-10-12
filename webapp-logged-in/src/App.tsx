@@ -10,7 +10,7 @@ const darkTheme = createTheme({
 });
 
 const client = new ApolloClient({
-  uri: "/api/graphql",
+  uri: "/gql",
   cache: new InMemoryCache(),
 });
 

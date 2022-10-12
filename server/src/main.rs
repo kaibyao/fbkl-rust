@@ -32,7 +32,7 @@ async fn main() -> Result<()> {
     // TODO: import data
     // TODO: Rest of DB migrations (incl. FK relations)
     // TODO: login/registration needs validation (password length, email is correct, etc.)
-    // TODO: Handle errors with actual HTTP status codes
+    // TODO: Handle errors with actual HTTP status codes + logging (test w/ graphql errors)
     // TODO: Check if user confirmation already happened
     // TODO: Add CSP header: https://developer.mozilla.org/en-US/docs/Web/HTTP/CSP
     // TODO: hook up user registration to sendgrid/similar.

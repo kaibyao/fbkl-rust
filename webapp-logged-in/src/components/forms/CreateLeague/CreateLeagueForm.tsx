@@ -9,10 +9,11 @@ import {
   FormHelperText,
   TextField,
 } from "@mui/material";
-// import {
-//   CreateLeagueTeamFragment,
-//   useCreateLeagueMutation,
-// } from "@logged-in/generated/graphql";
+import {
+  CreateLeagueTeamFragment,
+  GetUserLeaguesDocument,
+  useCreateLeagueMutation,
+} from "@logged-in/generated/graphql";
 import { FunctionComponent } from "react";
 import { SubmitHandler, useForm } from "react-hook-form";
 import { gql } from "@apollo/client";
@@ -25,7 +26,7 @@ interface CreateLeagueFormFields {
 
 interface Props {
   onClose?: () => unknown;
-  // onCreateDone(createdLeague: CreateLeagueTeamFragment): void;
+  onCreateDone(createdLeague: CreateLeagueTeamFragment): void;
 }
 
 gql`
@@ -56,7 +57,7 @@ gql`
 
 export const CreateLeagueForm: FunctionComponent<Props> = ({
   onClose,
-  // onCreateDone,
+  onCreateDone,
 }) => {
   const {
     formState: { errors: formErrors, isSubmitting },
@@ -64,20 +65,19 @@ export const CreateLeagueForm: FunctionComponent<Props> = ({
     register,
   } = useForm<CreateLeagueFormFields>({ mode: "onBlur" });
 
-  // const [createLeagueMutation, { loading, error }] = useCreateLeagueMutation();
-  const loading = false;
-  const error = { message: undefined };
+  const [createLeagueMutation, { loading, error }] = useCreateLeagueMutation();
 
-  const onSubmit: SubmitHandler<CreateLeagueFormFields> = async (/*data*/) => {
-    // const response = await createLeagueMutation({
-    //   variables: data,
-    // });
-    //   const createdLeague: CreateLeagueTeamFragment | undefined =
-    //     response.data?.createLeague;
-    //   // TODO: notification
-    //   if (createdLeague) {
-    //     onCreateDone(createdLeague);
-    //   }
+  const onSubmit: SubmitHandler<CreateLeagueFormFields> = async (data) => {
+    const response = await createLeagueMutation({
+      variables: data,
+      refetchQueries: [GetUserLeaguesDocument],
+    });
+    const createdLeague: CreateLeagueTeamFragment | undefined =
+      response.data?.createLeague;
+    // TODO: notification + redirect
+    if (createdLeague) {
+      onCreateDone(createdLeague);
+    }
   };
 
   return (

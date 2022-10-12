@@ -4,11 +4,11 @@ import { useNavigate } from "react-router-dom";
 
 export const CreateLeagueRoute: FunctionComponent = () => {
   const navigate = useNavigate();
-  const navigateToLeaguesHome = () => navigate("/leagues");
+  const navigateToLeaguesHome = () => navigate("/app");
   return (
     <CreateLeagueForm
       onClose={navigateToLeaguesHome}
-      // onCreateDone={navigateToLeaguesHome}
+      onCreateDone={navigateToLeaguesHome}
     />
   );
 };
