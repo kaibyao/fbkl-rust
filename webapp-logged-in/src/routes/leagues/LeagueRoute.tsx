@@ -1,18 +1,12 @@
 import { AppBar, Box, Container, Toolbar, Typography } from "@mui/material";
-import {
-  FunctionComponent,
-  // useEffect
-} from "react";
+import { FunctionComponent, useEffect } from "react";
 import {
   LEAGUE_MENU_WIDTH,
   LeagueMenu,
 } from "@logged-in/src/routes/leagues/LeagueMenu";
-import {
-  Outlet,
-  // useParams
-} from "react-router-dom";
+import { Outlet, useParams } from "react-router-dom";
 import { gql } from "@apollo/client";
-// import { useGetLeagueLazyQuery } from "@logged-in/generated/graphql";
+import { useGetLeagueLazyQuery } from "@logged-in/generated/graphql";
 
 gql`
   query GetLeague($leagueId: Int!) {
@@ -37,18 +31,21 @@ gql`
 `;
 
 export const LeagueRoute: FunctionComponent = () => {
-  // const { leagueId } = useParams();
-  // const [getLeague, { data, error, loading }] = useGetLeagueLazyQuery();
+  const { leagueId: leagueIdStr } = useParams();
+  const [getLeague, { data, error, loading }] = useGetLeagueLazyQuery();
 
-  // useEffect(() => {
-  //   if (leagueId && !isNaN(parseInt(leagueId, 10))) {
-  //     getLeague({
-  //       variables: {
-  //         leagueId,
-  //       },
-  //     });
-  //   }
-  // }, [getLeague, leagueId]);
+  useEffect(() => {
+    if (leagueIdStr) {
+      const leagueId = parseInt(leagueIdStr, 10);
+      if (!isNaN(leagueId)) {
+        getLeague({
+          variables: {
+            leagueId,
+          },
+        });
+      }
+    }
+  }, [getLeague, leagueIdStr]);
 
   return (
     <>
@@ -58,11 +55,11 @@ export const LeagueRoute: FunctionComponent = () => {
       >
         <Toolbar>
           <Typography variant="h6" noWrap component="div">
-            {/* {loading
+            {loading
               ? "Loading league..."
               : error
               ? "Error occurred"
-              : data?.league?.name} */}
+              : data?.league?.name}
           </Typography>
         </Toolbar>
       </AppBar>

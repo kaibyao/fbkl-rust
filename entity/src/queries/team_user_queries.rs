@@ -5,6 +5,17 @@ use sea_orm::{
 
 use crate::{league, team, team_user, user};
 
+pub async fn get_team_users_by_team<C>(team_id: i64, db: &C) -> Result<Vec<team_user::Model>, DbErr>
+where
+    C: ConnectionTrait + TransactionTrait,
+{
+    team_user::Entity::find()
+        .join(JoinType::LeftJoin, team_user::Relation::Team.def())
+        .filter(team_user::Column::TeamId.eq(team_id))
+        .all(db)
+        .await
+}
+
 pub async fn get_team_users_by_user<C>(
     user: &user::Model,
     db: &C,

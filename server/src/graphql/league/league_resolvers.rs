@@ -77,7 +77,7 @@ impl LeagueMutation {
             ..Default::default()
         };
         let mut team = Team::from_model(team_model);
-        team.team_users = Some(vec![team_user]);
+        team.team_users = vec![team_user];
         let mut league = League::from_model(league_model);
         league.teams = vec![team];
 

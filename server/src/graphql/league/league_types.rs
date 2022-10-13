@@ -1,6 +1,6 @@
 use async_graphql::{Context, Object, Result};
 use fbkl_entity::{
-    league, sea_orm::DatabaseConnection, team_queries::find_teams_by_user,
+    league, sea_orm::DatabaseConnection, team_queries::find_teams_by_league,
     team_user_queries::get_team_user_by_user_and_league, user,
 };
 
@@ -39,14 +39,10 @@ impl League {
     }
 
     async fn teams(&self, ctx: &Context<'_>) -> Result<Vec<Team>> {
-        let current_user = match ctx.data_unchecked::<Option<user::Model>>() {
-            None => return Ok(vec![]),
-            Some(user) => user,
-        };
         let db = ctx.data_unchecked::<DatabaseConnection>();
 
-        let user_team_models = find_teams_by_user(current_user, db).await?;
-        let user_teams = user_team_models
+        let league_team_models = find_teams_by_league(self.id, db).await?;
+        let league_teams = league_team_models
             .into_iter()
             .map(|team_model| {
                 let mut team = Team::from_model(team_model);
@@ -61,7 +57,7 @@ impl League {
             })
             .collect();
 
-        Ok(user_teams)
+        Ok(league_teams)
     }
 
     async fn current_team_user(&self, ctx: &Context<'_>) -> Option<Box<TeamUser>> {

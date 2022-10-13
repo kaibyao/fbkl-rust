@@ -1,14 +1,17 @@
-use sea_orm::{ConnectionTrait, DbErr, ModelTrait, TransactionTrait};
+use sea_orm::{
+    ColumnTrait, ConnectionTrait, DbErr, EntityTrait, JoinType, QueryFilter, QuerySelect,
+    RelationTrait, TransactionTrait,
+};
 
-use crate::{team, user};
+use crate::team;
 
-pub async fn find_teams_by_user<C>(user: &user::Model, db: &C) -> Result<Vec<team::Model>, DbErr>
+pub async fn find_teams_by_league<C>(league_id: i64, db: &C) -> Result<Vec<team::Model>, DbErr>
 where
     C: ConnectionTrait + TransactionTrait,
 {
-    // team::Entity::find()
-    //     .join(JoinType::LeftJoin, team::Relation::TeamUser.def())
-    //     .join(JoinType::LeftJoin, team_user::Relation::User.def())
-    //     .filter(user::Mode)
-    user.find_related(team::Entity).all(db).await
+    team::Entity::find()
+        .join(JoinType::LeftJoin, team::Relation::League.def())
+        .filter(team::Column::LeagueId.eq(league_id))
+        .all(db)
+        .await
 }
