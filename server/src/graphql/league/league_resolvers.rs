@@ -9,8 +9,7 @@ use async_graphql::{Context, Object, Result};
 use axum::http::StatusCode;
 use axum_sessions::extractors::ReadableSession;
 use fbkl_entity::{
-    league,
-    league_queries::{create_league, find_leagues_by_user},
+    league_queries::{create_league, find_league_by_user, find_leagues_by_user},
     sea_orm::DatabaseConnection,
     user,
 };
@@ -39,14 +38,9 @@ impl LeagueQuery {
         };
         let db = ctx.data_unchecked::<DatabaseConnection>();
 
-        let user_league_models = find_leagues_by_user(&user_model, db)
-            .await?
-            .into_iter()
-            .filter(|league_model| league_model.id == id)
-            .collect::<Vec<league::Model>>();
-        match user_league_models.first() {
+        match find_league_by_user(&user_model, id, db).await? {
             None => Err(StatusCode::NOT_FOUND.into()),
-            Some(league_model) => Ok(League::from_model(league_model.to_owned())),
+            Some(league_model) => Ok(League::from_model(league_model)),
         }
     }
 }

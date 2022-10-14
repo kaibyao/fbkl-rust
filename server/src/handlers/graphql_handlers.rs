@@ -14,19 +14,16 @@ use crate::{graphql::FbklSchema, server::AppState, session::get_current_user};
 /// This handler is the endpoint for all graphql queries.
 pub async fn process_graphql(
     schema: Extension<FbklSchema>,
-    session: ReadableSession,
+    read_session: ReadableSession,
     State(state): State<Arc<AppState>>,
     req: GraphQLRequest,
 ) -> GraphQLResponse {
-    let user_model = get_current_user(&session, &state.db).await;
-
-    dbg!(&session);
-    dbg!(&user_model);
+    let user_model = get_current_user(&read_session, &state.db).await;
 
     schema
         .execute(
             req.into_inner()
-                .data(session)
+                .data(read_session)
                 .data(user_model)
                 .data(state.db.clone()),
         )

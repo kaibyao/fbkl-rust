@@ -21,6 +21,7 @@ dotenv = "0.15.0"
 fbkl-auth = {path = "../auth"}
 fbkl-entity = {path = "../entity"}
 serde = {version = "1.0.143", features = ["derive"]}
+serde_json = "1.0.86"
 tokio = {version = "1.20.1", features = ["full"]}
 tower-cookies = "0.7.0"
 tracing = "0.1.36"

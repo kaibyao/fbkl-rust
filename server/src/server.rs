@@ -2,7 +2,10 @@ use std::{sync::Arc, time::Duration};
 
 use async_graphql::{EmptySubscription, Schema};
 use async_sea_orm_session::DatabaseSessionStore;
-use axum::{routing::get, Extension, Router};
+use axum::{
+    routing::{get, post},
+    Extension, Router,
+};
 use axum_sessions::{SameSite, SessionLayer};
 use color_eyre::Result;
 use fbkl_entity::sea_orm::DatabaseConnection;
@@ -11,11 +14,14 @@ use tower_cookies::CookieManagerLayer;
 use crate::{
     graphql::{MutationRoot, QueryRoot},
     handlers::{
-        application::get_application,
-        graphql::{graphiql, process_graphql},
-        login::{login_page, logout, process_login},
-        public::get_public_page,
-        user_registration::{confirm_registration, get_registration_page, process_registration},
+        application_handlers::get_application,
+        graphql_handlers::{graphiql, process_graphql},
+        league_handlers::select_league,
+        login_handlers::{login_page, logout, process_login},
+        public_handlers::get_public_page,
+        user_registration_handlers::{
+            confirm_registration, get_registration_page, process_registration,
+        },
     },
 };
 
@@ -61,6 +67,10 @@ pub async fn generate_server(
         .route(
             "/register",
             get(get_registration_page).post(process_registration),
+        )
+        .route(
+            "/select_league",
+            post(select_league)
         )
         .route(
             "/*public_path", get(get_public_page)

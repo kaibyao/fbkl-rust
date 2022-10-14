@@ -1,5 +1,6 @@
 use sea_orm::{
-    ActiveModelTrait, ActiveValue, ConnectionTrait, DbErr, ModelTrait, TransactionTrait,
+    ActiveModelTrait, ActiveValue, ColumnTrait, ConnectionTrait, DbErr, ModelTrait, QueryFilter,
+    TransactionTrait,
 };
 
 use crate::{
@@ -7,6 +8,20 @@ use crate::{
     team_user::{self, LeagueRole},
     user,
 };
+
+pub async fn find_league_by_user<C>(
+    user: &user::Model,
+    league_id: i64,
+    db: &C,
+) -> Result<Option<league::Model>, DbErr>
+where
+    C: ConnectionTrait + TransactionTrait,
+{
+    user.find_linked(team_user::Entity)
+        .filter(league::Column::Id.eq(league_id))
+        .one(db)
+        .await
+}
 
 pub async fn find_leagues_by_user<C>(
     user: &user::Model,
