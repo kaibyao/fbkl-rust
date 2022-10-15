@@ -31,14 +31,20 @@ impl LeagueQuery {
         Ok(leagues)
     }
 
-    async fn league(&self, ctx: &Context<'_>, id: i64) -> Result<League, FbklError> {
+    async fn league(&self, ctx: &Context<'_>) -> Result<League, FbklError> {
+        let session = ctx.data_unchecked::<ReadableSession>();
+        let selected_league_id: i64 = match session.get("selected_league_id") {
+            None => return Err(StatusCode::BAD_REQUEST.into()),
+            Some(id) => id,
+        };
+
         let user_model = match ctx.data_unchecked::<Option<user::Model>>().to_owned() {
-            None => return Err(StatusCode::NOT_FOUND.into()),
+            None => return Err(StatusCode::UNAUTHORIZED.into()),
             Some(user) => user,
         };
         let db = ctx.data_unchecked::<DatabaseConnection>();
 
-        match find_league_by_user(&user_model, id, db).await? {
+        match find_league_by_user(&user_model, selected_league_id, db).await? {
             None => Err(StatusCode::NOT_FOUND.into()),
             Some(league_model) => Ok(League::from_model(league_model)),
         }
