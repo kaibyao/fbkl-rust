@@ -58,19 +58,19 @@ pub async fn generate_server(
 
     Ok(Router::with_state(shared_state)
         .route("/", get(get_public_page))
+        .route("/api/gql", get(graphiql).post(process_graphql))
+        .route(
+            "/api/select_league",
+            post(select_league)
+        )
         .route("/app", get(get_application))
         .route("/app/*app_path", get(get_application))
         .route("/confirm_registration", get(confirm_registration))
-        .route("/gql", get(graphiql).post(process_graphql))
         .route("/login", get(login_page).post(process_login))
         .route("/logout", get(logout))
         .route(
             "/register",
             get(get_registration_page).post(process_registration),
-        )
-        .route(
-            "/select_league",
-            post(select_league)
         )
         .route(
             "/*public_path", get(get_public_page)

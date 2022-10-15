@@ -34,7 +34,7 @@ pub async fn process_graphql(
 pub async fn graphiql() -> impl IntoResponse {
     Html(
         GraphiQLSource::build()
-            .endpoint("http://localhost:9001/gql")
+            .endpoint("http://localhost:9001/api/gql")
             .finish(),
     )
 }
