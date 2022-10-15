@@ -3,7 +3,7 @@ import { FunctionComponent, useEffect } from "react";
 import {
   LEAGUE_MENU_WIDTH,
   LeagueMenu,
-} from "@logged-in/src/routes/leagues/LeagueMenu";
+} from "@logged-in/src/routes/league/LeagueMenu";
 import { Outlet, useParams } from "react-router-dom";
 import { gql } from "@apollo/client";
 import { useGetLeagueLazyQuery } from "@logged-in/generated/graphql";

@@ -1,10 +1,10 @@
 import { Container, Typography } from "@mui/material";
 import { FunctionComponent } from "react";
-import { LeagueList } from "@logged-in/src/routes/leagues/LeagueList";
 import {
   LeagueListFragmentDoc,
   useGetUserLeaguesQuery,
 } from "@logged-in/generated/graphql";
+import { LeaguesList } from "@logged-in/src/routes/app/LeagueList";
 import { Link, Outlet } from "react-router-dom";
 import { gql } from "@apollo/client";
 
@@ -39,7 +39,7 @@ export const UserLeaguesRoute: FunctionComponent = () => {
         Leagues
       </Typography>
       {data?.leagues.length ? (
-        <LeagueList leagues={data.leagues} />
+        <LeaguesList leagues={data.leagues} />
       ) : (
         <Typography variant="body2">
           Looks like you have no leagues.{" "}

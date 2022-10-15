@@ -30,7 +30,7 @@ interface Props {
   leagues: LeagueListFragment[];
 }
 
-export const LeagueList: FunctionComponent<Props> = ({ leagues }) => {
+export const LeaguesList: FunctionComponent<Props> = ({ leagues }) => {
   const navigate = useNavigate();
 
   return (
