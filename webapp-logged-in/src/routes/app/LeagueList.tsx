@@ -7,11 +7,10 @@ import {
   Typography,
 } from "@mui/material";
 import { FunctionComponent } from "react";
-import {
-  LeagueListFragment,
-  useSelectLeagueMutation,
-} from "@logged-in/generated/graphql";
+import { LeagueListFragment } from "@logged-in/generated/graphql";
 import { gql } from "@apollo/client";
+import { selectLeague } from "@logged-in/src/api/select-league";
+import { useAsyncRequest } from "@logged-in/src/api/api-hook";
 import { useNavigate } from "react-router-dom";
 
 gql`
@@ -29,25 +28,18 @@ gql`
   }
 `;
 
-gql`
-  mutation SelectLeague($leagueId: Int!) {
-    selectLeague(leagueId: $leagueId) {
-      id
-    }
-  }
-`;
-
 interface Props {
   leagues: LeagueListFragment[];
 }
 
 export const LeagueList: FunctionComponent<Props> = ({ leagues }) => {
   const navigate = useNavigate();
-  const [selectLeagueMutation, { loading, error }] = useSelectLeagueMutation();
+  const [wrappedSelectLeague, { error, loading }] =
+    useAsyncRequest(selectLeague);
 
   const handleLeagueSelect = async (leagueId: number) => {
     try {
-      await selectLeagueMutation({ variables: { leagueId } });
+      await wrappedSelectLeague(leagueId);
       navigate(`/app/league`);
     } catch (e) {
       console.error(e);
@@ -58,7 +50,7 @@ export const LeagueList: FunctionComponent<Props> = ({ leagues }) => {
     <Grid container spacing={2}>
       {error ? (
         <Typography variant="body2">
-          An error occurred: {error.message}
+          An error occurred: {String(error)}
         </Typography>
       ) : null}
 

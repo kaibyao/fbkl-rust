@@ -6,19 +6,18 @@ use axum::{
     response::{IntoResponse, Response},
     Json,
 };
-use axum_sessions::extractors::{ReadableSession, WritableSession};
+use axum_sessions::extractors::WritableSession;
 use fbkl_entity::league_queries::find_league_by_user;
 use serde_json::Value;
 
-use crate::{server::AppState, session::get_current_user};
+use crate::{server::AppState, session::get_current_user_writable};
 
 pub async fn select_league(
     State(state): State<Arc<AppState>>,
-    read_session: ReadableSession,
     mut write_session: WritableSession,
     Json(payload): Json<Value>,
 ) -> Result<Response, Response> {
-    let user_model = match get_current_user(&read_session, &state.db).await {
+    let user_model = match get_current_user_writable(&write_session, &state.db).await {
         None => return Err(StatusCode::UNAUTHORIZED.into_response()),
         Some(model) => model,
     };
@@ -28,22 +27,22 @@ pub async fn select_league(
         None => {
             return Err((
                 StatusCode::BAD_REQUEST,
-                "Requires a json object with parameter 'league_id'",
+                "Requires a json object with parameter 'leagueId'",
             )
                 .into_response())
         }
-        Some(league_json) => match league_json.get("league_id") {
+        Some(league_json) => match league_json.get("leagueId") {
             None => {
                 return Err((
                     StatusCode::BAD_REQUEST,
-                    "Missing object attribute 'league_id'",
+                    "Missing object attribute 'leagueId'",
                 )
                     .into_response())
             }
             Some(id_json) => match id_json.as_i64() {
                 None => {
                     return Err(
-                        (StatusCode::BAD_REQUEST, "Could not parse 'league_id' value")
+                        (StatusCode::BAD_REQUEST, "Could not parse 'leagueId' value")
                             .into_response(),
                     )
                 }
