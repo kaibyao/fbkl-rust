@@ -20,7 +20,7 @@ export const AppRoutes: FunctionComponent = () => {
         <Route path="/app" element={<UserLeaguesRoute />}>
           <Route path="create" element={<CreateLeagueRoute />} />
         </Route>
-        <Route path="/app/league/:leagueId" element={<LeagueRoute />}>
+        <Route path="/app/league" element={<LeagueRoute />}>
           <Route index element={<LeagueHome />} />
           <Route path="draft" element={<LeagueDraftRoute />}>
             <Route path=":seasonEndYear" element={<LeagueDraftYearRoute />} />
