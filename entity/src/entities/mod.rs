@@ -6,6 +6,8 @@ pub mod league;
 pub mod player;
 pub mod position;
 pub mod real_team;
+pub mod roster;
+pub mod roster_update;
 pub mod sessions;
 pub mod team;
 pub mod team_user;

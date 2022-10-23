@@ -29,7 +29,6 @@ async fn main() -> Result<()> {
 
     info!("Starting fbkl/server on port 9001...");
 
-    // TODO: league id should be saved as session to make URLs easier
     // TODO: import data
     // TODO: Rest of DB migrations (incl. FK relations)
     // TODO: login/registration needs validation (password length, email is correct, etc.)

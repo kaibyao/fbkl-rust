@@ -4,12 +4,13 @@ use sea_orm::entity::prelude::*;
 use serde::{Deserialize, Serialize};
 
 #[derive(Clone, Debug, PartialEq, Eq, DeriveEntityModel, Serialize, Deserialize)]
-#[sea_orm(table_name = "team")]
+#[sea_orm(table_name = "roster")]
 pub struct Model {
     #[sea_orm(primary_key)]
     pub id: i64,
-    pub name: String,
-    pub league_id: i64,
+    pub salary_cap: i16,
+    pub season_end_year: i16,
+    pub team_id: i64,
     pub created_at: DateTimeWithTimeZone,
     pub updated_at: DateTimeWithTimeZone,
 }
@@ -17,34 +18,26 @@ pub struct Model {
 #[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]
 pub enum Relation {
     #[sea_orm(
-        belongs_to = "super::league::Entity",
-        from = "Column::LeagueId",
-        to = "super::league::Column::Id",
+        belongs_to = "super::team::Entity",
+        from = "Column::TeamId",
+        to = "super::team::Column::Id",
         on_update = "Cascade",
         on_delete = "Cascade"
     )]
-    League,
-    #[sea_orm(has_many = "super::roster::Entity")]
-    Roster,
-    #[sea_orm(has_many = "super::team_user::Entity")]
-    TeamUser,
+    Team,
+    #[sea_orm(has_many = "super::roster_update::Entity")]
+    RosterUpdate,
 }
 
-impl Related<super::league::Entity> for Entity {
+impl Related<super::team::Entity> for Entity {
     fn to() -> RelationDef {
-        Relation::League.def()
+        Relation::Team.def()
     }
 }
 
-impl Related<super::roster::Entity> for Entity {
+impl Related<super::roster_update::Entity> for Entity {
     fn to() -> RelationDef {
-        Relation::Roster.def()
-    }
-}
-
-impl Related<super::team_user::Entity> for Entity {
-    fn to() -> RelationDef {
-        Relation::TeamUser.def()
+        Relation::RosterUpdate.def()
     }
 }
 

@@ -201,7 +201,7 @@ enum League {
 }
 
 #[derive(Iden)]
-enum Team {
+pub enum Team {
     Table,
     Id,
     Name,

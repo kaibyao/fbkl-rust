@@ -11,6 +11,7 @@ import {
 import { FunctionComponent } from "react";
 import AttachMoneyIcon from "@mui/icons-material/AttachMoney";
 import CurrencyExchangeIcon from "@mui/icons-material/CurrencyExchange";
+import DashboardIcon from "@mui/icons-material/Dashboard";
 import ListIcon from "@mui/icons-material/List";
 import LocalActivityIcon from "@mui/icons-material/LocalActivity";
 import PersonIcon from "@mui/icons-material/Person";
@@ -34,6 +35,14 @@ export const LeagueMenu: FunctionComponent = () => {
       <Toolbar />
       <Box>
         <List>
+          <ListItem disablePadding>
+            <ListItemButton>
+              <ListItemIcon>
+                <DashboardIcon />
+              </ListItemIcon>
+              <ListItemText primary="Dashboard" />
+            </ListItemButton>
+          </ListItem>
           <ListItem disablePadding>
             <ListItemButton>
               <ListItemIcon>
