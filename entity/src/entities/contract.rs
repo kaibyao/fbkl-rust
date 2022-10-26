@@ -4,6 +4,9 @@ use async_graphql::Enum;
 use sea_orm::entity::prelude::*;
 use serde::{Deserialize, Serialize};
 
+/// A common misconception is that a player is owned/controlled by a team.
+///
+/// The truth is that when a player is signed to a team, what the team controls is the contract representing that player’s commitment to the team, as well as the team’s commitment to the player via the $-value being payed out to the player. Within a league, a player cannot have more than 1 non-expired contract at a time.
 #[derive(Clone, Debug, PartialEq, Eq, DeriveEntityModel, Serialize, Deserialize)]
 #[sea_orm(table_name = "contract")]
 pub struct Model {
@@ -11,6 +14,7 @@ pub struct Model {
     pub id: i64,
     pub contract_year: i16,
     pub contract_type: ContractType,
+    /// The $-value paid out to the player via the team’s cap space.
     pub salary: i16,
     pub season_end_year: i16,
     pub status: ContractStatus,
@@ -55,7 +59,7 @@ pub enum ContractType {
     /// Dropping a player from a team for any reason moves them to free agency. A free agent can be signed onto any team starting from the beginning of the week after they are dropped.
     #[sea_orm(num_value = 4)]
     FreeAgent, // This is needed when resigning previously-dropped players, as we need to know their previous contract's value.
-    /// A player that is on their 3rd rookie season (Rookie) is converted to an RFA contract for the duration of the following preseason. They are then re-signed (RookieExtension) at a discount, signed to a different team (Veteran), or dropped (expired status).
+    /// A player that is on their 3rd rookie season (Rookie) is converted to an RFA contract for the duration of the following preseason. They are then re-signed (RookieExtension) at a 10% discount, signed to a different team (Veteran), or dropped (expired status).
     #[sea_orm(num_value = 5)]
     RestrictedFreeAgent, // ------------- RFA - 10%
     /// A player that is on their 5th rookie season (RookieExtension) is converted to a UFA-20 for the duration of the following preseason. They are then re-signed (Veteran) at a 20% discount, signed to a different team (Veteran, no discount), or dropped (expired status).
@@ -69,6 +73,7 @@ pub enum ContractType {
     RookieDevelopmentInternational, // -- RDI
 }
 
+/// Represents whether the contract is currently active for a player.
 #[derive(
     Debug,
     Default,
@@ -84,15 +89,18 @@ pub enum ContractType {
 )]
 #[sea_orm(rs_type = "i16", db_type = "Integer")]
 pub enum ContractStatus {
-    /// Represents an active player on a team.
+    /// Represents an active player on a team. An active contract’s $-value takes up a team’s cap space.
     #[default]
     #[sea_orm(num_value = 0)]
     Active,
-    /// Represents an inactive/injured player on a team's active roster.
+    /// Represents an inactive/injured player on a team's active roster. A contract in IR status does not count towards a team’s cap space.
     #[sea_orm(num_value = 1)]
     IR,
+    /// Represents a contract that has been replaced by a newer contract. The current contract should be referenced by the newer contract's previous_contract_id. A replaced contract is not counted towards a team’s cap space.
+    #[sea_orm(num_value = 3)]
+    Replaced,
     /// Represents a contract that is no longer valid and should not be used as a previous_contract_id for any other contract. This happens at the start of each season (for the previous season's contracts), as well as when an RFA/UFA/RD/RDI contract is dropped.
-    #[sea_orm(num_value = 2)]
+    #[sea_orm(num_value = 4)]
     Expired,
 }
 
