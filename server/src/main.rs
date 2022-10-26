@@ -36,6 +36,7 @@ async fn main() -> Result<()> {
     // TODO: Check if user confirmation already happened
     // TODO: Add CSP header: https://developer.mozilla.org/en-US/docs/Web/HTTP/CSP
     // TODO: hook up user registration to sendgrid/similar.
+    // TODO: Use Next.JS for public path? Turbopack seems interesting.
 
     match server.await {
         Ok(_) => Ok(()),

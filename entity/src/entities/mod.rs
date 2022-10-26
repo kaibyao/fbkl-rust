@@ -2,14 +2,15 @@
 
 pub mod prelude;
 
+pub mod contract;
+pub mod draft_pick;
 pub mod league;
 pub mod player;
 pub mod position;
 pub mod real_team;
-pub mod roster;
-pub mod roster_update;
 pub mod sessions;
 pub mod team;
+pub mod team_update;
 pub mod team_user;
 pub mod user;
 pub mod user_registration;

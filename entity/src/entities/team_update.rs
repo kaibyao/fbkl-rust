@@ -5,13 +5,13 @@ use sea_orm::entity::prelude::*;
 use serde::{Deserialize, Serialize};
 
 #[derive(Clone, Debug, PartialEq, Eq, DeriveEntityModel, Serialize, Deserialize)]
-#[sea_orm(table_name = "roster_update")]
+#[sea_orm(table_name = "team_update")]
 pub struct Model {
     #[serde(skip_deserializing)]
     #[sea_orm(primary_key)]
     pub id: i64,
-    pub roster_id: i64,
-    pub status: RosterUpdateStatus,
+    pub team_id: i64,
+    pub status: TeamUpdateStatus,
     pub created_at: DateTimeWithTimeZone,
     pub updated_at: DateTimeWithTimeZone,
 }
@@ -30,7 +30,7 @@ pub struct Model {
     Deserialize,
 )]
 #[sea_orm(rs_type = "i16", db_type = "Integer")]
-pub enum RosterUpdateStatus {
+pub enum TeamUpdateStatus {
     /// Has not been processed yet.
     #[default]
     #[sea_orm(num_value = 0)]
@@ -49,18 +49,18 @@ pub enum RosterUpdateStatus {
 #[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]
 pub enum Relation {
     #[sea_orm(
-        belongs_to = "super::roster::Entity",
-        from = "Column::RosterId",
-        to = "super::roster::Column::Id",
+        belongs_to = "super::team::Entity",
+        from = "Column::TeamId",
+        to = "super::team::Column::Id",
         on_update = "Cascade",
         on_delete = "Cascade"
     )]
-    Roster,
+    Team,
 }
 
-impl Related<super::roster::Entity> for Entity {
+impl Related<super::team::Entity> for Entity {
     fn to() -> RelationDef {
-        Relation::Roster.def()
+        Relation::Team.def()
     }
 }
 

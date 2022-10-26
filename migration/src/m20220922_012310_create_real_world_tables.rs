@@ -221,7 +221,7 @@ impl MigrationTrait for Migration {
 
 /// Learn more at https://docs.rs/sea-query#iden
 #[derive(Iden)]
-enum Position {
+pub enum Position {
     Table,
     Id,
     Name,
@@ -231,7 +231,7 @@ enum Position {
 }
 
 #[derive(Iden)]
-enum RealTeam {
+pub enum RealTeam {
     Table,
     Id,
     City,
@@ -245,7 +245,7 @@ enum RealTeam {
 }
 
 #[derive(Iden)]
-enum Player {
+pub enum Player {
     Table,
     Id,
     Name,

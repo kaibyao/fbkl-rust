@@ -10,167 +10,10 @@ impl MigrationTrait for Migration {
     async fn up(&self, manager: &SchemaManager) -> Result<(), DbErr> {
         let transaction = manager.get_connection().begin().await?;
 
-        manager
-            .create_table(
-                Table::create()
-                    .table(League::Table)
-                    .if_not_exists()
-                    .col(
-                        ColumnDef::new(League::Id)
-                            .big_integer()
-                            .not_null()
-                            .auto_increment()
-                            .primary_key(),
-                    )
-                    .col(ColumnDef::new(League::Name).string().not_null())
-                    .col(
-                        ColumnDef::new(League::CreatedAt)
-                            .timestamp_with_time_zone()
-                            .not_null()
-                            .extra("DEFAULT CURRENT_TIMESTAMP".to_string()),
-                    )
-                    .col(
-                        ColumnDef::new(League::UpdatedAt)
-                            .timestamp_with_time_zone()
-                            .not_null()
-                            .extra("DEFAULT CURRENT_TIMESTAMP".to_string()),
-                    )
-                    .to_owned(),
-            )
-            .await?;
-
-        set_auto_updated_at_on_table(manager, League::Table.to_string()).await?;
-
-        manager
-            .create_table(
-                Table::create()
-                    .table(Team::Table)
-                    .if_not_exists()
-                    .col(
-                        ColumnDef::new(Team::Id)
-                            .big_integer()
-                            .not_null()
-                            .auto_increment()
-                            .primary_key(),
-                    )
-                    .col(ColumnDef::new(Team::Name).string().not_null())
-                    .col(ColumnDef::new(Team::LeagueId).big_integer().not_null())
-                    .col(
-                        ColumnDef::new(Team::CreatedAt)
-                            .timestamp_with_time_zone()
-                            .not_null()
-                            .extra("DEFAULT CURRENT_TIMESTAMP".to_string()),
-                    )
-                    .col(
-                        ColumnDef::new(Team::UpdatedAt)
-                            .timestamp_with_time_zone()
-                            .not_null()
-                            .extra("DEFAULT CURRENT_TIMESTAMP".to_string()),
-                    )
-                    .to_owned(),
-            )
-            .await?;
-
-        set_auto_updated_at_on_table(manager, Team::Table.to_string()).await?;
-
-        manager
-            .create_foreign_key(
-                ForeignKey::create()
-                    .name("team_fk_league")
-                    .from(Team::Table, Team::LeagueId)
-                    .to(League::Table, League::Id)
-                    .on_delete(ForeignKeyAction::Cascade)
-                    .on_update(ForeignKeyAction::Cascade)
-                    .to_owned(),
-            )
-            .await?;
-
-        manager
-            .create_index(
-                IndexCreateStatement::new()
-                    .name("team_unique_league_id_and_name")
-                    .table(Team::Table)
-                    .unique()
-                    .col(Team::LeagueId)
-                    .col(Team::Name)
-                    .to_owned(),
-            )
-            .await?;
-
-        manager
-            .create_table(
-                Table::create()
-                    .table(TeamUser::Table)
-                    .if_not_exists()
-                    .col(
-                        ColumnDef::new(TeamUser::Id)
-                            .big_integer()
-                            .not_null()
-                            .auto_increment()
-                            .primary_key(),
-                    )
-                    .col(ColumnDef::new(TeamUser::Nickname).string().not_null())
-                    .col(ColumnDef::new(TeamUser::TeamId).big_integer().not_null())
-                    .col(ColumnDef::new(TeamUser::UserId).big_integer().not_null())
-                    .col(
-                        ColumnDef::new(TeamUser::LeagueRole)
-                            .small_integer()
-                            .not_null()
-                            .default(0),
-                    )
-                    .col(
-                        ColumnDef::new(TeamUser::CreatedAt)
-                            .timestamp_with_time_zone()
-                            .not_null()
-                            .extra("DEFAULT CURRENT_TIMESTAMP".to_string()),
-                    )
-                    .col(
-                        ColumnDef::new(TeamUser::UpdatedAt)
-                            .timestamp_with_time_zone()
-                            .not_null()
-                            .extra("DEFAULT CURRENT_TIMESTAMP".to_string()),
-                    )
-                    .to_owned(),
-            )
-            .await?;
-
-        set_auto_updated_at_on_table(manager, TeamUser::Table.to_string()).await?;
-
-        manager
-            .create_foreign_key(
-                ForeignKey::create()
-                    .name("team_user_fk_team")
-                    .from(TeamUser::Table, TeamUser::TeamId)
-                    .to(Team::Table, Team::Id)
-                    .on_delete(ForeignKeyAction::Cascade)
-                    .on_update(ForeignKeyAction::Cascade)
-                    .to_owned(),
-            )
-            .await?;
-        manager
-            .create_foreign_key(
-                ForeignKey::create()
-                    .name("team_user_fk_user")
-                    .from(TeamUser::Table, TeamUser::UserId)
-                    .to(User::Table, User::Id)
-                    .on_delete(ForeignKeyAction::Cascade)
-                    .on_update(ForeignKeyAction::Cascade)
-                    .to_owned(),
-            )
-            .await?;
-
-        // A user cannot own more than 1 team per league
-        manager
-            .create_index(
-                IndexCreateStatement::new()
-                    .name("team_user_unique")
-                    .table(TeamUser::Table)
-                    .unique()
-                    .col(TeamUser::TeamId)
-                    .col(TeamUser::UserId)
-                    .to_owned(),
-            )
-            .await?;
+        setup_league(manager).await?;
+        setup_team(manager).await?;
+        setup_team_user(manager).await?;
+        setup_team_update(manager).await?;
 
         transaction.commit().await
     }
@@ -190,9 +33,245 @@ impl MigrationTrait for Migration {
     }
 }
 
+async fn setup_league(manager: &SchemaManager<'_>) -> Result<(), DbErr> {
+    manager
+        .create_table(
+            Table::create()
+                .table(League::Table)
+                .if_not_exists()
+                .col(
+                    ColumnDef::new(League::Id)
+                        .big_integer()
+                        .not_null()
+                        .auto_increment()
+                        .primary_key(),
+                )
+                .col(ColumnDef::new(League::Name).string().not_null())
+                .col(
+                    ColumnDef::new(League::CreatedAt)
+                        .timestamp_with_time_zone()
+                        .not_null()
+                        .extra("DEFAULT CURRENT_TIMESTAMP".to_string()),
+                )
+                .col(
+                    ColumnDef::new(League::UpdatedAt)
+                        .timestamp_with_time_zone()
+                        .not_null()
+                        .extra("DEFAULT CURRENT_TIMESTAMP".to_string()),
+                )
+                .to_owned(),
+        )
+        .await?;
+
+    set_auto_updated_at_on_table(manager, League::Table.to_string()).await
+}
+
+async fn setup_team(manager: &SchemaManager<'_>) -> Result<(), DbErr> {
+    manager
+        .create_table(
+            Table::create()
+                .table(Team::Table)
+                .if_not_exists()
+                .col(
+                    ColumnDef::new(Team::Id)
+                        .big_integer()
+                        .not_null()
+                        .auto_increment()
+                        .primary_key(),
+                )
+                .col(ColumnDef::new(Team::Name).string().not_null())
+                .col(
+                    ColumnDef::new(Team::SalaryCap)
+                        .small_integer()
+                        .not_null()
+                        .default(200),
+                )
+                .col(ColumnDef::new(Team::LeagueId).big_integer().not_null())
+                .col(
+                    ColumnDef::new(Team::CreatedAt)
+                        .timestamp_with_time_zone()
+                        .not_null()
+                        .extra("DEFAULT CURRENT_TIMESTAMP".to_string()),
+                )
+                .col(
+                    ColumnDef::new(Team::UpdatedAt)
+                        .timestamp_with_time_zone()
+                        .not_null()
+                        .extra("DEFAULT CURRENT_TIMESTAMP".to_string()),
+                )
+                .to_owned(),
+        )
+        .await?;
+
+    set_auto_updated_at_on_table(manager, Team::Table.to_string()).await?;
+
+    manager
+        .create_foreign_key(
+            ForeignKey::create()
+                .name("team_fk_league")
+                .from(Team::Table, Team::LeagueId)
+                .to(League::Table, League::Id)
+                .on_delete(ForeignKeyAction::Cascade)
+                .on_update(ForeignKeyAction::Cascade)
+                .to_owned(),
+        )
+        .await?;
+
+    manager
+        .create_index(
+            IndexCreateStatement::new()
+                .name("team_unique_league_id_and_name")
+                .table(Team::Table)
+                .unique()
+                .col(Team::LeagueId)
+                .col(Team::Name)
+                .to_owned(),
+        )
+        .await
+}
+
+async fn setup_team_user(manager: &SchemaManager<'_>) -> Result<(), DbErr> {
+    manager
+        .create_table(
+            Table::create()
+                .table(TeamUser::Table)
+                .if_not_exists()
+                .col(
+                    ColumnDef::new(TeamUser::Id)
+                        .big_integer()
+                        .not_null()
+                        .auto_increment()
+                        .primary_key(),
+                )
+                .col(ColumnDef::new(TeamUser::Nickname).string().not_null())
+                .col(ColumnDef::new(TeamUser::TeamId).big_integer().not_null())
+                .col(ColumnDef::new(TeamUser::UserId).big_integer().not_null())
+                .col(
+                    ColumnDef::new(TeamUser::LeagueRole)
+                        .small_integer()
+                        .not_null()
+                        .default(0),
+                )
+                .col(
+                    ColumnDef::new(TeamUser::CreatedAt)
+                        .timestamp_with_time_zone()
+                        .not_null()
+                        .extra("DEFAULT CURRENT_TIMESTAMP".to_string()),
+                )
+                .col(
+                    ColumnDef::new(TeamUser::UpdatedAt)
+                        .timestamp_with_time_zone()
+                        .not_null()
+                        .extra("DEFAULT CURRENT_TIMESTAMP".to_string()),
+                )
+                .to_owned(),
+        )
+        .await?;
+
+    set_auto_updated_at_on_table(manager, TeamUser::Table.to_string()).await?;
+
+    manager
+        .create_foreign_key(
+            ForeignKey::create()
+                .name("team_user_fk_team")
+                .from(TeamUser::Table, TeamUser::TeamId)
+                .to(Team::Table, Team::Id)
+                .on_delete(ForeignKeyAction::Cascade)
+                .on_update(ForeignKeyAction::Cascade)
+                .to_owned(),
+        )
+        .await?;
+    manager
+        .create_foreign_key(
+            ForeignKey::create()
+                .name("team_user_fk_user")
+                .from(TeamUser::Table, TeamUser::UserId)
+                .to(User::Table, User::Id)
+                .on_delete(ForeignKeyAction::Cascade)
+                .on_update(ForeignKeyAction::Cascade)
+                .to_owned(),
+        )
+        .await?;
+
+    // A user cannot own more than 1 team per league
+    manager
+        .create_index(
+            IndexCreateStatement::new()
+                .name("team_user_unique")
+                .table(TeamUser::Table)
+                .unique()
+                .col(TeamUser::TeamId)
+                .col(TeamUser::UserId)
+                .to_owned(),
+        )
+        .await
+}
+
+async fn setup_team_update(manager: &SchemaManager<'_>) -> Result<(), DbErr> {
+    manager
+        .create_table(
+            Table::create()
+                .table(TeamUpdate::Table)
+                .if_not_exists()
+                .col(
+                    ColumnDef::new(TeamUpdate::Id)
+                        .big_integer()
+                        .not_null()
+                        .auto_increment()
+                        .primary_key(),
+                )
+                .col(
+                    ColumnDef::new(TeamUpdate::Status)
+                        .small_integer()
+                        .not_null()
+                        .default(0),
+                )
+                .col(ColumnDef::new(TeamUpdate::TeamId).big_integer().not_null())
+                .col(
+                    ColumnDef::new(TeamUpdate::CreatedAt)
+                        .timestamp_with_time_zone()
+                        .not_null()
+                        .extra("DEFAULT CURRENT_TIMESTAMP".to_string()),
+                )
+                .col(
+                    ColumnDef::new(TeamUpdate::UpdatedAt)
+                        .timestamp_with_time_zone()
+                        .not_null()
+                        .extra("DEFAULT CURRENT_TIMESTAMP".to_string()),
+                )
+                .to_owned(),
+        )
+        .await?;
+
+    set_auto_updated_at_on_table(manager, TeamUpdate::Table.to_string()).await?;
+
+    manager
+        .create_index(
+            IndexCreateStatement::new()
+                .name("team_update_team_id")
+                .table(TeamUpdate::Table)
+                .col(TeamUpdate::TeamId)
+                .col(TeamUpdate::Status)
+                .to_owned(),
+        )
+        .await?;
+
+    manager
+        .create_foreign_key(
+            ForeignKey::create()
+                .name("team_update_fk_team")
+                .from(TeamUpdate::Table, TeamUpdate::TeamId)
+                .to(Team::Table, Team::Id)
+                .on_delete(ForeignKeyAction::Cascade)
+                .on_update(ForeignKeyAction::Cascade)
+                .to_owned(),
+        )
+        .await
+}
+
 /// Learn more at https://docs.rs/sea-query#iden
 #[derive(Iden)]
-enum League {
+pub enum League {
     Table,
     Id,
     Name,
@@ -205,19 +284,30 @@ pub enum Team {
     Table,
     Id,
     Name,
+    SalaryCap,
     LeagueId,
     CreatedAt,
     UpdatedAt,
 }
 
 #[derive(Iden)]
-enum TeamUser {
+pub enum TeamUser {
     Table,
     Id,
     Nickname,
     TeamId,
     UserId,
     LeagueRole,
+    CreatedAt,
+    UpdatedAt,
+}
+
+#[derive(Iden)]
+pub enum TeamUpdate {
+    Table,
+    Id,
+    TeamId,
+    Status,
     CreatedAt,
     UpdatedAt,
 }

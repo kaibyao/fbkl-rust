@@ -20,6 +20,8 @@ pub struct Model {
 
 #[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]
 pub enum Relation {
+    #[sea_orm(has_many = "super::contract::Entity")]
+    Contract,
     #[sea_orm(
         belongs_to = "super::position::Entity",
         from = "Column::PositionId",
@@ -36,6 +38,12 @@ pub enum Relation {
         on_delete = "NoAction"
     )]
     RealTeam,
+}
+
+impl Related<super::contract::Entity> for Entity {
+    fn to() -> RelationDef {
+        Relation::Contract.def()
+    }
 }
 
 impl Related<super::position::Entity> for Entity {

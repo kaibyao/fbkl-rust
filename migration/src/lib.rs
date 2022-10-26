@@ -12,7 +12,7 @@ mod m20220916_152433_create_user_registration;
 mod m20220922_012310_create_real_world_tables;
 mod m20220924_004529_create_league_tables;
 mod m20220930_011056_seed_positions;
-mod m20221023_002153_create_roster_tables;
+mod m20221023_002183_create_asset_tables;
 
 pub struct Migrator;
 
@@ -27,7 +27,7 @@ impl MigratorTrait for Migrator {
             Box::new(m20220922_012310_create_real_world_tables::Migration),
             Box::new(m20220924_004529_create_league_tables::Migration),
             Box::new(m20220930_011056_seed_positions::Migration),
-            Box::new(m20221023_002153_create_roster_tables::Migration),
+            Box::new(m20221023_002183_create_asset_tables::Migration),
         ]
     }
 }

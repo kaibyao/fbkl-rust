@@ -30,7 +30,7 @@ impl MigrationTrait for Migration {
                 r#"
 CREATE OR REPLACE FUNCTION set_auto_updated_at_on_table(_tbl regclass) RETURNS VOID AS $$
 BEGIN
-    EXECUTE format('CREATE TRIGGER set_updated_at BEFORE UPDATE ON %s
+    EXECUTE format('CREATE OR REPLACE TRIGGER set_updated_at BEFORE UPDATE ON %s
                     FOR EACH ROW EXECUTE PROCEDURE on_update_set_updated_at()', _tbl);
 END;
 $$ LANGUAGE plpgsql;

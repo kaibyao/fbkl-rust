@@ -16,6 +16,8 @@ pub struct Model {
 
 #[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]
 pub enum Relation {
+    #[sea_orm(has_many = "super::contract::Entity")]
+    Contract,
     #[sea_orm(
         belongs_to = "super::league::Entity",
         from = "Column::LeagueId",
@@ -24,10 +26,16 @@ pub enum Relation {
         on_delete = "Cascade"
     )]
     League,
-    #[sea_orm(has_many = "super::roster::Entity")]
-    Roster,
     #[sea_orm(has_many = "super::team_user::Entity")]
     TeamUser,
+    #[sea_orm(has_many = "super::team_update::Entity")]
+    TeamUpdate,
+}
+
+impl Related<super::contract::Entity> for Entity {
+    fn to() -> RelationDef {
+        Relation::Contract.def()
+    }
 }
 
 impl Related<super::league::Entity> for Entity {
@@ -36,15 +44,15 @@ impl Related<super::league::Entity> for Entity {
     }
 }
 
-impl Related<super::roster::Entity> for Entity {
-    fn to() -> RelationDef {
-        Relation::Roster.def()
-    }
-}
-
 impl Related<super::team_user::Entity> for Entity {
     fn to() -> RelationDef {
         Relation::TeamUser.def()
+    }
+}
+
+impl Related<super::team_update::Entity> for Entity {
+    fn to() -> RelationDef {
+        Relation::TeamUpdate.def()
     }
 }
 
