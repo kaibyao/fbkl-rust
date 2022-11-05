@@ -37,6 +37,7 @@ async fn main() -> Result<()> {
     // TODO: Add CSP header: https://developer.mozilla.org/en-US/docs/Web/HTTP/CSP
     // TODO: hook up user registration to sendgrid/similar.
     // TODO: Use Next.JS for public path? Turbopack seems interesting.
+    // TODO: Possibly use https://github.com/casbin/casbin-rs for access control?
 
     match server.await {
         Ok(_) => Ok(()),

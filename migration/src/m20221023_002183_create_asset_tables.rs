@@ -53,6 +53,12 @@ async fn setup_contract(manager: &SchemaManager<'_>) -> Result<(), DbErr> {
                         .not_null(),
                 )
                 .col(
+                    ColumnDef::new(Contract::IsIR)
+                        .boolean()
+                        .not_null()
+                        .default(false),
+                )
+                .col(
                     ColumnDef::new(Contract::Salary)
                         .small_integer()
                         .not_null()
@@ -305,6 +311,7 @@ enum Contract {
     Id,
     ContractYear,
     ContractType,
+    IsIR,
     Salary,
     SeasonEndYear,
     Status,

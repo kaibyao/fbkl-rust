@@ -7,5 +7,6 @@ version = "0.1.0"
 
 [dependencies]
 async-graphql = {git = "https://github.com/kaibyao/async-graphql"}
+color-eyre = "0.6.2"
 sea-orm = {version = "^0", features = ["sqlx-postgres", "runtime-tokio-rustls", "macros"]}
 serde = "1.0.144"
