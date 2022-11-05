@@ -10,8 +10,12 @@ pub struct Model {
     #[serde(skip_deserializing)]
     #[sea_orm(primary_key)]
     pub id: i64,
-    pub team_id: i64,
+    pub update_type: TeamUpdateType,
+    pub before: Vec<u8>,
+    pub after: Vec<u8>,
+    pub effective_date: Date,
     pub status: TeamUpdateStatus,
+    pub team_id: i64,
     pub created_at: DateTimeWithTimeZone,
     pub updated_at: DateTimeWithTimeZone,
 }
@@ -44,6 +48,30 @@ pub enum TeamUpdateStatus {
     /// An error occurred during processing.
     #[sea_orm(num_value = 3)]
     Error,
+}
+
+#[derive(
+    Debug,
+    Default,
+    Clone,
+    Copy,
+    Enum,
+    Eq,
+    PartialEq,
+    EnumIter,
+    DeriveActiveEnum,
+    Serialize,
+    Deserialize,
+)]
+#[sea_orm(rs_type = "i16", db_type = "Integer")]
+pub enum TeamUpdateType {
+    /// An update that changes the contracts on the team roster.
+    #[default]
+    #[sea_orm(num_value = 0)]
+    Roster,
+    /// An update that changes team settings.
+    #[sea_orm(num_value = 1)]
+    Setting,
 }
 
 #[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]

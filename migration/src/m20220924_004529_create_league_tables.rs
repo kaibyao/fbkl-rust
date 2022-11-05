@@ -221,6 +221,15 @@ async fn setup_team_update(manager: &SchemaManager<'_>) -> Result<(), DbErr> {
                         .primary_key(),
                 )
                 .col(
+                    ColumnDef::new(TeamUpdate::UpdateType)
+                        .small_integer()
+                        .not_null()
+                        .default(0),
+                )
+                .col(ColumnDef::new(TeamUpdate::Before).binary().not_null())
+                .col(ColumnDef::new(TeamUpdate::After).binary().not_null())
+                .col(ColumnDef::new(TeamUpdate::EffectiveDate).date().not_null())
+                .col(
                     ColumnDef::new(TeamUpdate::Status)
                         .small_integer()
                         .not_null()
@@ -252,6 +261,16 @@ async fn setup_team_update(manager: &SchemaManager<'_>) -> Result<(), DbErr> {
                 .table(TeamUpdate::Table)
                 .col(TeamUpdate::TeamId)
                 .col(TeamUpdate::Status)
+                .to_owned(),
+        )
+        .await?;
+
+    manager
+        .create_index(
+            IndexCreateStatement::new()
+                .name("team_update_type")
+                .table(TeamUpdate::Table)
+                .col(TeamUpdate::UpdateType)
                 .to_owned(),
         )
         .await?;
@@ -306,8 +325,12 @@ pub enum TeamUser {
 pub enum TeamUpdate {
     Table,
     Id,
-    TeamId,
+    UpdateType,
+    Before,
+    After,
+    EffectiveDate,
     Status,
+    TeamId,
     CreatedAt,
     UpdatedAt,
 }
