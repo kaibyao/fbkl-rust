@@ -45,11 +45,7 @@ impl MigrationTrait for Migration {
                             .big_integer()
                             .not_null(),
                     )
-                    .col(
-                        ColumnDef::new(RookieDraftSelection::SelectedPlayerId)
-                            .big_integer()
-                            .not_null(),
-                    )
+                    .col(ColumnDef::new(RookieDraftSelection::SelectedPlayerId).big_integer())
                     .to_owned(),
             )
             .await?;
@@ -140,7 +136,7 @@ impl MigrationTrait for Migration {
 
 /// Learn more at https://docs.rs/sea-query#iden
 #[derive(Iden)]
-enum RookieDraftSelection {
+pub enum RookieDraftSelection {
     Table,
     Id,
     Order,

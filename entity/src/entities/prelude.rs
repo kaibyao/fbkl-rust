@@ -6,6 +6,7 @@ pub use super::league::Entity as League;
 pub use super::player::Entity as Player;
 pub use super::position::Entity as Position;
 pub use super::real_team::Entity as RealTeam;
+pub use super::rookie_draft_selection::Entity as RookieDraftSelection;
 pub use super::sessions::Entity as Sessions;
 pub use super::team::Entity as Team;
 pub use super::team_update::Entity as TeamUpdate;

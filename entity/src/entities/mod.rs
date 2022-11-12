@@ -8,6 +8,7 @@ pub mod league;
 pub mod player;
 pub mod position;
 pub mod real_team;
+pub mod rookie_draft_selection;
 pub mod sessions;
 pub mod team;
 pub mod team_update;

@@ -44,6 +44,8 @@ pub enum Relation {
         on_delete = "NoAction"
     )]
     OriginalOwnerTeam,
+    #[sea_orm(has_many = "super::rookie_draft_selection::Entity")]
+    RookieDraftSelection,
 }
 
 impl Related<super::league::Entity> for Entity {
@@ -69,6 +71,12 @@ impl Linked for OriginalOwnerTeam {
 
     fn link(&self) -> Vec<RelationDef> {
         vec![Relation::OriginalOwnerTeam.def()]
+    }
+}
+
+impl Related<super::rookie_draft_selection::Entity> for Entity {
+    fn to() -> RelationDef {
+        Relation::RookieDraftSelection.def()
     }
 }
 
