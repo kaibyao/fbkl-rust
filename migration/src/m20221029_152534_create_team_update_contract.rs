@@ -2,7 +2,7 @@ use sea_orm_migration::prelude::*;
 
 use crate::{
     m20220924_004529_create_league_tables::TeamUpdate,
-    m20221023_002183_create_asset_tables::Contract,
+    m20221023_002183_create_asset_tables::Contract, set_auto_updated_at_on_table,
 };
 
 #[derive(DeriveMigrationName)]
@@ -38,9 +38,23 @@ impl MigrationTrait for Migration {
                             .big_integer()
                             .not_null(),
                     )
+                    .col(
+                        ColumnDef::new(TeamUpdateContract::CreatedAt)
+                            .timestamp_with_time_zone()
+                            .not_null()
+                            .extra("DEFAULT CURRENT_TIMESTAMP".to_string()),
+                    )
+                    .col(
+                        ColumnDef::new(TeamUpdateContract::UpdatedAt)
+                            .timestamp_with_time_zone()
+                            .not_null()
+                            .extra("DEFAULT CURRENT_TIMESTAMP".to_string()),
+                    )
                     .to_owned(),
             )
             .await?;
+
+        set_auto_updated_at_on_table(manager, TeamUpdateContract::Table.to_string()).await?;
 
         manager
             .create_foreign_key(
@@ -90,13 +104,6 @@ impl MigrationTrait for Migration {
     }
 }
 
-// TODO: Do I use a separate table for storing team setting changes? If so, this table could really be called team_contract_update_action.
-// Maybe team_update could have a "type" enum that determines whether the update is related to the roster vs team config.
-// Then it can also store a comprehensive before vs after struct of the team w/ its settings + contracts.
-// We also need a "date_active" for a team update so it only applies starting in the next week.
-
-// Also TODO: Create entity for this table + relationships + inverse relationships
-
 /// Learn more at https://docs.rs/sea-query#iden
 #[derive(Iden)]
 pub enum TeamUpdateContract {
@@ -105,4 +112,6 @@ pub enum TeamUpdateContract {
     ActionType,
     TeamUpdateId,
     ContractId,
+    CreatedAt,
+    UpdatedAt,
 }

@@ -8,6 +8,8 @@ use serde::{Deserialize, Serialize};
 /// A common misconception is that a player is owned/controlled by a team.
 ///
 /// The truth is that when a player is signed to a team, what the team controls is the contract representing that player’s commitment to the team, as well as the team’s commitment to the player via the $-value being payed out to the player. Within a league, a player cannot have more than 1 non-expired contract at a time.
+///
+/// Additionally, a Contract is immutable. That is, we should never update an existing contract. Rather, we create a new/amended contract that points back to the previous contract. In this way, we can keep the history of changes made to a player's contract (which is really represented by the history chain of Contract models).
 #[derive(Clone, Debug, PartialEq, Eq, DeriveEntityModel, Serialize, Deserialize)]
 #[sea_orm(table_name = "contract")]
 pub struct Model {
@@ -333,7 +335,7 @@ pub enum ContractType {
     /// A player that is on their 3rd veteran season is converted to a UFA-10 for the duration of the following preseason. They are then re-signed (Veteran) at a 10% discount, signed to a different team (Veteran, no discount), or dropped (expired status).
     #[sea_orm(num_value = 7)]
     UnrestrictedFreeAgentVeteran, // ---- UFA - 10%
-    /// Dropping a player from a team for any reason moves them to free agency. A free agent can be signed onto any team starting from the beginning of the week after they are dropped.
+    /// Signing on a new player via auction creates a FA contract, and dropping a player from a team for any reason moves them to free agency. A free agent can be signed onto any team starting from the beginning of the week after they are dropped.
     #[sea_orm(num_value = 8)]
     FreeAgent, // This is needed when resigning previously-dropped players, as we need to know their previous contract's value.
 }

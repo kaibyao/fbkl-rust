@@ -3,6 +3,7 @@ use sea_orm_migration::prelude::*;
 use crate::{
     m20220922_012310_create_real_world_tables::Player,
     m20220924_004529_create_league_tables::League, m20221023_002183_create_asset_tables::DraftPick,
+    set_auto_updated_at_on_table,
 };
 
 #[derive(DeriveMigrationName)]
@@ -46,9 +47,23 @@ impl MigrationTrait for Migration {
                             .not_null(),
                     )
                     .col(ColumnDef::new(RookieDraftSelection::SelectedPlayerId).big_integer())
+                    .col(
+                        ColumnDef::new(RookieDraftSelection::CreatedAt)
+                            .timestamp_with_time_zone()
+                            .not_null()
+                            .extra("DEFAULT CURRENT_TIMESTAMP".to_string()),
+                    )
+                    .col(
+                        ColumnDef::new(RookieDraftSelection::UpdatedAt)
+                            .timestamp_with_time_zone()
+                            .not_null()
+                            .extra("DEFAULT CURRENT_TIMESTAMP".to_string()),
+                    )
                     .to_owned(),
             )
             .await?;
+
+        set_auto_updated_at_on_table(manager, RookieDraftSelection::Table.to_string()).await?;
 
         manager
             .create_index(
@@ -129,7 +144,12 @@ impl MigrationTrait for Migration {
 
     async fn down(&self, manager: &SchemaManager) -> Result<(), DbErr> {
         manager
-            .drop_table(Table::drop().table(RookieDraftSelection::Table).to_owned())
+            .drop_table(
+                Table::drop()
+                    .if_exists()
+                    .table(RookieDraftSelection::Table)
+                    .to_owned(),
+            )
             .await
     }
 }
@@ -145,4 +165,6 @@ pub enum RookieDraftSelection {
     DraftPickId,
     LeagueId,
     SelectedPlayerId,
+    CreatedAt,
+    UpdatedAt,
 }

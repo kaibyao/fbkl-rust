@@ -9,10 +9,10 @@ use serde::{Deserialize, Serialize};
 pub struct Model {
     #[sea_orm(primary_key)]
     pub id: i64,
+    pub league_role: LeagueRole,
     pub nickname: String,
     pub team_id: i64,
     pub user_id: i64,
-    pub league_role: LeagueRole,
     pub created_at: DateTimeWithTimeZone,
     pub updated_at: DateTimeWithTimeZone,
 }
@@ -40,6 +40,9 @@ pub enum LeagueRole {
     /// Has access to a league's settings.
     #[sea_orm(num_value = 1)]
     LeagueCommissioner,
+    /// User is inactive/deactivated in the league.
+    #[sea_orm(num_value = 2)]
+    Inactive,
 }
 
 #[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]

@@ -143,15 +143,15 @@ async fn setup_team_user(manager: &SchemaManager<'_>) -> Result<(), DbErr> {
                         .auto_increment()
                         .primary_key(),
                 )
-                .col(ColumnDef::new(TeamUser::Nickname).string().not_null())
-                .col(ColumnDef::new(TeamUser::TeamId).big_integer().not_null())
-                .col(ColumnDef::new(TeamUser::UserId).big_integer().not_null())
                 .col(
                     ColumnDef::new(TeamUser::LeagueRole)
                         .small_integer()
                         .not_null()
                         .default(0),
                 )
+                .col(ColumnDef::new(TeamUser::Nickname).string().not_null())
+                .col(ColumnDef::new(TeamUser::TeamId).big_integer().not_null())
+                .col(ColumnDef::new(TeamUser::UserId).big_integer().not_null())
                 .col(
                     ColumnDef::new(TeamUser::CreatedAt)
                         .timestamp_with_time_zone()
@@ -313,10 +313,10 @@ pub enum Team {
 pub enum TeamUser {
     Table,
     Id,
+    LeagueRole,
     Nickname,
     TeamId,
     UserId,
-    LeagueRole,
     CreatedAt,
     UpdatedAt,
 }
