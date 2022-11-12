@@ -11,6 +11,7 @@ pub mod real_team;
 pub mod sessions;
 pub mod team;
 pub mod team_update;
+pub mod team_update_contract;
 pub mod team_user;
 pub mod user;
 pub mod user_registration;

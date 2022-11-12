@@ -14,6 +14,7 @@ mod m20220924_004529_create_league_tables;
 mod m20220930_011056_seed_positions;
 mod m20221023_002183_create_asset_tables;
 mod m20221029_152534_create_team_update_contract;
+mod m20221111_002318_create_rookie_draft;
 
 pub struct Migrator;
 
@@ -30,6 +31,7 @@ impl MigratorTrait for Migrator {
             Box::new(m20220930_011056_seed_positions::Migration),
             Box::new(m20221023_002183_create_asset_tables::Migration),
             Box::new(m20221029_152534_create_team_update_contract::Migration),
+            Box::new(m20221111_002318_create_rookie_draft::Migration),
         ]
     }
 }

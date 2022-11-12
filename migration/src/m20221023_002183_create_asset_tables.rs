@@ -306,7 +306,7 @@ async fn setup_draft_pick(manager: &SchemaManager<'_>) -> Result<(), DbErr> {
 
 /// Learn more at https://docs.rs/sea-query#iden
 #[derive(Iden)]
-enum Contract {
+pub enum Contract {
     Table,
     Id,
     ContractYear,
@@ -325,7 +325,7 @@ enum Contract {
 }
 
 #[derive(Iden)]
-enum DraftPick {
+pub enum DraftPick {
     Table,
     Id,
     ProtectionClause,

@@ -84,11 +84,19 @@ pub enum Relation {
         on_delete = "Cascade"
     )]
     Team,
+    #[sea_orm(has_many = "super::team_update_contract::Entity")]
+    TeamUpdateContract,
 }
 
 impl Related<super::team::Entity> for Entity {
     fn to() -> RelationDef {
         Relation::Team.def()
+    }
+}
+
+impl Related<super::team_update_contract::Entity> for Entity {
+    fn to() -> RelationDef {
+        Relation::TeamUpdateContract.def()
     }
 }
 
