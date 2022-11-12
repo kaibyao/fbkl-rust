@@ -370,6 +370,8 @@ pub enum ContractStatus {
 
 #[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]
 pub enum Relation {
+    #[sea_orm(has_many = "super::auction::Entity")]
+    Auction,
     #[sea_orm(
         belongs_to = "super::league::Entity",
         from = "Column::LeagueId",
@@ -412,6 +414,12 @@ pub enum Relation {
     Team,
     #[sea_orm(has_many = "super::team_update_contract::Entity")]
     TeamUpdateContract,
+}
+
+impl Related<super::auction::Entity> for Entity {
+    fn to() -> RelationDef {
+        Relation::Auction.def()
+    }
 }
 
 impl Related<super::league::Entity> for Entity {

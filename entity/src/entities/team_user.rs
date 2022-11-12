@@ -47,6 +47,8 @@ pub enum LeagueRole {
 
 #[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]
 pub enum Relation {
+    #[sea_orm(has_many = "super::auction_bid::Entity")]
+    Auction,
     #[sea_orm(
         belongs_to = "super::team::Entity",
         from = "Column::TeamId",
@@ -63,6 +65,12 @@ pub enum Relation {
         on_delete = "Cascade"
     )]
     User,
+}
+
+impl Related<super::auction::Entity> for Entity {
+    fn to() -> RelationDef {
+        Relation::Auction.def()
+    }
 }
 
 impl Related<super::team::Entity> for Entity {
