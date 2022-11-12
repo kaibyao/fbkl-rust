@@ -20,15 +20,24 @@ impl MigrationTrait for Migration {
 
     async fn down(&self, manager: &SchemaManager) -> Result<(), DbErr> {
         manager
-            .drop_table(Table::drop().table(TeamUser::Table).to_owned())
+            .drop_table(
+                Table::drop()
+                    .table(TeamUpdate::Table)
+                    .if_exists()
+                    .to_owned(),
+            )
             .await?;
 
         manager
-            .drop_table(Table::drop().table(Team::Table).to_owned())
+            .drop_table(Table::drop().table(TeamUser::Table).if_exists().to_owned())
             .await?;
 
         manager
-            .drop_table(Table::drop().table(League::Table).to_owned())
+            .drop_table(Table::drop().table(Team::Table).if_exists().to_owned())
+            .await?;
+
+        manager
+            .drop_table(Table::drop().table(League::Table).if_exists().to_owned())
             .await
     }
 }

@@ -23,6 +23,9 @@ impl MigrationTrait for Migration {
 
     async fn down(&self, manager: &SchemaManager) -> Result<(), DbErr> {
         manager
+            .drop_table(Table::drop().table(DraftPick::Table).if_exists().to_owned())
+            .await?;
+        manager
             .drop_table(Table::drop().table(Contract::Table).if_exists().to_owned())
             .await
     }
