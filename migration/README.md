@@ -1,5 +1,7 @@
 # Running Migrator CLI
 
+Make sure you first have `sea-orm-cli` installed: `cargo install sea-orm-cli`.
+
 ## Steps to creating a new database table
 
 1. Create your migration file: `sea-orm-cli migrate generate <name_of_your_migration>`.
