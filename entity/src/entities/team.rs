@@ -56,4 +56,26 @@ impl Related<super::team_update::Entity> for Entity {
     }
 }
 
+#[derive(Debug)]
+pub struct TradesProposed;
+impl Linked for TradesProposed {
+    type FromEntity = Entity;
+    type ToEntity = super::trade::Entity;
+
+    fn link(&self) -> Vec<RelationDef> {
+        vec![super::trade::Relation::FromTeam.def().rev()]
+    }
+}
+
+#[derive(Debug)]
+pub struct TradesResponded;
+impl Linked for TradesResponded {
+    type FromEntity = Entity;
+    type ToEntity = super::trade::Entity;
+
+    fn link(&self) -> Vec<RelationDef> {
+        vec![super::trade::Relation::ToTeam.def().rev()]
+    }
+}
+
 impl ActiveModelBehavior for ActiveModel {}

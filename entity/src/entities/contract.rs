@@ -446,6 +446,7 @@ impl Related<super::team_update_contract::Entity> for Entity {
     }
 }
 
+#[derive(Debug)]
 pub struct OriginalContract;
 impl Linked for OriginalContract {
     type FromEntity = Entity;
@@ -456,6 +457,7 @@ impl Linked for OriginalContract {
     }
 }
 
+#[derive(Debug)]
 pub struct PreviousContract;
 impl Linked for PreviousContract {
     type FromEntity = Entity;

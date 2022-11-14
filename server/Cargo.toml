@@ -12,7 +12,7 @@ path = "src/lib.rs"
 [dependencies]
 async-graphql = {git = "https://github.com/kaibyao/async-graphql", features = ["log", "tracing"]}
 async-graphql-axum = {git = "https://github.com/kaibyao/async-graphql"}
-async-sea-orm-session = {version = "0.1.2", default-features = false}
+async-sea-orm-session = {git = "https://github.com/kaibyao/async-sea-orm-session", default-features = false}
 axum = {version = "0.6.0-rc.2"}
 axum-macros = "0.2.3"
 axum-sessions = {git = "https://github.com/kaibyao/axum-sessions", rev = "9e5ce92717c17edf3ecef95180779ec0b106482b"}
