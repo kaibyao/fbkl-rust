@@ -97,6 +97,8 @@ pub enum Relation {
     PreviousTrade,
     #[sea_orm(has_many = "super::trade_action::Entity")]
     TradeAction,
+    #[sea_orm(has_many = "super::trade_asset::Entity")]
+    TradeAsset,
 }
 
 impl Related<super::league::Entity> for Entity {
@@ -108,6 +110,12 @@ impl Related<super::league::Entity> for Entity {
 impl Related<super::trade_action::Entity> for Entity {
     fn to() -> RelationDef {
         Relation::TradeAction.def()
+    }
+}
+
+impl Related<super::trade_asset::Entity> for Entity {
+    fn to() -> RelationDef {
+        Relation::TradeAsset.def()
     }
 }
 

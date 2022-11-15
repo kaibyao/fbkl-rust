@@ -46,6 +46,8 @@ pub enum Relation {
     OriginalOwnerTeam,
     #[sea_orm(has_many = "super::rookie_draft_selection::Entity")]
     RookieDraftSelection,
+    #[sea_orm(has_many = "super::trade_asset::Entity")]
+    TradeAsset,
 }
 
 impl Related<super::league::Entity> for Entity {
@@ -77,6 +79,12 @@ impl Linked for OriginalOwnerTeam {
 impl Related<super::rookie_draft_selection::Entity> for Entity {
     fn to() -> RelationDef {
         Relation::RookieDraftSelection.def()
+    }
+}
+
+impl Related<super::trade_asset::Entity> for Entity {
+    fn to() -> RelationDef {
+        Relation::TradeAsset.def()
     }
 }
 
