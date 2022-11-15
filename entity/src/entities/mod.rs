@@ -17,5 +17,6 @@ pub mod team_update;
 pub mod team_update_contract;
 pub mod team_user;
 pub mod trade;
+pub mod trade_action;
 pub mod user;
 pub mod user_registration;

@@ -65,6 +65,8 @@ pub enum Relation {
         on_delete = "Cascade"
     )]
     User,
+    #[sea_orm(has_many = "super::trade_action::Entity")]
+    TradeAction,
 }
 
 impl Related<super::auction::Entity> for Entity {
@@ -76,6 +78,12 @@ impl Related<super::auction::Entity> for Entity {
 impl Related<super::team::Entity> for Entity {
     fn to() -> RelationDef {
         Relation::Team.def()
+    }
+}
+
+impl Related<super::trade_action::Entity> for Entity {
+    fn to() -> RelationDef {
+        Relation::TradeAction.def()
     }
 }
 

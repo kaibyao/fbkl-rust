@@ -50,7 +50,7 @@ pub enum TradeStatus {
     Rejected,
     /// Trade has been counter-offered by the responding team.
     #[sea_orm(num_value = 4)]
-    CounterOffered,
+    Counteroffered,
 }
 
 #[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]
@@ -95,11 +95,19 @@ pub enum Relation {
         on_delete = "Cascade"
     )]
     PreviousTrade,
+    #[sea_orm(has_many = "super::trade_action::Entity")]
+    TradeAction,
 }
 
 impl Related<super::league::Entity> for Entity {
     fn to() -> RelationDef {
         Relation::League.def()
+    }
+}
+
+impl Related<super::trade_action::Entity> for Entity {
+    fn to() -> RelationDef {
+        Relation::TradeAction.def()
     }
 }
 
