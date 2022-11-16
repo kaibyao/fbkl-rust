@@ -10,7 +10,7 @@ pub struct Model {
     #[sea_orm(primary_key)]
     pub id: i64,
     pub asset_type: TradeAssetType,
-    pub draft_pick_condition: Option<String>,
+    pub draft_pick_option: Option<String>,
     pub player_name_at_time_of_trade: Option<String>,
     pub player_team_name_at_time_of_trade: Option<String>,
     pub contract_id: Option<i64>,
@@ -121,4 +121,129 @@ impl Related<super::trade::Entity> for Entity {
     }
 }
 
-impl ActiveModelBehavior for ActiveModel {}
+impl ActiveModelBehavior for ActiveModel {
+    fn before_save(self, _insert: bool) -> Result<Self, DbErr> {
+        validate_trade_asset_for_contract(&self)?;
+        validate_trade_asset_for_draft_pick(&self)?;
+        validate_trade_asset_for_draft_pick_option(&self)?;
+
+        Ok(self)
+    }
+}
+
+fn validate_trade_asset_for_contract(model: &ActiveModel) -> Result<(), DbErr> {
+    if !model.asset_type.as_ref().eq(&TradeAssetType::Contract) {
+        return Ok(());
+    }
+
+    if model.draft_pick_option.is_set() {
+        return Err(DbErr::Custom(format!("A trade asset of type=Contract should not have a draft pick condition. Team: {}. Contract id: {:?}", model.from_team_id.as_ref(), model.contract_id.as_ref())));
+    }
+
+    if model.player_name_at_time_of_trade.is_not_set() {
+        return Err(DbErr::Custom(format!(
+            "A trade asset of type=Contract requires a player name. Team: {}. Contract id: {:?}",
+            model.from_team_id.as_ref(),
+            model.contract_id.as_ref()
+        )));
+    }
+
+    if model.player_team_name_at_time_of_trade.is_not_set() {
+        return Err(DbErr::Custom(format!(
+            "A trade asset of type=Contract requires a player team. Team: {}. Contract id: {:?}",
+            model.from_team_id.as_ref(),
+            model.contract_id.as_ref()
+        )));
+    }
+
+    if model.player_position_id_at_time_of_trade.is_not_set() {
+        return Err(DbErr::Custom(format!("A trade asset of type=Contract requires a player position. Team: {}. Contract id: {:?}", model.from_team_id.as_ref(), model.contract_id.as_ref())));
+    }
+
+    if model.contract_id.is_not_set() {
+        return Err(DbErr::Custom(format!(
+            "A trade asset of type=Contract requires a contract id. Team: {}.",
+            model.from_team_id.as_ref()
+        )));
+    }
+
+    if model.draft_pick_id.is_set() {
+        return Err(DbErr::Custom(format!("A trade asset of type=Contract should not have a draft pick. Team: {}. Contract id: {:?}", model.from_team_id.as_ref(), model.contract_id.as_ref())));
+    }
+
+    Ok(())
+}
+
+fn validate_trade_asset_for_draft_pick(model: &ActiveModel) -> Result<(), DbErr> {
+    if !model.asset_type.as_ref().eq(&TradeAssetType::DraftPick) {
+        return Ok(());
+    }
+
+    if model.draft_pick_option.is_set() {
+        return Err(DbErr::Custom(format!("A trade asset of type=DraftPick should not have a draft pick condition. Team: {}. Draft pick id: {:?}", model.from_team_id.as_ref(), model.draft_pick_id.as_ref())));
+    }
+
+    if model.player_name_at_time_of_trade.is_set() {
+        return Err(DbErr::Custom(format!("A trade asset of type=DraftPick should not have a player name. Team: {}. Draft pick id: {:?}", model.from_team_id.as_ref(), model.draft_pick_id.as_ref())));
+    }
+
+    if model.player_team_name_at_time_of_trade.is_set() {
+        return Err(DbErr::Custom(format!("A trade asset of type=DraftPick should not have a player team. Team: {}. Draft pick id: {:?}", model.from_team_id.as_ref(), model.draft_pick_id.as_ref())));
+    }
+
+    if model.player_position_id_at_time_of_trade.is_set() {
+        return Err(DbErr::Custom(format!("A trade asset of type=DraftPick should not have a player position. Team: {}. Draft pick id: {:?}", model.from_team_id.as_ref(), model.draft_pick_id.as_ref())));
+    }
+
+    if model.contract_id.is_set() {
+        return Err(DbErr::Custom(format!("A trade asset of type=DraftPick should not have a contract. Team: {}. Draft pick id: {:?}", model.from_team_id.as_ref(), model.draft_pick_id.as_ref())));
+    }
+
+    if model.draft_pick_id.is_not_set() {
+        return Err(DbErr::Custom(format!(
+            "A trade asset of type=DraftPick requires a draft pick id. Team: {}.",
+            model.from_team_id.as_ref()
+        )));
+    }
+
+    Ok(())
+}
+
+fn validate_trade_asset_for_draft_pick_option(model: &ActiveModel) -> Result<(), DbErr> {
+    if !model
+        .asset_type
+        .as_ref()
+        .eq(&TradeAssetType::DraftPickOption)
+    {
+        return Ok(());
+    }
+
+    if model.draft_pick_id.is_not_set() {
+        return Err(DbErr::Custom(format!(
+            "A trade asset of type=DraftPickOption requires a draft pick id. Team: {}.",
+            model.from_team_id.as_ref()
+        )));
+    }
+
+    if model.draft_pick_option.is_not_set() {
+        return Err(DbErr::Custom(format!("A trade asset of type=DraftPickOption requires a draft pick option to be set. Team: {}. Draft pick id: {:?}", model.from_team_id.as_ref(), model.draft_pick_id.as_ref())));
+    }
+
+    if model.player_name_at_time_of_trade.is_set() {
+        return Err(DbErr::Custom(format!("A trade asset of type=DraftPickOption should not have a player name. Team: {}. Draft pick id: {:?}", model.from_team_id.as_ref(), model.draft_pick_id.as_ref())));
+    }
+
+    if model.player_team_name_at_time_of_trade.is_set() {
+        return Err(DbErr::Custom(format!("A trade asset of type=DraftPickOption should not have a player team. Team: {}. Draft pick id: {:?}", model.from_team_id.as_ref(), model.draft_pick_id.as_ref())));
+    }
+
+    if model.player_position_id_at_time_of_trade.is_set() {
+        return Err(DbErr::Custom(format!("A trade asset of type=DraftPickOption should not have a player position. Team: {}. Draft pick id: {:?}", model.from_team_id.as_ref(), model.draft_pick_id.as_ref())));
+    }
+
+    if model.contract_id.is_set() {
+        return Err(DbErr::Custom(format!("A trade asset of type=DraftPickOption should not have a contract. Team: {}. Draft pick id: {:?}", model.from_team_id.as_ref(), model.draft_pick_id.as_ref())));
+    }
+
+    Ok(())
+}
