@@ -14,8 +14,8 @@ pub struct Model {
     pub league_id: i64,
     pub from_team_id: i64,
     pub to_team_id: i64,
-    pub original_trade_id: i64,
-    pub previous_trade_id: i64,
+    pub original_trade_id: Option<i64>,
+    pub previous_trade_id: Option<i64>,
     pub created_at: DateTimeWithTimeZone,
     pub updated_at: DateTimeWithTimeZone,
 }
@@ -141,4 +141,48 @@ impl Linked for PreviousTrade {
     }
 }
 
-impl ActiveModelBehavior for ActiveModel {}
+impl ActiveModelBehavior for ActiveModel {
+    fn before_save(self, insert: bool) -> Result<Self, DbErr> {
+        non_original_trade_requires_previous_trade(&self)?;
+        original_trade_requires_unset_previous_trade(&self)?;
+
+        if !insert {
+            update_requires_original_trade(&self)?;
+        }
+
+        Ok(self)
+    }
+}
+
+fn non_original_trade_requires_previous_trade(model: &ActiveModel) -> Result<(), DbErr> {
+    if model.previous_trade_id.is_not_set()
+        && model.original_trade_id.is_set()
+        && model.original_trade_id.as_ref().as_ref().unwrap() != model.id.as_ref()
+    {
+        Err(DbErr::Custom(format!("This trade (id={}, original_trade_id={:?}) is missing a reference to the previous trade for this player.", model.id.as_ref(), model.original_trade_id.as_ref())))
+    } else {
+        Ok(())
+    }
+}
+
+fn original_trade_requires_unset_previous_trade(model: &ActiveModel) -> Result<(), DbErr> {
+    if model.previous_trade_id.is_set()
+        && model.original_trade_id.is_set()
+        && model.original_trade_id.as_ref().as_ref().unwrap() == model.id.as_ref()
+    {
+        Err(DbErr::Custom(format!("This trade (id={}, original_trade_id={:?}, previous_trade_id={:?}) is supposedly the original (id and original id are matching), yet a previous trade id is referenced.", model.id.as_ref(), model.original_trade_id.as_ref(), model.previous_trade_id.as_ref())))
+    } else {
+        Ok(())
+    }
+}
+
+fn update_requires_original_trade(model: &ActiveModel) -> Result<(), DbErr> {
+    if model.original_trade_id.is_not_set() {
+        Err(DbErr::Custom(format!(
+            "This trade (id={}) requires original_trade_id to be set before it can be saved.",
+            model.id.as_ref()
+        )))
+    } else {
+        Ok(())
+    }
+}

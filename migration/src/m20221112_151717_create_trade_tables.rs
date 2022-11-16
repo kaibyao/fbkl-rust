@@ -68,16 +68,8 @@ async fn setup_trade(manager: &SchemaManager<'_>) -> Result<(), DbErr> {
                 .col(ColumnDef::new(Trade::LeagueId).big_integer().not_null())
                 .col(ColumnDef::new(Trade::FromTeamId).big_integer().not_null())
                 .col(ColumnDef::new(Trade::ToTeamId).big_integer().not_null())
-                .col(
-                    ColumnDef::new(Trade::OriginalTradeId)
-                        .big_integer()
-                        .not_null(),
-                )
-                .col(
-                    ColumnDef::new(Trade::PreviousTradeId)
-                        .big_integer()
-                        .not_null(),
-                )
+                .col(ColumnDef::new(Trade::OriginalTradeId).big_integer())
+                .col(ColumnDef::new(Trade::PreviousTradeId).big_integer())
                 .col(
                     ColumnDef::new(Trade::CreatedAt)
                         .timestamp_with_time_zone()
