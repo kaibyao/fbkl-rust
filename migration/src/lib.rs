@@ -17,6 +17,7 @@ mod m20221029_152534_create_team_update_contract;
 mod m20221111_002318_create_rookie_draft;
 mod m20221112_132607_create_auction_tables;
 mod m20221112_151717_create_trade_tables;
+mod m20221117_235325_create_transaction;
 
 pub struct Migrator;
 
@@ -36,6 +37,7 @@ impl MigratorTrait for Migrator {
             Box::new(m20221111_002318_create_rookie_draft::Migration),
             Box::new(m20221112_132607_create_auction_tables::Migration),
             Box::new(m20221112_151717_create_trade_tables::Migration),
+            Box::new(m20221117_235325_create_transaction::Migration),
         ]
     }
 }
