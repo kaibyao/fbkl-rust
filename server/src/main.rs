@@ -29,7 +29,13 @@ async fn main() -> Result<()> {
 
     info!("Starting fbkl/server on port 9001...");
 
-    // TODO: import data
+    // TODO: Build DraftPickOption entity (deriving them from trade_asset feelsbad).
+    // TODO: Build TeamSettings struct used for team updates.
+    // TODO: Account for roster legalization (pre-season).
+    // TODO: Account for roster legalization (weekly).
+    // TODO: Build Transaction Processor. The idea being there's a job that runs every minute to update contracts, change teams, etc.
+    // TODO: Do we need to account for 3-team trades?
+    // TODO: import data (transactions)
     // TODO: Rest of DB migrations (incl. FK relations)
     // TODO: login/registration needs validation (password length, email is correct, etc.)
     // TODO: Handle errors with actual HTTP status codes + logging (test w/ graphql errors)
