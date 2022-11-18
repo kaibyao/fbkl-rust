@@ -19,5 +19,6 @@ pub mod team_user;
 pub mod trade;
 pub mod trade_action;
 pub mod trade_asset;
+pub mod transaction;
 pub mod user;
 pub mod user_registration;

@@ -19,6 +19,7 @@ pub struct Model {
     pub created_at: DateTimeWithTimeZone,
     pub updated_at: DateTimeWithTimeZone,
 }
+
 /// Represents the different types of contract to which a player can be signed. When a player is signed to a team, their contract must be of one of these types.
 #[derive(
     Debug,

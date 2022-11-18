@@ -1,10 +1,11 @@
 [workspace]
 
 members = [
+  "auth",
   "entity",
   "graphql-generation",
   "import-data",
   "migration",
   "server",
-  "auth"
+  "transaction-processor"
 ]

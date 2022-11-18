@@ -17,5 +17,6 @@ pub use super::team_user::Entity as TeamUser;
 pub use super::trade::Entity as Trade;
 pub use super::trade_action::Entity as TradeAction;
 pub use super::trade_asset::Entity as TradeAsset;
+pub use super::transaction::Entity as Transaction;
 pub use super::user::Entity as User;
 pub use super::user_registration::Entity as UserRegistration;
