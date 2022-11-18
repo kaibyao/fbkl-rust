@@ -24,7 +24,7 @@ impl MigrationTrait for Migration {
                             .primary_key(),
                     )
                     .col(
-                        ColumnDef::new(TeamUpdateContract::ActionType)
+                        ColumnDef::new(TeamUpdateContract::UpdateType)
                             .small_integer()
                             .not_null(),
                     )
@@ -109,7 +109,7 @@ impl MigrationTrait for Migration {
 pub enum TeamUpdateContract {
     Table,
     Id,
-    ActionType,
+    UpdateType,
     TeamUpdateId,
     ContractId,
     CreatedAt,
