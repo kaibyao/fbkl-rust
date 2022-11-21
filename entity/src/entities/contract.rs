@@ -9,7 +9,7 @@ use serde::{Deserialize, Serialize};
 ///
 /// The truth is that when a player is signed to a team, what the team controls is the contract representing that player’s commitment to the team, as well as the team’s commitment to the player via the $-value being payed out to the player. Within a league, a player cannot have more than 1 non-expired contract at a time.
 ///
-/// Additionally, a Contract is immutable. That is, we should never update an existing contract. Rather, we create a new/amended contract that points back to the previous contract. In this way, we can keep the history of changes made to a player's contract (which is really represented by the history chain of Contract models).
+/// Additionally, a Contract is immutable. That is, we should never update an existing contract. Rather, we create a new/amended contract that points back to the previous contract. In this way, we can keep the history of changes made to a player's contract (which is represented by the history chain of Contract models).
 #[derive(Clone, Debug, PartialEq, Eq, DeriveEntityModel, Serialize, Deserialize)]
 #[sea_orm(table_name = "contract")]
 pub struct Model {

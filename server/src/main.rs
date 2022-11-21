@@ -29,8 +29,6 @@ async fn main() -> Result<()> {
 
     info!("Starting fbkl/server on port 9001...");
 
-    // TODO: Build DraftPickOption entity (deriving them from trade_asset feelsbad).
-    // TODO: Build TeamSettings struct used for team updates.
     // TODO: Account for roster legalization (pre-season).
     // TODO: Account for roster legalization (weekly).
     // TODO: Use bincode to store team/league before + after changes.
