@@ -20,6 +20,8 @@ pub struct Model {
 
 #[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]
 pub enum Relation {
+    #[sea_orm(has_many = "super::draft_pick_option::Entity")]
+    DraftPickOption,
     #[sea_orm(
         belongs_to = "super::league::Entity",
         from = "Column::LeagueId",
@@ -48,6 +50,12 @@ pub enum Relation {
     RookieDraftSelection,
     #[sea_orm(has_many = "super::trade_asset::Entity")]
     TradeAsset,
+}
+
+impl Related<super::draft_pick_option::Entity> for Entity {
+    fn to() -> RelationDef {
+        Relation::DraftPickOption.def()
+    }
 }
 
 impl Related<super::league::Entity> for Entity {

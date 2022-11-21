@@ -6,6 +6,7 @@ pub mod auction;
 pub mod auction_bid;
 pub mod contract;
 pub mod draft_pick;
+pub mod draft_pick_option;
 pub mod league;
 pub mod player;
 pub mod position;
