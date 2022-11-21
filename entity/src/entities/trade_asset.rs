@@ -10,7 +10,7 @@ pub struct Model {
     #[sea_orm(primary_key)]
     pub id: i64,
     pub asset_type: TradeAssetType,
-    pub draft_pick_option: Option<String>,
+    pub draft_pick_option_id: Option<i64>,
     pub player_name_at_time_of_trade: Option<String>,
     pub player_team_name_at_time_of_trade: Option<String>,
     pub contract_id: Option<i64>,
@@ -136,8 +136,8 @@ fn validate_trade_asset_for_contract(model: &ActiveModel) -> Result<(), DbErr> {
         return Ok(());
     }
 
-    if model.draft_pick_option.is_set() {
-        return Err(DbErr::Custom(format!("A trade asset of type=Contract should not have a draft pick condition. Team: {}. Contract id: {:?}", model.from_team_id.as_ref(), model.contract_id.as_ref())));
+    if model.draft_pick_option_id.is_set() {
+        return Err(DbErr::Custom(format!("A trade asset of type=Contract should not have a draft pick option. Team: {}. Contract id: {:?}", model.from_team_id.as_ref(), model.contract_id.as_ref())));
     }
 
     if model.player_name_at_time_of_trade.is_not_set() {
@@ -179,8 +179,8 @@ fn validate_trade_asset_for_draft_pick(model: &ActiveModel) -> Result<(), DbErr>
         return Ok(());
     }
 
-    if model.draft_pick_option.is_set() {
-        return Err(DbErr::Custom(format!("A trade asset of type=DraftPick should not have a draft pick condition. Team: {}. Draft pick id: {:?}", model.from_team_id.as_ref(), model.draft_pick_id.as_ref())));
+    if model.draft_pick_option_id.is_set() {
+        return Err(DbErr::Custom(format!("A trade asset of type=DraftPick should not have a draft pick option. Team: {}. Draft pick id: {:?}", model.from_team_id.as_ref(), model.draft_pick_id.as_ref())));
     }
 
     if model.player_name_at_time_of_trade.is_set() {
@@ -225,7 +225,7 @@ fn validate_trade_asset_for_draft_pick_option(model: &ActiveModel) -> Result<(),
         )));
     }
 
-    if model.draft_pick_option.is_not_set() {
+    if model.draft_pick_option_id.is_not_set() {
         return Err(DbErr::Custom(format!("A trade asset of type=DraftPickOption requires a draft pick option to be set. Team: {}. Draft pick id: {:?}", model.from_team_id.as_ref(), model.draft_pick_id.as_ref())));
     }
 

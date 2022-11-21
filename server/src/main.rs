@@ -33,6 +33,7 @@ async fn main() -> Result<()> {
     // TODO: Build TeamSettings struct used for team updates.
     // TODO: Account for roster legalization (pre-season).
     // TODO: Account for roster legalization (weekly).
+    // TODO: Use bincode to store team/league before + after changes.
     // TODO: Build Transaction Processor. The idea being there's a job that runs every minute to update contracts, change teams, etc.
     // TODO: Do we need to account for 3-team trades?
     // TODO: import data (transactions)
@@ -44,6 +45,7 @@ async fn main() -> Result<()> {
     // TODO: hook up user registration to sendgrid/similar.
     // TODO: Use Next.JS for public path? Turbopack seems interesting.
     // TODO: Possibly use https://github.com/casbin/casbin-rs for access control?
+    // TODO: Create league config data structure to hold deadlines for each season.
 
     match server.await {
         Ok(_) => Ok(()),

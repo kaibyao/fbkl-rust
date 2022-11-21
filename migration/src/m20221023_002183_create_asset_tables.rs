@@ -17,11 +17,20 @@ impl MigrationTrait for Migration {
 
         setup_contract(manager).await?;
         setup_draft_pick(manager).await?;
+        setup_draft_pick_option(manager).await?;
 
         transaction.commit().await
     }
 
     async fn down(&self, manager: &SchemaManager) -> Result<(), DbErr> {
+        manager
+            .drop_table(
+                Table::drop()
+                    .table(DraftPickOption::Table)
+                    .if_exists()
+                    .to_owned(),
+            )
+            .await?;
         manager
             .drop_table(Table::drop().table(DraftPick::Table).if_exists().to_owned())
             .await?;
@@ -199,7 +208,6 @@ async fn setup_draft_pick(manager: &SchemaManager<'_>) -> Result<(), DbErr> {
                         .auto_increment()
                         .primary_key(),
                 )
-                .col(ColumnDef::new(DraftPick::ProtectionClause).string())
                 .col(ColumnDef::new(DraftPick::Round).small_integer().not_null())
                 .col(
                     ColumnDef::new(DraftPick::SeasonEndYear)
@@ -307,6 +315,72 @@ async fn setup_draft_pick(manager: &SchemaManager<'_>) -> Result<(), DbErr> {
         .await
 }
 
+async fn setup_draft_pick_option(manager: &SchemaManager<'_>) -> Result<(), DbErr> {
+    manager
+        .create_table(
+            Table::create()
+                .table(DraftPickOption::Table)
+                .if_not_exists()
+                .col(
+                    ColumnDef::new(DraftPickOption::Id)
+                        .big_integer()
+                        .not_null()
+                        .auto_increment()
+                        .primary_key(),
+                )
+                .col(ColumnDef::new(DraftPickOption::Clause).string().not_null())
+                .col(
+                    ColumnDef::new(DraftPickOption::DraftPickId)
+                        .big_integer()
+                        .not_null(),
+                )
+                .col(
+                    ColumnDef::new(DraftPickOption::Status)
+                        .small_integer()
+                        .not_null()
+                        .default(0),
+                )
+                .col(
+                    ColumnDef::new(DraftPickOption::CreatedAt)
+                        .timestamp_with_time_zone()
+                        .not_null()
+                        .extra("DEFAULT CURRENT_TIMESTAMP".to_string()),
+                )
+                .col(
+                    ColumnDef::new(DraftPickOption::UpdatedAt)
+                        .timestamp_with_time_zone()
+                        .not_null()
+                        .extra("DEFAULT CURRENT_TIMESTAMP".to_string()),
+                )
+                .to_owned(),
+        )
+        .await?;
+
+    set_auto_updated_at_on_table(manager, DraftPickOption::Table.to_string()).await?;
+
+    manager
+        .create_foreign_key(
+            ForeignKey::create()
+                .name("draft_pick_option_fk_draft_pick")
+                .from(DraftPickOption::Table, DraftPickOption::DraftPickId)
+                .to(DraftPick::Table, DraftPick::Id)
+                .on_delete(ForeignKeyAction::Cascade)
+                .on_update(ForeignKeyAction::Cascade)
+                .to_owned(),
+        )
+        .await?;
+
+    manager
+        .create_index(
+            IndexCreateStatement::new()
+                .name("draft_pick_option_draft_pick")
+                .table(DraftPickOption::Table)
+                .col(DraftPickOption::DraftPickId)
+                .to_owned(),
+        )
+        .await
+}
+
 /// Learn more at https://docs.rs/sea-query#iden
 #[derive(Iden)]
 pub enum Contract {
@@ -331,12 +405,22 @@ pub enum Contract {
 pub enum DraftPick {
     Table,
     Id,
-    ProtectionClause,
     Round,
     SeasonEndYear,
     LeagueId,
     CurrentOwnerTeamId,
     OriginalOwnerTeamId,
+    CreatedAt,
+    UpdatedAt,
+}
+
+#[derive(Iden)]
+pub enum DraftPickOption {
+    Table,
+    Id,
+    Clause,
+    Status,
+    DraftPickId,
     CreatedAt,
     UpdatedAt,
 }

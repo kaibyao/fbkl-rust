@@ -293,11 +293,11 @@ async fn setup_trade_asset(manager: &SchemaManager<'_>) -> Result<(), DbErr> {
                         .not_null()
                         .default(0),
                 )
-                .col(ColumnDef::new(TradeAsset::DraftPickOption).string())
                 .col(ColumnDef::new(TradeAsset::PlayerNameAtTimeOfTrade).string())
                 .col(ColumnDef::new(TradeAsset::PlayerTeamNameAtTimeOfTrade).string())
                 .col(ColumnDef::new(TradeAsset::ContractId).big_integer())
                 .col(ColumnDef::new(TradeAsset::DraftPickId).big_integer())
+                .col(ColumnDef::new(TradeAsset::DraftPickOptionId).big_integer())
                 .col(
                     ColumnDef::new(TradeAsset::FromTeamId)
                         .big_integer()
@@ -422,11 +422,11 @@ pub enum TradeAsset {
     Table,
     Id,
     AssetType,
-    DraftPickOption,
     PlayerNameAtTimeOfTrade,
     PlayerTeamNameAtTimeOfTrade,
     ContractId,
     DraftPickId,
+    DraftPickOptionId,
     FromTeamId,
     PlayerPositionIdAtTimeOfTrade,
     TradeId,
