@@ -3,6 +3,7 @@
 use crate::contract;
 use crate::team_user;
 use async_graphql::Enum;
+use color_eyre::eyre::Error;
 use sea_orm::entity::prelude::*;
 use sea_orm::ConnectionTrait;
 use sea_orm::QuerySelect;
@@ -107,7 +108,7 @@ impl Related<super::team_update_contract::Entity> for Entity {
 
 impl ActiveModelBehavior for ActiveModel {}
 
-#[derive(Debug)]
+#[derive(Debug, Serialize, Deserialize)]
 pub struct TeamUpdateSettings {
     pub users: Vec<team_user::Model>,
 }
@@ -121,7 +122,7 @@ impl TeamUpdateSettings {
 }
 
 /// Used for storing the state of a team.
-#[derive(Debug)]
+#[derive(Debug, Serialize, Deserialize)]
 pub struct TeamUpdateSnapshot {
     pub settings: TeamUpdateSettings,
     pub contract_ids: Vec<i64>,
@@ -156,5 +157,17 @@ impl TeamUpdateSnapshot {
             settings: team_update_settings,
             contract_ids: contracts.into_iter().map(|contract| contract.id).collect(),
         })
+    }
+
+    fn as_bytes(&self) -> Result<Vec<u8>, Error> {
+        // But what happens if the shape of the struct changes in the future?
+        // I suppose you'd have to figure that out no matter how you store the data.
+        let bytes_encoded = bincode::serialize(self)?;
+        Ok(bytes_encoded)
+    }
+
+    fn from_bytes(bytes_encoded: &[u8]) -> Result<Self, Error> {
+        let decoded: Option<Self> = bincode::deserialize(bytes_encoded)?;
+        Ok(decoded.expect("Valid snapshot struct"))
     }
 }

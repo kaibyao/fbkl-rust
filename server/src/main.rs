@@ -29,10 +29,9 @@ async fn main() -> Result<()> {
 
     info!("Starting fbkl/server on port 9001...");
 
+    // TODO: Build Transaction Processor. The idea being there's a job that runs every minute to update contracts, change teams, etc.
     // TODO: Account for roster legalization (pre-season).
     // TODO: Account for roster legalization (weekly).
-    // TODO: Use bincode to store team/league before + after changes.
-    // TODO: Build Transaction Processor. The idea being there's a job that runs every minute to update contracts, change teams, etc.
     // TODO: Do we need to account for 3-team trades?
     // TODO: import data (transactions)
     // TODO: Rest of DB migrations (incl. FK relations)
