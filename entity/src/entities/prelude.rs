@@ -6,6 +6,7 @@ pub use super::contract::Entity as Contract;
 pub use super::draft_pick::Entity as DraftPick;
 pub use super::draft_pick_option::Entity as DraftPickOption;
 pub use super::league::Entity as League;
+pub use super::league_player::Entity as LeaguePlayer;
 pub use super::player::Entity as Player;
 pub use super::position::Entity as Position;
 pub use super::real_team::Entity as RealTeam;

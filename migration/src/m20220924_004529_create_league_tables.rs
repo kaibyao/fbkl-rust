@@ -11,6 +11,7 @@ impl MigrationTrait for Migration {
         let transaction = manager.get_connection().begin().await?;
 
         setup_league(manager).await?;
+        setup_league_player(manager).await?;
         setup_team(manager).await?;
         setup_team_user(manager).await?;
         setup_team_update(manager).await?;
@@ -34,6 +35,15 @@ impl MigrationTrait for Migration {
 
         manager
             .drop_table(Table::drop().table(Team::Table).if_exists().to_owned())
+            .await?;
+
+        manager
+            .drop_table(
+                Table::drop()
+                    .table(LeaguePlayer::Table)
+                    .if_exists()
+                    .to_owned(),
+            )
             .await?;
 
         manager
@@ -73,6 +83,74 @@ async fn setup_league(manager: &SchemaManager<'_>) -> Result<(), DbErr> {
         .await?;
 
     set_auto_updated_at_on_table(manager, League::Table.to_string()).await
+}
+
+async fn setup_league_player(manager: &SchemaManager<'_>) -> Result<(), DbErr> {
+    manager
+        .create_table(
+            Table::create()
+                .table(LeaguePlayer::Table)
+                .if_not_exists()
+                .col(
+                    ColumnDef::new(LeaguePlayer::Id)
+                        .big_integer()
+                        .not_null()
+                        .auto_increment()
+                        .primary_key(),
+                )
+                .col(ColumnDef::new(LeaguePlayer::Name).string().not_null())
+                .col(
+                    ColumnDef::new(LeaguePlayer::SeasonEndYear)
+                        .small_integer()
+                        .not_null(),
+                )
+                .col(
+                    ColumnDef::new(LeaguePlayer::LeagueId)
+                        .big_integer()
+                        .not_null(),
+                )
+                .col(
+                    ColumnDef::new(LeaguePlayer::CreatedAt)
+                        .timestamp_with_time_zone()
+                        .not_null()
+                        .extra("DEFAULT CURRENT_TIMESTAMP".to_string()),
+                )
+                .col(
+                    ColumnDef::new(LeaguePlayer::UpdatedAt)
+                        .timestamp_with_time_zone()
+                        .not_null()
+                        .extra("DEFAULT CURRENT_TIMESTAMP".to_string()),
+                )
+                .to_owned(),
+        )
+        .await?;
+
+    set_auto_updated_at_on_table(manager, LeaguePlayer::Table.to_string()).await?;
+
+    manager
+        .create_foreign_key(
+            ForeignKey::create()
+                .name("league_player_fk_league")
+                .from(LeaguePlayer::Table, LeaguePlayer::LeagueId)
+                .to(League::Table, League::Id)
+                .on_delete(ForeignKeyAction::Cascade)
+                .on_update(ForeignKeyAction::Cascade)
+                .to_owned(),
+        )
+        .await?;
+
+    manager
+        .create_index(
+            IndexCreateStatement::new()
+                .name("league_player_unique_league_year_name")
+                .table(LeaguePlayer::Table)
+                .unique()
+                .col(LeaguePlayer::LeagueId)
+                .col(LeaguePlayer::SeasonEndYear)
+                .col(LeaguePlayer::Name)
+                .to_owned(),
+        )
+        .await
 }
 
 async fn setup_team(manager: &SchemaManager<'_>) -> Result<(), DbErr> {
@@ -303,6 +381,17 @@ pub enum League {
     Table,
     Id,
     Name,
+    CreatedAt,
+    UpdatedAt,
+}
+
+#[derive(Iden)]
+pub enum LeaguePlayer {
+    Table,
+    Id,
+    Name,
+    SeasonEndYear,
+    LeagueId,
     CreatedAt,
     UpdatedAt,
 }
