@@ -14,6 +14,8 @@ pub struct Model {
     pub name: String,
     pub season_end_year: i16,
     pub league_id: i64,
+    /// This id field gets filled when a custom-created player for a specific league eventually gets added to an official (NBA/ESPN) database. This is used to tie in a player's historical record in a league to before they became an NBA player.
+    pub real_player_id: Option<i64>,
     pub created_at: DateTimeWithTimeZone,
     pub updated_at: DateTimeWithTimeZone,
 }
@@ -28,11 +30,25 @@ pub enum Relation {
         on_delete = "Cascade"
     )]
     League,
+    #[sea_orm(
+        belongs_to = "super::player::Entity",
+        from = "Column::RealPlayerId",
+        to = "super::player::Column::Id",
+        on_update = "Cascade",
+        on_delete = "Cascade"
+    )]
+    Player,
 }
 
 impl Related<super::league::Entity> for Entity {
     fn to() -> RelationDef {
         Relation::League.def()
+    }
+}
+
+impl Related<super::player::Entity> for Entity {
+    fn to() -> RelationDef {
+        Relation::Player.def()
     }
 }
 

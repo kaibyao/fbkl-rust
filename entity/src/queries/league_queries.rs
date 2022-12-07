@@ -49,7 +49,7 @@ where
         name: ActiveValue::Set(league_name),
         ..Default::default()
     }
-    .insert(db)
+    .insert(&transaction)
     .await?;
 
     let inserted_team = team::ActiveModel {
@@ -57,7 +57,7 @@ where
         league_id: ActiveValue::Set(inserted_league.id),
         ..Default::default()
     }
-    .insert(db)
+    .insert(&transaction)
     .await?;
 
     let inserted_team_user = team_user::ActiveModel {
@@ -67,7 +67,7 @@ where
         user_id: ActiveValue::Set(league_owner_user_id),
         ..Default::default()
     }
-    .insert(db)
+    .insert(&transaction)
     .await?;
 
     transaction.commit().await?;

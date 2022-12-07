@@ -109,6 +109,7 @@ async fn setup_league_player(manager: &SchemaManager<'_>) -> Result<(), DbErr> {
                         .big_integer()
                         .not_null(),
                 )
+                .col(ColumnDef::new(LeaguePlayer::RealPlayerId).big_integer())
                 .col(
                     ColumnDef::new(LeaguePlayer::CreatedAt)
                         .timestamp_with_time_zone()
@@ -392,6 +393,7 @@ pub enum LeaguePlayer {
     Name,
     SeasonEndYear,
     LeagueId,
+    RealPlayerId,
     CreatedAt,
     UpdatedAt,
 }

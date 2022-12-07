@@ -211,6 +211,16 @@ async fn setup_player(manager: &SchemaManager<'_>) -> Result<(), DbErr> {
         )
         .await?;
     manager
+        .create_index(
+            IndexCreateStatement::new()
+                .name("player_nba_id")
+                .table(Player::Table)
+                .col(Player::NbaId)
+                .unique()
+                .to_owned(),
+        )
+        .await?;
+    manager
         .create_foreign_key(
             ForeignKey::create()
                 .name("player_fk_position")

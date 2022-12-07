@@ -4,6 +4,7 @@ use async_graphql::Enum;
 use sea_orm::entity::prelude::*;
 use serde::{Deserialize, Serialize};
 
+/// Real-world data on the player. Data is taken from ESPN data if it exists, then NBA data if it does not.
 #[derive(Clone, Debug, PartialEq, Eq, DeriveEntityModel, Serialize, Deserialize)]
 #[sea_orm(table_name = "player")]
 pub struct Model {
@@ -12,7 +13,9 @@ pub struct Model {
     pub name: String,
     pub photo_url: Option<String>,
     pub thumbnail_url: Option<String>,
+    /// The id of the player in ESPN's player data.
     pub espn_id: Option<i32>,
+    /// The id of the player in the NBA's player index.
     pub nba_id: Option<i32>,
     pub position_id: i64,
     pub status: PlayerStatus,
@@ -55,6 +58,8 @@ pub enum PlayerStatus {
 pub enum Relation {
     #[sea_orm(has_many = "super::contract::Entity")]
     Contract,
+    #[sea_orm(has_many = "super::league_player::Entity")]
+    LeaguePlayer,
     #[sea_orm(
         belongs_to = "super::position::Entity",
         from = "Column::PositionId",
@@ -78,6 +83,12 @@ pub enum Relation {
 impl Related<super::contract::Entity> for Entity {
     fn to() -> RelationDef {
         Relation::Contract.def()
+    }
+}
+
+impl Related<super::league_player::Entity> for Entity {
+    fn to() -> RelationDef {
+        Relation::LeaguePlayer.def()
     }
 }
 
