@@ -46,7 +46,13 @@ pub enum TransactionType {
 
 #[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]
 pub enum Relation {
-    #[sea_orm(has_one = "super::deadline::Entity")]
+    #[sea_orm(
+        belongs_to = "super::deadline::Entity",
+        from = "Column::DeadlineId",
+        to = "super::deadline::Column::Id",
+        on_update = "Cascade",
+        on_delete = "Cascade"
+    )]
     Deadline,
     #[sea_orm(
         belongs_to = "super::league::Entity",
