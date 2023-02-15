@@ -22,6 +22,7 @@ pub struct Model {
     pub effective_date: Date,
     pub status: TeamUpdateStatus,
     pub team_id: i64,
+    pub transaction_id: Option<i64>,
     pub created_at: DateTimeWithTimeZone,
     pub updated_at: DateTimeWithTimeZone,
 }
@@ -92,6 +93,14 @@ pub enum Relation {
     Team,
     #[sea_orm(has_many = "super::team_update_contract::Entity")]
     TeamUpdateContract,
+    #[sea_orm(
+        belongs_to = "super::transaction::Entity",
+        from = "Column::TransactionId",
+        to = "super::transaction::Column::Id",
+        on_update = "Cascade",
+        on_delete = "Cascade"
+    )]
+    Transaction,
 }
 
 impl Related<super::team::Entity> for Entity {
@@ -106,7 +115,40 @@ impl Related<super::team_update_contract::Entity> for Entity {
     }
 }
 
-impl ActiveModelBehavior for ActiveModel {}
+impl Related<super::transaction::Entity> for Entity {
+    fn to() -> RelationDef {
+        Relation::Transaction.def()
+    }
+}
+
+impl ActiveModelBehavior for ActiveModel {
+    fn before_save(self, _insert: bool) -> Result<Self, DbErr> {
+        roster_change_requires_transaction(&self)?;
+        setting_change_requires_no_transaction(&self)?;
+
+        Ok(self)
+    }
+}
+
+fn roster_change_requires_transaction(model: &ActiveModel) -> Result<(), DbErr> {
+    if model.update_type.as_ref() == &TeamUpdateType::Roster && model.transaction_id.is_not_set() {
+        Err(DbErr::Custom(
+            "A team update (roster change) requires a transaction id.".to_string(),
+        ))
+    } else {
+        Ok(())
+    }
+}
+
+fn setting_change_requires_no_transaction(model: &ActiveModel) -> Result<(), DbErr> {
+    if model.update_type.as_ref() == &TeamUpdateType::Setting && model.transaction_id.is_set() {
+        Err(DbErr::Custom(
+            "A team update (setting change) requires transaction id to be unset.".to_string(),
+        ))
+    } else {
+        Ok(())
+    }
+}
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct TeamUpdateSettings {

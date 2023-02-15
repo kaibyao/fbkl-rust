@@ -16,8 +16,11 @@ pub struct Model {
     /// Represents the different types of transactions that occur in a league.
     pub transaction_type: TransactionType,
     pub league_id: i64,
-    /// Can refer to a Trade, RookieDraftSelection, Auction, Contract, or TeamUpdate.
+    /// Can refer to a Trade, RookieDraftSelection, Auction, Contract(?), or TeamUpdate.
+    // TODO: I don't think this makes sense anymore. It's unwieldy to have a transaction that can point to different table records. It's more "correct" and probably easier to handle if these other tables have a FK pointing to a transaction.
     pub referred_id: i64,
+    pub created_at: DateTimeWithTimeZone,
+    pub updated_at: DateTimeWithTimeZone,
 }
 
 /// Represents the different types of transactions that occur in a league.
@@ -35,6 +38,12 @@ pub enum TransactionType {
     /// A team has updated their roster/settings. There is some overlap between team updates and transaction types. For these overlapped areas, the Transaction will be concerned with the action that caused the team update (auction, trade, etc.) while the Team Update will be concerned with the details (the contract being added via auction or trade, etc.).
     #[sea_orm(num_value = 2)]
     TeamUpdate,
+    /// Pre-season keepers set (does this require a separate table?)
+    #[sea_orm(num_value = 3)]
+    PreseasonKeeper,
+    /// A rookie player was selected during the rookie draft.
+    #[sea_orm(num_value = 4)]
+    RookieDraftSelection,
 }
 
 #[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]
@@ -47,11 +56,19 @@ pub enum Relation {
         on_delete = "Cascade"
     )]
     League,
+    #[sea_orm(has_many = "super::team_update::Entity")]
+    TeamUpdate,
 }
 
 impl Related<super::league::Entity> for Entity {
     fn to() -> RelationDef {
         Relation::League.def()
+    }
+}
+
+impl Related<super::team_update::Entity> for Entity {
+    fn to() -> RelationDef {
+        Relation::TeamUpdate.def()
     }
 }
 

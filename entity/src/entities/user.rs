@@ -10,9 +10,18 @@ pub struct Model {
     pub id: i64,
     pub email: String,
     pub hashed_password: String,
-    pub app_admin_status: i16,
+    pub app_admin_status: UserAppAdminStatus,
     pub created_at: DateTimeWithTimeZone,
     pub updated_at: DateTimeWithTimeZone,
+}
+
+#[derive(Debug, Clone, Eq, PartialEq, EnumIter, DeriveActiveEnum, Serialize, Deserialize)]
+#[sea_orm(rs_type = "i16", db_type = "Integer")]
+pub enum UserAppAdminStatus {
+    #[sea_orm(num_value = 0)]
+    User,
+    #[sea_orm(num_value = 1)]
+    Admin,
 }
 
 #[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]

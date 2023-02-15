@@ -3,6 +3,7 @@
 pub use super::auction::Entity as Auction;
 pub use super::auction_bid::Entity as AuctionBid;
 pub use super::contract::Entity as Contract;
+pub use super::deadline::Entity as Deadline;
 pub use super::draft_pick::Entity as DraftPick;
 pub use super::draft_pick_option::Entity as DraftPickOption;
 pub use super::league::Entity as League;

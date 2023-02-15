@@ -5,6 +5,7 @@ pub mod prelude;
 pub mod auction;
 pub mod auction_bid;
 pub mod contract;
+pub mod deadline;
 pub mod draft_pick;
 pub mod draft_pick_option;
 pub mod league;
