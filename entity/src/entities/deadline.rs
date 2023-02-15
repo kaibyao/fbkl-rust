@@ -55,11 +55,19 @@ pub enum Relation {
         on_delete = "Cascade"
     )]
     League,
+    #[sea_orm(has_many = "super::transaction::Entity")]
+    Transaction,
 }
 
 impl Related<super::league::Entity> for Entity {
     fn to() -> RelationDef {
         Relation::League.def()
+    }
+}
+
+impl Related<super::transaction::Entity> for Entity {
+    fn to() -> RelationDef {
+        Relation::Transaction.def()
     }
 }
 

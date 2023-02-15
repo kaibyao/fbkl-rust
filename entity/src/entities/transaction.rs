@@ -15,10 +15,8 @@ pub struct Model {
     pub season_end_year: i16,
     /// Represents the different types of transactions that occur in a league.
     pub transaction_type: TransactionType,
+    pub deadline_id: i64,
     pub league_id: i64,
-    /// Can refer to a Trade, RookieDraftSelection, Auction, Contract(?), or TeamUpdate.
-    // TODO: I don't think this makes sense anymore. It's unwieldy to have a transaction that can point to different table records. It's more "correct" and probably easier to handle if these other tables have a FK pointing to a transaction.
-    pub referred_id: i64,
     pub created_at: DateTimeWithTimeZone,
     pub updated_at: DateTimeWithTimeZone,
 }
@@ -29,10 +27,10 @@ pub struct Model {
 )]
 #[sea_orm(rs_type = "i16", db_type = "Integer")]
 pub enum TransactionType {
-    /// The transaction is a trade between two teams, and the referred entity is a Trade.
+    /// The transaction is a trade between two teams.
     #[sea_orm(num_value = 0)]
     Trade,
-    /// While not *really* being a transaction, this is needed in order to determine what kind of update to make to a contract. The referred entity is an Auction.
+    /// The transaction is the result of a team winning a player auction.
     #[sea_orm(num_value = 1)]
     AuctionDone,
     /// A team has updated their roster/settings. There is some overlap between team updates and transaction types. For these overlapped areas, the Transaction will be concerned with the action that caused the team update (auction, trade, etc.) while the Team Update will be concerned with the details (the contract being added via auction or trade, etc.).
@@ -48,6 +46,8 @@ pub enum TransactionType {
 
 #[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]
 pub enum Relation {
+    #[sea_orm(has_one = "super::deadline::Entity")]
+    Deadline,
     #[sea_orm(
         belongs_to = "super::league::Entity",
         from = "Column::LeagueId",
@@ -58,6 +58,12 @@ pub enum Relation {
     League,
     #[sea_orm(has_many = "super::team_update::Entity")]
     TeamUpdate,
+}
+
+impl Related<super::deadline::Entity> for Entity {
+    fn to() -> RelationDef {
+        Relation::Deadline.def()
+    }
 }
 
 impl Related<super::league::Entity> for Entity {

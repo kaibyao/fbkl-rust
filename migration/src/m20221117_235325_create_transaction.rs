@@ -129,6 +129,11 @@ async fn setup_transaction(manager: &SchemaManager<'_>) -> Result<(), DbErr> {
                         .not_null(),
                 )
                 .col(
+                    ColumnDef::new(Transaction::DeadlineId)
+                        .big_integer()
+                        .not_null(),
+                )
+                .col(
                     ColumnDef::new(Transaction::LeagueId)
                         .big_integer()
                         .not_null(),
@@ -154,6 +159,18 @@ async fn setup_transaction(manager: &SchemaManager<'_>) -> Result<(), DbErr> {
     manager
         .create_foreign_key(
             ForeignKey::create()
+                .name("transaction_fk_deadline")
+                .from(Transaction::Table, Transaction::DeadlineId)
+                .to(Deadline::Table, Deadline::Id)
+                .on_delete(ForeignKeyAction::Cascade)
+                .on_update(ForeignKeyAction::Cascade)
+                .to_owned(),
+        )
+        .await?;
+
+    manager
+        .create_foreign_key(
+            ForeignKey::create()
                 .name("transaction_fk_league")
                 .from(Transaction::Table, Transaction::LeagueId)
                 .to(League::Table, League::Id)
@@ -170,6 +187,15 @@ async fn setup_transaction(manager: &SchemaManager<'_>) -> Result<(), DbErr> {
                 .table(Transaction::Table)
                 .col(Transaction::LeagueId)
                 .col(Transaction::SeasonEndYear)
+                .to_owned(),
+        )
+        .await?;
+    manager
+        .create_index(
+            IndexCreateStatement::new()
+                .name("transaction_deadline")
+                .table(Transaction::Table)
+                .col(Transaction::DeadlineId)
                 .to_owned(),
         )
         .await?;
@@ -204,6 +230,7 @@ pub enum Transaction {
     Id,
     SeasonEndYear,
     TransactionType,
+    DeadlineId,
     LeagueId,
     CreatedAt,
     UpdatedAt,
