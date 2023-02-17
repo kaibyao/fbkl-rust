@@ -15,8 +15,11 @@ pub struct Model {
     pub season_end_year: i16,
     /// Represents the different types of transactions that occur in a league.
     pub transaction_type: TransactionType,
+    pub auction_id: Option<i64>,
     pub deadline_id: i64,
     pub league_id: i64,
+    pub rookie_draft_selection_id: Option<i64>,
+    pub trade_id: Option<i64>,
     pub created_at: DateTimeWithTimeZone,
     pub updated_at: DateTimeWithTimeZone,
 }
@@ -33,19 +36,30 @@ pub enum TransactionType {
     /// The transaction is the result of a team winning a player auction.
     #[sea_orm(num_value = 1)]
     AuctionDone,
-    /// A team has updated their roster/settings. There is some overlap between team updates and transaction types. For these overlapped areas, the Transaction will be concerned with the action that caused the team update (auction, trade, etc.) while the Team Update will be concerned with the details (the contract being added via auction or trade, etc.).
+    /// Pre-season keepers set.
     #[sea_orm(num_value = 2)]
-    TeamUpdate,
-    /// Pre-season keepers set (does this require a separate table?)
-    #[sea_orm(num_value = 3)]
     PreseasonKeeper,
     /// A rookie player was selected during the rookie draft.
-    #[sea_orm(num_value = 4)]
+    #[sea_orm(num_value = 3)]
     RookieDraftSelection,
+    /// A team has manually dropped a player contract.
+    #[sea_orm(num_value = 4)]
+    TeamUpdateDropContract,
+    /// A team has moved a player contract to IR.
+    #[sea_orm(num_value = 5)]
+    TeamUpdateToIr,
+    /// A team has moved a player contract from IR.
+    #[sea_orm(num_value = 6)]
+    TeamUpdateFromIr,
+    /// A team has made a configuration change (ownership/name change).
+    #[sea_orm(num_value = 7)]
+    TeamUpdateConfigChange,
 }
 
 #[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]
 pub enum Relation {
+    #[sea_orm(has_one = "super::auction::Entity")]
+    Auction,
     #[sea_orm(
         belongs_to = "super::deadline::Entity",
         from = "Column::DeadlineId",
@@ -62,8 +76,18 @@ pub enum Relation {
         on_delete = "Cascade"
     )]
     League,
+    #[sea_orm(has_one = "super::rookie_draft_selection::Entity")]
+    RookieDraftSelection,
     #[sea_orm(has_many = "super::team_update::Entity")]
     TeamUpdate,
+    #[sea_orm(has_one = "super::trade::Entity")]
+    Trade,
+}
+
+impl Related<super::auction::Entity> for Entity {
+    fn to() -> RelationDef {
+        Relation::Auction.def()
+    }
 }
 
 impl Related<super::deadline::Entity> for Entity {
@@ -78,9 +102,21 @@ impl Related<super::league::Entity> for Entity {
     }
 }
 
+impl Related<super::rookie_draft_selection::Entity> for Entity {
+    fn to() -> RelationDef {
+        Relation::RookieDraftSelection.def()
+    }
+}
+
 impl Related<super::team_update::Entity> for Entity {
     fn to() -> RelationDef {
         Relation::TeamUpdate.def()
+    }
+}
+
+impl Related<super::trade::Entity> for Entity {
+    fn to() -> RelationDef {
+        Relation::Trade.def()
     }
 }
 

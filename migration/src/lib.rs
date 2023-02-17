@@ -13,11 +13,12 @@ mod m20220922_012310_create_real_world_tables;
 mod m20220924_004529_create_league_tables;
 mod m20220930_011056_seed_positions;
 mod m20221023_002183_create_asset_tables;
-mod m20221029_152534_create_team_update_contract;
 mod m20221111_002318_create_rookie_draft;
 mod m20221112_132607_create_auction_tables;
 mod m20221112_151717_create_trade_tables;
 mod m20221117_235325_create_transaction;
+mod m20230217_011454_create_team_update;
+mod m20230217_011465_create_team_update_contract;
 
 pub struct Migrator;
 
@@ -33,11 +34,12 @@ impl MigratorTrait for Migrator {
             Box::new(m20220924_004529_create_league_tables::Migration),
             Box::new(m20220930_011056_seed_positions::Migration),
             Box::new(m20221023_002183_create_asset_tables::Migration),
-            Box::new(m20221029_152534_create_team_update_contract::Migration),
             Box::new(m20221111_002318_create_rookie_draft::Migration),
             Box::new(m20221112_132607_create_auction_tables::Migration),
             Box::new(m20221112_151717_create_trade_tables::Migration),
             Box::new(m20221117_235325_create_transaction::Migration),
+            Box::new(m20230217_011454_create_team_update::Migration),
+            Box::new(m20230217_011465_create_team_update_contract::Migration),
         ]
     }
 }

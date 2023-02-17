@@ -1,6 +1,11 @@
 use sea_orm_migration::prelude::*;
 
-use crate::{m20220924_004529_create_league_tables::League, set_auto_updated_at_on_table};
+use crate::{
+    m20220924_004529_create_league_tables::League,
+    m20221111_002318_create_rookie_draft::RookieDraftSelection,
+    m20221112_132607_create_auction_tables::Auction, m20221112_151717_create_trade_tables::Trade,
+    set_auto_updated_at_on_table,
+};
 
 #[derive(DeriveMigrationName)]
 pub struct Migration;
@@ -20,6 +25,10 @@ impl MigrationTrait for Migration {
                     .if_exists()
                     .to_owned(),
             )
+            .await?;
+
+        manager
+            .drop_table(Table::drop().table(Deadline::Table).if_exists().to_owned())
             .await
     }
 }
@@ -128,6 +137,7 @@ async fn setup_transaction(manager: &SchemaManager<'_>) -> Result<(), DbErr> {
                         .small_integer()
                         .not_null(),
                 )
+                .col(ColumnDef::new(Transaction::AuctionId).big_integer())
                 .col(
                     ColumnDef::new(Transaction::DeadlineId)
                         .big_integer()
@@ -138,6 +148,8 @@ async fn setup_transaction(manager: &SchemaManager<'_>) -> Result<(), DbErr> {
                         .big_integer()
                         .not_null(),
                 )
+                .col(ColumnDef::new(Transaction::RookieDraftSelectionId).big_integer())
+                .col(ColumnDef::new(Transaction::TradeId).big_integer())
                 .col(
                     ColumnDef::new(Transaction::CreatedAt)
                         .timestamp_with_time_zone()
@@ -159,6 +171,17 @@ async fn setup_transaction(manager: &SchemaManager<'_>) -> Result<(), DbErr> {
     manager
         .create_foreign_key(
             ForeignKey::create()
+                .name("transaction_fk_auction")
+                .from(Transaction::Table, Transaction::AuctionId)
+                .to(Auction::Table, Auction::Id)
+                .on_delete(ForeignKeyAction::Cascade)
+                .on_update(ForeignKeyAction::Cascade)
+                .to_owned(),
+        )
+        .await?;
+    manager
+        .create_foreign_key(
+            ForeignKey::create()
                 .name("transaction_fk_deadline")
                 .from(Transaction::Table, Transaction::DeadlineId)
                 .to(Deadline::Table, Deadline::Id)
@@ -167,13 +190,34 @@ async fn setup_transaction(manager: &SchemaManager<'_>) -> Result<(), DbErr> {
                 .to_owned(),
         )
         .await?;
-
     manager
         .create_foreign_key(
             ForeignKey::create()
                 .name("transaction_fk_league")
                 .from(Transaction::Table, Transaction::LeagueId)
                 .to(League::Table, League::Id)
+                .on_delete(ForeignKeyAction::Cascade)
+                .on_update(ForeignKeyAction::Cascade)
+                .to_owned(),
+        )
+        .await?;
+    manager
+        .create_foreign_key(
+            ForeignKey::create()
+                .name("transaction_fk_rookie_draft_selection")
+                .from(Transaction::Table, Transaction::RookieDraftSelectionId)
+                .to(RookieDraftSelection::Table, RookieDraftSelection::Id)
+                .on_delete(ForeignKeyAction::Cascade)
+                .on_update(ForeignKeyAction::Cascade)
+                .to_owned(),
+        )
+        .await?;
+    manager
+        .create_foreign_key(
+            ForeignKey::create()
+                .name("transaction_fk_trade")
+                .from(Transaction::Table, Transaction::TradeId)
+                .to(Trade::Table, Trade::Id)
                 .on_delete(ForeignKeyAction::Cascade)
                 .on_update(ForeignKeyAction::Cascade)
                 .to_owned(),
@@ -230,8 +274,11 @@ pub enum Transaction {
     Id,
     SeasonEndYear,
     TransactionType,
+    AuctionId,
     DeadlineId,
     LeagueId,
+    RookieDraftSelectionId,
+    TradeId,
     CreatedAt,
     UpdatedAt,
 }

@@ -70,6 +70,8 @@ pub enum Relation {
         on_delete = "Cascade"
     )]
     Player,
+    #[sea_orm(has_one = "super::transaction::Entity")]
+    Transaction,
 }
 
 impl Related<super::draft_pick::Entity> for Entity {
@@ -87,6 +89,12 @@ impl Related<super::league::Entity> for Entity {
 impl Related<super::player::Entity> for Entity {
     fn to() -> RelationDef {
         Relation::Player.def()
+    }
+}
+
+impl Related<super::transaction::Entity> for Entity {
+    fn to() -> RelationDef {
+        Relation::Transaction.def()
     }
 }
 

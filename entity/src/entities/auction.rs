@@ -28,6 +28,8 @@ pub enum Relation {
     Contract,
     #[sea_orm(has_many = "super::auction_bid::Entity")]
     AuctionBid,
+    #[sea_orm(has_one = "super::transaction::Entity")]
+    Transaction,
 }
 
 impl Related<super::contract::Entity> for Entity {
@@ -39,6 +41,12 @@ impl Related<super::contract::Entity> for Entity {
 impl Related<super::auction_bid::Entity> for Entity {
     fn to() -> RelationDef {
         Relation::AuctionBid.def()
+    }
+}
+
+impl Related<super::transaction::Entity> for Entity {
+    fn to() -> RelationDef {
+        Relation::Transaction.def()
     }
 }
 
