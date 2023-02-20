@@ -30,10 +30,14 @@ async fn main() -> Result<()> {
     info!("Starting fbkl/server on port 9001...");
 
     // TODO: Build Transaction Processor. The idea being there's a job that runs every minute to update contracts, change teams, etc.
+    // TODO: Need some kind of storage for NBA dates (start of season, ASB start and end dates, MLK week early start times)
+    // TODO: Maybe ping NBA API for game start times each week?
+    // TODO: import deadlines for each season based on transaction data.
     // TODO: Reconciling end dates of different transaction types w/ when they go into effect.
     // TODO: Account for roster legalization (pre-season).
     // TODO: Account for roster legalization (weekly).
     // TODO: Do we need to account for 3 and 4-team trades? Yes, eventually. Need a M2M table for team<>trade.
+    // TODO: Configuration for rookie draft + end-of-season standings
     // TODO: import data (transactions)
     // TODO: Rest of DB migrations (incl. FK relations)
     // TODO: Auto-drop logic for weekly locks to ensure teams are legal.

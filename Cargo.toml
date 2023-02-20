@@ -2,6 +2,7 @@
 
 members = [
   "auth",
+  "constants",
   "entity",
   "graphql-generation",
   "import-data",

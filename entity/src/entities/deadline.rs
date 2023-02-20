@@ -25,22 +25,31 @@ pub struct Model {
 )]
 #[sea_orm(rs_type = "i16", db_type = "Integer")]
 pub enum DeadlineType {
+    /// Standard weekly lock that happens on Mondays (our start of the weekly matchups) at the first tip-off of the day.
     #[sea_orm(num_value = 0)]
-    InSeasonLegalization,
+    InSeasonRosterLock,
+    /// The first roster lock of a season that determines which contracts from the previous season are kept + advanced. Happens before the veteran auction and rookie draft. Cap is increased from $200 to $210 after this time.
     #[sea_orm(num_value = 1)]
     PreseasonKeeper,
+    /// The start date & time of the veteran (RFA/UFA/FA) auction. Open bidding is allowed after the last predetermined contracts auction starts.
     #[sea_orm(num_value = 2)]
-    VeteranAuctionRfaStart,
+    VeteranAuctionStart,
+    /// The start date & time of the rookie draft. Draft picks for the current season +2 can be traded after this is finished.
     #[sea_orm(num_value = 3)]
-    VeteranAuctionFaStart,
-    #[sea_orm(num_value = 4)]
     RookieDraftStart,
+    /// Following the rookie draft, rosters must be finalized by this date. Week 1 FA auctions open after this.
+    #[sea_orm(num_value = 4)]
+    FinalPreseasonRosterLock,
+    /// Owners cannot nominate new FA auctions after this.
     #[sea_orm(num_value = 5)]
     FreeAgentAuctionEnd,
+    /// Roster cap increases after this deadline.
     #[sea_orm(num_value = 6)]
-    CapIncrease,
+    PostSeasonCapIncrease,
+    /// Trades cannot be completed after this time.
     #[sea_orm(num_value = 7)]
     TradeDeadline,
+    /// Season ends at this time.
     #[sea_orm(num_value = 8)]
     SeasonEnd,
 }
