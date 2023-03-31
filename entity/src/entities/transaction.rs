@@ -15,9 +15,10 @@ pub struct Model {
     pub season_end_year: i16,
     /// Represents the different types of transactions that occur in a league.
     pub transaction_type: TransactionType,
-    pub auction_id: Option<i64>,
-    pub deadline_id: i64,
     pub league_id: i64,
+    // Represents the deadline to which this transaction is tied. The reason this is necessary is because transactions may "happen" immediately, but they aren't executed until the date & time of their associated deadline.
+    pub deadline_id: i64,
+    pub auction_id: Option<i64>,
     pub rookie_draft_selection_id: Option<i64>,
     pub trade_id: Option<i64>,
     pub created_at: DateTimeWithTimeZone,
@@ -51,8 +52,11 @@ pub enum TransactionType {
     /// A team has moved a player contract from IR.
     #[sea_orm(num_value = 6)]
     TeamUpdateFromIr,
-    /// A team has made a configuration change (ownership/name change).
+    /// A team has activated a rookie contract, converting them to a rookie extension.
     #[sea_orm(num_value = 7)]
+    RookieContractActivation,
+    /// A team has made a configuration change (ownership/name change).
+    #[sea_orm(num_value = 8)]
     TeamUpdateConfigChange,
 }
 

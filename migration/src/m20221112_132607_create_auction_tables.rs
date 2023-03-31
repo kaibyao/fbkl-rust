@@ -45,6 +45,12 @@ async fn setup_auction(manager: &SchemaManager<'_>) -> Result<(), DbErr> {
                         .primary_key(),
                 )
                 .col(
+                    ColumnDef::new(Auction::AuctionType)
+                        .small_integer()
+                        .not_null()
+                        .default(0),
+                )
+                .col(
                     ColumnDef::new(Auction::StartTimestamp)
                         .timestamp_with_time_zone()
                         .not_null()
@@ -191,6 +197,7 @@ async fn setup_auction_bid(manager: &SchemaManager<'_>) -> Result<(), DbErr> {
 pub enum Auction {
     Table,
     Id,
+    AuctionType,
     StartTimestamp,
     SoftEndTimestamp,
     FixedEndTimestamp,

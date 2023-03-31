@@ -1,19 +1,19 @@
-use std::{collections::HashMap, str::FromStr};
+use std::collections::HashMap;
 
 use chrono::NaiveDate;
 use color_eyre::Result;
 use once_cell::sync::Lazy;
 
 pub struct NaiveDateRange {
-    start: NaiveDate,
-    end: NaiveDate,
+    pub start: NaiveDate,
+    pub end: NaiveDate,
 }
 
 impl NaiveDateRange {
     pub fn from_date_strings(start_date_str: &str, end_date_str: &str) -> Result<Self> {
         Ok(NaiveDateRange {
-            start: NaiveDate::from_str(start_date_str)?,
-            end: NaiveDate::from_str(end_date_str)?,
+            start: NaiveDate::parse_from_str(start_date_str, "%Y-%m-%d")?,
+            end: NaiveDate::parse_from_str(end_date_str, "%Y-%m-%d")?,
         })
     }
 }

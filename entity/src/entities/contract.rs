@@ -2,7 +2,11 @@
 
 use async_graphql::Enum;
 use color_eyre::eyre::{bail, Error};
-use sea_orm::{entity::prelude::*, ActiveValue::NotSet, Set};
+use sea_orm::{
+    entity::prelude::*,
+    ActiveValue::{self, NotSet},
+    ConnectionTrait, Set, TransactionTrait,
+};
 use serde::{Deserialize, Serialize};
 
 /// A common misconception is that a player is owned/controlled by a team.
@@ -46,6 +50,21 @@ pub enum ContractYearAdvancementType {
 }
 
 impl Model {
+    /// This is needed in order to set the `original_contract_id` after creating a new contract.
+    pub async fn create_new_contract<C>(model: ActiveModel, db: &C) -> Result<Self, Error>
+    where
+        C: ConnectionTrait + TransactionTrait,
+    {
+        let mut model_to_update_after_insert = model.clone();
+
+        let inserted = model.insert(db).await?;
+
+        model_to_update_after_insert.original_contract_id = ActiveValue::Set(Some(inserted.id));
+        let updated = model_to_update_after_insert.update(db).await?;
+
+        Ok(updated)
+    }
+
     /// Creates the next year's contract from the current contract. This should be used in tandem with contract_queries::advance_contract, as we also need to update the current contract to point to the new one, plus handle various cases around RFAs/UFAs, and salaries.
     pub fn create_contract_year_advancement(
         &self,
