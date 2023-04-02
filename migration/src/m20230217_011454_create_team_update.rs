@@ -29,7 +29,6 @@ impl MigrationTrait for Migration {
                             .not_null()
                             .default(0),
                     )
-                    .col(ColumnDef::new(TeamUpdate::Before).binary().not_null())
                     .col(ColumnDef::new(TeamUpdate::After).binary().not_null())
                     .col(ColumnDef::new(TeamUpdate::EffectiveDate).date().not_null())
                     .col(
@@ -132,7 +131,6 @@ pub enum TeamUpdate {
     Table,
     Id,
     UpdateType,
-    Before,
     After,
     EffectiveDate,
     Status,

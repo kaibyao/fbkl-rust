@@ -17,11 +17,11 @@ pub struct Model {
     #[sea_orm(primary_key)]
     pub id: i64,
     pub update_type: TeamUpdateType,
-    pub before: Vec<u8>,
     pub after: Vec<u8>,
     pub effective_date: Date,
     pub status: TeamUpdateStatus,
     pub team_id: i64,
+    /// This is always present unless the update was a configuration change.
     pub transaction_id: Option<i64>,
     pub created_at: DateTimeWithTimeZone,
     pub updated_at: DateTimeWithTimeZone,

@@ -6,6 +6,7 @@ members = [
   "entity",
   "graphql-generation",
   "import-data",
+  "jobs",
   "migration",
   "server",
   "transaction-processor"
