@@ -7,6 +7,7 @@ members = [
   "graphql-generation",
   "import-data",
   "jobs",
+  "logic",
   "migration",
   "server",
   "transaction-processor"
