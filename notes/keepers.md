@@ -50,3 +50,5 @@ I think #2 is the way to go. In the real-world, when a player enters free agency
 I must've been really sleepy when I thought up its current implementation. Right now a team can have multiple team_update, and a team_update stores an object containing its current contract IDs as well as team settings. But there's also a team_update_contract table that stores the changes that were made to contracts in a team update.
 
 The thing I'm noticing is that it's kinda hard to figure out what contracts are currently associated the team. If anything, I'd want team_update_contract to be team_contract instead, and have a team_update store the changes made to its contracts.
+
+Wait, contract already has a team_id. I think team_update_contract is actually not necessary, though UpdateType is.

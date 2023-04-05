@@ -17,7 +17,6 @@ pub mod rookie_draft_selection;
 pub mod sessions;
 pub mod team;
 pub mod team_update;
-pub mod team_update_contract;
 pub mod team_user;
 pub mod trade;
 pub mod trade_action;
