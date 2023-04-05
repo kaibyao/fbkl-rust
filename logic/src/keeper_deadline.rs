@@ -1,3 +1,5 @@
+use std::fmt::Debug;
+
 use color_eyre::{eyre::eyre, Result};
 use fbkl_constants::league_rules::{
     KEEPER_CONTRACT_COUNT_LIMIT, KEEPER_CONTRACT_TOTAL_SALARY_LIMIT,
@@ -7,8 +9,10 @@ use fbkl_entity::{
     sea_orm::{ConnectionTrait, TransactionTrait},
     team, team_update, team_update_queries, transaction, transaction_queries,
 };
+use tracing::instrument;
 
 /// Saves the contracts to keep on a team for the season's Keeper Deadline.
+#[instrument]
 pub async fn save_team_keepers<C>(
     team: &team::Model,
     keeper_contracts: Vec<contract::Model>,
@@ -16,7 +20,7 @@ pub async fn save_team_keepers<C>(
     db: &C,
 ) -> Result<team_update::Model>
 where
-    C: ConnectionTrait + TransactionTrait,
+    C: ConnectionTrait + TransactionTrait + Debug,
 {
     validate_team_keepers(&keeper_contracts)?;
 
@@ -28,24 +32,23 @@ where
             db,
         )
         .await?;
-    let keeper_team_updates =
+    let mut keeper_team_updates =
         team_update_queries::find_team_updates_by_transaction(keeper_deadline_transaction.id, db)
             .await?;
-    let maybe_existing_keeper_team_update = keeper_team_updates
+    let maybe_existing_keeper_team_update_index = keeper_team_updates
         .iter()
-        .find(|team_update| team_update.team_id == team.id);
+        .position(|team_update| team_update.team_id == team.id);
 
-    match maybe_existing_keeper_team_update {
+    match maybe_existing_keeper_team_update_index {
         None => {
             create_new_keeper_team_update(team, &keeper_contracts, &keeper_deadline_transaction, db)
                 .await
         }
-        Some(_existing_keeper_team_update) => {
-            todo!("First do new team update case")
-            // let (_, team_update_contracts) =
-            //     update_existing_keeper_team_update(existing_keeper_team_update, contracts, db)
-            //         .await?;
-            // Ok(team_update_contracts)
+        Some(existing_keeper_team_update_index) => {
+            let existing_keeper_team_update =
+                keeper_team_updates.swap_remove(existing_keeper_team_update_index);
+            update_existing_keeper_team_update(existing_keeper_team_update, &keeper_contracts, db)
+                .await
         }
     }
 }
@@ -101,10 +104,10 @@ async fn create_new_keeper_team_update<C>(
     db: &C,
 ) -> Result<team_update::Model>
 where
-    C: ConnectionTrait + TransactionTrait,
+    C: ConnectionTrait + TransactionTrait + Debug,
 {
     let db_txn = db.begin().await?;
-    let create_result = team_update_queries::create_keeper_team_update(
+    let create_result = team_update_queries::insert_keeper_team_update(
         team,
         keeper_contracts,
         keeper_transaction,
@@ -116,32 +119,22 @@ where
     create_result
 }
 
-// /// If owner previously set keepers, remove previously-saved contracts from team update and save new ones.
-// async fn update_existing_keeper_team_update<C>(
-//     keeper_team_update: &team_update::Model,
-//     contracts: Vec<contract::Model>,
-//     db: &C,
-// ) -> Result<(DeleteResult, team_update::Model)>
-// where
-//     C: ConnectionTrait + TransactionTrait,
-// {
-//     let db_txn = db.begin().await?;
+/// If owner previously set keepers, remove previously-saved contracts from team update and save new ones.
+async fn update_existing_keeper_team_update<C>(
+    keeper_team_update: team_update::Model,
+    keeper_contracts: &[contract::Model],
+    db: &C,
+) -> Result<team_update::Model>
+where
+    C: ConnectionTrait + TransactionTrait,
+{
+    let db_txn = db.begin().await?;
 
-//     let delete_old_contracts_result =
-//         delete_team_update_contracts(keeper_team_update.id, db).await?;
-//     let contract_ids: Vec<i64> = contracts.iter().map(|contract| contract.id).collect();
-//     let inserted_team_update_contracts =
-//         insert_team_update_contracts(keeper_team_update.id, &contract_ids, db).await?;
+    let updated_keeper_team_update =
+        team_update_queries::update_keeper_team_update(keeper_team_update, keeper_contracts, db)
+            .await?;
 
-//     // Update the team_update record with new snapshot
+    db_txn.commit().await?;
 
-//     // Need to account for RFA/UFAs not being tied to their previous team, but still needing to somehow be linked to them.
-
-//     // wait, what's the reason for having team_update_contract if we also have contract_ids in the `after` column?
-//     // oh, for in-season team updates for existing contracts (based on looking at update types).
-
-//     db_txn.commit().await?;
-
-//     // Ok((delete_old_contracts_result, inserted_team_update_contracts))
-//     Ok((delete_old_contracts_result, keeper_team_update.clone()))
-// }
+    Ok(updated_keeper_team_update)
+}

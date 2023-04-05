@@ -9,3 +9,4 @@ edition = "2021"
 color-eyre = "0.6.2"
 fbkl-constants = {path = "../constants"}
 fbkl-entity = {path = "../entity"}
+tracing = "0.1.36"
