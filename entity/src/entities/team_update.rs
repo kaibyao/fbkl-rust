@@ -2,8 +2,9 @@
 
 use crate::contract;
 use crate::team_user;
+use crate::team_user::LeagueRole;
 use async_graphql::Enum;
-use color_eyre::eyre::Error;
+use color_eyre::{eyre::Error, Result};
 use sea_orm::entity::prelude::*;
 use sea_orm::ConnectionTrait;
 use sea_orm::QuerySelect;
@@ -17,6 +18,7 @@ pub struct Model {
     #[sea_orm(primary_key)]
     pub id: i64,
     pub update_type: TeamUpdateType,
+    /// TeamUpdateSnapshot, converted to bytes.
     pub after: Vec<u8>,
     pub effective_date: Date,
     pub status: TeamUpdateStatus,
@@ -25,6 +27,13 @@ pub struct Model {
     pub transaction_id: Option<i64>,
     pub created_at: DateTimeWithTimeZone,
     pub updated_at: DateTimeWithTimeZone,
+}
+
+impl Model {
+    pub fn get_snapshot(&self) -> Result<TeamUpdateSnapshot> {
+        let snapshot = TeamUpdateSnapshot::from_bytes(&self.after)?;
+        Ok(snapshot)
+    }
 }
 
 #[derive(
@@ -79,6 +88,99 @@ pub enum TeamUpdateType {
     /// An update that changes team settings.
     #[sea_orm(num_value = 1)]
     Setting,
+}
+
+/// Used for storing the state of a team.
+#[derive(Debug, Serialize, Deserialize)]
+pub struct TeamUpdateSnapshot {
+    /// Team settings.
+    pub settings: TeamUpdateSettings,
+    /// The Team's full roster at the time of the update.
+    pub contract_ids: Vec<i64>,
+}
+
+impl TeamUpdateSnapshot {
+    // async fn from_team_id<C>(team_id: i64, db: &C) -> Result<Self, DbErr>
+    // where
+    //     C: ConnectionTrait + TransactionTrait,
+    // {
+    //     // Fetch team users
+    //     let team_users = team_user::Entity::find()
+    //         .filter(team_user::Column::TeamId.eq(team_id))
+    //         .all(db)
+    //         .await?;
+
+    //     let team_update_settings = TeamUpdateSettings::from_team_users(team_users);
+
+    //     // Fetch contracts
+    //     let contracts = contract::Entity::find()
+    //         .select_only()
+    //         .column(contract::Column::Id)
+    //         .filter(
+    //             contract::Column::TeamId
+    //                 .eq(team_id)
+    //                 .and(contract::Column::Status.eq(contract::ContractStatus::Active)),
+    //         )
+    //         .all(db)
+    //         .await?;
+
+    //     Ok(Self {
+    //         settings: team_update_settings,
+    //         contract_ids: contracts.into_iter().map(|contract| contract.id).collect(),
+    //     })
+    // }
+
+    fn as_bytes(&self) -> Result<Vec<u8>, Error> {
+        // But what happens if the shape of the struct changes in the future?
+        // I suppose you'd have to figure that out no matter how you store the data.
+        let bytes_encoded = bincode::serialize(self)?;
+        Ok(bytes_encoded)
+    }
+
+    fn from_bytes(bytes_encoded: &[u8]) -> Result<Self, Error> {
+        let decoded: Option<Self> = bincode::deserialize(bytes_encoded)?;
+        Ok(decoded.expect("Valid snapshot struct"))
+    }
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct TeamUpdateSettings {
+    pub users: Vec<TeamUpdateSettingUser>,
+}
+
+impl TeamUpdateSettings {
+    fn from_team_users(team_user_models: Vec<team_user::Model>) -> Self {
+        Self {
+            users: team_user_models
+                .iter()
+                .map(TeamUpdateSettingUser::from_team_user)
+                .collect(),
+        }
+    }
+}
+
+/// Like `team_user::Model`, but without the created_at/updated_at.
+#[derive(Debug, Serialize, Deserialize)]
+pub struct TeamUpdateSettingUser {
+    pub id: i64,
+    pub league_role: LeagueRole,
+    pub nickname: String,
+    pub first_season_end_year: i16,
+    pub final_season_end_year: Option<i16>,
+    pub user_id: i64,
+}
+
+impl TeamUpdateSettingUser {
+    pub fn from_team_user(team_user_model: &team_user::Model) -> Self {
+        Self {
+            id: team_user_model.id,
+            league_role: team_user_model.league_role,
+            nickname: team_user_model.nickname.clone(),
+            first_season_end_year: team_user_model.first_season_end_year,
+            final_season_end_year: team_user_model.final_season_end_year,
+            user_id: team_user_model.user_id,
+        }
+    }
 }
 
 #[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]
@@ -147,69 +249,5 @@ fn setting_change_requires_no_transaction(model: &ActiveModel) -> Result<(), DbE
         ))
     } else {
         Ok(())
-    }
-}
-
-#[derive(Debug, Serialize, Deserialize)]
-pub struct TeamUpdateSettings {
-    pub users: Vec<team_user::Model>,
-}
-
-impl TeamUpdateSettings {
-    fn from_team_users(team_user_models: Vec<team_user::Model>) -> Self {
-        Self {
-            users: team_user_models,
-        }
-    }
-}
-
-/// Used for storing the state of a team.
-#[derive(Debug, Serialize, Deserialize)]
-pub struct TeamUpdateSnapshot {
-    pub settings: TeamUpdateSettings,
-    pub contract_ids: Vec<i64>,
-}
-
-impl TeamUpdateSnapshot {
-    async fn from_team_id<C>(team_id: i64, db: &C) -> Result<Self, DbErr>
-    where
-        C: ConnectionTrait + TransactionTrait,
-    {
-        // Fetch team users
-        let team_users = team_user::Entity::find()
-            .filter(team_user::Column::TeamId.eq(team_id))
-            .all(db)
-            .await?;
-
-        let team_update_settings = TeamUpdateSettings::from_team_users(team_users);
-
-        // Fetch contracts
-        let contracts = contract::Entity::find()
-            .select_only()
-            .column(contract::Column::Id)
-            .filter(
-                contract::Column::TeamId
-                    .eq(team_id)
-                    .and(contract::Column::Status.eq(contract::ContractStatus::Active)),
-            )
-            .all(db)
-            .await?;
-
-        Ok(Self {
-            settings: team_update_settings,
-            contract_ids: contracts.into_iter().map(|contract| contract.id).collect(),
-        })
-    }
-
-    fn as_bytes(&self) -> Result<Vec<u8>, Error> {
-        // But what happens if the shape of the struct changes in the future?
-        // I suppose you'd have to figure that out no matter how you store the data.
-        let bytes_encoded = bincode::serialize(self)?;
-        Ok(bytes_encoded)
-    }
-
-    fn from_bytes(bytes_encoded: &[u8]) -> Result<Self, Error> {
-        let decoded: Option<Self> = bincode::deserialize(bytes_encoded)?;
-        Ok(decoded.expect("Valid snapshot struct"))
     }
 }

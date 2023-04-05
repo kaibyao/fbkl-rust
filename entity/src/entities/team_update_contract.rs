@@ -14,7 +14,7 @@ pub struct Model {
     pub contract_id: i64,
 }
 
-/// Represents the different types updates that can happen to a contract on a team.
+/// Represents the different types of updates that can happen to a contract on a team.
 #[derive(
     Debug, Clone, Copy, Enum, Eq, PartialEq, EnumIter, DeriveActiveEnum, Serialize, Deserialize,
 )]
@@ -44,6 +44,15 @@ pub enum UpdateType {
     /// A contract is updated to no longer have IR status.
     #[sea_orm(num_value = 7)]
     FromIR,
+    /// A contract is kept on the team for the Keeper Deadline.
+    #[sea_orm(num_value = 8)]
+    Keeper,
+    /// A contract is advanced by one year.
+    #[sea_orm(num_value = 9)]
+    ContractAdvanced,
+    /// A contract is lost to another team via Free Agency (in the Veteran Auction).
+    #[sea_orm(num_value = 10)]
+    LostViaFreeAgency,
 }
 
 #[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]
