@@ -9,7 +9,7 @@ use async_graphql::{Context, Object, Result};
 use axum::http::StatusCode;
 use axum_sessions::extractors::ReadableSession;
 use fbkl_entity::{
-    league_queries::{create_league, find_league_by_user, find_leagues_by_user},
+    league_queries::{create_league_with_commissioner, find_league_by_user, find_leagues_by_user},
     sea_orm::DatabaseConnection,
     user,
 };
@@ -68,7 +68,8 @@ impl LeagueMutation {
         let user_id = enforce_logged_in(session)?;
 
         let (league_model, team_model, team_user_model) =
-            create_league(league_name, team_name, user_id, user_nickname, db).await?;
+            create_league_with_commissioner(league_name, team_name, user_id, user_nickname, db)
+                .await?;
 
         let team_user = TeamUser {
             team_id: team_model.id,
