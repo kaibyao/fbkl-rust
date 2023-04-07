@@ -34,6 +34,7 @@ pub struct Model {
     pub updated_at: DateTimeWithTimeZone,
 }
 
+// TODO: create_contract_year_advancement probably needs to be broken into smaller fns, as it's taking care of a lot of concerns (rookie activation, signing free agents, and dropping contracts from teams);
 /// Whether the contract entering its next year is only incrementing the year of the contract while keeping the same contract type, is being signed to the original vs new team, or if it's being dropped.
 #[derive(Debug, Default, Eq, PartialEq)]
 pub enum ContractYearAdvancementType {
