@@ -137,7 +137,10 @@ mod tests {
     use once_cell::sync::Lazy;
     use sea_orm::ActiveValue;
 
-    use crate::contract::{create_advancement_for_contract, ContractStatus, ContractType, Model};
+    use crate::contract::{
+        annual_contract_advancement::create_advancement_for_contract, ContractStatus, ContractType,
+        Model,
+    };
 
     static NOW: Lazy<DateTime<FixedOffset>> = Lazy::new(|| {
         DateTime::parse_from_str("2023 Apr 13 12:09:14.274 +0000", "%Y %b %d %H:%M:%S%.3f %z")
@@ -164,7 +167,7 @@ mod tests {
     }
 
     #[test]
-    fn contract_advancement_year_rd1_to_rd2() -> Result<()> {
+    fn contract_advancement_rd1_to_rd2() -> Result<()> {
         // Test RD1 -> RD2
         let test_contract = generate_contract();
         let advanced_contract = create_advancement_for_contract(&test_contract)?;
@@ -191,7 +194,7 @@ mod tests {
     }
 
     #[test]
-    fn contract_advancement_year_rd2_to_rd3() -> Result<()> {
+    fn contract_advancement_rd2_to_rd3() -> Result<()> {
         let mut test_contract = generate_contract();
         test_contract.previous_contract_id = Some(1);
         test_contract.id = 2;
@@ -220,7 +223,7 @@ mod tests {
     }
 
     #[test]
-    fn contract_advancement_year_rd3_to_r2() -> Result<()> {
+    fn contract_advancement_rd3_to_r2() -> Result<()> {
         let mut test_contract = generate_contract();
         test_contract.contract_year = 3;
 
@@ -239,7 +242,7 @@ mod tests {
     }
 
     #[test]
-    fn contract_advancement_year_r1_to_r2() -> Result<()> {
+    fn contract_advancement_r1_to_r2() -> Result<()> {
         let mut test_contract = generate_contract();
         test_contract.contract_type = ContractType::Rookie;
 
@@ -255,7 +258,7 @@ mod tests {
     }
 
     #[test]
-    fn contract_advancement_year_r2_to_r3() -> Result<()> {
+    fn contract_advancement_r2_to_r3() -> Result<()> {
         let mut test_contract = generate_contract();
         test_contract.contract_type = ContractType::Rookie;
         test_contract.contract_year = 2;
@@ -273,7 +276,7 @@ mod tests {
     }
 
     #[test]
-    fn contract_advancement_year_r3_to_rfa() -> Result<()> {
+    fn contract_advancement_r3_to_rfa() -> Result<()> {
         let mut test_contract = generate_contract();
         test_contract.contract_type = ContractType::Rookie;
         test_contract.contract_year = 3;
@@ -290,7 +293,7 @@ mod tests {
     }
 
     #[test]
-    fn contract_advancement_year_r4_to_r5() -> Result<()> {
+    fn contract_advancement_r4_to_r5() -> Result<()> {
         let mut test_contract = generate_contract();
         test_contract.contract_type = ContractType::RookieExtension;
         test_contract.contract_year = 4;
@@ -308,7 +311,7 @@ mod tests {
     }
 
     #[test]
-    fn contract_advancement_year_r5_to_ufa20() -> Result<()> {
+    fn contract_advancement_r5_to_ufa20() -> Result<()> {
         let mut test_contract = generate_contract();
         test_contract.contract_type = ContractType::RookieExtension;
         test_contract.contract_year = 5;
@@ -325,7 +328,7 @@ mod tests {
     }
 
     #[test]
-    fn contract_advancement_year_v1_to_v2() -> Result<()> {
+    fn contract_advancement_v1_to_v2() -> Result<()> {
         let mut test_contract = generate_contract();
         test_contract.contract_type = ContractType::Veteran;
         test_contract.contract_year = 1;
@@ -343,7 +346,7 @@ mod tests {
     }
 
     #[test]
-    fn contract_advancement_year_v2_to_v3() -> Result<()> {
+    fn contract_advancement_v2_to_v3() -> Result<()> {
         let mut test_contract = generate_contract();
         test_contract.contract_type = ContractType::Veteran;
         test_contract.contract_year = 2;
@@ -356,6 +359,23 @@ mod tests {
             ActiveValue::Set(ContractType::Veteran)
         );
         assert_eq!(advanced_contract.salary, ActiveValue::Set(44));
+
+        Ok(())
+    }
+
+    #[test]
+    fn contract_advancement_v3_to_ufa10() -> Result<()> {
+        let mut test_contract = generate_contract();
+        test_contract.contract_type = ContractType::Veteran;
+        test_contract.contract_year = 3;
+        test_contract.salary = 44;
+
+        let advanced_contract = create_advancement_for_contract(&test_contract)?;
+        assert_eq!(
+            advanced_contract.contract_type,
+            ActiveValue::Set(ContractType::UnrestrictedFreeAgentVeteran)
+        );
+        assert_eq!(advanced_contract.salary, ActiveValue::Set(1));
 
         Ok(())
     }

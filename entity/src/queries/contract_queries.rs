@@ -4,7 +4,7 @@ use sea_orm::{
     TransactionTrait,
 };
 
-use crate::contract::{self, create_advancement_for_contract};
+use crate::contract;
 
 /// Inserts the new/advanced contract and sets the status of the old one appropriately.
 pub async fn advance_contract<C>(
@@ -14,7 +14,7 @@ pub async fn advance_contract<C>(
 where
     C: ConnectionTrait + TransactionTrait,
 {
-    let contract_to_advance = create_advancement_for_contract(&current_contract_model)?;
+    let contract_to_advance = current_contract_model.create_annual_contract_advancement()?;
     let inserted_advanced_contract = contract_to_advance.insert(db).await?;
 
     let mut original_contract_model_to_update: contract::ActiveModel =
