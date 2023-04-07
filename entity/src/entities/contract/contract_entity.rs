@@ -42,13 +42,6 @@ pub struct Model {
     pub updated_at: DateTimeWithTimeZone,
 }
 
-/// Whether the contract entering its next year is only incrementing the year of the contract while keeping the same contract type, is being signed to the original vs new team, or if it's being dropped.
-#[derive(Debug, Eq, PartialEq)]
-pub enum ContractYearAdvancementType {
-    /// An RFA or UFA contract is signed to the original owning team (special discounts apply).
-    SignToOriginalTeam,
-}
-
 impl Model {
     /// Creates a new contract that converts the RD(I) contract to a standard rookie contract. Meant to be used in-season. Note that this doesn't do anything to insert the new contract or update the original.
     pub fn activate_rookie_in_season(&self) -> Result<ActiveModel, Error> {
