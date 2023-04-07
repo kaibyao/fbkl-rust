@@ -1,10 +1,11 @@
 use color_eyre::Result;
 use fbkl_entity::{
-    contract, contract_queries,
+    contract::{self},
+    contract_queries,
     sea_orm::{ConnectionTrait, TransactionTrait},
 };
 
-/// Advances the contracts tied to teams in a league
+/// Advances the contracts tied to teams in a league and expires the ones that ended the season as free agents.
 pub async fn advance_team_contracts_for_league<C>(
     league_id: i64,
     db: &C,
@@ -21,18 +22,16 @@ where
 
     let mut expired_contracts = vec![];
     let mut advanced_contracts = vec![];
-    for active_league_contract in active_league_contracts.into_iter() {
-        if active_league_contract
-            .contract_type
-            .eq(&contract::ContractType::FreeAgent)
-        {
+    for active_league_contract in active_league_contracts {
+        if active_league_contract.contract_type == contract::ContractType::FreeAgent {
             // Expire the contracts of players that ended the season as a free agent.
             let contract_updated_to_expired =
                 contract_queries::expire_contract(active_league_contract, &db_txn).await?;
             expired_contracts.push(contract_updated_to_expired);
         } else {
             // Advance the rest in preparation for Keeper Deadline.
-            let advanced_contract =
+
+            let (_updated_original_contract, advanced_contract) =
                 contract_queries::advance_contract(active_league_contract, &db_txn).await?;
             advanced_contracts.push(advanced_contract);
         }

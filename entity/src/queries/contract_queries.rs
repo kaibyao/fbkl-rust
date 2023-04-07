@@ -4,28 +4,25 @@ use sea_orm::{
     TransactionTrait,
 };
 
-use crate::contract;
+use crate::contract::{self, create_advancement_for_contract};
 
 /// Inserts the new/advanced contract and sets the status of the old one appropriately.
 pub async fn advance_contract<C>(
     current_contract_model: contract::Model,
     db: &C,
-) -> Result<contract::Model>
+) -> Result<(contract::Model, contract::Model)>
 where
     C: ConnectionTrait + TransactionTrait,
 {
-    let advanced_contract_to_insert = current_contract_model.create_contract_year_advancement(
-        contract::ContractYearAdvancementType::AdvanceYearOnly,
-        None,
-    )?;
-    let inserted_advanced_contract = advanced_contract_to_insert.insert(db).await?;
+    let contract_to_advance = create_advancement_for_contract(&current_contract_model)?;
+    let inserted_advanced_contract = contract_to_advance.insert(db).await?;
 
     let mut original_contract_model_to_update: contract::ActiveModel =
         current_contract_model.into();
     original_contract_model_to_update.status = ActiveValue::Set(contract::ContractStatus::Replaced);
-    let _updated_original_contract = original_contract_model_to_update.update(db).await?;
+    let updated_original_contract = original_contract_model_to_update.update(db).await?;
 
-    Ok(inserted_advanced_contract)
+    Ok((updated_original_contract, inserted_advanced_contract))
 }
 
 /// Expires the given contract
