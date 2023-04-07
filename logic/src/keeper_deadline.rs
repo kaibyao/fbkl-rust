@@ -1,6 +1,6 @@
 use std::fmt::Debug;
 
-use color_eyre::{eyre::eyre, Result};
+use color_eyre::{eyre::bail, Result};
 use fbkl_constants::league_rules::{
     KEEPER_CONTRACT_COUNT_LIMIT, KEEPER_CONTRACT_TOTAL_SALARY_LIMIT,
 };
@@ -74,11 +74,11 @@ fn validate_team_keepers(contracts: &[contract::Model]) -> Result<()> {
         .collect();
 
     if counted_contracts.len() != contracts.len() {
-        return Err(eyre!("The contracts attempted to be saved as Keepers contained contract types that cannot be kept. Only the following types of contracts can be kept: Rookie (1-3), Rookie Extension (4-5), and Veteran (1-3)."));
+        bail!("The contracts attempted to be saved as Keepers contained contract types that cannot be kept. Only the following types of contracts can be kept: Rookie (1-3), Rookie Extension (4-5), and Veteran (1-3).");
     }
 
     if counted_contracts.len() > KEEPER_CONTRACT_COUNT_LIMIT {
-        return Err(eyre!("The number of contracts attempted ({}) to be saved as Keepers exceeds the league limit of {}.", counted_contracts.len(), KEEPER_CONTRACT_COUNT_LIMIT));
+        bail!("The number of contracts attempted ({}) to be saved as Keepers exceeds the league limit of {}.", counted_contracts.len(), KEEPER_CONTRACT_COUNT_LIMIT);
     }
 
     let total_counted_contract_value: i16 = counted_contracts
@@ -86,11 +86,11 @@ fn validate_team_keepers(contracts: &[contract::Model]) -> Result<()> {
         .map(|contract| contract.salary)
         .sum();
     if total_counted_contract_value > KEEPER_CONTRACT_TOTAL_SALARY_LIMIT {
-        return Err(eyre!(
+        bail!(
             "The total contract salary amount ({}) exceeds the league salary cap of {}.",
             total_counted_contract_value,
             KEEPER_CONTRACT_TOTAL_SALARY_LIMIT
-        ));
+        );
     }
 
     Ok(())

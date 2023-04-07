@@ -35,13 +35,18 @@ pub struct Model {
 }
 
 /// Whether the contract entering its next year is only incrementing the year of the contract while keeping the same contract type, is being signed to the original vs new team, or if it's being dropped.
-#[derive(Debug, Default)]
+#[derive(Debug, Default, Eq, PartialEq)]
 pub enum ContractYearAdvancementType {
     /// Advancing the year of the current contract only. Applies to years: Veteran 1-2, Rookie 1-2, RookieExtention 4,
     #[default]
     AdvanceYearOnly,
+    /// A rookie development (international) contract is activated to a rookie contract.
+    RookieActivation,
+    /// An RFA or UFA contract is signed to the original owning team (special discounts apply).
     SignToOriginalTeam,
+    /// An RFA or UFA contract is signed to a team different from their original owning team (no discounts apply).
     SignToNewTeam,
+    /// An RFA contract is not bid/won by a team, and the original owning team decided to let go of the contract.
     Drop,
 }
 
@@ -69,21 +74,61 @@ impl Model {
             updated_at: NotSet,
         };
 
+        if advancement_type == ContractYearAdvancementType::Drop {
+            new_contract.contract_year = Set(1);
+            new_contract.contract_type = Set(ContractType::FreeAgent);
+            new_contract.status = Set(match self.contract_type {
+                ContractType::RookieDevelopment => ContractStatus::Expired,
+                ContractType::RookieDevelopmentInternational => ContractStatus::Expired,
+                ContractType::Rookie => ContractStatus::Active,
+                ContractType::RestrictedFreeAgent => ContractStatus::Expired,
+                ContractType::RookieExtension => ContractStatus::Active,
+                ContractType::UnrestrictedFreeAgentOriginalTeam => ContractStatus::Expired,
+                ContractType::Veteran => ContractStatus::Active,
+                ContractType::UnrestrictedFreeAgentVeteran => ContractStatus::Expired,
+                ContractType::FreeAgent => bail!("Impossible combination: dropping a free agent."),
+            });
+            new_contract.salary =
+                Set(self.calculate_yearly_salary_increase(&advancement_type, None)?);
+
+            return Ok(new_contract);
+        }
+
         match self.contract_type {
-            ContractType::RookieDevelopment | ContractType::RookieDevelopmentInternational => match self.contract_year {
-                1 => {
-                    new_contract.contract_year = Set(2);
+            ContractType::RookieDevelopment | ContractType::RookieDevelopmentInternational => match advancement_type {
+                ContractYearAdvancementType::AdvanceYearOnly => match self.contract_year {
+                    1 => {
+                        new_contract.contract_year = Set(2);
+                    },
+                    2 => {
+                        new_contract.contract_year = Set(3);
+                    },
+                    3 => {
+                        new_contract.contract_year = Set(2);
+                        new_contract.contract_type = Set(ContractType::Rookie);
+                    },
+                    _ => {
+                        bail!("Invalid year for contract type: ({:?}, {})", self.contract_type, self.contract_year);
+                    }
                 },
-                2 => {
-                    new_contract.contract_year = Set(3);
+                ContractYearAdvancementType::RookieActivation => match self.contract_year {
+                    1..=2 => {
+                        new_contract.contract_year = Set(1);
+                        new_contract.contract_type = Set(ContractType::Rookie);
+                        return Ok(new_contract);
+                    },
+                    3 => {
+                        new_contract.contract_year = Set(2);
+                        new_contract.contract_type = Set(ContractType::Rookie);
+                        return Ok(new_contract);
+                    },
+                    _ => {
+                        bail!("Invalid year for contract type: ({:?}, {})", self.contract_type, self.contract_year);
+                    }
                 },
-                3 => {
-                    new_contract.contract_year = Set(1);
-                    new_contract.contract_type = Set(ContractType::Rookie);
-                },
-                _ => {
-                    bail!("Invalid year for contract type: ({:?}, {})", self.contract_type, self.contract_year);
-                }
+                ContractYearAdvancementType::SignToOriginalTeam => bail!("Impossible combination: signing a rookie development contract to the original team."),
+                ContractYearAdvancementType::SignToNewTeam => bail!("Impossible combination: signing a rookie development contract to a new team."),
+                ContractYearAdvancementType::Drop => bail!("Already covered"),
             },
             ContractType::Rookie => match self.contract_year {
                     1 => {
@@ -93,7 +138,6 @@ impl Model {
                         new_contract.contract_year = Set(3);
                     },
                     3 => {
-                        new_contract.contract_year = Set(1);
                         new_contract.contract_type = Set(ContractType::RestrictedFreeAgent);
                     },
                     _ => {
@@ -103,6 +147,7 @@ impl Model {
             ContractType::RestrictedFreeAgent =>
                 match advancement_type {
                     ContractYearAdvancementType::AdvanceYearOnly => bail!("Advancing an RFA contract requires the player to be either dropped or signed to a team."),
+                    ContractYearAdvancementType::RookieActivation => bail!("Impossible combination: advancing an RFA contract as a rookie activation."),
                     ContractYearAdvancementType::SignToOriginalTeam => {
                         new_contract.contract_year = Set(4);
                         new_contract.contract_type = Set(ContractType::RookieExtension);
@@ -111,10 +156,7 @@ impl Model {
                         new_contract.contract_year = Set(1);
                         new_contract.contract_type = Set(ContractType::Veteran);
                     },
-                    ContractYearAdvancementType::Drop => {
-                        new_contract.contract_year = Set(1);
-                        new_contract.contract_type = Set(ContractType::FreeAgent);
-                    },
+                    ContractYearAdvancementType::Drop => bail!("Already covered"),
                 }
             ,
             ContractType::RookieExtension =>
@@ -212,20 +254,22 @@ impl Model {
 
                     Ok(bid_amount)
                 }
+                ContractYearAdvancementType::Drop => Ok(1),
                 _ => Ok(self.salary),
             },
             ContractType::RookieExtension => match self.contract_year {
                 4 => Ok(Model::get_salary_increased_by_20_percent(self.salary)),
-                _ => {
-                    let Some(bid_amount) = custom_bid_amount else {
-                        bail!("Moving to a UFA contract requires a custom starting salary.")
-                    };
-                    Ok(bid_amount)
-                }
+                _ => match custom_bid_amount {
+                    Some(bid_amount) => Ok(bid_amount),
+                    None => Ok(1),
+                },
             },
             ContractType::UnrestrictedFreeAgentOriginalTeam => match advancement_type {
                 ContractYearAdvancementType::AdvanceYearOnly => bail!(
                     "Impossible combination: adding a yearly salary increase to a UFA20 contract."
+                ),
+                ContractYearAdvancementType::RookieActivation => bail!(
+                    "Impossible combination: advancing an RFA contract as a rookie activation."
                 ),
                 ContractYearAdvancementType::SignToOriginalTeam => {
                     let Some(bid_amount) = custom_bid_amount else {
@@ -243,16 +287,17 @@ impl Model {
             },
             ContractType::Veteran => match self.contract_year {
                 1 | 2 => Ok(Model::get_salary_increased_by_20_percent(self.salary)),
-                _ => {
-                    let Some(bid_amount) = custom_bid_amount else {
-                        bail!("Moving to a UFA contract requires a custom starting salary.")
-                    };
-                    Ok(bid_amount)
-                }
+                _ => match custom_bid_amount {
+                    Some(bid_amount) => Ok(bid_amount),
+                    None => Ok(1),
+                },
             },
             ContractType::UnrestrictedFreeAgentVeteran => match advancement_type {
                 ContractYearAdvancementType::AdvanceYearOnly => bail!(
                     "Impossible combination: adding a yearly salary increase to a UFA10 contract."
+                ),
+                ContractYearAdvancementType::RookieActivation => bail!(
+                    "Impossible combination: advancing a UFA contract as a rookie activation."
                 ),
                 ContractYearAdvancementType::SignToOriginalTeam => {
                     let Some(bid_amount) = custom_bid_amount else {
@@ -335,7 +380,7 @@ pub enum ContractType {
     /// A player that is on their 3rd veteran season is converted to a UFA-10 for the duration of the following preseason. They are then re-signed (Veteran) at a 10% discount, signed to a different team (Veteran, no discount), or dropped (expired status).
     #[sea_orm(num_value = 7)]
     UnrestrictedFreeAgentVeteran, // ---- UFA - 10%
-    /// Signing on a new player via auction creates a FA contract, and dropping a player from a team for any reason moves them to free agency. A free agent can be signed onto any team starting from the beginning of the week after they are dropped.
+    /// Signing on a new player via auction creates a Veteran contract, and dropping a player from a team for any reason moves them to free agency. A free agent can be signed onto any team starting from the beginning of the week after they are dropped.
     #[sea_orm(num_value = 8)]
     FreeAgent, // This is needed when resigning previously-dropped players, as we need to know their previous contract's value.
 }
@@ -356,7 +401,7 @@ pub enum ContractType {
 )]
 #[sea_orm(rs_type = "i16", db_type = "Integer")]
 pub enum ContractStatus {
-    /// Represents an active player on a team. An active contract’s $-value takes up a team’s cap space.
+    /// Represents an active player on a team or in free agency. An active contract’s $-value takes up a team’s cap space.
     #[default]
     #[sea_orm(num_value = 0)]
     Active,
@@ -539,5 +584,526 @@ fn validate_contract_years_by_type(model: &ActiveModel) -> Result<(), DbErr> {
                 ))),
             }
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use chrono::{DateTime, FixedOffset};
+    use color_eyre::Result;
+    use once_cell::sync::Lazy;
+    use sea_orm::ActiveValue;
+
+    use crate::contract::ContractYearAdvancementType;
+
+    use super::{ContractStatus, ContractType, Model};
+
+    static NOW: Lazy<DateTime<FixedOffset>> = Lazy::new(|| {
+        DateTime::parse_from_str("2023 Apr 13 12:09:14.274 +0000", "%Y %b %d %H:%M:%S%.3f %z")
+            .unwrap()
+    });
+
+    fn generate_contract() -> Model {
+        Model {
+            id: 1,
+            contract_type: ContractType::RookieDevelopment,
+            contract_year: 1,
+            salary: 1,
+            is_ir: false,
+            season_end_year: 2023,
+            league_id: 1,
+            player_id: 1,
+            original_contract_id: Some(1),
+            previous_contract_id: None,
+            team_id: 1,
+            status: ContractStatus::Active,
+            created_at: NOW.to_owned(),
+            updated_at: NOW.to_owned(),
+        }
+    }
+
+    #[test]
+    fn contract_advancement_year_rd1_to_rd2() -> Result<()> {
+        // Test RD1 -> RD2
+        let test_contract = generate_contract();
+        let advanced_contract = test_contract
+            .create_contract_year_advancement(ContractYearAdvancementType::AdvanceYearOnly, None)?;
+
+        assert_eq!(
+            advanced_contract.original_contract_id,
+            ActiveValue::Set(test_contract.original_contract_id)
+        );
+        assert_eq!(
+            advanced_contract.previous_contract_id,
+            ActiveValue::Set(Some(test_contract.id))
+        );
+        assert_eq!(advanced_contract.contract_year, ActiveValue::Set(2));
+        assert_eq!(
+            advanced_contract.contract_type,
+            ActiveValue::Set(ContractType::RookieDevelopment)
+        );
+        assert_eq!(
+            advanced_contract.salary,
+            ActiveValue::Set(test_contract.salary)
+        );
+
+        Ok(())
+    }
+
+    #[test]
+    fn contract_advancement_year_rd2_to_rd3() -> Result<()> {
+        let mut test_contract = generate_contract();
+        test_contract.previous_contract_id = Some(1);
+        test_contract.id = 2;
+        test_contract.contract_year = 2;
+
+        let advanced_contract = test_contract
+            .create_contract_year_advancement(ContractYearAdvancementType::AdvanceYearOnly, None)?;
+        assert_eq!(
+            advanced_contract.original_contract_id,
+            ActiveValue::Set(test_contract.original_contract_id)
+        );
+        assert_eq!(
+            advanced_contract.previous_contract_id,
+            ActiveValue::Set(Some(test_contract.id))
+        );
+        assert_eq!(advanced_contract.contract_year, ActiveValue::Set(3));
+        assert_eq!(
+            advanced_contract.contract_type,
+            ActiveValue::Set(ContractType::RookieDevelopment)
+        );
+        assert_eq!(
+            advanced_contract.salary,
+            ActiveValue::Set(test_contract.salary)
+        );
+
+        Ok(())
+    }
+
+    #[test]
+    fn contract_advancement_year_rd3_to_r2() -> Result<()> {
+        let mut test_contract = generate_contract();
+        test_contract.contract_year = 3;
+
+        let advanced_contract = test_contract
+            .create_contract_year_advancement(ContractYearAdvancementType::AdvanceYearOnly, None)?;
+        assert_eq!(advanced_contract.contract_year, ActiveValue::Set(2));
+        assert_eq!(
+            advanced_contract.contract_type,
+            ActiveValue::Set(ContractType::Rookie)
+        );
+        assert_eq!(
+            advanced_contract.salary,
+            ActiveValue::Set(test_contract.salary)
+        );
+
+        Ok(())
+    }
+
+    #[test]
+    fn contract_advancement_year_rd2_activate() -> Result<()> {
+        let mut test_contract = generate_contract();
+        test_contract.contract_year = 2;
+
+        let advanced_contract = test_contract.create_contract_year_advancement(
+            ContractYearAdvancementType::RookieActivation,
+            None,
+        )?;
+        assert_eq!(advanced_contract.contract_year, ActiveValue::Set(1));
+        assert_eq!(
+            advanced_contract.contract_type,
+            ActiveValue::Set(ContractType::Rookie)
+        );
+        assert_eq!(
+            advanced_contract.salary,
+            ActiveValue::Set(test_contract.salary)
+        );
+
+        Ok(())
+    }
+
+    #[test]
+    fn contract_advancement_year_rd3_activate() -> Result<()> {
+        let mut test_contract = generate_contract();
+        test_contract.contract_year = 3;
+
+        let advanced_contract = test_contract.create_contract_year_advancement(
+            ContractYearAdvancementType::RookieActivation,
+            None,
+        )?;
+        assert_eq!(advanced_contract.contract_year, ActiveValue::Set(2));
+        assert_eq!(
+            advanced_contract.contract_type,
+            ActiveValue::Set(ContractType::Rookie)
+        );
+        assert_eq!(
+            advanced_contract.salary,
+            ActiveValue::Set(test_contract.salary)
+        );
+
+        Ok(())
+    }
+
+    #[test]
+    fn contract_advancement_year_rd_drop() -> Result<()> {
+        let test_contract = generate_contract();
+
+        let advanced_contract = test_contract
+            .create_contract_year_advancement(ContractYearAdvancementType::Drop, None)?;
+        assert_eq!(advanced_contract.contract_year, ActiveValue::Set(1));
+        assert_eq!(
+            advanced_contract.contract_type,
+            ActiveValue::Set(ContractType::FreeAgent)
+        );
+        assert_eq!(advanced_contract.salary, ActiveValue::Set(1));
+
+        Ok(())
+    }
+
+    #[test]
+    fn contract_advancement_year_r1_to_r2() -> Result<()> {
+        let mut test_contract = generate_contract();
+        test_contract.contract_type = ContractType::Rookie;
+
+        let advanced_contract = test_contract
+            .create_contract_year_advancement(ContractYearAdvancementType::AdvanceYearOnly, None)?;
+        assert_eq!(advanced_contract.contract_year, ActiveValue::Set(2));
+        assert_eq!(
+            advanced_contract.contract_type,
+            ActiveValue::Set(ContractType::Rookie)
+        );
+        assert_eq!(advanced_contract.salary, ActiveValue::Set(2));
+
+        Ok(())
+    }
+
+    #[test]
+    fn contract_advancement_year_r2_to_r3() -> Result<()> {
+        let mut test_contract = generate_contract();
+        test_contract.contract_type = ContractType::Rookie;
+        test_contract.contract_year = 2;
+        test_contract.salary = 2;
+
+        let advanced_contract = test_contract
+            .create_contract_year_advancement(ContractYearAdvancementType::AdvanceYearOnly, None)?;
+        assert_eq!(advanced_contract.contract_year, ActiveValue::Set(3));
+        assert_eq!(
+            advanced_contract.contract_type,
+            ActiveValue::Set(ContractType::Rookie)
+        );
+        assert_eq!(advanced_contract.salary, ActiveValue::Set(3));
+
+        Ok(())
+    }
+
+    #[test]
+    fn contract_advancement_year_r3_to_rfa() -> Result<()> {
+        let mut test_contract = generate_contract();
+        test_contract.contract_type = ContractType::Rookie;
+        test_contract.contract_year = 3;
+        test_contract.salary = 3;
+
+        let advanced_contract = test_contract
+            .create_contract_year_advancement(ContractYearAdvancementType::AdvanceYearOnly, None)?;
+        assert_eq!(
+            advanced_contract.contract_type,
+            ActiveValue::Set(ContractType::RestrictedFreeAgent)
+        );
+        assert_eq!(advanced_contract.salary, ActiveValue::Set(4));
+
+        Ok(())
+    }
+
+    #[test]
+    fn contract_advancement_year_rfa_to_r4() -> Result<()> {
+        let mut test_contract = generate_contract();
+        test_contract.contract_type = ContractType::RestrictedFreeAgent;
+        test_contract.salary = 4;
+
+        let advanced_contract = test_contract.create_contract_year_advancement(
+            ContractYearAdvancementType::SignToOriginalTeam,
+            Some(11),
+        )?;
+        assert_eq!(advanced_contract.contract_year, ActiveValue::Set(4));
+        assert_eq!(
+            advanced_contract.contract_type,
+            ActiveValue::Set(ContractType::RookieExtension)
+        );
+        assert_eq!(advanced_contract.salary, ActiveValue::Set(9));
+
+        Ok(())
+    }
+
+    #[test]
+    fn contract_advancement_year_rfa_to_v() -> Result<()> {
+        let mut test_contract = generate_contract();
+        test_contract.contract_type = ContractType::RestrictedFreeAgent;
+        test_contract.salary = 4;
+
+        let advanced_contract = test_contract.create_contract_year_advancement(
+            ContractYearAdvancementType::SignToNewTeam,
+            Some(11),
+        )?;
+        assert_eq!(advanced_contract.contract_year, ActiveValue::Set(1));
+        assert_eq!(
+            advanced_contract.contract_type,
+            ActiveValue::Set(ContractType::Veteran)
+        );
+        assert_eq!(advanced_contract.salary, ActiveValue::Set(11));
+
+        Ok(())
+    }
+
+    #[test]
+    fn contract_advancement_year_rfa_drop() -> Result<()> {
+        let mut test_contract = generate_contract();
+        test_contract.contract_type = ContractType::RestrictedFreeAgent;
+        test_contract.salary = 4;
+
+        let advanced_contract = test_contract
+            .create_contract_year_advancement(ContractYearAdvancementType::Drop, None)?;
+        assert_eq!(advanced_contract.contract_year, ActiveValue::Set(1));
+        assert_eq!(
+            advanced_contract.contract_type,
+            ActiveValue::Set(ContractType::FreeAgent)
+        );
+        assert_eq!(advanced_contract.salary, ActiveValue::Set(1));
+        assert_eq!(
+            advanced_contract.status,
+            ActiveValue::Set(ContractStatus::Expired)
+        );
+
+        Ok(())
+    }
+
+    #[test]
+    fn contract_advancement_year_r4_to_r5() -> Result<()> {
+        let mut test_contract = generate_contract();
+        test_contract.contract_type = ContractType::RookieExtension;
+        test_contract.contract_year = 4;
+        test_contract.salary = 11;
+
+        let advanced_contract = test_contract
+            .create_contract_year_advancement(ContractYearAdvancementType::AdvanceYearOnly, None)?;
+        assert_eq!(advanced_contract.contract_year, ActiveValue::Set(5));
+        assert_eq!(
+            advanced_contract.contract_type,
+            ActiveValue::Set(ContractType::RookieExtension)
+        );
+        assert_eq!(advanced_contract.salary, ActiveValue::Set(14));
+
+        Ok(())
+    }
+
+    #[test]
+    fn contract_advancement_year_r5_to_ufa20() -> Result<()> {
+        let mut test_contract = generate_contract();
+        test_contract.contract_type = ContractType::RookieExtension;
+        test_contract.contract_year = 5;
+        test_contract.salary = 14;
+
+        let advanced_contract = test_contract
+            .create_contract_year_advancement(ContractYearAdvancementType::AdvanceYearOnly, None)?;
+        assert_eq!(
+            advanced_contract.contract_type,
+            ActiveValue::Set(ContractType::UnrestrictedFreeAgentOriginalTeam)
+        );
+        assert_eq!(advanced_contract.salary, ActiveValue::Set(1));
+
+        let advanced_contract = test_contract.create_contract_year_advancement(
+            ContractYearAdvancementType::AdvanceYearOnly,
+            Some(8),
+        )?;
+        assert_eq!(
+            advanced_contract.contract_type,
+            ActiveValue::Set(ContractType::UnrestrictedFreeAgentOriginalTeam)
+        );
+        assert_eq!(advanced_contract.salary, ActiveValue::Set(8));
+
+        Ok(())
+    }
+
+    #[test]
+    fn contract_advancement_year_ufa20_sign_same_team() -> Result<()> {
+        let mut test_contract = generate_contract();
+        test_contract.contract_type = ContractType::UnrestrictedFreeAgentOriginalTeam;
+        test_contract.salary = 27;
+
+        assert!(test_contract
+            .create_contract_year_advancement(ContractYearAdvancementType::SignToOriginalTeam, None)
+            .is_err());
+
+        let advanced_contract = test_contract.create_contract_year_advancement(
+            ContractYearAdvancementType::SignToOriginalTeam,
+            Some(33),
+        )?;
+        assert_eq!(advanced_contract.contract_year, ActiveValue::Set(1));
+        assert_eq!(
+            advanced_contract.contract_type,
+            ActiveValue::Set(ContractType::Veteran)
+        );
+        assert_eq!(advanced_contract.salary, ActiveValue::Set(26));
+
+        Ok(())
+    }
+
+    #[test]
+    fn contract_advancement_year_ufa20_sign_different_team() -> Result<()> {
+        let mut test_contract = generate_contract();
+        test_contract.contract_type = ContractType::UnrestrictedFreeAgentOriginalTeam;
+        test_contract.salary = 27;
+
+        assert!(test_contract
+            .create_contract_year_advancement(ContractYearAdvancementType::SignToNewTeam, None)
+            .is_err());
+
+        let advanced_contract = test_contract.create_contract_year_advancement(
+            ContractYearAdvancementType::SignToNewTeam,
+            Some(33),
+        )?;
+        assert_eq!(advanced_contract.contract_year, ActiveValue::Set(1));
+        assert_eq!(
+            advanced_contract.contract_type,
+            ActiveValue::Set(ContractType::Veteran)
+        );
+        assert_eq!(advanced_contract.salary, ActiveValue::Set(33));
+
+        Ok(())
+    }
+
+    #[test]
+    fn contract_advancement_year_v1_to_v2() -> Result<()> {
+        let mut test_contract = generate_contract();
+        test_contract.contract_type = ContractType::Veteran;
+        test_contract.contract_year = 1;
+        test_contract.salary = 30;
+
+        let advanced_contract = test_contract
+            .create_contract_year_advancement(ContractYearAdvancementType::AdvanceYearOnly, None)?;
+        assert_eq!(advanced_contract.contract_year, ActiveValue::Set(2));
+        assert_eq!(
+            advanced_contract.contract_type,
+            ActiveValue::Set(ContractType::Veteran)
+        );
+        assert_eq!(advanced_contract.salary, ActiveValue::Set(36));
+
+        Ok(())
+    }
+
+    #[test]
+    fn contract_advancement_year_v2_to_v3() -> Result<()> {
+        let mut test_contract = generate_contract();
+        test_contract.contract_type = ContractType::Veteran;
+        test_contract.contract_year = 2;
+        test_contract.salary = 36;
+
+        let advanced_contract = test_contract
+            .create_contract_year_advancement(ContractYearAdvancementType::AdvanceYearOnly, None)?;
+        assert_eq!(advanced_contract.contract_year, ActiveValue::Set(3));
+        assert_eq!(
+            advanced_contract.contract_type,
+            ActiveValue::Set(ContractType::Veteran)
+        );
+        assert_eq!(advanced_contract.salary, ActiveValue::Set(44));
+
+        Ok(())
+    }
+
+    #[test]
+    fn contract_advancement_year_v3_to_ufa10() -> Result<()> {
+        let mut test_contract = generate_contract();
+        test_contract.contract_type = ContractType::Veteran;
+        test_contract.contract_year = 3;
+        test_contract.salary = 44;
+
+        let advanced_contract = test_contract
+            .create_contract_year_advancement(ContractYearAdvancementType::AdvanceYearOnly, None)?;
+        assert_eq!(
+            advanced_contract.contract_type,
+            ActiveValue::Set(ContractType::UnrestrictedFreeAgentVeteran)
+        );
+        assert_eq!(advanced_contract.salary, ActiveValue::Set(1));
+
+        let advanced_contract = test_contract.create_contract_year_advancement(
+            ContractYearAdvancementType::AdvanceYearOnly,
+            Some(8),
+        )?;
+        assert_eq!(
+            advanced_contract.contract_type,
+            ActiveValue::Set(ContractType::UnrestrictedFreeAgentVeteran)
+        );
+        assert_eq!(advanced_contract.salary, ActiveValue::Set(8));
+
+        Ok(())
+    }
+
+    #[test]
+    fn contract_advancement_year_ufa10_drop() -> Result<()> {
+        let mut test_contract = generate_contract();
+        test_contract.contract_type = ContractType::UnrestrictedFreeAgentVeteran;
+        test_contract.salary = 4;
+
+        let advanced_contract = test_contract
+            .create_contract_year_advancement(ContractYearAdvancementType::Drop, None)?;
+        assert_eq!(advanced_contract.contract_year, ActiveValue::Set(1));
+        assert_eq!(
+            advanced_contract.contract_type,
+            ActiveValue::Set(ContractType::FreeAgent)
+        );
+        assert_eq!(advanced_contract.salary, ActiveValue::Set(1));
+        assert_eq!(
+            advanced_contract.status,
+            ActiveValue::Set(ContractStatus::Expired)
+        );
+
+        Ok(())
+    }
+
+    #[test]
+    fn contract_advancement_year_ufa10_sign_same_team() -> Result<()> {
+        let mut test_contract = generate_contract();
+        test_contract.contract_type = ContractType::UnrestrictedFreeAgentVeteran;
+        test_contract.salary = 27;
+
+        assert!(test_contract
+            .create_contract_year_advancement(ContractYearAdvancementType::SignToOriginalTeam, None)
+            .is_err());
+
+        let advanced_contract = test_contract.create_contract_year_advancement(
+            ContractYearAdvancementType::SignToOriginalTeam,
+            Some(33),
+        )?;
+        assert_eq!(advanced_contract.contract_year, ActiveValue::Set(1));
+        assert_eq!(
+            advanced_contract.contract_type,
+            ActiveValue::Set(ContractType::Veteran)
+        );
+        assert_eq!(advanced_contract.salary, ActiveValue::Set(29));
+
+        Ok(())
+    }
+
+    #[test]
+    fn contract_advancement_year_ufa10_sign_new_team() -> Result<()> {
+        let mut test_contract = generate_contract();
+        test_contract.contract_type = ContractType::UnrestrictedFreeAgentVeteran;
+        test_contract.salary = 27;
+
+        assert!(test_contract
+            .create_contract_year_advancement(ContractYearAdvancementType::SignToNewTeam, None)
+            .is_err());
+
+        let advanced_contract = test_contract.create_contract_year_advancement(
+            ContractYearAdvancementType::SignToNewTeam,
+            Some(33),
+        )?;
+        assert_eq!(advanced_contract.contract_year, ActiveValue::Set(1));
+        assert_eq!(
+            advanced_contract.contract_type,
+            ActiveValue::Set(ContractType::Veteran)
+        );
+        assert_eq!(advanced_contract.salary, ActiveValue::Set(33));
+
+        Ok(())
     }
 }
