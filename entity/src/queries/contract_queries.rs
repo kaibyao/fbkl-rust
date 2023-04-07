@@ -17,3 +17,22 @@ where
 
     Ok(updated)
 }
+
+/// Inserts the new/advanced contract and sets the status of the old one appropriately.
+pub async fn advance_contract<C>(
+    current_contract_model: contract::Model,
+    advanced_contract_model: contract::ActiveModel,
+    db: &C,
+) -> Result<(contract::Model, contract::Model)>
+where
+    C: ConnectionTrait + TransactionTrait,
+{
+    let inserted_advanced_contract = advanced_contract_model.insert(db).await?;
+
+    let mut original_contract_model_to_update: contract::ActiveModel =
+        current_contract_model.into();
+    original_contract_model_to_update.status = ActiveValue::Set(contract::ContractStatus::Replaced);
+    let updated_original_contract = original_contract_model_to_update.update(db).await?;
+
+    Ok((updated_original_contract, inserted_advanced_contract))
+}
