@@ -25,6 +25,24 @@ where
     Ok((updated_original_contract, inserted_advanced_contract))
 }
 
+/// This is needed in order to set the `original_contract_id` after creating a new contract.
+pub async fn create_new_contract<C>(
+    contract_to_insert: contract::ActiveModel,
+    db: &C,
+) -> Result<contract::Model>
+where
+    C: ConnectionTrait + TransactionTrait,
+{
+    let inserted_contract = contract_to_insert.insert(db).await?;
+    let inserted_contract_id = inserted_contract.id;
+
+    let mut model_to_update: contract::ActiveModel = inserted_contract.into();
+    model_to_update.original_contract_id = ActiveValue::Set(Some(inserted_contract_id));
+
+    let updated_contract = model_to_update.update(db).await?;
+    Ok(updated_contract)
+}
+
 /// Expires the given contract
 pub async fn expire_contract<C>(model: contract::Model, db: &C) -> Result<contract::Model>
 where
@@ -35,21 +53,6 @@ where
 
     let updated_model = model_to_update.update(db).await?;
     Ok(updated_model)
-}
-
-/// This is needed in order to set the `original_contract_id` after creating a new contract.
-pub async fn create_new_contract<C>(model: contract::ActiveModel, db: &C) -> Result<contract::Model>
-where
-    C: ConnectionTrait + TransactionTrait,
-{
-    let mut model_to_update_after_insert = model.clone();
-
-    let inserted = model.insert(db).await?;
-
-    model_to_update_after_insert.original_contract_id = ActiveValue::Set(Some(inserted.id));
-    let updated = model_to_update_after_insert.update(db).await?;
-
-    Ok(updated)
 }
 
 /// Retrieves all contracts currently active in a league. Note that this includes Free Agent contracts where the player had been signed onto a team at some point but ended the season as a free agent.

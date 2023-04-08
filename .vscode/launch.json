@@ -82,6 +82,24 @@
     {
       "type": "lldb",
       "request": "launch",
+      "name": "import-data transactions",
+      "cargo": {
+        "args": [
+          "build",
+          "--bin=fbkl-import-data",
+          "--package=fbkl-import-data"
+        ],
+        "filter": {
+          "name": "fbkl-import-data",
+          "kind": "bin"
+        }
+      },
+      "args": ["--data", "other-transactions"],
+      "cwd": "${workspaceFolder}/import-data"
+    },
+    {
+      "type": "lldb",
+      "request": "launch",
       "name": "Debug unit tests in executable 'server'",
       "cargo": {
         "args": ["test", "--no-run", "--bin=server", "--package=server"],

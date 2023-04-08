@@ -248,12 +248,12 @@ impl Linked for PreviousContract {
 }
 
 impl ActiveModelBehavior for ActiveModel {
-    fn before_save(self, insert: bool) -> Result<Self, DbErr> {
+    fn before_save(self, is_insert: bool) -> Result<Self, DbErr> {
         non_original_contract_requires_previous_contract(&self)?;
         original_contract_requires_unset_previous_contract(&self)?;
         validate_contract_years_by_type(&self)?;
 
-        if !insert {
+        if !is_insert {
             update_requires_original_contract(&self)?;
         }
 
@@ -275,6 +275,7 @@ fn non_original_contract_requires_previous_contract(model: &ActiveModel) -> Resu
 fn original_contract_requires_unset_previous_contract(model: &ActiveModel) -> Result<(), DbErr> {
     if model.previous_contract_id.is_set()
         && model.original_contract_id.is_set()
+        && model.id.is_set()
         && model.original_contract_id.as_ref().as_ref().unwrap() == model.id.as_ref()
     {
         Err(DbErr::Custom(format!("This contract (id={}, original_contract_id={:?}, previous_contract_id={:?}) is supposedly the original (id and original id are matching), yet a previous contract id is referenced.", model.id.as_ref(), model.original_contract_id.as_ref(), model.previous_contract_id.as_ref())))
