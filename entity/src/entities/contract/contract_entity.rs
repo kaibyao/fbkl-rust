@@ -5,7 +5,7 @@ use color_eyre::eyre::Error;
 use sea_orm::entity::prelude::*;
 use serde::{Deserialize, Serialize};
 
-use crate::{auction, league, player, team, trade_asset};
+use crate::{auction, league, league_player, player, team, trade_asset};
 
 use super::{
     annual_contract_advancement::create_advancement_for_contract,
@@ -34,7 +34,8 @@ pub struct Model {
     /// Whether the contract is active, expired, or replaced by a newer contract. A newer contract will have this contract as its `previous_contract_id`.
     pub status: ContractStatus,
     pub league_id: i64,
-    pub player_id: i64,
+    pub league_player_id: Option<i64>,
+    pub player_id: Option<i64>,
     pub previous_contract_id: Option<i64>,
     pub original_contract_id: Option<i64>,
     pub team_id: i64,
@@ -164,6 +165,14 @@ pub enum Relation {
     )]
     League,
     #[sea_orm(
+        belongs_to = "league_player::Entity",
+        from = "Column::LeaguePlayerId",
+        to = "league_player::Column::Id",
+        on_update = "Cascade",
+        on_delete = "Cascade"
+    )]
+    LeaguePlayer,
+    #[sea_orm(
         belongs_to = "Entity",
         from = "Column::OriginalContractId",
         to = "Column::Id",
@@ -208,6 +217,12 @@ impl Related<auction::Entity> for Entity {
 impl Related<league::Entity> for Entity {
     fn to() -> RelationDef {
         Relation::League.def()
+    }
+}
+
+impl Related<league_player::Entity> for Entity {
+    fn to() -> RelationDef {
+        Relation::LeaguePlayer.def()
     }
 }
 

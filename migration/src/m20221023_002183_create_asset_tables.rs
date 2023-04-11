@@ -3,7 +3,7 @@ use sea_orm_migration::prelude::*;
 
 use crate::{
     m20220922_012310_create_real_world_tables::Player,
-    m20220924_004529_create_league_tables::{League, Team},
+    m20220924_004529_create_league_tables::{League, LeaguePlayer, Team},
     set_auto_updated_at_on_table,
 };
 
@@ -88,7 +88,8 @@ async fn setup_contract(manager: &SchemaManager<'_>) -> Result<(), DbErr> {
                         .default(0),
                 )
                 .col(ColumnDef::new(Contract::LeagueId).big_integer().not_null())
-                .col(ColumnDef::new(Contract::PlayerId).big_integer().not_null())
+                .col(ColumnDef::new(Contract::PlayerId).big_integer())
+                .col(ColumnDef::new(Contract::LeaguePlayerId).big_integer())
                 .col(ColumnDef::new(Contract::PreviousContractId).big_integer())
                 .col(ColumnDef::new(Contract::OriginalContractId).big_integer())
                 .col(ColumnDef::new(Contract::TeamId).big_integer().not_null())
@@ -176,6 +177,18 @@ async fn setup_contract(manager: &SchemaManager<'_>) -> Result<(), DbErr> {
                 .name("contract_fk_player")
                 .from(Contract::Table, Contract::PlayerId)
                 .to(Player::Table, Player::Id)
+                .on_delete(ForeignKeyAction::Cascade)
+                .on_update(ForeignKeyAction::Cascade)
+                .to_owned(),
+        )
+        .await?;
+
+    manager
+        .create_foreign_key(
+            ForeignKey::create()
+                .name("contract_fk_league_player")
+                .from(Contract::Table, Contract::LeaguePlayerId)
+                .to(LeaguePlayer::Table, LeaguePlayer::Id)
                 .on_delete(ForeignKeyAction::Cascade)
                 .on_update(ForeignKeyAction::Cascade)
                 .to_owned(),
@@ -394,6 +407,7 @@ pub enum Contract {
     Status,
     LeagueId,
     PlayerId,
+    LeaguePlayerId,
     PreviousContractId,
     OriginalContractId,
     TeamId,
