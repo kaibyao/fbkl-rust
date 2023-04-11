@@ -32,7 +32,6 @@ async fn main() -> Result<()> {
     // TODO: Build Transaction Processor. The idea being there's a job that runs every minute to update contracts, change teams, etc.
     // TODO: Need some kind of storage for NBA dates (start of season, ASB start and end dates, MLK week early start times)
     // TODO: Maybe ping NBA API for game start times each week?
-    // TODO: import deadlines for each season based on transaction data.
     // TODO: Reconciling end dates of different transaction types w/ when they go into effect.
     // TODO: Account for roster legalization (pre-season).
     // TODO: Account for roster legalization (weekly).

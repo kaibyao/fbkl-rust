@@ -1,21 +1,25 @@
+use std::fmt::Debug;
+
 use color_eyre::{eyre::eyre, Result};
 use sea_orm::{
     ActiveModelTrait, ActiveValue, ColumnTrait, ConnectionTrait, EntityTrait, QueryFilter,
     TransactionTrait,
 };
+use tracing::instrument;
 
 use crate::{
     deadline::{self, DeadlineType},
     transaction::{self, TransactionType},
 };
 
+#[instrument]
 pub async fn get_or_create_keeper_deadline_transaction<C>(
     league_id: i64,
     season_end_year: i16,
     db: &C,
 ) -> Result<transaction::Model>
 where
-    C: ConnectionTrait + TransactionTrait,
+    C: ConnectionTrait + TransactionTrait + Debug,
 {
     let maybe_existing_keeper_deadline_transaction = transaction::Entity::find()
         .filter(
@@ -27,8 +31,8 @@ where
         .one(db)
         .await?;
 
-    if maybe_existing_keeper_deadline_transaction.is_some() {
-        return Ok(maybe_existing_keeper_deadline_transaction.unwrap());
+    if let Some(existing_keeper_deadline_transaction) = maybe_existing_keeper_deadline_transaction {
+        return Ok(existing_keeper_deadline_transaction);
     }
 
     let maybe_keeper_deadline = deadline::Entity::find()

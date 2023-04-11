@@ -6,7 +6,12 @@ use sea_orm::{
 use std::fmt::Debug;
 use tracing::instrument;
 
-use crate::{contract, team, team_update, transaction};
+use crate::{
+    contract::{self, ContractType},
+    contract_queries, team,
+    team_update::{self, ContractUpdate, ContractUpdateType, TeamUpdateData, TeamUpdateStatus},
+    transaction,
+};
 
 /// Finds the team_updates related to the given transaction id.
 #[instrument]
@@ -27,7 +32,7 @@ where
 /// Inserts & returns a new team update containing keeper contracts for a specific team.
 #[instrument]
 pub async fn insert_keeper_team_update<C>(
-    team: &team::Model,
+    team_model: &team::Model,
     keeper_contracts: &[contract::Model],
     keeper_transaction: &transaction::Model,
     db: &C,
@@ -35,10 +40,8 @@ pub async fn insert_keeper_team_update<C>(
 where
     C: ConnectionTrait + TransactionTrait + Debug,
 {
-    let team_update_data = team_update::TeamUpdateData::create_roster_update_from_contracts(
-        keeper_contracts,
-        team_update::ContractUpdateType::Keeper,
-    )?;
+    let team_update_data =
+        generate_keeper_team_update_data(team_model, keeper_contracts, db).await?;
 
     let team_update_to_insert = team_update::ActiveModel {
         update_type: ActiveValue::Set(team_update::TeamUpdateType::Roster),
@@ -51,7 +54,7 @@ where
                 .date_naive(),
         ),
         status: ActiveValue::Set(team_update::TeamUpdateStatus::Pending),
-        team_id: ActiveValue::Set(team.id),
+        team_id: ActiveValue::Set(team_model.id),
         transaction_id: ActiveValue::Set(Some(keeper_transaction.id)),
         ..Default::default()
     };
@@ -60,20 +63,70 @@ where
     Ok(team_update)
 }
 
+#[instrument]
 pub async fn update_keeper_team_update<C>(
+    team_model: &team::Model,
     keeper_team_update: team_update::Model,
     keeper_contracts: &[contract::Model],
     db: &C,
 ) -> Result<team_update::Model>
 where
-    C: ConnectionTrait + TransactionTrait,
+    C: ConnectionTrait + TransactionTrait + Debug,
 {
     let mut keeper_team_update_to_edit: team_update::ActiveModel = keeper_team_update.into();
-    let team_update_data = team_update::TeamUpdateData::create_roster_update_from_contracts(
-        keeper_contracts,
-        team_update::ContractUpdateType::Keeper,
-    )?;
+    let team_update_data =
+        generate_keeper_team_update_data(team_model, keeper_contracts, db).await?;
     keeper_team_update_to_edit.data = ActiveValue::Set(team_update_data.as_bytes()?);
     let updated_model = keeper_team_update_to_edit.update(db).await?;
     Ok(updated_model)
+}
+
+#[instrument]
+pub async fn update_team_update_status<C>(
+    team_update_model: team_update::Model,
+    status: TeamUpdateStatus,
+    db: &C,
+) -> Result<team_update::Model>
+where
+    C: ConnectionTrait + TransactionTrait + Debug,
+{
+    let mut setting_status_to_in_progress: team_update::ActiveModel = team_update_model.into();
+    setting_status_to_in_progress.status = ActiveValue::Set(status);
+    let status_set_to_in_progress = setting_status_to_in_progress.update(db).await?;
+    Ok(status_set_to_in_progress)
+}
+
+#[instrument]
+async fn generate_keeper_team_update_data<C>(
+    team_model: &team::Model,
+    keeper_contracts: &[contract::Model],
+    db: &C,
+) -> Result<TeamUpdateData>
+where
+    C: ConnectionTrait + TransactionTrait + Debug,
+{
+    let all_active_team_contracts =
+        contract_queries::find_active_contracts_for_team(team_model, db).await?;
+    let ignore_contract_types_for_keepers = [
+        ContractType::RestrictedFreeAgent,
+        ContractType::UnrestrictedFreeAgentOriginalTeam,
+        ContractType::UnrestrictedFreeAgentVeteran,
+    ];
+
+    let mut contract_updates = vec![];
+    for team_contract_model in all_active_team_contracts {
+        if keeper_contracts.contains(&team_contract_model) {
+            contract_updates.push(ContractUpdate {
+                contract_id: team_contract_model.id,
+                update_type: ContractUpdateType::Keeper,
+            });
+        } else if !ignore_contract_types_for_keepers.contains(&team_contract_model.contract_type) {
+            contract_updates.push(ContractUpdate {
+                contract_id: team_contract_model.id,
+                update_type: ContractUpdateType::Drop,
+            });
+        }
+    }
+    let team_update_data = TeamUpdateData::Roster(contract_updates);
+    Ok(team_update_data)
 }

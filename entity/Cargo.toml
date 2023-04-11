@@ -9,6 +9,7 @@ version = "0.1.0"
 async-graphql = {git = "https://github.com/kaibyao/async-graphql"}
 bincode = "1.3.3"
 color-eyre = "0.6.2"
+postcard = {version = "1.0.4", features = ["use-std"], default-features = false }
 sea-orm = {version = "^0.10", features = ["sqlx-postgres", "runtime-tokio-rustls", "macros"]}
 serde = "1.0.144"
 tracing = "0.1.36"

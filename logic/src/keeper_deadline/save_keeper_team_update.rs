@@ -7,14 +7,16 @@ use fbkl_constants::league_rules::{
 use fbkl_entity::{
     contract,
     sea_orm::{ConnectionTrait, TransactionTrait},
-    team, team_update, team_update_queries, transaction, transaction_queries,
+    team,
+    team_update::{self},
+    team_update_queries, transaction, transaction_queries,
 };
 use tracing::instrument;
 
-/// Saves the contracts to keep on a team for the season's Keeper Deadline.
+/// Saves the contracts to keep on a team for the season's Keeper Deadline, while also dropping non-keeper contracts.
 #[instrument]
-pub async fn save_team_keepers<C>(
-    team: &team::Model,
+pub async fn save_keeper_team_update<C>(
+    team_model: &team::Model,
     keeper_contracts: Vec<contract::Model>,
     season_end_year: i16,
     db: &C,
@@ -24,7 +26,7 @@ where
 {
     validate_team_keepers(&keeper_contracts)?;
 
-    let league = team.get_league(db).await?;
+    let league = team_model.get_league(db).await?;
     let keeper_deadline_transaction =
         transaction_queries::get_or_create_keeper_deadline_transaction(
             league.id,
@@ -37,32 +39,43 @@ where
             .await?;
     let maybe_existing_keeper_team_update_index = keeper_team_updates
         .iter()
-        .position(|team_update| team_update.team_id == team.id);
+        .position(|team_update| team_update.team_id == team_model.id);
 
     match maybe_existing_keeper_team_update_index {
         None => {
-            create_new_keeper_team_update(team, &keeper_contracts, &keeper_deadline_transaction, db)
-                .await
+            create_new_keeper_team_update(
+                team_model,
+                &keeper_contracts,
+                &keeper_deadline_transaction,
+                db,
+            )
+            .await
         }
         Some(existing_keeper_team_update_index) => {
             let existing_keeper_team_update =
                 keeper_team_updates.swap_remove(existing_keeper_team_update_index);
-            update_existing_keeper_team_update(existing_keeper_team_update, &keeper_contracts, db)
-                .await
+            update_existing_keeper_team_update(
+                team_model,
+                existing_keeper_team_update,
+                &keeper_contracts,
+                db,
+            )
+            .await
         }
     }
 }
 
 /// Validates the following:
-/// * The given list of contracts does not contain any RD, RDI, RFA, or UFA contract.
+/// * The given list of contracts does not contain any RFA or UFA contract.
 /// * The total contract value is $100 or less.
-/// * The total number of non-(RD|RDI|RFA|UFA) keeper contracts is 14 or less.
+/// * The total number of non-(RFA|UFA) keeper contracts is 14 or less.
+#[instrument]
 fn validate_team_keepers(contracts: &[contract::Model]) -> Result<()> {
     let counted_contracts: Vec<&contract::Model> = contracts
         .iter()
         .filter(|contract| match contract.contract_type {
-            contract::ContractType::RookieDevelopment => false,
-            contract::ContractType::RookieDevelopmentInternational => false,
+            contract::ContractType::RookieDevelopment => true,
+            contract::ContractType::RookieDevelopmentInternational => true,
             contract::ContractType::Rookie => true,
             contract::ContractType::RestrictedFreeAgent => false,
             contract::ContractType::RookieExtension => true,
@@ -74,14 +87,22 @@ fn validate_team_keepers(contracts: &[contract::Model]) -> Result<()> {
         .collect();
 
     if counted_contracts.len() != contracts.len() {
-        bail!("The contracts attempted to be saved as Keepers contained contract types that cannot be kept. Only the following types of contracts can be kept: Rookie (1-3), Rookie Extension (4-5), and Veteran (1-3).");
+        bail!("The contracts attempted to be saved as Keepers contained contract types that cannot be kept. Only the following types of contracts can be kept: Rookie Development (International) (1-3), Rookie (1-3), Rookie Extension (4-5), and Veteran (1-3).\n\nGiven contracts:\n{:#?}", contracts);
     }
 
-    if counted_contracts.len() > KEEPER_CONTRACT_COUNT_LIMIT {
-        bail!("The number of contracts attempted ({}) to be saved as Keepers exceeds the league limit of {}.", counted_contracts.len(), KEEPER_CONTRACT_COUNT_LIMIT);
+    let counted_non_rd_contracts: Vec<&contract::Model> = counted_contracts
+        .into_iter()
+        .filter(|contract| {
+            contract.contract_type != contract::ContractType::RookieDevelopment
+                && contract.contract_type != contract::ContractType::RookieDevelopmentInternational
+        })
+        .collect();
+
+    if counted_non_rd_contracts.len() > KEEPER_CONTRACT_COUNT_LIMIT {
+        bail!("The number of contracts attempted ({}) to be saved as Keepers exceeds the league limit of {}.\n\nContracts: {:#?}", counted_non_rd_contracts.len(), KEEPER_CONTRACT_COUNT_LIMIT, counted_non_rd_contracts);
     }
 
-    let total_counted_contract_value: i16 = counted_contracts
+    let total_counted_contract_value: i16 = counted_non_rd_contracts
         .iter()
         .map(|contract| contract.salary)
         .sum();
@@ -97,6 +118,7 @@ fn validate_team_keepers(contracts: &[contract::Model]) -> Result<()> {
 }
 
 /// If this is the first time this team is keeping contracts, create new team update + set team update contracts
+#[instrument]
 async fn create_new_keeper_team_update<C>(
     team: &team::Model,
     keeper_contracts: &[contract::Model],
@@ -120,19 +142,25 @@ where
 }
 
 /// If owner previously set keepers, remove previously-saved contracts from team update and save new ones.
+#[instrument]
 async fn update_existing_keeper_team_update<C>(
+    team_model: &team::Model,
     keeper_team_update: team_update::Model,
     keeper_contracts: &[contract::Model],
     db: &C,
 ) -> Result<team_update::Model>
 where
-    C: ConnectionTrait + TransactionTrait,
+    C: ConnectionTrait + TransactionTrait + Debug,
 {
     let db_txn = db.begin().await?;
 
-    let updated_keeper_team_update =
-        team_update_queries::update_keeper_team_update(keeper_team_update, keeper_contracts, db)
-            .await?;
+    let updated_keeper_team_update = team_update_queries::update_keeper_team_update(
+        team_model,
+        keeper_team_update,
+        keeper_contracts,
+        db,
+    )
+    .await?;
 
     db_txn.commit().await?;
 

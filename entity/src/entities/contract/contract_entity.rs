@@ -43,14 +43,9 @@ pub struct Model {
 }
 
 impl Model {
-    /// Creates a new contract that converts the RD(I) contract to a standard rookie contract. Meant to be used in-season. Note that this doesn't do anything to insert the new contract or update the original.
-    pub fn activate_rookie_in_season(&self) -> Result<ActiveModel, Error> {
-        create_rookie_contract_from_rd(self, true)
-    }
-
-    /// Creates a new contract that converts the RD(I) contract to a standard rookie contract. Meant to be used before the NBA season starts. Note that this doesn't do anything to insert the new contract or update the original.
-    pub fn activate_rookie_preseason(&self) -> Result<ActiveModel, Error> {
-        create_rookie_contract_from_rd(self, false)
+    /// Creates a new contract that converts the RD(I) contract to a standard rookie contract. Note that this doesn't do anything to insert the new contract or update the original.
+    pub fn activate_rookie(&self) -> Result<ActiveModel, Error> {
+        create_rookie_contract_from_rd(self)
     }
 
     /// Creates the next year's contract from the current contract. This should be used in tandem with contract_queries::advance_contract, as we also need to update the current contract to point to the new one, plus handle various cases around RFAs/UFAs, and salaries.
@@ -59,8 +54,17 @@ impl Model {
     }
 
     /// Creates a new contract that drops the player from the team. Note that this doesn't do anything to insert the new contract or update the original.
-    pub fn create_dropped_contract(&self) -> Result<ActiveModel, Error> {
-        create_dropped_contract(self)
+    pub fn create_dropped_contract_before_preseason_keeper_deadline(
+        &self,
+    ) -> Result<ActiveModel, Error> {
+        create_dropped_contract(self, true)
+    }
+
+    /// Creates a new contract that drops the player from the team. Note that this doesn't do anything to insert the new contract or update the original.
+    pub fn create_dropped_contract_after_preseason_keeper_deadline(
+        &self,
+    ) -> Result<ActiveModel, Error> {
+        create_dropped_contract(self, false)
     }
 
     /// Creates a new Veteran or Rookie Extension contract from the current contract as a result of a team winning the contract during the Preseason Veteran Auction. Note that this doesn't do anything to insert the new contract or update the original.

@@ -11,7 +11,6 @@ static APPLICABLE_CONTRACT_TYPES: [ContractType; 2] = [
 /// Creates a new contract from the given Rookie Development (optional: International) contract where the contract is now converted to a standard Rookie contract.
 pub fn create_rookie_contract_from_rd(
     current_contract: &contract::Model,
-    is_during_season: bool,
 ) -> Result<contract::ActiveModel> {
     if !APPLICABLE_CONTRACT_TYPES.contains(&current_contract.contract_type) {
         bail!(
@@ -21,23 +20,7 @@ pub fn create_rookie_contract_from_rd(
 
     let new_contract = contract::ActiveModel {
         id: ActiveValue::NotSet,
-        contract_year: ActiveValue::Set(match current_contract.contract_year {
-            1..=2 => 1,
-            3 => {
-                if is_during_season {
-                    2
-                } else {
-                    1
-                }
-            }
-            _ => {
-                bail!(
-                    "Invalid year for contract type: ({:?}, {})",
-                    current_contract.contract_type,
-                    current_contract.contract_year
-                );
-            }
-        }),
+        contract_year: ActiveValue::Set(1),
         contract_type: ActiveValue::Set(contract::ContractType::Rookie),
         is_ir: ActiveValue::Set(current_contract.is_ir),
         salary: ActiveValue::Set(current_contract.salary),
@@ -95,7 +78,7 @@ mod tests {
         let mut test_contract = generate_contract();
         test_contract.contract_year = 2;
 
-        let advanced_contract = create_rookie_contract_from_rd(&test_contract, true)?;
+        let advanced_contract = create_rookie_contract_from_rd(&test_contract)?;
         assert_eq!(advanced_contract.contract_year, ActiveValue::Set(1));
         assert_eq!(
             advanced_contract.contract_type,
@@ -114,26 +97,7 @@ mod tests {
         let mut test_contract = generate_contract();
         test_contract.contract_year = 3;
 
-        let advanced_contract = create_rookie_contract_from_rd(&test_contract, true)?;
-        assert_eq!(advanced_contract.contract_year, ActiveValue::Set(2));
-        assert_eq!(
-            advanced_contract.contract_type,
-            ActiveValue::Set(ContractType::Rookie)
-        );
-        assert_eq!(
-            advanced_contract.salary,
-            ActiveValue::Set(test_contract.salary)
-        );
-
-        Ok(())
-    }
-
-    #[test]
-    fn rd3_activate_preseason() -> Result<()> {
-        let mut test_contract = generate_contract();
-        test_contract.contract_year = 3;
-
-        let advanced_contract = create_rookie_contract_from_rd(&test_contract, false)?;
+        let advanced_contract = create_rookie_contract_from_rd(&test_contract)?;
         assert_eq!(advanced_contract.contract_year, ActiveValue::Set(1));
         assert_eq!(
             advanced_contract.contract_type,

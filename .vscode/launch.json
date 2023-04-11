@@ -94,7 +94,7 @@
           "kind": "bin"
         }
       },
-      "args": ["--data", "other-transactions"],
+      "args": ["--data", "transactions"],
       "cwd": "${workspaceFolder}/import-data"
     },
     {

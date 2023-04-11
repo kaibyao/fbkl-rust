@@ -11,7 +11,7 @@ pub fn create_advancement_for_contract(
         id: ActiveValue::NotSet,
         contract_year: ActiveValue::Set(current_contract.contract_year),
         contract_type: ActiveValue::Set(current_contract.contract_type),
-        is_ir: ActiveValue::Set(current_contract.is_ir),
+        is_ir: ActiveValue::Set(false),
         salary: ActiveValue::Set(current_contract.salary),
         season_end_year: ActiveValue::Set(current_contract.season_end_year + 1),
         status: ActiveValue::Set(current_contract.status),
