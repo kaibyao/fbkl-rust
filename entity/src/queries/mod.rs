@@ -1,5 +1,6 @@
 pub mod contract_queries;
 pub mod deadline_queries;
+pub mod league_player_queries;
 pub mod league_queries;
 pub mod player_queries;
 pub mod team_queries;
