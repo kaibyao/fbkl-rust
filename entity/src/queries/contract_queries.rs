@@ -1,15 +1,15 @@
 use std::{collections::HashMap, fmt::Debug};
 
-use color_eyre::Result;
+use color_eyre::{eyre::bail, Result};
 use sea_orm::{
-    ActiveModelTrait, ActiveValue, ColumnTrait, ConnectionTrait, EntityTrait, ModelTrait,
-    QueryFilter, TransactionTrait,
+    ActiveModelTrait, ActiveValue, ColumnTrait, ConnectionTrait, EntityTrait, JoinType, ModelTrait,
+    QueryFilter, QuerySelect, RelationTrait, TransactionTrait,
 };
 use tracing::instrument;
 
 use crate::{
     contract::{self, ContractStatus},
-    player, team,
+    league_player, player, team,
 };
 
 /// Inserts the new/advanced contract and sets the status of the old one appropriately.
@@ -125,25 +125,50 @@ where
     C: ConnectionTrait + TransactionTrait + Debug,
 {
     let contracts_and_player_models = contract::Entity::find()
-        .find_also_related(player::Entity)
+        .join(JoinType::LeftJoin, contract::Relation::Player.def())
+        .join(JoinType::LeftJoin, contract::Relation::LeaguePlayer.def())
         .filter(
             contract::Column::LeagueId
                 .eq(league_id)
                 .and(contract::Column::Status.eq(contract::ContractStatus::Active))
                 .and(
-                    player::Column::Name.is_in(
-                        player_names
-                            .iter()
-                            .map(|player_name| player_name.to_string()),
-                    ),
+                    player::Column::Name
+                        .is_in(
+                            player_names
+                                .iter()
+                                .map(|player_name| player_name.to_string()),
+                        )
+                        .or(league_player::Column::Name.is_in(
+                            player_names
+                                .iter()
+                                .map(|player_name| player_name.to_string()),
+                        )),
                 ),
         )
         .all(db)
         .await?;
-    let contracts_by_player_name = contracts_and_player_models
-        .into_iter()
-        .map(|(contract_model, player_model)| (player_model.unwrap().name, contract_model))
-        .collect();
+    let mut contracts_by_player_name: HashMap<String, contract::Model> = HashMap::new();
+    for contract_model in contracts_and_player_models {
+        let maybe_related_player_model =
+            contract_model.find_related(player::Entity).one(db).await?;
+        let player_name = if let Some(related_player_model) = maybe_related_player_model {
+            related_player_model.name
+        } else {
+            let maybe_related_league_player_model = contract_model
+                .find_related(league_player::Entity)
+                .one(db)
+                .await?;
+            match maybe_related_league_player_model {
+                None => bail!(
+                    "Could not find player or league_player related to contract id {}",
+                    contract_model.id
+                ),
+                Some(related_league_player_model) => related_league_player_model.name,
+            }
+        };
+
+        contracts_by_player_name.insert(player_name, contract_model);
+    }
 
     Ok(contracts_by_player_name)
 }

@@ -227,6 +227,7 @@ async fn setup_draft_pick(manager: &SchemaManager<'_>) -> Result<(), DbErr> {
                         .small_integer()
                         .not_null(),
                 )
+                .col(ColumnDef::new(DraftPick::ProtectionClause).string())
                 .col(ColumnDef::new(DraftPick::LeagueId).big_integer().not_null())
                 .col(
                     ColumnDef::new(DraftPick::CurrentOwnerTeamId)
@@ -421,6 +422,7 @@ pub enum DraftPick {
     Id,
     Round,
     SeasonEndYear,
+    ProtectionClause,
     LeagueId,
     CurrentOwnerTeamId,
     OriginalOwnerTeamId,

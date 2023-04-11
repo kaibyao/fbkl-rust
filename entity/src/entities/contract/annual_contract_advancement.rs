@@ -1,4 +1,6 @@
 use color_eyre::{eyre::bail, Result};
+use rust_decimal::{Decimal, RoundingStrategy};
+use rust_decimal_macros::dec;
 use sea_orm::ActiveValue;
 
 use super::{contract_entity, ContractType};
@@ -12,7 +14,7 @@ pub fn create_advancement_for_contract(
         contract_year: ActiveValue::Set(current_contract.contract_year),
         contract_type: ActiveValue::Set(current_contract.contract_type),
         is_ir: ActiveValue::Set(false),
-        league_player_id: ActiveValue::NotSet,
+        league_player_id: ActiveValue::Set(current_contract.league_player_id),
         salary: ActiveValue::Set(current_contract.salary),
         season_end_year: ActiveValue::Set(current_contract.season_end_year + 1),
         status: ActiveValue::Set(current_contract.status),
@@ -127,8 +129,10 @@ fn calculate_yearly_salary_increase(current_contract: &contract_entity::Model) -
 }
 
 fn get_salary_increased_by_20_percent(salary: i16) -> i16 {
-    let increased_salary = f32::from(salary) * 1.2;
-    increased_salary.ceil() as i16
+    let salary_dec = Decimal::new(salary as i64, 0);
+    let increased_salary = salary_dec * dec!(1.2);
+    let rounded_up = increased_salary.round_dp_with_strategy(0, RoundingStrategy::AwayFromZero);
+    rounded_up.to_string().parse().unwrap()
 }
 
 #[cfg(test)]
@@ -334,7 +338,7 @@ mod tests {
         let mut test_contract = generate_contract();
         test_contract.contract_type = ContractType::Veteran;
         test_contract.contract_year = 1;
-        test_contract.salary = 30;
+        test_contract.salary = 25;
 
         let advanced_contract = create_advancement_for_contract(&test_contract)?;
         assert_eq!(advanced_contract.contract_year, ActiveValue::Set(2));
@@ -342,7 +346,7 @@ mod tests {
             advanced_contract.contract_type,
             ActiveValue::Set(ContractType::Veteran)
         );
-        assert_eq!(advanced_contract.salary, ActiveValue::Set(36));
+        assert_eq!(advanced_contract.salary, ActiveValue::Set(30));
 
         Ok(())
     }

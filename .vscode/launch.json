@@ -82,6 +82,24 @@
     {
       "type": "lldb",
       "request": "launch",
+      "name": "import-data all-league-data",
+      "cargo": {
+        "args": [
+          "build",
+          "--bin=fbkl-import-data",
+          "--package=fbkl-import-data"
+        ],
+        "filter": {
+          "name": "fbkl-import-data",
+          "kind": "bin"
+        }
+      },
+      "args": ["--data", "all-league-data"],
+      "cwd": "${workspaceFolder}/import-data"
+    },
+    {
+      "type": "lldb",
+      "request": "launch",
       "name": "import-data transactions",
       "cargo": {
         "args": [

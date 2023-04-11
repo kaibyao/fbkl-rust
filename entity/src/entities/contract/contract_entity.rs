@@ -271,6 +271,7 @@ impl ActiveModelBehavior for ActiveModel {
         non_original_contract_requires_previous_contract(&self)?;
         original_contract_requires_unset_previous_contract(&self)?;
         validate_contract_years_by_type(&self)?;
+        validate_player_or_league_player_id(&self)?;
 
         if !is_insert {
             update_requires_original_contract(&self)?;
@@ -338,5 +339,27 @@ fn validate_contract_years_by_type(model: &ActiveModel) -> Result<(), DbErr> {
                 ))),
             }
         }
+    }
+}
+
+fn validate_player_or_league_player_id(model: &ActiveModel) -> Result<(), DbErr> {
+    let maybe_player_id = if model.player_id.is_not_set() {
+        &None
+    } else {
+        model.player_id.as_ref()
+    };
+    let maybe_league_player_id = if model.league_player_id.is_not_set() {
+        &None
+    } else {
+        model.league_player_id.as_ref()
+    };
+
+    if maybe_player_id.is_none() && maybe_league_player_id.is_none() {
+        Err(DbErr::Custom(format!(
+            "At least one of [player_id, league_player_id] must be set. Model:\n{:#?}",
+            model
+        )))
+    } else {
+        Ok(())
     }
 }
