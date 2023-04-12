@@ -1,7 +1,7 @@
 use color_eyre::{eyre::bail, Result};
 use sea_orm::ActiveValue;
 
-use crate::contract::{self, ContractType};
+use crate::contract::{self, ContractStatus, ContractType};
 
 static APPLICABLE_CONTRACT_TYPES: [ContractType; 2] = [
     ContractType::RookieDevelopment,
@@ -15,6 +15,12 @@ pub fn create_rookie_contract_from_rd(
     if !APPLICABLE_CONTRACT_TYPES.contains(&current_contract.contract_type) {
         bail!(
             "Can only create a rookie contract from a Rookie Development (International) contract."
+        );
+    }
+    if current_contract.status != ContractStatus::Active {
+        bail!(
+            "Cannot advance a replaced or expired contract. Contract:\n{:#?}",
+            current_contract
         );
     }
 

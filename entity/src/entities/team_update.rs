@@ -109,6 +109,12 @@ impl TeamUpdateData {
     }
 }
 
+#[derive(Debug, Clone, Eq, PartialEq, Serialize, Deserialize)]
+pub struct ContractUpdate {
+    pub contract_id: i64,
+    pub update_type: ContractUpdateType,
+}
+
 /// Represents the different types of updates that can happen to a contract on a team.
 #[derive(Debug, Clone, Copy, Eq, PartialEq, Serialize, Deserialize)]
 pub enum ContractUpdateType {
@@ -134,12 +140,6 @@ pub enum ContractUpdateType {
     ContractAdvanced,
     /// A contract is lost to another team via Free Agency (in the Veteran Auction).
     LostViaFreeAgency,
-}
-
-#[derive(Debug, Clone, Eq, PartialEq, Serialize, Deserialize)]
-pub struct ContractUpdate {
-    pub contract_id: i64,
-    pub update_type: ContractUpdateType,
 }
 
 #[derive(Debug, Serialize, Deserialize)]

@@ -9,6 +9,13 @@ pub fn create_dropped_contract(
     current_contract: &contract::Model,
     is_before_pre_season_keeper_deadline: bool,
 ) -> Result<contract::ActiveModel> {
+    if current_contract.status != ContractStatus::Active {
+        bail!(
+            "Cannot drop a replaced or expired contract. Contract:\n{:#?}",
+            current_contract
+        );
+    }
+
     let mut new_salary_for_active_players_after_drop = current_contract.salary;
     let mut new_status_for_active_players_after_drop = ContractStatus::Active;
     if is_before_pre_season_keeper_deadline {

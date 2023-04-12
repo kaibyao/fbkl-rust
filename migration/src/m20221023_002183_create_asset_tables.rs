@@ -1,4 +1,4 @@
-use fbkl_entity::sea_orm::TransactionTrait;
+use fbkl_entity::sea_orm::{ConnectionTrait, DatabaseBackend, Statement, TransactionTrait};
 use sea_orm_migration::prelude::*;
 
 use crate::{
@@ -133,6 +133,15 @@ async fn setup_contract(manager: &SchemaManager<'_>) -> Result<(), DbErr> {
                 .col(Contract::PreviousContractId)
                 .to_owned(),
         )
+        .await?;
+
+    // Only 1 active contract per player is allowed for any given league & season
+    manager
+        .get_connection()
+        .execute(Statement::from_string(
+            DatabaseBackend::Postgres,
+            "CREATE UNIQUE INDEX contract_unique_active_contract_per_player_per_league ON contract (league_id, season_end_year, player_id, status) WHERE status = 0".to_string(),
+        ))
         .await?;
 
     manager

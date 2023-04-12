@@ -183,12 +183,12 @@ async fn add_replacement_contract_to_chain<C>(
 where
     C: ConnectionTrait + TransactionTrait + Debug,
 {
-    let inserted_replacement_contract = replacement_contract_model.insert(db).await?;
-
     let mut original_contract_model_to_update: contract::ActiveModel =
         current_contract_model.into();
     original_contract_model_to_update.status = ActiveValue::Set(contract::ContractStatus::Replaced);
     let updated_original_contract = original_contract_model_to_update.update(db).await?;
+
+    let inserted_replacement_contract = replacement_contract_model.insert(db).await?;
 
     Ok((updated_original_contract, inserted_replacement_contract))
 }

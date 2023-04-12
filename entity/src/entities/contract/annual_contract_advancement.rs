@@ -3,12 +3,19 @@ use rust_decimal::{Decimal, RoundingStrategy};
 use rust_decimal_macros::dec;
 use sea_orm::ActiveValue;
 
-use super::{contract_entity, ContractType};
+use super::{contract_entity, ContractStatus, ContractType};
 
 /// Creates the next year's contract from the current contract. This should be used in tandem with contract_queries::advance_contract, as we also need to update the current contract to point to the new one, plus handle various cases around RFAs/UFAs, and salaries.
 pub fn create_advancement_for_contract(
     current_contract: &contract_entity::Model,
 ) -> Result<contract_entity::ActiveModel> {
+    if current_contract.status != ContractStatus::Active {
+        bail!(
+            "Cannot advance a replaced or expired contract. Contract:\n{:#?}",
+            current_contract
+        );
+    }
+
     let mut new_contract = contract_entity::ActiveModel {
         id: ActiveValue::NotSet,
         contract_year: ActiveValue::Set(current_contract.contract_year),
@@ -17,7 +24,7 @@ pub fn create_advancement_for_contract(
         league_player_id: ActiveValue::Set(current_contract.league_player_id),
         salary: ActiveValue::Set(current_contract.salary),
         season_end_year: ActiveValue::Set(current_contract.season_end_year + 1),
-        status: ActiveValue::Set(current_contract.status),
+        status: ActiveValue::Set(ContractStatus::Active),
         league_id: ActiveValue::Set(current_contract.league_id),
         player_id: ActiveValue::Set(current_contract.player_id),
         previous_contract_id: ActiveValue::Set(Some(current_contract.id)),

@@ -7,6 +7,7 @@ edition = "2021"
 
 [dependencies]
 color-eyre = "0.6.2"
+chrono = "0.4"
 fbkl-constants = {path = "../constants"}
 fbkl-entity = {path = "../entity"}
 tracing = "0.1.36"

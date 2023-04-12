@@ -4,6 +4,8 @@ use crate::contract::{self, ContractType};
 use color_eyre::{eyre::bail, Result};
 use sea_orm::ActiveValue;
 
+use super::ContractStatus;
+
 static APPLICABLE_CONTRACT_TYPES: [ContractType; 3] = [
     ContractType::RestrictedFreeAgent,
     ContractType::UnrestrictedFreeAgentOriginalTeam,
@@ -20,6 +22,12 @@ pub fn sign_rfa_or_ufa_contract_to_team(
         bail!(
             "Can only sign an RFA or UFA contract (given contract type: {}).",
             fa_contract.contract_type
+        );
+    }
+    if fa_contract.status != ContractStatus::Active {
+        bail!(
+            "Cannot sign an extension for a replaced or expired contract. Contract:\n{:#?}",
+            fa_contract
         );
     }
 
