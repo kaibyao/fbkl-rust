@@ -11,6 +11,7 @@ use super::{
     annual_contract_advancement::create_advancement_for_contract,
     drop_contract::create_dropped_contract, free_agent_extension::sign_rfa_or_ufa_contract_to_team,
     rookie_activation::create_rookie_contract_from_rd,
+    veteran_auction_contract::new_contract_for_veteran_auction,
 };
 
 /// A common misconception is that a player is owned/controlled by a team.
@@ -36,9 +37,12 @@ pub struct Model {
     pub league_id: i64,
     pub league_player_id: Option<i64>,
     pub player_id: Option<i64>,
+    /// All non-original contracts have a previous_contract_id. All original contracts have this set to `None`.
     pub previous_contract_id: Option<i64>,
+    /// The root-level contract that started the contract chain. The root-level contract has this field set to its `id`.
     pub original_contract_id: Option<i64>,
-    pub team_id: i64,
+    /// Points to a league's team id. The only time this field is `None` is during an auction, where a player has yet to be on a team for the season.
+    pub team_id: Option<i64>,
     pub created_at: DateTimeWithTimeZone,
     pub updated_at: DateTimeWithTimeZone,
 }
@@ -66,6 +70,15 @@ impl Model {
         &self,
     ) -> Result<ActiveModel, Error> {
         create_dropped_contract(self, false)
+    }
+
+    pub fn new_contract_for_veteran_auction(
+        league_id: i64,
+        season_end_year: i16,
+        player_id: i64,
+        starting_bid_amount: i16,
+    ) -> ActiveModel {
+        new_contract_for_veteran_auction(league_id, season_end_year, player_id, starting_bid_amount)
     }
 
     /// Creates a new Veteran or Rookie Extension contract from the current contract as a result of a team winning the contract during the Preseason Veteran Auction. Note that this doesn't do anything to insert the new contract or update the original.

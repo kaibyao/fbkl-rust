@@ -37,7 +37,7 @@ pub fn sign_rfa_or_ufa_contract_to_team(
     let mut new_salary = winning_bid_amount;
 
     // Overwrite defaults if signing to original owning team
-    if fa_contract.team_id == signing_team_id {
+    if fa_contract.team_id == Some(signing_team_id) {
         match fa_contract.contract_type {
             ContractType::RestrictedFreeAgent => {
                 new_contract_year = 4;
@@ -114,7 +114,7 @@ mod tests {
             player_id: Some(1),
             original_contract_id: Some(1),
             previous_contract_id: None,
-            team_id: 1,
+            team_id: Some(1),
             status: ContractStatus::Active,
             created_at: NOW.to_owned(),
             updated_at: NOW.to_owned(),

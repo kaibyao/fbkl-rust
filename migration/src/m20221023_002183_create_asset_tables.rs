@@ -92,7 +92,7 @@ async fn setup_contract(manager: &SchemaManager<'_>) -> Result<(), DbErr> {
                 .col(ColumnDef::new(Contract::LeaguePlayerId).big_integer())
                 .col(ColumnDef::new(Contract::PreviousContractId).big_integer())
                 .col(ColumnDef::new(Contract::OriginalContractId).big_integer())
-                .col(ColumnDef::new(Contract::TeamId).big_integer().not_null())
+                .col(ColumnDef::new(Contract::TeamId).big_integer())
                 .col(
                     ColumnDef::new(Contract::CreatedAt)
                         .timestamp_with_time_zone()

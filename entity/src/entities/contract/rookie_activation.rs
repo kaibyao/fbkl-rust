@@ -74,7 +74,7 @@ mod tests {
             player_id: Some(1),
             original_contract_id: Some(1),
             previous_contract_id: None,
-            team_id: 1,
+            team_id: Some(1),
             status: ContractStatus::Active,
             created_at: NOW.to_owned(),
             updated_at: NOW.to_owned(),
