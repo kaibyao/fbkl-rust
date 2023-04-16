@@ -2,8 +2,7 @@ use std::fmt::Debug;
 
 use color_eyre::{eyre::eyre, Result};
 use sea_orm::{
-    ActiveModelTrait, ActiveValue, ColumnTrait, ConnectionTrait, EntityTrait, QueryFilter,
-    TransactionTrait,
+    ActiveModelTrait, ColumnTrait, ConnectionTrait, EntityTrait, QueryFilter, TransactionTrait,
 };
 use tracing::instrument;
 
@@ -46,13 +45,8 @@ where
         .await?;
     let keeper_deadline = maybe_keeper_deadline.ok_or_else(|| eyre!("Keeper deadline for league ({}) & season end year ({}) not found! Have deadlines for this league been generated?", league_id, end_of_season_year))?;
 
-    let transaction_to_insert = transaction::ActiveModel {
-        end_of_season_year: ActiveValue::Set(end_of_season_year),
-        transaction_type: ActiveValue::Set(TransactionType::PreseasonKeeper),
-        league_id: ActiveValue::Set(league_id),
-        deadline_id: ActiveValue::Set(keeper_deadline.id),
-        ..Default::default()
-    };
+    let transaction_to_insert =
+        transaction::Model::new_keeper_deadline_transaction(&keeper_deadline)?;
     let keeper_deadline_transaction = transaction_to_insert.insert(db).await?;
     Ok(keeper_deadline_transaction)
 }

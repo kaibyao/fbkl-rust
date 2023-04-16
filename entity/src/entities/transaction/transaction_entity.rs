@@ -7,6 +7,8 @@ use serde::{Deserialize, Serialize};
 
 use crate::deadline;
 
+use super::keeper_deadline_transaction::new_keeper_deadline_transaction;
+
 /// A Transaction is any action taken by a user or the system that can change the state of a league or its teams.
 /// Note that we are only recording final actions here; Intermediary actions (auction bids, trade actions) that by themselves do not change a team, contract, or the league are not recorded as a transaction.
 /// Based on recorded transactions only, it should be possible to re-create the state of a league, even if intermediary data (bids, comments, trade actions that aren't the final trade state) is lost.
@@ -29,6 +31,7 @@ pub struct Model {
 }
 
 impl Model {
+    /// Get the transaction's related deadline model.
     pub async fn get_deadline<C>(&self, db: &C) -> Result<deadline::Model>
     where
         C: ConnectionTrait + TransactionTrait,
@@ -42,6 +45,13 @@ impl Model {
                     self.id
                 )
             })
+    }
+
+    /// Creates a new Keeper Deadline transaction (note that there should only be one per league per year). Also note that this only creates the model, and does not persist the transaction to the database.
+    pub fn new_keeper_deadline_transaction(
+        keeper_deadline_model: &deadline::Model,
+    ) -> Result<ActiveModel> {
+        new_keeper_deadline_transaction(keeper_deadline_model)
     }
 }
 
@@ -82,63 +92,63 @@ pub enum TransactionType {
 
 #[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]
 pub enum Relation {
-    #[sea_orm(has_one = "super::auction::Entity")]
+    #[sea_orm(has_one = "crate::auction::Entity")]
     Auction,
     #[sea_orm(
-        belongs_to = "super::deadline::Entity",
+        belongs_to = "crate::deadline::Entity",
         from = "Column::DeadlineId",
-        to = "super::deadline::Column::Id",
+        to = "crate::deadline::Column::Id",
         on_update = "Cascade",
         on_delete = "Cascade"
     )]
     Deadline,
     #[sea_orm(
-        belongs_to = "super::league::Entity",
+        belongs_to = "crate::league::Entity",
         from = "Column::LeagueId",
-        to = "super::league::Column::Id",
+        to = "crate::league::Column::Id",
         on_update = "Cascade",
         on_delete = "Cascade"
     )]
     League,
-    #[sea_orm(has_one = "super::rookie_draft_selection::Entity")]
+    #[sea_orm(has_one = "crate::rookie_draft_selection::Entity")]
     RookieDraftSelection,
-    #[sea_orm(has_many = "super::team_update::Entity")]
+    #[sea_orm(has_many = "crate::team_update::Entity")]
     TeamUpdate,
-    #[sea_orm(has_one = "super::trade::Entity")]
+    #[sea_orm(has_one = "crate::trade::Entity")]
     Trade,
 }
 
-impl Related<super::auction::Entity> for Entity {
+impl Related<crate::auction::Entity> for Entity {
     fn to() -> RelationDef {
         Relation::Auction.def()
     }
 }
 
-impl Related<super::deadline::Entity> for Entity {
+impl Related<crate::deadline::Entity> for Entity {
     fn to() -> RelationDef {
         Relation::Deadline.def()
     }
 }
 
-impl Related<super::league::Entity> for Entity {
+impl Related<crate::league::Entity> for Entity {
     fn to() -> RelationDef {
         Relation::League.def()
     }
 }
 
-impl Related<super::rookie_draft_selection::Entity> for Entity {
+impl Related<crate::rookie_draft_selection::Entity> for Entity {
     fn to() -> RelationDef {
         Relation::RookieDraftSelection.def()
     }
 }
 
-impl Related<super::team_update::Entity> for Entity {
+impl Related<crate::team_update::Entity> for Entity {
     fn to() -> RelationDef {
         Relation::TeamUpdate.def()
     }
 }
 
-impl Related<super::trade::Entity> for Entity {
+impl Related<crate::trade::Entity> for Entity {
     fn to() -> RelationDef {
         Relation::Trade.def()
     }
