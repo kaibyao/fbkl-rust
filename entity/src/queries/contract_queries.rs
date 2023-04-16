@@ -1,6 +1,9 @@
 use std::{collections::HashMap, fmt::Debug};
 
-use color_eyre::{eyre::bail, Result};
+use color_eyre::{
+    eyre::{bail, eyre},
+    Result,
+};
 use sea_orm::{
     ActiveModelTrait, ActiveValue, ColumnTrait, ConnectionTrait, EntityTrait, JoinType, ModelTrait,
     QueryFilter, QuerySelect, RelationTrait, TransactionTrait,
@@ -8,7 +11,8 @@ use sea_orm::{
 use tracing::instrument;
 
 use crate::{
-    contract::{self, ContractStatus},
+    auction,
+    contract::{self, ContractStatus, ContractType},
     league_player, player, team,
 };
 
@@ -17,7 +21,7 @@ use crate::{
 pub async fn advance_contract<C>(
     current_contract_model: contract::Model,
     db: &C,
-) -> Result<(contract::Model, contract::Model)>
+) -> Result<contract::Model>
 where
     C: ConnectionTrait + TransactionTrait + Debug,
 {
@@ -50,7 +54,7 @@ pub async fn drop_contract<C>(
     current_contract_model: contract::Model,
     is_before_pre_season_keeper_deadline: bool,
     db: &C,
-) -> Result<(contract::Model, contract::Model)>
+) -> Result<contract::Model>
 where
     C: ConnectionTrait + TransactionTrait + Debug,
 {
@@ -65,15 +69,12 @@ where
 
 /// Expires the given contract.
 #[instrument]
-pub async fn expire_contract<C>(model: contract::Model, db: &C) -> Result<contract::Model>
+pub async fn expire_contract<C>(contract_model: contract::Model, db: &C) -> Result<contract::Model>
 where
     C: ConnectionTrait + TransactionTrait + Debug,
 {
-    let mut model_to_update: contract::ActiveModel = model.into();
-    model_to_update.status = ActiveValue::Set(contract::ContractStatus::Expired);
-
-    let updated_model = model_to_update.update(db).await?;
-    Ok(updated_model)
+    let contract_to_expire = contract_model.create_expired_contract()?;
+    add_replacement_contract_to_chain(contract_model, contract_to_expire, db).await
 }
 
 /// Retrieves all active contracts for a given team.
@@ -173,22 +174,44 @@ where
     Ok(contracts_by_player_name)
 }
 
+/// Signs a contract to a team as a result of an auction ending (either the pre-season veteran auction or in-season FA auction).
+pub async fn sign_auction_contract_to_team<C>(
+    auction_model: &auction::Model,
+    db: &C,
+) -> Result<contract::Model>
+where
+    C: ConnectionTrait + TransactionTrait + Debug,
+{
+    let contract_model = auction_model.get_contract(db).await?;
+    let winning_auction_bid_model = auction_model.get_latest_bid(db).await?.ok_or_else(|| eyre!("Cannot sign a contract won via auction to a team if there's no winning bid (auction_id: {}", auction_model.id))?;
+    let winning_team_model = winning_auction_bid_model.get_team(db).await?;
+
+    let signed_contract_model_to_insert = match contract_model.contract_type {
+        ContractType::RestrictedFreeAgent | ContractType::UnrestrictedFreeAgentOriginalTeam | ContractType::UnrestrictedFreeAgentVeteran => contract_model.sign_rfa_or_ufa_contract_to_team(winning_team_model.id, winning_auction_bid_model.bid_amount)?,
+        ContractType::Veteran | ContractType::FreeAgent => contract_model.sign_veteran_contract_to_team(winning_team_model.id, winning_auction_bid_model.bid_amount)?,
+        _ => bail!("Cannot sign a contract won via auction to a team if the contract was not a valid free agent contract type. (auction_id = {}, contract_id = {})", auction_model.id, contract_model.id),
+    };
+
+    add_replacement_contract_to_chain(contract_model, signed_contract_model_to_insert, db).await
+}
+
 /// Used to replace an existing contract with a new one. The new one refers to the original as its original_contract_id, and the old one's status is set to `Replaced`.
+/// Returns a tuple containing the
 #[instrument]
 async fn add_replacement_contract_to_chain<C>(
     current_contract_model: contract::Model,
     replacement_contract_model: contract::ActiveModel,
     db: &C,
-) -> Result<(contract::Model, contract::Model)>
+) -> Result<contract::Model>
 where
     C: ConnectionTrait + TransactionTrait + Debug,
 {
     let mut original_contract_model_to_update: contract::ActiveModel =
         current_contract_model.into();
     original_contract_model_to_update.status = ActiveValue::Set(contract::ContractStatus::Replaced);
-    let updated_original_contract = original_contract_model_to_update.update(db).await?;
+    let _updated_original_contract = original_contract_model_to_update.update(db).await?;
 
     let inserted_replacement_contract = replacement_contract_model.insert(db).await?;
 
-    Ok((updated_original_contract, inserted_replacement_contract))
+    Ok(inserted_replacement_contract)
 }

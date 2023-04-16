@@ -1,5 +1,7 @@
 //! Handles contract entity generation for signing RFA and UFA contracts to a team.
 
+use std::cmp;
+
 use crate::contract::{self, ContractType};
 use color_eyre::{eyre::bail, Result};
 use sea_orm::ActiveValue;
@@ -77,12 +79,14 @@ pub fn sign_rfa_or_ufa_contract_to_team(
 
 fn get_salary_discounted_by_10_percent(salary: i16) -> i16 {
     let discount_amount_rounded_up = (f32::from(salary) * 0.1).ceil();
-    salary - (discount_amount_rounded_up as i16)
+    let discounted_salary = salary - (discount_amount_rounded_up as i16);
+    cmp::max(discounted_salary, 1)
 }
 
 fn get_salary_discounted_by_20_percent(salary: i16) -> i16 {
     let discount_amount_rounded_up = (f32::from(salary) * 0.2).ceil();
-    salary - (discount_amount_rounded_up as i16)
+    let discounted_salary = salary - (discount_amount_rounded_up as i16);
+    cmp::max(discounted_salary, 1)
 }
 
 #[cfg(test)]
@@ -93,7 +97,11 @@ mod tests {
     use sea_orm::ActiveValue;
 
     use crate::contract::{
-        free_agent_extension::sign_rfa_or_ufa_contract_to_team, ContractStatus, ContractType, Model,
+        free_agent_extension::{
+            get_salary_discounted_by_10_percent, get_salary_discounted_by_20_percent,
+            sign_rfa_or_ufa_contract_to_team,
+        },
+        ContractStatus, ContractType, Model,
     };
 
     static NOW: Lazy<DateTime<FixedOffset>> = Lazy::new(|| {
@@ -221,5 +229,52 @@ mod tests {
         assert_eq!(advanced_contract.salary, ActiveValue::Set(33));
 
         Ok(())
+    }
+
+    #[test]
+    fn discounts_calculate_correctly() {
+        assert_eq!(get_salary_discounted_by_10_percent(1), 1);
+        assert_eq!(get_salary_discounted_by_10_percent(2), 1);
+        assert_eq!(get_salary_discounted_by_10_percent(3), 2);
+        assert_eq!(get_salary_discounted_by_10_percent(4), 3);
+        assert_eq!(get_salary_discounted_by_10_percent(5), 4);
+        assert_eq!(get_salary_discounted_by_10_percent(6), 5);
+        assert_eq!(get_salary_discounted_by_10_percent(7), 6);
+        assert_eq!(get_salary_discounted_by_10_percent(8), 7);
+        assert_eq!(get_salary_discounted_by_10_percent(9), 8);
+        assert_eq!(get_salary_discounted_by_10_percent(10), 9);
+        assert_eq!(get_salary_discounted_by_10_percent(11), 9);
+        assert_eq!(get_salary_discounted_by_10_percent(12), 10);
+        assert_eq!(get_salary_discounted_by_10_percent(15), 13);
+        assert_eq!(get_salary_discounted_by_10_percent(19), 17);
+        assert_eq!(get_salary_discounted_by_10_percent(20), 18);
+        assert_eq!(get_salary_discounted_by_10_percent(21), 18);
+        assert_eq!(get_salary_discounted_by_10_percent(29), 26);
+        assert_eq!(get_salary_discounted_by_10_percent(30), 27);
+        assert_eq!(get_salary_discounted_by_10_percent(31), 27);
+
+        assert_eq!(get_salary_discounted_by_20_percent(1), 1);
+        assert_eq!(get_salary_discounted_by_20_percent(2), 1);
+        assert_eq!(get_salary_discounted_by_20_percent(3), 2);
+        assert_eq!(get_salary_discounted_by_20_percent(4), 3);
+        assert_eq!(get_salary_discounted_by_20_percent(5), 4);
+        assert_eq!(get_salary_discounted_by_20_percent(6), 4);
+        assert_eq!(get_salary_discounted_by_20_percent(7), 5);
+        assert_eq!(get_salary_discounted_by_20_percent(8), 6);
+        assert_eq!(get_salary_discounted_by_20_percent(9), 7);
+        assert_eq!(get_salary_discounted_by_20_percent(10), 8);
+        assert_eq!(get_salary_discounted_by_20_percent(11), 8);
+        assert_eq!(get_salary_discounted_by_20_percent(12), 9);
+        assert_eq!(get_salary_discounted_by_20_percent(15), 12);
+        assert_eq!(get_salary_discounted_by_20_percent(19), 15);
+        assert_eq!(get_salary_discounted_by_20_percent(20), 16);
+        assert_eq!(get_salary_discounted_by_20_percent(21), 16);
+        assert_eq!(get_salary_discounted_by_20_percent(29), 23);
+        assert_eq!(get_salary_discounted_by_20_percent(30), 24);
+        assert_eq!(get_salary_discounted_by_20_percent(31), 24);
+        assert_eq!(get_salary_discounted_by_20_percent(35), 28);
+        assert_eq!(get_salary_discounted_by_20_percent(36), 28);
+        assert_eq!(get_salary_discounted_by_20_percent(40), 32);
+        assert_eq!(get_salary_discounted_by_20_percent(41), 32);
     }
 }

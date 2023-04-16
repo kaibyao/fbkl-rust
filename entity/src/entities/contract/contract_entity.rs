@@ -9,9 +9,11 @@ use crate::{auction, league, league_player, player, team, trade_asset};
 
 use super::{
     annual_contract_advancement::create_advancement_for_contract,
-    drop_contract::create_dropped_contract, free_agent_extension::sign_rfa_or_ufa_contract_to_team,
+    drop_contract::create_dropped_contract, expire_contract::expire_contract,
+    free_agent_extension::sign_rfa_or_ufa_contract_to_team,
     rookie_activation::create_rookie_contract_from_rd,
     veteran_auction_contract::new_contract_for_veteran_auction,
+    veteran_contract_signing::sign_veteran_contract,
 };
 
 /// A common misconception is that a player is owned/controlled by a team.
@@ -72,13 +74,16 @@ impl Model {
         create_dropped_contract(self, false)
     }
 
+    pub fn create_expired_contract(&self) -> Result<ActiveModel, Error> {
+        expire_contract(self)
+    }
+
     pub fn new_contract_for_veteran_auction(
         league_id: i64,
         season_end_year: i16,
         player_id: i64,
-        starting_bid_amount: i16,
     ) -> ActiveModel {
-        new_contract_for_veteran_auction(league_id, season_end_year, player_id, starting_bid_amount)
+        new_contract_for_veteran_auction(league_id, season_end_year, player_id)
     }
 
     /// Creates a new Veteran or Rookie Extension contract from the current contract as a result of a team winning the contract during the Preseason Veteran Auction. Note that this doesn't do anything to insert the new contract or update the original.
@@ -88,6 +93,15 @@ impl Model {
         winning_bid_amount: i16,
     ) -> Result<ActiveModel, Error> {
         sign_rfa_or_ufa_contract_to_team(self, team_id, winning_bid_amount)
+    }
+
+    /// Creates a new Veteran contract from the current contract as a result of a team winning the contract in an auction (either Veteran or in-season FA). Note that this doesn't do anything to insert the new contract or update the original.
+    pub fn sign_veteran_contract_to_team(
+        &self,
+        team_id: i64,
+        salary: i16,
+    ) -> Result<ActiveModel, Error> {
+        sign_veteran_contract(self, team_id, salary)
     }
 }
 

@@ -35,7 +35,7 @@ where
         } else {
             // Advance the rest in preparation for Keeper Deadline.
 
-            let (_updated_original_contract, advanced_contract) =
+            let advanced_contract =
                 contract_queries::advance_contract(active_league_contract, &db_txn).await?;
             advanced_contracts.push(advanced_contract);
         }

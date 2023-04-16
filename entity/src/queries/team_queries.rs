@@ -1,17 +1,39 @@
+use std::{collections::HashMap, fmt::Debug};
+
+use color_eyre::Result;
 use sea_orm::{
-    ColumnTrait, ConnectionTrait, DbErr, EntityTrait, JoinType, QueryFilter, QuerySelect,
-    RelationTrait, TransactionTrait,
+    ColumnTrait, ConnectionTrait, EntityTrait, JoinType, QueryFilter, QuerySelect, RelationTrait,
+    TransactionTrait,
 };
+use tracing::instrument;
 
 use crate::team;
 
-pub async fn find_teams_by_league<C>(league_id: i64, db: &C) -> Result<Vec<team::Model>, DbErr>
+#[instrument]
+pub async fn find_teams_in_league<C>(league_id: i64, db: &C) -> Result<Vec<team::Model>>
 where
-    C: ConnectionTrait + TransactionTrait,
+    C: ConnectionTrait + TransactionTrait + Debug,
 {
-    team::Entity::find()
+    let team_models = team::Entity::find()
         .join(JoinType::LeftJoin, team::Relation::League.def())
         .filter(team::Column::LeagueId.eq(league_id))
         .all(db)
-        .await
+        .await?;
+    Ok(team_models)
+}
+
+#[instrument]
+pub async fn find_teams_by_name_in_league<C>(
+    league_id: i64,
+    db: &C,
+) -> Result<HashMap<String, team::Model>>
+where
+    C: ConnectionTrait + TransactionTrait + Debug,
+{
+    let teams_by_name = find_teams_in_league(league_id, db)
+        .await?
+        .into_iter()
+        .map(|team| (team.name.clone(), team))
+        .collect();
+    Ok(teams_by_name)
 }

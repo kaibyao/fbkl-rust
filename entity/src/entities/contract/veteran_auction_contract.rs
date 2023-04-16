@@ -6,7 +6,6 @@ pub fn new_contract_for_veteran_auction(
     league_id: i64,
     season_end_year: i16,
     player_id: i64,
-    starting_bid_amount: i16,
 ) -> contract::ActiveModel {
     contract::ActiveModel {
         id: ActiveValue::NotSet,
@@ -15,7 +14,7 @@ pub fn new_contract_for_veteran_auction(
         contract_year: ActiveValue::Set(1),
         contract_type: ActiveValue::Set(ContractType::Veteran),
         is_ir: ActiveValue::Set(false),
-        salary: ActiveValue::Set(starting_bid_amount),
+        salary: ActiveValue::Set(1),
         season_end_year: ActiveValue::Set(season_end_year),
         status: ActiveValue::Set(ContractStatus::Active),
         league_id: ActiveValue::Set(league_id),
