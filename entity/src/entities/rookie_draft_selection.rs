@@ -10,7 +10,7 @@ pub struct Model {
     #[sea_orm(primary_key)]
     pub id: i64,
     pub order: Option<i16>,
-    pub season_end_year: i16,
+    pub end_of_season_year: i16,
     pub status: RookieDraftSelectionStatus,
     pub draft_pick_id: i64,
     pub league_id: i64,

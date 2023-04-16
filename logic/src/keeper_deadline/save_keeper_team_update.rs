@@ -18,7 +18,7 @@ use tracing::instrument;
 pub async fn save_keeper_team_update<C>(
     team_model: &team::Model,
     keeper_contracts: Vec<contract::Model>,
-    season_end_year: i16,
+    end_of_season_year: i16,
     db: &C,
 ) -> Result<team_update::Model>
 where
@@ -30,7 +30,7 @@ where
     let keeper_deadline_transaction =
         transaction_queries::get_or_create_keeper_deadline_transaction(
             league.id,
-            season_end_year,
+            end_of_season_year,
             db,
         )
         .await?;

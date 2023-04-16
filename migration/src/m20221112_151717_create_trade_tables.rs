@@ -55,7 +55,7 @@ async fn setup_trade(manager: &SchemaManager<'_>) -> Result<(), DbErr> {
                         .primary_key(),
                 )
                 .col(
-                    ColumnDef::new(Trade::SeasonEndYear)
+                    ColumnDef::new(Trade::EndOfSeasonYear)
                         .small_integer()
                         .not_null(),
                 )
@@ -149,7 +149,7 @@ async fn setup_trade(manager: &SchemaManager<'_>) -> Result<(), DbErr> {
             IndexCreateStatement::new()
                 .name("trade_year_league")
                 .table(Trade::Table)
-                .col(Trade::SeasonEndYear)
+                .col(Trade::EndOfSeasonYear)
                 .col(Trade::LeagueId)
                 .to_owned(),
         )
@@ -395,7 +395,7 @@ async fn setup_trade_asset(manager: &SchemaManager<'_>) -> Result<(), DbErr> {
 pub enum Trade {
     Table,
     Id,
-    SeasonEndYear,
+    EndOfSeasonYear,
     Status,
     LeagueId,
     FromTeamId,

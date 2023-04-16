@@ -10,7 +10,7 @@ pub struct Model {
     pub id: i64,
     pub protection_clause: Option<String>,
     pub round: i16,
-    pub season_end_year: i16,
+    pub end_of_season_year: i16,
     pub league_id: i64,
     pub current_owner_team_id: i64,
     pub original_owner_team_id: i64,

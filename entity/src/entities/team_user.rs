@@ -12,9 +12,9 @@ pub struct Model {
     pub league_role: LeagueRole,
     pub nickname: String,
     /// The Season End Year that a user joined a league as an owner/commissioner.
-    pub first_season_end_year: i16,
+    pub first_end_of_season_year: i16,
     /// The Season End Year that a user left a league.
-    pub final_season_end_year: Option<i16>,
+    pub final_end_of_season_year: Option<i16>,
     pub team_id: i64,
     pub user_id: i64,
     pub created_at: DateTimeWithTimeZone,
@@ -107,8 +107,8 @@ impl ActiveModelBehavior for ActiveModel {
 fn validate_league_role(model: &ActiveModel) -> Result<(), DbErr> {
     match model.league_role.as_ref() {
         LeagueRole::Inactive => {
-            if model.final_season_end_year.is_not_set()
-                || model.final_season_end_year.as_ref().is_none()
+            if model.final_end_of_season_year.is_not_set()
+                || model.final_end_of_season_year.as_ref().is_none()
             {
                 return Err(DbErr::Custom(
                     "An inactive team user requires a final season year.".to_string(),
@@ -116,8 +116,8 @@ fn validate_league_role(model: &ActiveModel) -> Result<(), DbErr> {
             }
         }
         _ => {
-            if model.final_season_end_year.is_set()
-                && model.final_season_end_year.as_ref().is_some()
+            if model.final_end_of_season_year.is_set()
+                && model.final_end_of_season_year.as_ref().is_some()
             {
                 return Err(DbErr::Custom(
                     "An active team user requires final season year to be unset.".to_string(),

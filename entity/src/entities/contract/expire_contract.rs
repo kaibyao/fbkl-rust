@@ -19,7 +19,7 @@ pub fn expire_contract(current_contract: &contract::Model) -> Result<contract::A
         contract_type: ActiveValue::Set(ContractType::FreeAgent),
         is_ir: ActiveValue::Set(false),
         salary: ActiveValue::Set(1),
-        season_end_year: ActiveValue::Set(current_contract.season_end_year),
+        end_of_season_year: ActiveValue::Set(current_contract.end_of_season_year),
         status: ActiveValue::Set(ContractStatus::Expired),
         league_id: ActiveValue::Set(current_contract.league_id),
         league_player_id: ActiveValue::Set(current_contract.league_player_id),

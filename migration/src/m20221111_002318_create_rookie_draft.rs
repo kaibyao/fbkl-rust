@@ -26,7 +26,7 @@ impl MigrationTrait for Migration {
                     )
                     .col(ColumnDef::new(RookieDraftSelection::Order).small_integer())
                     .col(
-                        ColumnDef::new(RookieDraftSelection::SeasonEndYear)
+                        ColumnDef::new(RookieDraftSelection::EndOfSeasonYear)
                             .small_integer()
                             .not_null(),
                     )
@@ -70,7 +70,7 @@ impl MigrationTrait for Migration {
                 IndexCreateStatement::new()
                     .name("rookie_draft_selection_year_league")
                     .table(RookieDraftSelection::Table)
-                    .col(RookieDraftSelection::SeasonEndYear)
+                    .col(RookieDraftSelection::EndOfSeasonYear)
                     .col(RookieDraftSelection::LeagueId)
                     .col(RookieDraftSelection::Status)
                     .to_owned(),
@@ -160,7 +160,7 @@ pub enum RookieDraftSelection {
     Table,
     Id,
     Order,
-    SeasonEndYear,
+    EndOfSeasonYear,
     Status,
     DraftPickId,
     LeagueId,

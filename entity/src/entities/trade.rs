@@ -9,7 +9,7 @@ use serde::{Deserialize, Serialize};
 pub struct Model {
     #[sea_orm(primary_key)]
     pub id: i64,
-    pub season_end_year: i16,
+    pub end_of_season_year: i16,
     pub status: TradeStatus,
     pub league_id: i64,
     pub from_team_id: i64,

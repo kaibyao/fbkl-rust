@@ -3,7 +3,7 @@ use std::collections::HashMap;
 
 use super::NaiveDateRange;
 
-pub static NBA_ASB_DATE_RANGES_BY_SEASON_END_YEAR: Lazy<HashMap<i16, NaiveDateRange>> =
+pub static NBA_ASB_DATE_RANGES_BY_END_OF_SEASON_YEAR: Lazy<HashMap<i16, NaiveDateRange>> =
     Lazy::new(|| {
         [
             (

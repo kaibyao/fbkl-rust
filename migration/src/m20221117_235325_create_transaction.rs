@@ -58,7 +58,7 @@ async fn setup_deadline(manager: &SchemaManager<'_>) -> Result<(), DbErr> {
                 )
                 .col(ColumnDef::new(Deadline::Name).string().not_null())
                 .col(
-                    ColumnDef::new(Deadline::SeasonEndYear)
+                    ColumnDef::new(Deadline::EndOfSeasonYear)
                         .small_integer()
                         .not_null(),
                 )
@@ -99,7 +99,7 @@ async fn setup_deadline(manager: &SchemaManager<'_>) -> Result<(), DbErr> {
                 .name("deadline_league_year")
                 .table(Deadline::Table)
                 .col(Deadline::LeagueId)
-                .col(Deadline::SeasonEndYear)
+                .col(Deadline::EndOfSeasonYear)
                 .to_owned(),
         )
         .await?;
@@ -128,7 +128,7 @@ async fn setup_transaction(manager: &SchemaManager<'_>) -> Result<(), DbErr> {
                         .primary_key(),
                 )
                 .col(
-                    ColumnDef::new(Transaction::SeasonEndYear)
+                    ColumnDef::new(Transaction::EndOfSeasonYear)
                         .small_integer()
                         .not_null(),
                 )
@@ -230,7 +230,7 @@ async fn setup_transaction(manager: &SchemaManager<'_>) -> Result<(), DbErr> {
                 .name("transaction_league_year")
                 .table(Transaction::Table)
                 .col(Transaction::LeagueId)
-                .col(Transaction::SeasonEndYear)
+                .col(Transaction::EndOfSeasonYear)
                 .to_owned(),
         )
         .await?;
@@ -262,7 +262,7 @@ pub enum Deadline {
     DateTime,
     DeadlineType,
     Name,
-    SeasonEndYear,
+    EndOfSeasonYear,
     LeagueId,
     CreatedAt,
     UpdatedAt,
@@ -272,7 +272,7 @@ pub enum Deadline {
 pub enum Transaction {
     Table,
     Id,
-    SeasonEndYear,
+    EndOfSeasonYear,
     TransactionType,
     AuctionId,
     DeadlineId,

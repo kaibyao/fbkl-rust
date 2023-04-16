@@ -39,7 +39,7 @@ pub fn create_dropped_contract(
             ContractType::UnrestrictedFreeAgentVeteran => 1,
             ContractType::FreeAgent => bail!("Impossible combination: dropping a free agent."),
         }),
-        season_end_year: ActiveValue::Set(current_contract.season_end_year),
+        end_of_season_year: ActiveValue::Set(current_contract.end_of_season_year),
         status: ActiveValue::Set(match current_contract.contract_type {
             ContractType::RookieDevelopment => ContractStatus::Expired,
             ContractType::RookieDevelopmentInternational => ContractStatus::Expired,
@@ -87,7 +87,7 @@ mod tests {
             contract_year: 1,
             salary: 4,
             is_ir: false,
-            season_end_year: 2023,
+            end_of_season_year: 2023,
             league_id: 1,
             league_player_id: None,
             player_id: Some(1),

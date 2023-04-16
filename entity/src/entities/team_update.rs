@@ -164,8 +164,8 @@ pub struct TeamUpdateSettingUser {
     pub id: i64,
     pub league_role: LeagueRole,
     pub nickname: String,
-    pub first_season_end_year: i16,
-    pub final_season_end_year: Option<i16>,
+    pub first_end_of_season_year: i16,
+    pub final_end_of_season_year: Option<i16>,
     pub user_id: i64,
 }
 
@@ -175,8 +175,8 @@ impl TeamUpdateSettingUser {
             id: team_user_model.id,
             league_role: team_user_model.league_role,
             nickname: team_user_model.nickname.clone(),
-            first_season_end_year: team_user_model.first_season_end_year,
-            final_season_end_year: team_user_model.final_season_end_year,
+            first_end_of_season_year: team_user_model.first_end_of_season_year,
+            final_end_of_season_year: team_user_model.final_end_of_season_year,
             user_id: team_user_model.user_id,
         }
     }

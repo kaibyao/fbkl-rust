@@ -33,7 +33,7 @@ pub struct Model {
     /// The $-value paid out to the player via the team’s cap space.
     pub salary: i16,
     /// The year in which an NBA season ends.
-    pub season_end_year: i16,
+    pub end_of_season_year: i16,
     /// Whether the contract is active, expired, or replaced by a newer contract. A newer contract will have this contract as its `previous_contract_id`.
     pub status: ContractStatus,
     pub league_id: i64,
@@ -80,10 +80,10 @@ impl Model {
 
     pub fn new_contract_for_veteran_auction(
         league_id: i64,
-        season_end_year: i16,
+        end_of_season_year: i16,
         player_id: i64,
     ) -> ActiveModel {
-        new_contract_for_veteran_auction(league_id, season_end_year, player_id)
+        new_contract_for_veteran_auction(league_id, end_of_season_year, player_id)
     }
 
     /// Creates a new Veteran or Rookie Extension contract from the current contract as a result of a team winning the contract during the Preseason Veteran Auction. Note that this doesn't do anything to insert the new contract or update the original.

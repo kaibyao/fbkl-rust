@@ -29,7 +29,7 @@ pub struct Model {
 /// How do you determine whether a player should appear in the player search results?
 /// * If they're an active NBA player (the NBA player data does not show that they have a final year played).
 /// * The current ESPN player data contains that player.
-/// * If they were added by a league user and were added to a roster for the current `season_end_year`.
+/// * If they were added by a league user and were added to a roster for the current `end_of_season_year`.
 #[derive(
     Debug,
     Default,

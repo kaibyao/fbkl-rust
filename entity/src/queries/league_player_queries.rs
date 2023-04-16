@@ -28,7 +28,7 @@ where
 pub async fn insert_league_player_with_name<C>(
     name: String,
     league_id: i64,
-    season_end_year: i16,
+    end_of_season_year: i16,
     db: &C,
 ) -> Result<league_player::Model>
 where
@@ -37,7 +37,7 @@ where
     let league_player_to_insert = league_player::ActiveModel {
         name: ActiveValue::Set(name),
         league_id: ActiveValue::Set(league_id),
-        season_end_year: ActiveValue::Set(season_end_year),
+        end_of_season_year: ActiveValue::Set(end_of_season_year),
         ..Default::default()
     };
     let inserted_league_player = league_player_to_insert.insert(db).await?;

@@ -16,14 +16,14 @@ use tracing::{info, instrument};
 /// Processes the team_updates that have been created for the Keeper Deadline and sets the status for them.
 pub async fn process_keeper_deadline_transaction<C>(
     league_id: i64,
-    season_end_year: i16,
+    end_of_season_year: i16,
     db: &C,
 ) -> Result<()>
 where
     C: ConnectionTrait + TransactionTrait + Debug,
 {
     let (keeper_team_updates, mut active_league_contracts_by_id) =
-        validate_and_get_process_keeper_deadline_data(league_id, season_end_year, db).await?;
+        validate_and_get_process_keeper_deadline_data(league_id, end_of_season_year, db).await?;
 
     let mut total_contracts_kept = 0;
     let mut total_contracts_dropped = 0;
@@ -114,7 +114,7 @@ where
 #[instrument]
 async fn validate_and_get_process_keeper_deadline_data<C>(
     league_id: i64,
-    season_end_year: i16,
+    end_of_season_year: i16,
     db: &C,
 ) -> Result<(Vec<team_update::Model>, HashMap<i64, contract::Model>)>
 where
@@ -122,7 +122,7 @@ where
 {
     let maybe_deadline_model = deadline_queries::find_deadline_for_season_by_type(
         league_id,
-        season_end_year,
+        end_of_season_year,
         DeadlineType::PreseasonKeeper,
         db,
     )
@@ -130,7 +130,7 @@ where
     let deadline_model = maybe_deadline_model.ok_or_else(|| eyre!(
         "Could not find keeper deadline record for league {} (season end year: {}). One should already exist for the league and season when processing the keeper deadline.",
         league_id,
-        season_end_year
+        end_of_season_year
     ))?;
 
     let maybe_keeper_deadline_transaction = deadline_model

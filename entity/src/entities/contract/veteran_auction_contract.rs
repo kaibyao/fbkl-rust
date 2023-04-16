@@ -4,7 +4,7 @@ use crate::contract::{self, ContractStatus, ContractType};
 
 pub fn new_contract_for_veteran_auction(
     league_id: i64,
-    season_end_year: i16,
+    end_of_season_year: i16,
     player_id: i64,
 ) -> contract::ActiveModel {
     contract::ActiveModel {
@@ -15,7 +15,7 @@ pub fn new_contract_for_veteran_auction(
         contract_type: ActiveValue::Set(ContractType::Veteran),
         is_ir: ActiveValue::Set(false),
         salary: ActiveValue::Set(1),
-        season_end_year: ActiveValue::Set(season_end_year),
+        end_of_season_year: ActiveValue::Set(end_of_season_year),
         status: ActiveValue::Set(ContractStatus::Active),
         league_id: ActiveValue::Set(league_id),
         league_player_id: ActiveValue::NotSet,

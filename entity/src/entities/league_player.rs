@@ -12,7 +12,7 @@ pub struct Model {
     #[sea_orm(primary_key)]
     pub id: i64,
     pub name: String,
-    pub season_end_year: i16,
+    pub end_of_season_year: i16,
     pub league_id: i64,
     /// This id field gets filled when a custom-created player for a specific league eventually gets added to an official (NBA/ESPN) database. This is used to tie in a player's historical record in a league to before they became an NBA player.
     pub real_player_id: Option<i64>,

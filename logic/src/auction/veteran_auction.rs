@@ -50,7 +50,7 @@ where
 #[instrument]
 pub async fn start_new_veteran_auction_for_nba_player<C>(
     league_id: i64,
-    season_end_year: i16,
+    end_of_season_year: i16,
     player_id: i64,
     start_timestamp: DateTime<FixedOffset>,
     starting_bid_amount: i16,
@@ -61,7 +61,7 @@ where
 {
     let player_contract = get_or_create_player_contract_for_veteran_auction(
         league_id,
-        season_end_year,
+        end_of_season_year,
         player_id,
         db,
     )
@@ -85,7 +85,7 @@ where
 #[instrument]
 async fn get_or_create_player_contract_for_veteran_auction<C>(
     league_id: i64,
-    season_end_year: i16,
+    end_of_season_year: i16,
     player_id: i64,
     db: &C,
 ) -> Result<contract::Model>
@@ -103,9 +103,13 @@ where
     let player_contract = match maybe_existing_contract {
         None => {
             // Create new contract
-            contract::Model::new_contract_for_veteran_auction(league_id, season_end_year, player_id)
-                .insert(db)
-                .await?
+            contract::Model::new_contract_for_veteran_auction(
+                league_id,
+                end_of_season_year,
+                player_id,
+            )
+            .insert(db)
+            .await?
         }
         Some(existing_player_contract) => {
             if !VALID_VETERAN_AUCTION_FA_TYPES.contains(&existing_player_contract.contract_type) {

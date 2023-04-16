@@ -90,7 +90,7 @@ async fn setup_league_player(manager: &SchemaManager<'_>) -> Result<(), DbErr> {
                 )
                 .col(ColumnDef::new(LeaguePlayer::Name).string().not_null())
                 .col(
-                    ColumnDef::new(LeaguePlayer::SeasonEndYear)
+                    ColumnDef::new(LeaguePlayer::EndOfSeasonYear)
                         .small_integer()
                         .not_null(),
                 )
@@ -137,7 +137,7 @@ async fn setup_league_player(manager: &SchemaManager<'_>) -> Result<(), DbErr> {
                 .table(LeaguePlayer::Table)
                 .unique()
                 .col(LeaguePlayer::LeagueId)
-                .col(LeaguePlayer::SeasonEndYear)
+                .col(LeaguePlayer::EndOfSeasonYear)
                 .col(LeaguePlayer::Name)
                 .to_owned(),
         )
@@ -229,11 +229,11 @@ async fn setup_team_user(manager: &SchemaManager<'_>) -> Result<(), DbErr> {
                 )
                 .col(ColumnDef::new(TeamUser::Nickname).string().not_null())
                 .col(
-                    ColumnDef::new(TeamUser::FirstSeasonEndYear)
+                    ColumnDef::new(TeamUser::FirstEndOfSeasonYear)
                         .small_integer()
                         .not_null(),
                 )
-                .col(ColumnDef::new(TeamUser::FinalSeasonEndYear).small_integer())
+                .col(ColumnDef::new(TeamUser::FinalEndOfSeasonYear).small_integer())
                 .col(ColumnDef::new(TeamUser::TeamId).big_integer().not_null())
                 .col(ColumnDef::new(TeamUser::UserId).big_integer().not_null())
                 .col(
@@ -306,7 +306,7 @@ pub enum LeaguePlayer {
     Table,
     Id,
     Name,
-    SeasonEndYear,
+    EndOfSeasonYear,
     LeagueId,
     RealPlayerId,
     CreatedAt,
@@ -330,8 +330,8 @@ pub enum TeamUser {
     Id,
     LeagueRole,
     Nickname,
-    FirstSeasonEndYear,
-    FinalSeasonEndYear,
+    FirstEndOfSeasonYear,
+    FinalEndOfSeasonYear,
     TeamId,
     UserId,
     CreatedAt,

@@ -77,7 +77,7 @@ async fn setup_contract(manager: &SchemaManager<'_>) -> Result<(), DbErr> {
                         .default(1),
                 )
                 .col(
-                    ColumnDef::new(Contract::SeasonEndYear)
+                    ColumnDef::new(Contract::EndOfSeasonYear)
                         .small_integer()
                         .not_null(),
                 )
@@ -117,7 +117,7 @@ async fn setup_contract(manager: &SchemaManager<'_>) -> Result<(), DbErr> {
                 .name("contract_league_year_roster_player")
                 .table(Contract::Table)
                 .col(Contract::LeagueId)
-                .col(Contract::SeasonEndYear)
+                .col(Contract::EndOfSeasonYear)
                 .col(Contract::TeamId)
                 .col(Contract::PlayerId)
                 .to_owned(),
@@ -140,7 +140,7 @@ async fn setup_contract(manager: &SchemaManager<'_>) -> Result<(), DbErr> {
         .get_connection()
         .execute(Statement::from_string(
             DatabaseBackend::Postgres,
-            "CREATE UNIQUE INDEX contract_unique_active_contract_per_player_per_league ON contract (league_id, season_end_year, player_id, status) WHERE status = 0".to_string(),
+            "CREATE UNIQUE INDEX contract_unique_active_contract_per_player_per_league ON contract (league_id, end_of_season_year, player_id, status) WHERE status = 0".to_string(),
         ))
         .await?;
 
@@ -232,7 +232,7 @@ async fn setup_draft_pick(manager: &SchemaManager<'_>) -> Result<(), DbErr> {
                 )
                 .col(ColumnDef::new(DraftPick::Round).small_integer().not_null())
                 .col(
-                    ColumnDef::new(DraftPick::SeasonEndYear)
+                    ColumnDef::new(DraftPick::EndOfSeasonYear)
                         .small_integer()
                         .not_null(),
                 )
@@ -272,7 +272,7 @@ async fn setup_draft_pick(manager: &SchemaManager<'_>) -> Result<(), DbErr> {
                 .name("draft_pick_league_year")
                 .table(DraftPick::Table)
                 .col(DraftPick::LeagueId)
-                .col(DraftPick::SeasonEndYear)
+                .col(DraftPick::EndOfSeasonYear)
                 .to_owned(),
         )
         .await?;
@@ -294,7 +294,7 @@ async fn setup_draft_pick(manager: &SchemaManager<'_>) -> Result<(), DbErr> {
                 .name("draft_pick_unique_picks_per_team")
                 .table(DraftPick::Table)
                 .unique()
-                .col(DraftPick::SeasonEndYear)
+                .col(DraftPick::EndOfSeasonYear)
                 .col(DraftPick::Round)
                 .col(DraftPick::OriginalOwnerTeamId)
                 .to_owned(),
@@ -413,7 +413,7 @@ pub enum Contract {
     ContractType,
     IsIR,
     Salary,
-    SeasonEndYear,
+    EndOfSeasonYear,
     Status,
     LeagueId,
     PlayerId,
@@ -430,7 +430,7 @@ pub enum DraftPick {
     Table,
     Id,
     Round,
-    SeasonEndYear,
+    EndOfSeasonYear,
     ProtectionClause,
     LeagueId,
     CurrentOwnerTeamId,

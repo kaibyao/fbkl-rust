@@ -15,7 +15,7 @@ use crate::deadline;
 pub struct Model {
     #[sea_orm(primary_key)]
     pub id: i64,
-    pub season_end_year: i16,
+    pub end_of_season_year: i16,
     /// Represents the different types of transactions that occur in a league.
     pub transaction_type: TransactionType,
     pub league_id: i64,

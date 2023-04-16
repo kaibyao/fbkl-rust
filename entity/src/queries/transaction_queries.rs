@@ -15,7 +15,7 @@ use crate::{
 #[instrument]
 pub async fn get_or_create_keeper_deadline_transaction<C>(
     league_id: i64,
-    season_end_year: i16,
+    end_of_season_year: i16,
     db: &C,
 ) -> Result<transaction::Model>
 where
@@ -25,7 +25,7 @@ where
         .filter(
             transaction::Column::TransactionType
                 .eq(TransactionType::PreseasonKeeper)
-                .and(transaction::Column::SeasonEndYear.eq(season_end_year))
+                .and(transaction::Column::EndOfSeasonYear.eq(end_of_season_year))
                 .and(transaction::Column::LeagueId.eq(league_id)),
         )
         .one(db)
@@ -39,15 +39,15 @@ where
         .filter(
             deadline::Column::LeagueId
                 .eq(league_id)
-                .and(deadline::Column::SeasonEndYear.eq(season_end_year))
+                .and(deadline::Column::EndOfSeasonYear.eq(end_of_season_year))
                 .and(deadline::Column::DeadlineType.eq(DeadlineType::PreseasonKeeper)),
         )
         .one(db)
         .await?;
-    let keeper_deadline = maybe_keeper_deadline.ok_or_else(|| eyre!("Keeper deadline for league ({}) & season end year ({}) not found! Have deadlines for this league been generated?", league_id, season_end_year))?;
+    let keeper_deadline = maybe_keeper_deadline.ok_or_else(|| eyre!("Keeper deadline for league ({}) & season end year ({}) not found! Have deadlines for this league been generated?", league_id, end_of_season_year))?;
 
     let transaction_to_insert = transaction::ActiveModel {
-        season_end_year: ActiveValue::Set(season_end_year),
+        end_of_season_year: ActiveValue::Set(end_of_season_year),
         transaction_type: ActiveValue::Set(TransactionType::PreseasonKeeper),
         league_id: ActiveValue::Set(league_id),
         deadline_id: ActiveValue::Set(keeper_deadline.id),

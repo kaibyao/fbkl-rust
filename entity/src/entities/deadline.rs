@@ -13,7 +13,7 @@ pub struct Model {
     pub date_time: DateTimeWithTimeZone,
     pub deadline_type: DeadlineType,
     pub name: String,
-    pub season_end_year: i16,
+    pub end_of_season_year: i16,
     pub league_id: i64,
     pub created_at: DateTimeWithTimeZone,
     pub updated_at: DateTimeWithTimeZone,

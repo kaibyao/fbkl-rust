@@ -47,7 +47,7 @@ On the topic of storing dates for when things should happen, how should we store
     * `season_end`
   * `name`
   * `league_id`
-  * `season_end_year`
+  * `end_of_season_year`
 
 So to summarize:
 * A transaction is an action that happens in a league that changes the contracts owned by 1 or more teams.

@@ -9,7 +9,7 @@ use crate::deadline::{self, DeadlineType};
 #[instrument]
 pub async fn find_deadline_for_season_by_type<C>(
     league_id: i64,
-    season_end_year: i16,
+    end_of_season_year: i16,
     deadline_type: DeadlineType,
     db: &C,
 ) -> Result<Option<deadline::Model>>
@@ -20,7 +20,7 @@ where
         .filter(
             deadline::Column::LeagueId
                 .eq(league_id)
-                .and(deadline::Column::SeasonEndYear.eq(season_end_year))
+                .and(deadline::Column::EndOfSeasonYear.eq(end_of_season_year))
                 .and(deadline::Column::DeadlineType.eq(deadline_type)),
         )
         .one(db)
