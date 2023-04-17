@@ -7,7 +7,10 @@ use serde::{Deserialize, Serialize};
 
 use crate::deadline;
 
-use super::keeper_deadline_transaction::new_keeper_deadline_transaction;
+use super::{
+    auction_transaction::new_auction_transaction,
+    keeper_deadline_transaction::new_keeper_deadline_transaction,
+};
 
 /// A Transaction is any action taken by a user or the system that can change the state of a league or its teams.
 /// Note that we are only recording final actions here; Intermediary actions (auction bids, trade actions) that by themselves do not change a team, contract, or the league are not recorded as a transaction.
@@ -47,10 +50,16 @@ impl Model {
             })
     }
 
+    /// Creates a new Auction transaction. Also note that this only creates the model, and does not persist the transaction to the database.
+    pub fn new_auction_transaction(
+        deadline_model: &deadline::Model,
+        auction_id: i64,
+    ) -> ActiveModel {
+        new_auction_transaction(deadline_model, auction_id)
+    }
+
     /// Creates a new Keeper Deadline transaction (note that there should only be one per league per year). Also note that this only creates the model, and does not persist the transaction to the database.
-    pub fn new_keeper_deadline_transaction(
-        keeper_deadline_model: &deadline::Model,
-    ) -> Result<ActiveModel> {
+    pub fn new_keeper_deadline_transaction(keeper_deadline_model: &deadline::Model) -> ActiveModel {
         new_keeper_deadline_transaction(keeper_deadline_model)
     }
 }

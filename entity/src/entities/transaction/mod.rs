@@ -1,3 +1,4 @@
+mod auction_transaction;
 mod keeper_deadline_transaction;
 mod transaction_entity;
 

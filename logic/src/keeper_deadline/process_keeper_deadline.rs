@@ -120,18 +120,13 @@ async fn validate_and_get_process_keeper_deadline_data<C>(
 where
     C: ConnectionTrait + TransactionTrait + Debug,
 {
-    let maybe_deadline_model = deadline_queries::find_deadline_for_season_by_type(
+    let deadline_model = deadline_queries::find_deadline_for_season_by_type(
         league_id,
         end_of_season_year,
         DeadlineType::PreseasonKeeper,
         db,
     )
     .await?;
-    let deadline_model = maybe_deadline_model.ok_or_else(|| eyre!(
-        "Could not find keeper deadline record for league {} (season end year: {}). One should already exist for the league and season when processing the keeper deadline.",
-        league_id,
-        end_of_season_year
-    ))?;
 
     let maybe_keeper_deadline_transaction = deadline_model
         .find_related(transaction::Entity)

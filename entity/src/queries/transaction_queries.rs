@@ -46,7 +46,23 @@ where
     let keeper_deadline = maybe_keeper_deadline.ok_or_else(|| eyre!("Keeper deadline for league ({}) & season end year ({}) not found! Have deadlines for this league been generated?", league_id, end_of_season_year))?;
 
     let transaction_to_insert =
-        transaction::Model::new_keeper_deadline_transaction(&keeper_deadline)?;
+        transaction::Model::new_keeper_deadline_transaction(&keeper_deadline);
     let keeper_deadline_transaction = transaction_to_insert.insert(db).await?;
     Ok(keeper_deadline_transaction)
+}
+
+/// Creates & inserts a transaction tied to the end of an auction.
+#[instrument]
+pub async fn insert_auction_transaction<C>(
+    deadline_model: &deadline::Model,
+    auction_id: i64,
+    db: &C,
+) -> Result<transaction::Model>
+where
+    C: ConnectionTrait + TransactionTrait + Debug,
+{
+    let transaction_to_insert =
+        transaction::Model::new_auction_transaction(deadline_model, auction_id);
+    let inserted_auction_transaction = transaction_to_insert.insert(db).await?;
+    Ok(inserted_auction_transaction)
 }

@@ -1,6 +1,6 @@
 use std::fmt::Debug;
 
-use color_eyre::Result;
+use color_eyre::{eyre::eyre, Result};
 use sea_orm::{ColumnTrait, ConnectionTrait, EntityTrait, QueryFilter, TransactionTrait};
 use tracing::instrument;
 
@@ -12,7 +12,7 @@ pub async fn find_deadline_for_season_by_type<C>(
     end_of_season_year: i16,
     deadline_type: DeadlineType,
     db: &C,
-) -> Result<Option<deadline::Model>>
+) -> Result<deadline::Model>
 where
     C: ConnectionTrait + TransactionTrait + Debug,
 {
@@ -24,6 +24,7 @@ where
                 .and(deadline::Column::DeadlineType.eq(deadline_type)),
         )
         .one(db)
-        .await?;
+        .await?
+        .ok_or_else(|| eyre!("Could not find a deadline for league (id = {}) and end-of-season year ({}) of type: {}.", league_id, end_of_season_year, deadline_type))?;
     Ok(maybe_deadline_model)
 }
