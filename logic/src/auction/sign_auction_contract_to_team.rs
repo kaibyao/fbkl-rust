@@ -34,7 +34,6 @@ where
 
     // Create team_update
     let team_update_model = team_update_queries::insert_team_update_from_auction_won(
-        auction_model,
         winning_auction_bid_model,
         &auction_transaction_model,
         &signed_contract_model,

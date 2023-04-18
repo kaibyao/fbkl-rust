@@ -39,7 +39,7 @@ async fn setup_position(manager: &SchemaManager<'_>) -> Result<(), DbErr> {
                 .if_not_exists()
                 .col(
                     ColumnDef::new(Position::Id)
-                        .big_integer()
+                        .integer()
                         .not_null()
                         .auto_increment()
                         .primary_key(),

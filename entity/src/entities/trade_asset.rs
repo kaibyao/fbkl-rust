@@ -11,12 +11,9 @@ pub struct Model {
     pub id: i64,
     pub asset_type: TradeAssetType,
     pub draft_pick_option_id: Option<i64>,
-    pub player_name_at_time_of_trade: Option<String>,
-    pub player_team_name_at_time_of_trade: Option<String>,
     pub contract_id: Option<i64>,
     pub draft_pick_id: Option<i64>,
     pub from_team_id: i64,
-    pub player_position_id_at_time_of_trade: Option<i64>,
     pub trade_id: i64,
     pub created_at: DateTimeWithTimeZone,
     pub updated_at: DateTimeWithTimeZone,
@@ -66,14 +63,6 @@ pub enum Relation {
     )]
     DraftPick,
     #[sea_orm(
-        belongs_to = "super::position::Entity",
-        from = "Column::PlayerPositionIdAtTimeOfTrade",
-        to = "super::position::Column::Id",
-        on_update = "Cascade",
-        on_delete = "Cascade"
-    )]
-    Position,
-    #[sea_orm(
         belongs_to = "super::team::Entity",
         from = "Column::FromTeamId",
         to = "super::team::Column::Id",
@@ -100,12 +89,6 @@ impl Related<super::contract::Entity> for Entity {
 impl Related<super::draft_pick::Entity> for Entity {
     fn to() -> RelationDef {
         Relation::DraftPick.def()
-    }
-}
-
-impl Related<super::position::Entity> for Entity {
-    fn to() -> RelationDef {
-        Relation::Position.def()
     }
 }
 
@@ -140,26 +123,6 @@ fn validate_trade_asset_for_contract(model: &ActiveModel) -> Result<(), DbErr> {
         return Err(DbErr::Custom(format!("A trade asset of type=Contract should not have a draft pick option. Team: {}. Contract id: {:?}", model.from_team_id.as_ref(), model.contract_id.as_ref())));
     }
 
-    if model.player_name_at_time_of_trade.is_not_set() {
-        return Err(DbErr::Custom(format!(
-            "A trade asset of type=Contract requires a player name. Team: {}. Contract id: {:?}",
-            model.from_team_id.as_ref(),
-            model.contract_id.as_ref()
-        )));
-    }
-
-    if model.player_team_name_at_time_of_trade.is_not_set() {
-        return Err(DbErr::Custom(format!(
-            "A trade asset of type=Contract requires a player team. Team: {}. Contract id: {:?}",
-            model.from_team_id.as_ref(),
-            model.contract_id.as_ref()
-        )));
-    }
-
-    if model.player_position_id_at_time_of_trade.is_not_set() {
-        return Err(DbErr::Custom(format!("A trade asset of type=Contract requires a player position. Team: {}. Contract id: {:?}", model.from_team_id.as_ref(), model.contract_id.as_ref())));
-    }
-
     if model.contract_id.is_not_set() {
         return Err(DbErr::Custom(format!(
             "A trade asset of type=Contract requires a contract id. Team: {}.",
@@ -181,18 +144,6 @@ fn validate_trade_asset_for_draft_pick(model: &ActiveModel) -> Result<(), DbErr>
 
     if model.draft_pick_option_id.is_set() {
         return Err(DbErr::Custom(format!("A trade asset of type=DraftPick should not have a draft pick option. Team: {}. Draft pick id: {:?}", model.from_team_id.as_ref(), model.draft_pick_id.as_ref())));
-    }
-
-    if model.player_name_at_time_of_trade.is_set() {
-        return Err(DbErr::Custom(format!("A trade asset of type=DraftPick should not have a player name. Team: {}. Draft pick id: {:?}", model.from_team_id.as_ref(), model.draft_pick_id.as_ref())));
-    }
-
-    if model.player_team_name_at_time_of_trade.is_set() {
-        return Err(DbErr::Custom(format!("A trade asset of type=DraftPick should not have a player team. Team: {}. Draft pick id: {:?}", model.from_team_id.as_ref(), model.draft_pick_id.as_ref())));
-    }
-
-    if model.player_position_id_at_time_of_trade.is_set() {
-        return Err(DbErr::Custom(format!("A trade asset of type=DraftPick should not have a player position. Team: {}. Draft pick id: {:?}", model.from_team_id.as_ref(), model.draft_pick_id.as_ref())));
     }
 
     if model.contract_id.is_set() {
@@ -227,18 +178,6 @@ fn validate_trade_asset_for_draft_pick_option(model: &ActiveModel) -> Result<(),
 
     if model.draft_pick_option_id.is_not_set() {
         return Err(DbErr::Custom(format!("A trade asset of type=DraftPickOption requires a draft pick option to be set. Team: {}. Draft pick id: {:?}", model.from_team_id.as_ref(), model.draft_pick_id.as_ref())));
-    }
-
-    if model.player_name_at_time_of_trade.is_set() {
-        return Err(DbErr::Custom(format!("A trade asset of type=DraftPickOption should not have a player name. Team: {}. Draft pick id: {:?}", model.from_team_id.as_ref(), model.draft_pick_id.as_ref())));
-    }
-
-    if model.player_team_name_at_time_of_trade.is_set() {
-        return Err(DbErr::Custom(format!("A trade asset of type=DraftPickOption should not have a player team. Team: {}. Draft pick id: {:?}", model.from_team_id.as_ref(), model.draft_pick_id.as_ref())));
-    }
-
-    if model.player_position_id_at_time_of_trade.is_set() {
-        return Err(DbErr::Custom(format!("A trade asset of type=DraftPickOption should not have a player position. Team: {}. Draft pick id: {:?}", model.from_team_id.as_ref(), model.draft_pick_id.as_ref())));
     }
 
     if model.contract_id.is_set() {

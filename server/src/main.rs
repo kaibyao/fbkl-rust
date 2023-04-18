@@ -49,6 +49,7 @@ async fn main() -> Result<()> {
     // TODO: Possibly use https://github.com/casbin/casbin-rs for access control?
     // TODO: Create league config data structure to hold deadlines for each season.
     // TODO: advancing contracts should take into account custom players created for a league (merging them w/ nba/espn data if they exist in official datasets)
+    // TODO: process for associating a league player with a real player and updating contracts related to league_player.
 
     match server.await {
         Ok(_) => Ok(()),

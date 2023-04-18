@@ -7,7 +7,7 @@ use serde::{Deserialize, Serialize};
 #[sea_orm(table_name = "position")]
 pub struct Model {
     #[sea_orm(primary_key)]
-    pub id: i64,
+    pub id: i32,
     pub name: String,
     pub espn_id: i16,
     pub created_at: DateTimeWithTimeZone,
@@ -18,19 +18,11 @@ pub struct Model {
 pub enum Relation {
     #[sea_orm(has_many = "super::player::Entity")]
     Player,
-    #[sea_orm(has_many = "super::trade_asset::Entity")]
-    TradeAsset,
 }
 
 impl Related<super::player::Entity> for Entity {
     fn to() -> RelationDef {
         Relation::Player.def()
-    }
-}
-
-impl Related<super::trade_asset::Entity> for Entity {
-    fn to() -> RelationDef {
-        Relation::TradeAsset.def()
     }
 }
 

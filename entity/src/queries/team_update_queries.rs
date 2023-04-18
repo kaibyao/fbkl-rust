@@ -1,5 +1,6 @@
 use chrono::{NaiveDate, Utc};
 use color_eyre::Result;
+use fbkl_constants::FREE_AGENCY_TEAM;
 use sea_orm::{
     ActiveModelTrait, ActiveValue, ColumnTrait, ConnectionTrait, EntityTrait, QueryFilter,
     TransactionTrait,
@@ -8,8 +9,8 @@ use std::fmt::Debug;
 use tracing::instrument;
 
 use crate::{
-    auction, auction_bid,
-    contract::{self, ContractType},
+    auction_bid,
+    contract::{self, ContractType, RelatedPlayer},
     contract_queries, team,
     team_update::{self, ContractUpdate, ContractUpdateType, TeamUpdateData, TeamUpdateStatus},
     transaction,
@@ -65,9 +66,7 @@ where
 }
 
 /// Creates & inserts a team update
-#[instrument]
 pub async fn insert_team_update_from_auction_won<C>(
-    auction_model: &auction::Model,
     winning_auction_bid_model: &auction_bid::Model,
     auction_transaction_model: &transaction::Model,
     signed_contract_model: &contract::Model,
@@ -76,8 +75,14 @@ pub async fn insert_team_update_from_auction_won<C>(
 where
     C: ConnectionTrait + TransactionTrait + Debug,
 {
+    let contract_update_player_data =
+        ContractUpdatePlayerData::from_contract_model(signed_contract_model, db).await?;
+
     let data = TeamUpdateData::Roster(vec![ContractUpdate {
         contract_id: signed_contract_model.id,
+        player_name_at_time_of_trade: contract_update_player_data.player_name,
+        player_team_abbr_at_time_of_trade: contract_update_player_data.real_team_abbr,
+        player_team_name_at_time_of_trade: contract_update_player_data.real_team_name,
         update_type: ContractUpdateType::AddViaAuction,
     }]);
     let deadline_model = auction_transaction_model.get_deadline(db).await?;
@@ -170,18 +175,61 @@ where
 
     let mut contract_updates = vec![];
     for team_contract_model in all_active_team_contracts {
+        let contract_update_player_data =
+            ContractUpdatePlayerData::from_contract_model(&team_contract_model, db).await?;
+
         if keeper_contracts.contains(&team_contract_model) {
             contract_updates.push(ContractUpdate {
                 contract_id: team_contract_model.id,
                 update_type: ContractUpdateType::Keeper,
+                player_name_at_time_of_trade: contract_update_player_data.player_name,
+                player_team_abbr_at_time_of_trade: contract_update_player_data.real_team_abbr,
+                player_team_name_at_time_of_trade: contract_update_player_data.real_team_name,
             });
         } else if !ignore_contract_types_for_keepers.contains(&team_contract_model.contract_type) {
             contract_updates.push(ContractUpdate {
                 contract_id: team_contract_model.id,
                 update_type: ContractUpdateType::Drop,
+                player_name_at_time_of_trade: contract_update_player_data.player_name,
+                player_team_abbr_at_time_of_trade: contract_update_player_data.real_team_abbr,
+                player_team_name_at_time_of_trade: contract_update_player_data.real_team_name,
             });
         }
     }
     let team_update_data = TeamUpdateData::Roster(contract_updates);
     Ok(team_update_data)
+}
+
+struct ContractUpdatePlayerData {
+    player_name: String,
+    real_team_abbr: String,
+    real_team_name: String,
+}
+
+impl ContractUpdatePlayerData {
+    #[instrument]
+    pub async fn from_contract_model<C>(contract_model: &contract::Model, db: &C) -> Result<Self>
+    where
+        C: ConnectionTrait + TransactionTrait + Debug,
+    {
+        let player_model = contract_model.get_player(db).await?;
+
+        let data = match player_model {
+            RelatedPlayer::LeaguePlayer(league_player_model) => Self {
+                player_name: league_player_model.name,
+                real_team_abbr: FREE_AGENCY_TEAM.2.to_string(),
+                real_team_name: format!("{} {}", FREE_AGENCY_TEAM.0, FREE_AGENCY_TEAM.1),
+            },
+            RelatedPlayer::Player(player_model) => {
+                let real_team_model = player_model.get_real_team(db).await?;
+                Self {
+                    player_name: player_model.name,
+                    real_team_abbr: real_team_model.code,
+                    real_team_name: format!("{} {}", &real_team_model.city, &real_team_model.name),
+                }
+            }
+        };
+
+        Ok(data)
+    }
 }

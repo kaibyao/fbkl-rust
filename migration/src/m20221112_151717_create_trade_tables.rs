@@ -1,7 +1,6 @@
 use sea_orm_migration::prelude::*;
 
 use crate::{
-    m20220922_012310_create_real_world_tables::Position,
     m20220924_004529_create_league_tables::{League, Team, TeamUser},
     m20221023_002183_create_asset_tables::{Contract, DraftPick},
     set_auto_updated_at_on_table,
@@ -293,8 +292,6 @@ async fn setup_trade_asset(manager: &SchemaManager<'_>) -> Result<(), DbErr> {
                         .not_null()
                         .default(0),
                 )
-                .col(ColumnDef::new(TradeAsset::PlayerNameAtTimeOfTrade).string())
-                .col(ColumnDef::new(TradeAsset::PlayerTeamNameAtTimeOfTrade).string())
                 .col(ColumnDef::new(TradeAsset::ContractId).big_integer())
                 .col(ColumnDef::new(TradeAsset::DraftPickId).big_integer())
                 .col(ColumnDef::new(TradeAsset::DraftPickOptionId).big_integer())
@@ -303,7 +300,6 @@ async fn setup_trade_asset(manager: &SchemaManager<'_>) -> Result<(), DbErr> {
                         .big_integer()
                         .not_null(),
                 )
-                .col(ColumnDef::new(TradeAsset::PlayerPositionIdAtTimeOfTrade).big_integer())
                 .col(ColumnDef::new(TradeAsset::TradeId).big_integer().not_null())
                 .col(
                     ColumnDef::new(TradeAsset::CreatedAt)
@@ -351,17 +347,6 @@ async fn setup_trade_asset(manager: &SchemaManager<'_>) -> Result<(), DbErr> {
                 .name("trade_asset_fk_team")
                 .from(TradeAsset::Table, TradeAsset::FromTeamId)
                 .to(Team::Table, Team::Id)
-                .on_delete(ForeignKeyAction::Cascade)
-                .on_update(ForeignKeyAction::Cascade)
-                .to_owned(),
-        )
-        .await?;
-    manager
-        .create_foreign_key(
-            ForeignKey::create()
-                .name("trade_asset_fk_position")
-                .from(TradeAsset::Table, TradeAsset::PlayerPositionIdAtTimeOfTrade)
-                .to(Position::Table, Position::Id)
                 .on_delete(ForeignKeyAction::Cascade)
                 .on_update(ForeignKeyAction::Cascade)
                 .to_owned(),
@@ -422,16 +407,11 @@ pub enum TradeAsset {
     Table,
     Id,
     AssetType,
-    PlayerNameAtTimeOfTrade,
-    PlayerTeamNameAtTimeOfTrade,
     ContractId,
     DraftPickId,
     DraftPickOptionId,
     FromTeamId,
-    PlayerPositionIdAtTimeOfTrade,
     TradeId,
     CreatedAt,
     UpdatedAt,
 }
-
-// TODO: These historical fields should probably be moved to team_update data.

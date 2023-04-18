@@ -88,6 +88,9 @@ impl TeamUpdateData {
 pub struct ContractUpdate {
     pub contract_id: i64,
     pub update_type: ContractUpdateType,
+    pub player_name_at_time_of_trade: String,
+    pub player_team_abbr_at_time_of_trade: String,
+    pub player_team_name_at_time_of_trade: String,
 }
 
 /// Represents the different types of updates that can happen to a contract on a team.
@@ -235,6 +238,9 @@ mod tests {
         let contract_update = ContractUpdate {
             contract_id: 1,
             update_type: ContractUpdateType::Keeper,
+            player_name_at_time_of_trade: "Enes Kanter".to_string(),
+            player_team_abbr_at_time_of_trade: "BOS".to_string(),
+            player_team_name_at_time_of_trade: "Boston Celtics".to_string(),
         };
         let team_update_data = TeamUpdateData::Roster(vec![contract_update.clone()]);
 

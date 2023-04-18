@@ -9,6 +9,7 @@ version = "0.1.0"
 async-graphql = {git = "https://github.com/kaibyao/async-graphql"}
 chrono = "0.4"
 color-eyre = "0.6.2"
+fbkl-constants = {path = "../constants"}
 postcard = {version = "1.0.4", features = ["use-std"], default-features = false }
 rust_decimal = "1.29"
 rust_decimal_macros = "1.29"
