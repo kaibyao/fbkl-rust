@@ -11,9 +11,7 @@ use crate::{
     auction, auction_bid,
     contract::{self, ContractType},
     contract_queries, team,
-    team_update::{
-        self, ContractUpdate, ContractUpdateType, TeamUpdateData, TeamUpdateStatus, TeamUpdateType,
-    },
+    team_update::{self, ContractUpdate, ContractUpdateType, TeamUpdateData, TeamUpdateStatus},
     transaction,
 };
 
@@ -48,7 +46,6 @@ where
         generate_keeper_team_update_data(team_model, keeper_contracts, db).await?;
 
     let team_update_to_insert = team_update::ActiveModel {
-        update_type: ActiveValue::Set(team_update::TeamUpdateType::Roster),
         data: ActiveValue::Set(team_update_data.as_bytes()?),
         effective_date: ActiveValue::Set(
             keeper_transaction
@@ -87,7 +84,6 @@ where
     let team_model = winning_auction_bid_model.get_team(db).await?;
     let new_team_update = team_update::ActiveModel {
         id: ActiveValue::NotSet,
-        update_type: ActiveValue::Set(TeamUpdateType::Roster),
         data: ActiveValue::Set(data.as_bytes()?),
         effective_date: ActiveValue::Set(deadline_model.date_time.date_naive()),
         status: ActiveValue::Set(TeamUpdateStatus::Pending),

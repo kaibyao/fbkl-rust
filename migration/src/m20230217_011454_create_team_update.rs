@@ -23,12 +23,6 @@ impl MigrationTrait for Migration {
                             .auto_increment()
                             .primary_key(),
                     )
-                    .col(
-                        ColumnDef::new(TeamUpdate::UpdateType)
-                            .small_integer()
-                            .not_null()
-                            .default(0),
-                    )
                     .col(ColumnDef::new(TeamUpdate::Data).binary().not_null())
                     .col(ColumnDef::new(TeamUpdate::EffectiveDate).date().not_null())
                     .col(
@@ -100,16 +94,6 @@ impl MigrationTrait for Migration {
                     .col(TeamUpdate::TransactionId)
                     .to_owned(),
             )
-            .await?;
-
-        manager
-            .create_index(
-                IndexCreateStatement::new()
-                    .name("team_update_type")
-                    .table(TeamUpdate::Table)
-                    .col(TeamUpdate::UpdateType)
-                    .to_owned(),
-            )
             .await
     }
 
@@ -130,7 +114,6 @@ impl MigrationTrait for Migration {
 pub enum TeamUpdate {
     Table,
     Id,
-    UpdateType,
     Data,
     EffectiveDate,
     Status,

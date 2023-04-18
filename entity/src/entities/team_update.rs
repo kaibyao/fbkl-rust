@@ -13,7 +13,6 @@ pub struct Model {
     #[serde(skip_deserializing)]
     #[sea_orm(primary_key)]
     pub id: i64,
-    pub update_type: TeamUpdateType,
     /// Data containing the update made to team settings or roster. Converted to/from TeamUpdateData.
     pub data: Vec<u8>,
     pub effective_date: Date,
@@ -60,30 +59,6 @@ pub enum TeamUpdateStatus {
     /// An error occurred during processing.
     #[sea_orm(num_value = 3)]
     Error,
-}
-
-#[derive(
-    Debug,
-    Default,
-    Clone,
-    Copy,
-    Enum,
-    Eq,
-    PartialEq,
-    EnumIter,
-    DeriveActiveEnum,
-    Serialize,
-    Deserialize,
-)]
-#[sea_orm(rs_type = "i16", db_type = "Integer")]
-pub enum TeamUpdateType {
-    /// An update that changes the contracts on the team roster.
-    #[default]
-    #[sea_orm(num_value = 0)]
-    Roster,
-    /// An update that changes team settings.
-    #[sea_orm(num_value = 1)]
-    Setting,
 }
 
 /// Used for storing the roster or settings updates made to the team.
@@ -224,7 +199,11 @@ impl ActiveModelBehavior for ActiveModel {
 }
 
 fn roster_change_requires_transaction(model: &ActiveModel) -> Result<(), DbErr> {
-    if model.update_type.as_ref() == &TeamUpdateType::Roster && model.transaction_id.is_not_set() {
+    let decoded_data = TeamUpdateData::from_bytes(model.data.as_ref())
+        .map_err(|err| DbErr::Custom(err.to_string()))?;
+    let is_roster_update = matches!(decoded_data, TeamUpdateData::Roster(_));
+
+    if is_roster_update && model.transaction_id.is_not_set() {
         Err(DbErr::Custom(
             "A team update (roster change) requires a transaction id.".to_string(),
         ))
@@ -234,7 +213,11 @@ fn roster_change_requires_transaction(model: &ActiveModel) -> Result<(), DbErr> 
 }
 
 fn setting_change_requires_no_transaction(model: &ActiveModel) -> Result<(), DbErr> {
-    if model.update_type.as_ref() == &TeamUpdateType::Setting && model.transaction_id.is_set() {
+    let decoded_data = TeamUpdateData::from_bytes(model.data.as_ref())
+        .map_err(|err| DbErr::Custom(err.to_string()))?;
+    let is_settings_update = matches!(decoded_data, TeamUpdateData::Settings(_));
+
+    if is_settings_update && model.transaction_id.is_set() {
         Err(DbErr::Custom(
             "A team update (setting change) requires transaction id to be unset.".to_string(),
         ))

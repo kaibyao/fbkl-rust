@@ -433,3 +433,5 @@ pub enum TradeAsset {
     CreatedAt,
     UpdatedAt,
 }
+
+// TODO: These historical fields should probably be moved to team_update data.
