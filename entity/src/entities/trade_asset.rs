@@ -4,6 +4,8 @@ use async_graphql::Enum;
 use sea_orm::entity::prelude::*;
 use serde::{Deserialize, Serialize};
 
+use crate::team;
+
 #[derive(Clone, Debug, PartialEq, DeriveEntityModel, Eq, Serialize, Deserialize)]
 #[sea_orm(table_name = "trade_asset")]
 pub struct Model {
@@ -14,9 +16,8 @@ pub struct Model {
     pub contract_id: Option<i64>,
     pub draft_pick_id: Option<i64>,
     pub from_team_id: i64,
+    pub to_team_id: i64,
     pub trade_id: i64,
-    pub created_at: DateTimeWithTimeZone,
-    pub updated_at: DateTimeWithTimeZone,
 }
 
 /// Represents the different types of assets (contracts, draft picks, etc.) that can be traded.
@@ -69,7 +70,15 @@ pub enum Relation {
         on_update = "Cascade",
         on_delete = "Cascade"
     )]
-    Team,
+    FromTeam,
+    #[sea_orm(
+        belongs_to = "super::team::Entity",
+        from = "Column::ToTeamId",
+        to = "super::team::Column::Id",
+        on_update = "Cascade",
+        on_delete = "Cascade"
+    )]
+    ToTeam,
     #[sea_orm(
         belongs_to = "super::trade::Entity",
         from = "Column::TradeId",
@@ -92,15 +101,31 @@ impl Related<super::draft_pick::Entity> for Entity {
     }
 }
 
-impl Related<super::team::Entity> for Entity {
-    fn to() -> RelationDef {
-        Relation::Team.def()
-    }
-}
-
 impl Related<super::trade::Entity> for Entity {
     fn to() -> RelationDef {
         Relation::Trade.def()
+    }
+}
+
+#[derive(Debug)]
+pub struct FromTeam;
+impl Linked for FromTeam {
+    type FromEntity = Entity;
+    type ToEntity = team::Entity;
+
+    fn link(&self) -> Vec<RelationDef> {
+        vec![Relation::FromTeam.def()]
+    }
+}
+
+#[derive(Debug)]
+pub struct ToTeam;
+impl Linked for ToTeam {
+    type FromEntity = Entity;
+    type ToEntity = team::Entity;
+
+    fn link(&self) -> Vec<RelationDef> {
+        vec![Relation::ToTeam.def()]
     }
 }
 

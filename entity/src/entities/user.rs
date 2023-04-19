@@ -3,6 +3,8 @@
 use sea_orm::entity::prelude::*;
 use serde::{Deserialize, Serialize};
 
+use crate::team_user;
+
 #[derive(Clone, Debug, PartialEq, Eq, DeriveEntityModel, Serialize, Deserialize)]
 #[sea_orm(table_name = "user")]
 pub struct Model {
@@ -41,6 +43,19 @@ impl Related<super::user_registration::Entity> for Entity {
 impl Related<super::team_user::Entity> for Entity {
     fn to() -> RelationDef {
         Relation::TeamUser.def()
+    }
+}
+
+impl Related<super::team::Entity> for Entity {
+    // The final relation is User -> TeamUser -> Team
+    fn to() -> RelationDef {
+        team_user::Relation::Team.def()
+    }
+
+    fn via() -> Option<RelationDef> {
+        // The original relation is TeamUser -> User,
+        // after `rev` it becomes User -> TeamUser
+        Some(team_user::Relation::User.def().rev())
     }
 }
 

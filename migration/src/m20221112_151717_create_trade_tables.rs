@@ -13,6 +13,7 @@ pub struct Migration;
 impl MigrationTrait for Migration {
     async fn up(&self, manager: &SchemaManager) -> Result<(), DbErr> {
         setup_trade(manager).await?;
+        setup_team_trade(manager).await?;
         setup_trade_action(manager).await?;
         setup_trade_asset(manager).await
     }
@@ -33,6 +34,9 @@ impl MigrationTrait for Migration {
                     .if_exists()
                     .to_owned(),
             )
+            .await?;
+        manager
+            .drop_table(Table::drop().table(TeamTrade::Table).if_exists().to_owned())
             .await?;
         manager
             .drop_table(Table::drop().table(Trade::Table).if_exists().to_owned())
@@ -65,10 +69,13 @@ async fn setup_trade(manager: &SchemaManager<'_>) -> Result<(), DbErr> {
                         .default(0),
                 )
                 .col(ColumnDef::new(Trade::LeagueId).big_integer().not_null())
-                .col(ColumnDef::new(Trade::FromTeamId).big_integer().not_null())
-                .col(ColumnDef::new(Trade::ToTeamId).big_integer().not_null())
                 .col(ColumnDef::new(Trade::OriginalTradeId).big_integer())
                 .col(ColumnDef::new(Trade::PreviousTradeId).big_integer())
+                .col(
+                    ColumnDef::new(Trade::ProposedByTeamId)
+                        .big_integer()
+                        .not_null(),
+                )
                 .col(
                     ColumnDef::new(Trade::CreatedAt)
                         .timestamp_with_time_zone()
@@ -93,28 +100,6 @@ async fn setup_trade(manager: &SchemaManager<'_>) -> Result<(), DbErr> {
                 .name("trade_fk_league")
                 .from(Trade::Table, Trade::LeagueId)
                 .to(League::Table, League::Id)
-                .on_delete(ForeignKeyAction::Cascade)
-                .on_update(ForeignKeyAction::Cascade)
-                .to_owned(),
-        )
-        .await?;
-    manager
-        .create_foreign_key(
-            ForeignKey::create()
-                .name("trade_fk_from_team")
-                .from(Trade::Table, Trade::FromTeamId)
-                .to(Team::Table, Team::Id)
-                .on_delete(ForeignKeyAction::Cascade)
-                .on_update(ForeignKeyAction::Cascade)
-                .to_owned(),
-        )
-        .await?;
-    manager
-        .create_foreign_key(
-            ForeignKey::create()
-                .name("trade_fk_to_team")
-                .from(Trade::Table, Trade::FromTeamId)
-                .to(Team::Table, Team::Id)
                 .on_delete(ForeignKeyAction::Cascade)
                 .on_update(ForeignKeyAction::Cascade)
                 .to_owned(),
@@ -162,22 +147,76 @@ async fn setup_trade(manager: &SchemaManager<'_>) -> Result<(), DbErr> {
                 .col(Trade::PreviousTradeId)
                 .to_owned(),
         )
+        .await
+}
+
+async fn setup_team_trade(manager: &SchemaManager<'_>) -> Result<(), DbErr> {
+    manager
+        .create_table(
+            Table::create()
+                .table(TeamTrade::Table)
+                .if_not_exists()
+                .col(
+                    ColumnDef::new(TeamTrade::Id)
+                        .big_integer()
+                        .not_null()
+                        .auto_increment()
+                        .primary_key(),
+                )
+                .col(
+                    ColumnDef::new(TeamTrade::TeamId)
+                        .big_integer()
+                        .not_null()
+                        .auto_increment(),
+                )
+                .col(
+                    ColumnDef::new(TeamTrade::TradeId)
+                        .big_integer()
+                        .not_null()
+                        .auto_increment(),
+                )
+                .to_owned(),
+        )
         .await?;
+
+    manager
+        .create_foreign_key(
+            ForeignKey::create()
+                .name("team_trade_fk_team")
+                .from(TeamTrade::Table, TeamTrade::TeamId)
+                .to(Team::Table, Team::Id)
+                .on_delete(ForeignKeyAction::Cascade)
+                .on_update(ForeignKeyAction::Cascade)
+                .to_owned(),
+        )
+        .await?;
+    manager
+        .create_foreign_key(
+            ForeignKey::create()
+                .name("team_trade_fk_trade")
+                .from(TeamTrade::Table, TeamTrade::TradeId)
+                .to(Trade::Table, Trade::Id)
+                .on_delete(ForeignKeyAction::Cascade)
+                .on_update(ForeignKeyAction::Cascade)
+                .to_owned(),
+        )
+        .await?;
+
     manager
         .create_index(
             IndexCreateStatement::new()
-                .name("trade_from_team")
-                .table(Trade::Table)
-                .col(Trade::FromTeamId)
+                .name("team_trade_team")
+                .table(TeamTrade::Table)
+                .col(TeamTrade::TeamId)
                 .to_owned(),
         )
         .await?;
     manager
         .create_index(
             IndexCreateStatement::new()
-                .name("trade_to_team")
-                .table(Trade::Table)
-                .col(Trade::ToTeamId)
+                .name("team_trade_trade")
+                .table(TeamTrade::Table)
+                .col(TeamTrade::TradeId)
                 .to_owned(),
         )
         .await
@@ -300,24 +339,15 @@ async fn setup_trade_asset(manager: &SchemaManager<'_>) -> Result<(), DbErr> {
                         .big_integer()
                         .not_null(),
                 )
+                .col(
+                    ColumnDef::new(TradeAsset::ToTeamId)
+                        .big_integer()
+                        .not_null(),
+                )
                 .col(ColumnDef::new(TradeAsset::TradeId).big_integer().not_null())
-                .col(
-                    ColumnDef::new(TradeAsset::CreatedAt)
-                        .timestamp_with_time_zone()
-                        .not_null()
-                        .extra("DEFAULT CURRENT_TIMESTAMP".to_string()),
-                )
-                .col(
-                    ColumnDef::new(TradeAsset::UpdatedAt)
-                        .timestamp_with_time_zone()
-                        .not_null()
-                        .extra("DEFAULT CURRENT_TIMESTAMP".to_string()),
-                )
                 .to_owned(),
         )
         .await?;
-
-    set_auto_updated_at_on_table(manager, TradeAsset::Table.to_string()).await?;
 
     manager
         .create_foreign_key(
@@ -344,8 +374,19 @@ async fn setup_trade_asset(manager: &SchemaManager<'_>) -> Result<(), DbErr> {
     manager
         .create_foreign_key(
             ForeignKey::create()
-                .name("trade_asset_fk_team")
+                .name("trade_asset_fk_from_team")
                 .from(TradeAsset::Table, TradeAsset::FromTeamId)
+                .to(Team::Table, Team::Id)
+                .on_delete(ForeignKeyAction::Cascade)
+                .on_update(ForeignKeyAction::Cascade)
+                .to_owned(),
+        )
+        .await?;
+    manager
+        .create_foreign_key(
+            ForeignKey::create()
+                .name("trade_asset_fk_to_team")
+                .from(TradeAsset::Table, TradeAsset::ToTeamId)
                 .to(Team::Table, Team::Id)
                 .on_delete(ForeignKeyAction::Cascade)
                 .on_update(ForeignKeyAction::Cascade)
@@ -383,12 +424,19 @@ pub enum Trade {
     EndOfSeasonYear,
     Status,
     LeagueId,
-    FromTeamId,
-    ToTeamId,
     OriginalTradeId,
     PreviousTradeId,
+    ProposedByTeamId,
     CreatedAt,
     UpdatedAt,
+}
+
+#[derive(Iden)]
+pub enum TeamTrade {
+    Table,
+    Id,
+    TeamId,
+    TradeId,
 }
 
 #[derive(Iden)]
@@ -411,7 +459,6 @@ pub enum TradeAsset {
     DraftPickId,
     DraftPickOptionId,
     FromTeamId,
+    ToTeamId,
     TradeId,
-    CreatedAt,
-    UpdatedAt,
 }

@@ -14,6 +14,7 @@ pub use super::real_team::Entity as RealTeam;
 pub use super::rookie_draft_selection::Entity as RookieDraftSelection;
 pub use super::sessions::Entity as Sessions;
 pub use super::team::Entity as Team;
+pub use super::team_trade::Entity as TeamTrade;
 pub use super::team_update::Entity as TeamUpdate;
 pub use super::team_user::Entity as TeamUser;
 pub use super::trade::Entity as Trade;

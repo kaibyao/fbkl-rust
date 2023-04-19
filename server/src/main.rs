@@ -35,7 +35,6 @@ async fn main() -> Result<()> {
     // TODO: Reconciling end dates of different transaction types w/ when they go into effect.
     // TODO: Account for roster legalization (pre-season).
     // TODO: Account for roster legalization (weekly).
-    // TODO: Do we need to account for 3 and 4-team trades? Yes, eventually. Need a M2M table for team<>trade.
     // TODO: Configuration for rookie draft + end-of-season standings
     // TODO: import data (transactions)
     // TODO: Rest of DB migrations (incl. FK relations)

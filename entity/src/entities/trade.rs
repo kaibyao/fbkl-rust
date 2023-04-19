@@ -4,6 +4,9 @@ use async_graphql::Enum;
 use sea_orm::entity::prelude::*;
 use serde::{Deserialize, Serialize};
 
+/// Trades made between 2 or more teams can be proposed, accepted, counteroffered, canceled, or rejected. When a trade is counteroffered, a new trade is created that refers to the previous. In this way, a historical chain of record can be made.
+///
+/// Note: Use trade_model.find_linked(TeamsInvolvedInTrade) and team_model.find_linked(TradesInvolvedByTeam) rather than .find_related(), as we use that many-to-many relationship to allow for multi-team trades to happen.
 #[derive(Clone, Debug, PartialEq, DeriveEntityModel, Eq, Serialize, Deserialize)]
 #[sea_orm(table_name = "trade")]
 pub struct Model {
@@ -12,10 +15,9 @@ pub struct Model {
     pub end_of_season_year: i16,
     pub status: TradeStatus,
     pub league_id: i64,
-    pub from_team_id: i64,
-    pub to_team_id: i64,
     pub original_trade_id: Option<i64>,
     pub previous_trade_id: Option<i64>,
+    pub proposed_by_team_id: i64,
     pub created_at: DateTimeWithTimeZone,
     pub updated_at: DateTimeWithTimeZone,
 }
@@ -66,20 +68,12 @@ pub enum Relation {
     League,
     #[sea_orm(
         belongs_to = "super::team::Entity",
-        from = "Column::FromTeamId",
+        from = "Column::ProposedByTeamId",
         to = "super::team::Column::Id",
         on_update = "Cascade",
         on_delete = "Cascade"
     )]
-    FromTeam,
-    #[sea_orm(
-        belongs_to = "super::team::Entity",
-        from = "Column::ToTeamId",
-        to = "super::team::Column::Id",
-        on_update = "Cascade",
-        on_delete = "Cascade"
-    )]
-    ToTeam,
+    ProposedByTeam,
     #[sea_orm(
         belongs_to = "Entity",
         from = "Column::OriginalTradeId",
@@ -96,6 +90,8 @@ pub enum Relation {
         on_delete = "Cascade"
     )]
     PreviousTrade,
+    #[sea_orm(has_many = "super::team_trade::Entity")]
+    TeamTrade,
     #[sea_orm(has_many = "super::trade_action::Entity")]
     TradeAction,
     #[sea_orm(has_many = "super::trade_asset::Entity")]
@@ -107,6 +103,12 @@ pub enum Relation {
 impl Related<super::league::Entity> for Entity {
     fn to() -> RelationDef {
         Relation::League.def()
+    }
+}
+
+impl Related<super::team_trade::Entity> for Entity {
+    fn to() -> RelationDef {
+        Relation::TeamTrade.def()
     }
 }
 
@@ -125,6 +127,12 @@ impl Related<super::trade_asset::Entity> for Entity {
 impl Related<super::transaction::Entity> for Entity {
     fn to() -> RelationDef {
         Relation::Transaction.def()
+    }
+}
+
+impl Related<super::team::Entity> for Entity {
+    fn to() -> RelationDef {
+        Relation::ProposedByTeam.def()
     }
 }
 

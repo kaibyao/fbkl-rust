@@ -4,6 +4,8 @@ use async_graphql::Enum;
 use sea_orm::entity::prelude::*;
 use serde::{Deserialize, Serialize};
 
+use crate::{league, team, user};
+
 #[derive(Clone, Debug, PartialEq, Eq, DeriveEntityModel, Serialize, Deserialize)]
 #[sea_orm(table_name = "team_user")]
 pub struct Model {
@@ -94,6 +96,20 @@ impl Related<super::trade_action::Entity> for Entity {
 impl Related<super::user::Entity> for Entity {
     fn to() -> RelationDef {
         Relation::User.def()
+    }
+}
+
+impl Linked for Entity {
+    type FromEntity = user::Entity;
+    type ToEntity = league::Entity;
+
+    fn link(&self) -> Vec<RelationDef> {
+        // league -> team -> team_user -> user
+        vec![
+            Relation::User.def().rev(),
+            Relation::Team.def(),
+            team::Relation::League.def(),
+        ]
     }
 }
 

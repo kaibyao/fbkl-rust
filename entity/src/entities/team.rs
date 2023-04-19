@@ -57,12 +57,14 @@ pub enum Relation {
         on_delete = "Cascade"
     )]
     League,
+    #[sea_orm(has_many = "super::team_trade::Entity")]
+    TeamTrade,
     #[sea_orm(has_many = "super::team_user::Entity")]
     TeamUser,
     #[sea_orm(has_many = "super::team_update::Entity")]
     TeamUpdate,
-    #[sea_orm(has_many = "super::trade_asset::Entity")]
-    TradeAsset,
+    #[sea_orm(has_many = "super::trade::Entity")]
+    TradeProposed,
 }
 
 impl Related<super::contract::Entity> for Entity {
@@ -74,6 +76,12 @@ impl Related<super::contract::Entity> for Entity {
 impl Related<super::league::Entity> for Entity {
     fn to() -> RelationDef {
         Relation::League.def()
+    }
+}
+
+impl Related<super::team_trade::Entity> for Entity {
+    fn to() -> RelationDef {
+        Relation::TeamTrade.def()
     }
 }
 
@@ -89,31 +97,22 @@ impl Related<super::team_update::Entity> for Entity {
     }
 }
 
-impl Related<super::trade_asset::Entity> for Entity {
+impl Related<super::trade::Entity> for Entity {
     fn to() -> RelationDef {
-        Relation::TradeAsset.def()
+        Relation::TradeProposed.def()
     }
 }
 
-#[derive(Debug)]
-pub struct TradesProposed;
-impl Linked for TradesProposed {
-    type FromEntity = Entity;
-    type ToEntity = super::trade::Entity;
-
-    fn link(&self) -> Vec<RelationDef> {
-        vec![super::trade::Relation::FromTeam.def().rev()]
+impl Related<super::user::Entity> for Entity {
+    // The final relation is Team -> TeamUser -> User
+    fn to() -> RelationDef {
+        team_user::Relation::User.def()
     }
-}
 
-#[derive(Debug)]
-pub struct TradesResponded;
-impl Linked for TradesResponded {
-    type FromEntity = Entity;
-    type ToEntity = super::trade::Entity;
-
-    fn link(&self) -> Vec<RelationDef> {
-        vec![super::trade::Relation::ToTeam.def().rev()]
+    fn via() -> Option<RelationDef> {
+        // The original relation is TeamUser -> Team,
+        // after `rev` it becomes Team -> TeamUser
+        Some(team_user::Relation::Team.def().rev())
     }
 }
 
