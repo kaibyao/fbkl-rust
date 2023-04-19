@@ -1,6 +1,6 @@
 # fbkl-rust/server
 
-The server app that powers FBKL.
+The server app that powers FBKL. Auth and API/serving-related logic goes here. Do not put business logic in here; that should go into `logic/`.
 
 ## Setup
 
@@ -12,4 +12,4 @@ The server app that powers FBKL.
 1. `cargo install sea-orm-cli`.
 1. Run: `sea-orm-cli migrate up`.
 
-TODO: move the above steps into a shell script.
+<!-- TODO: move the above steps into a shell script. -->

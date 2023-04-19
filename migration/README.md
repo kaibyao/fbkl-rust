@@ -1,6 +1,6 @@
 # Running Migrator CLI
 
-Make sure you first have `sea-orm-cli` installed: `cargo install sea-orm-cli`.
+This library + binary package is used for database updates. Make sure you first have `sea-orm-cli` installed: `cargo install sea-orm-cli`.
 
 ## Steps to creating a new database table
 
