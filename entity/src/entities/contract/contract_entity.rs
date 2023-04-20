@@ -33,6 +33,7 @@ pub struct Model {
     #[sea_orm(primary_key)]
     pub id: i64,
     pub contract_year: i16,
+    /// RD | RDI | R1-3 | R4-5 | V | RFA10 | UFA10 | UFA20 | FA
     pub contract_type: ContractType,
     /// Represents an inactive/injured player on a team's active roster. A contract in IR status does not count towards a team’s cap space.
     pub is_ir: bool,

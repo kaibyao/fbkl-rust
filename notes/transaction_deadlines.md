@@ -87,3 +87,19 @@ In regards to how to do the "effective date" of a transaction... if we can confi
 
 Another option is to just... not generate a transaction on config changes. Then `team_update.transaction_id` becomes nullable and `transaction.deadline_id` becomes non-nullable. Need validation based on TeamUpdateType. I like this approach more.
 
+## When do transactions take effect?
+
+I'm thinking that transactions and deadlines take effect at different times.
+
+Here's the list of all transaction types and when they'd happen:
+* `Trade` - Immediately.
+* `AuctionDone` - Immediately.
+* `PreseasonKeeper` - At PreSeason Keeper deadline (special case).
+* `RookieDraftSelection` - Immediately.
+* `TeamUpdateDropContract` - At next weekly lock deadline.
+* `TeamUpdateToIr` - At next weekly lock deadline.
+* `TeamUpdateFromIr` - At next weekly lock deadline.
+* `RookieContractActivation` - At next weekly lock deadline.
+* `TeamUpdateConfigChange` - Immediately.
+
+For the ones that happen immediately, there would be a separate deadline validation that runs to make a team's roster is legal for a deadline.
