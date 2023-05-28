@@ -23,7 +23,6 @@ pub struct Model {
     pub league_id: i64,
     pub original_trade_id: Option<i64>,
     pub previous_trade_id: Option<i64>,
-    pub proposed_by_team_id: i64,
     pub created_at: DateTimeWithTimeZone,
     pub updated_at: DateTimeWithTimeZone,
 }
@@ -93,14 +92,6 @@ pub enum Relation {
     )]
     League,
     #[sea_orm(
-        belongs_to = "super::team::Entity",
-        from = "Column::ProposedByTeamId",
-        to = "super::team::Column::Id",
-        on_update = "Cascade",
-        on_delete = "Cascade"
-    )]
-    ProposedByTeam,
-    #[sea_orm(
         belongs_to = "Entity",
         from = "Column::OriginalTradeId",
         to = "Column::Id",
@@ -153,12 +144,6 @@ impl Related<super::trade_asset::Entity> for Entity {
 impl Related<super::transaction::Entity> for Entity {
     fn to() -> RelationDef {
         Relation::Transaction.def()
-    }
-}
-
-impl Related<super::team::Entity> for Entity {
-    fn to() -> RelationDef {
-        Relation::ProposedByTeam.def()
     }
 }
 

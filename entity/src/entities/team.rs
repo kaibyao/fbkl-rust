@@ -63,8 +63,6 @@ pub enum Relation {
     TeamUser,
     #[sea_orm(has_many = "super::team_update::Entity")]
     TeamUpdate,
-    #[sea_orm(has_many = "super::trade::Entity")]
-    TradeProposed,
 }
 
 impl Related<super::contract::Entity> for Entity {
@@ -94,12 +92,6 @@ impl Related<super::team_user::Entity> for Entity {
 impl Related<super::team_update::Entity> for Entity {
     fn to() -> RelationDef {
         Relation::TeamUpdate.def()
-    }
-}
-
-impl Related<super::trade::Entity> for Entity {
-    fn to() -> RelationDef {
-        Relation::TradeProposed.def()
     }
 }
 

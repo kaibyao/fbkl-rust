@@ -163,7 +163,7 @@ async fn setup_player(manager: &SchemaManager<'_>) -> Result<(), DbErr> {
                 )
                 .col(ColumnDef::new(Player::EspnId).integer())
                 .col(ColumnDef::new(Player::NbaId).integer())
-                .col(ColumnDef::new(Player::PositionId).big_integer().not_null())
+                .col(ColumnDef::new(Player::PositionId).integer().not_null())
                 .col(
                     ColumnDef::new(Player::CreatedAt)
                         .timestamp_with_time_zone()

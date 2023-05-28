@@ -72,11 +72,6 @@ async fn setup_trade(manager: &SchemaManager<'_>) -> Result<(), DbErr> {
                 .col(ColumnDef::new(Trade::OriginalTradeId).big_integer())
                 .col(ColumnDef::new(Trade::PreviousTradeId).big_integer())
                 .col(
-                    ColumnDef::new(Trade::ProposedByTeamId)
-                        .big_integer()
-                        .not_null(),
-                )
-                .col(
                     ColumnDef::new(Trade::CreatedAt)
                         .timestamp_with_time_zone()
                         .not_null()
@@ -426,7 +421,6 @@ pub enum Trade {
     LeagueId,
     OriginalTradeId,
     PreviousTradeId,
-    ProposedByTeamId,
     CreatedAt,
     UpdatedAt,
 }

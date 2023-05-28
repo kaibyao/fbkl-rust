@@ -13,6 +13,30 @@ use crate::{
     trade, trade_asset,
 };
 
+#[instrument]
+pub async fn new_trade_asset_active_model_from_contract<C>(
+    trade_model: &trade::Model,
+    contract_model: &contract::Model,
+    from_team_id: i64,
+    to_team_id: i64,
+    db: &C,
+) -> Result<trade_asset::ActiveModel>
+where
+    C: ConnectionTrait + TransactionTrait + Debug,
+{
+    validate_contract_trade_asset(trade_model, contract_model, from_team_id, to_team_id, db)
+        .await?;
+
+    let trade_asset_active_model = trade_asset::Model::from_contract(
+        trade_model.id,
+        contract_model.id,
+        from_team_id,
+        to_team_id,
+    );
+
+    Ok(trade_asset_active_model)
+}
+
 /// Inserts a new trade (contract) asset for a trade.
 #[instrument]
 pub async fn insert_trade_asset_from_contract<C>(
@@ -25,15 +49,14 @@ pub async fn insert_trade_asset_from_contract<C>(
 where
     C: ConnectionTrait + TransactionTrait + Debug,
 {
-    validate_contract_trade_asset(trade_model, contract_model, from_team_id, to_team_id, db)
-        .await?;
-
-    let trade_asset_model_to_insert = trade_asset::Model::from_contract(
-        trade_model.id,
-        contract_model.id,
+    let trade_asset_model_to_insert = new_trade_asset_active_model_from_contract(
+        trade_model,
+        contract_model,
         from_team_id,
         to_team_id,
-    );
+        db,
+    )
+    .await?;
 
     let inserted_trade_asset = trade_asset_model_to_insert.insert(db).await?;
 
