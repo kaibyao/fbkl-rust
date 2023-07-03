@@ -4,7 +4,7 @@ This "application" (really collection of applications) powers FBKL, a custom fan
 
 ## Common terminology
 
-### Season End Year
+### End-of-season Year
 
 Rather than use numerical years, we use the concept of a Basketball season to mark the year in which a league is run. This is because the NBA Basketball season usually starts in the Fall and ends in the Spring, and it can become confusing to talk about the year in which actions were taken. For example, if a trade was conducted between two teams in 2017, did that trade apply to the 2016-2017 season, or the 2017-2018 season?
 
