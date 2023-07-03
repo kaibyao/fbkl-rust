@@ -1,6 +1,6 @@
 # FBKL
 
-This "application" (really collection of applications) powers FBKL, a custom fantasy basketball ruleset.
+This "application" (really collection of applications) powers FBKL, a custom fantasy basketball ruleset. The ruleset is meant to simulate how real NBA teams manage their assets (IE player contracts and draft picks), while keeping the game fun in a fantasy league setting.
 
 ## Common terminology
 
