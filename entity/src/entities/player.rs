@@ -4,7 +4,7 @@ use std::fmt::Debug;
 
 use async_graphql::Enum;
 use color_eyre::{eyre::eyre, Result};
-use sea_orm::{entity::prelude::*, ConnectionTrait, TransactionTrait};
+use sea_orm::{entity::prelude::*, ConnectionTrait};
 use serde::{Deserialize, Serialize};
 use tracing::instrument;
 
@@ -34,7 +34,7 @@ impl Model {
     #[instrument]
     pub async fn get_real_team<C>(&self, db: &C) -> Result<real_team::Model>
     where
-        C: ConnectionTrait + TransactionTrait + Debug,
+        C: ConnectionTrait + Debug,
     {
         let real_team_model = self
             .find_related(real_team::Entity)

@@ -55,7 +55,7 @@ where
 
 pub async fn find_leagues_by_name<C>(league_name: &str, db: &C) -> Result<Vec<league::Model>, DbErr>
 where
-    C: ConnectionTrait + TransactionTrait,
+    C: ConnectionTrait,
 {
     let league_models = league::Entity::find()
         .filter(league::Column::Name.eq(league_name))

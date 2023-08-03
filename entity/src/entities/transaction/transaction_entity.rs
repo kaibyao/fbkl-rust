@@ -2,7 +2,7 @@
 
 use async_graphql::Enum;
 use color_eyre::{eyre::eyre, Result};
-use sea_orm::{entity::prelude::*, ConnectionTrait, TransactionTrait};
+use sea_orm::{entity::prelude::*, ConnectionTrait};
 use serde::{Deserialize, Serialize};
 
 use crate::deadline;
@@ -37,7 +37,7 @@ impl Model {
     /// Get the transaction's related deadline model.
     pub async fn get_deadline<C>(&self, db: &C) -> Result<deadline::Model>
     where
-        C: ConnectionTrait + TransactionTrait,
+        C: ConnectionTrait,
     {
         self.find_related(deadline::Entity)
             .one(db)

@@ -25,7 +25,7 @@ impl Model {
     #[instrument]
     pub async fn get_league<C>(&self, db: &C) -> Result<league::Model>
     where
-        C: ConnectionTrait + TransactionTrait + Debug,
+        C: ConnectionTrait + Debug,
     {
         let league_model = self.find_related(league::Entity).one(db).await?;
         league_model.ok_or_else(|| {

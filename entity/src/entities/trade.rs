@@ -3,7 +3,7 @@
 use std::fmt::Debug;
 
 use async_graphql::Enum;
-use color_eyre::Result;
+use color_eyre::{eyre::eyre, Result};
 use sea_orm::{entity::prelude::*, ConnectionTrait, TransactionTrait};
 use serde::{Deserialize, Serialize};
 use tracing::instrument;
@@ -44,6 +44,30 @@ impl Model {
     {
         let teams = self.find_linked(TeamsInvolvedInTrade).all(db).await?;
         Ok(teams)
+    }
+
+    pub async fn is_latest_in_chain<C>(&self, db: &C) -> Result<bool>
+    where
+        C: ConnectionTrait + TransactionTrait + Debug,
+    {
+        let mut all_trades_in_chain = Entity::find()
+            .filter(Column::OriginalTradeId.eq(self.original_trade_id))
+            .all(db)
+            .await?;
+        all_trades_in_chain.sort_by(|a, b| a.id.cmp(&b.id));
+        all_trades_in_chain
+            .last()
+            .map(|last_trade_in_chain| last_trade_in_chain.id == self.id)
+            .ok_or_else(|| {
+                let trade_ids_in_chain: Vec<String> = all_trades_in_chain
+                    .iter()
+                    .map(|trade| trade.id.to_string())
+                    .collect();
+                eyre!(
+                    "Could not retrieve last trade in trade chain: [{}]",
+                    trade_ids_in_chain.join(", ")
+                )
+            })
     }
 }
 

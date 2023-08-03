@@ -1,7 +1,7 @@
 use std::fmt::Debug;
 
 use color_eyre::{eyre::eyre, Result};
-use sea_orm::{ColumnTrait, ConnectionTrait, EntityTrait, QueryFilter, TransactionTrait};
+use sea_orm::{ColumnTrait, ConnectionTrait, EntityTrait, QueryFilter};
 use tracing::instrument;
 
 use crate::deadline::{self, DeadlineType};
@@ -14,7 +14,7 @@ pub async fn find_deadline_for_season_by_type<C>(
     db: &C,
 ) -> Result<deadline::Model>
 where
-    C: ConnectionTrait + TransactionTrait + Debug,
+    C: ConnectionTrait + Debug,
 {
     let maybe_deadline_model = deadline::Entity::find()
         .filter(

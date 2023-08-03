@@ -6,7 +6,7 @@ use fbkl_constants::league_rules::{
 };
 use fbkl_entity::{
     contract,
-    sea_orm::{ConnectionTrait, TransactionTrait},
+    sea_orm::ConnectionTrait,
     team,
     team_update::{self},
     team_update_queries, transaction, transaction_queries,
@@ -22,7 +22,7 @@ pub async fn save_keeper_team_update<C>(
     db: &C,
 ) -> Result<team_update::Model>
 where
-    C: ConnectionTrait + TransactionTrait + Debug,
+    C: ConnectionTrait + Debug,
 {
     validate_team_keepers(&keeper_contracts)?;
 
@@ -126,19 +126,10 @@ async fn create_new_keeper_team_update<C>(
     db: &C,
 ) -> Result<team_update::Model>
 where
-    C: ConnectionTrait + TransactionTrait + Debug,
+    C: ConnectionTrait + Debug,
 {
-    let db_txn = db.begin().await?;
-    let create_result = team_update_queries::insert_keeper_team_update(
-        team,
-        keeper_contracts,
-        keeper_transaction,
-        db,
-    )
-    .await;
-    db_txn.commit().await?;
-
-    create_result
+    team_update_queries::insert_keeper_team_update(team, keeper_contracts, keeper_transaction, db)
+        .await
 }
 
 /// If owner previously set keepers, remove previously-saved contracts from team update and save new ones.
@@ -150,10 +141,8 @@ async fn update_existing_keeper_team_update<C>(
     db: &C,
 ) -> Result<team_update::Model>
 where
-    C: ConnectionTrait + TransactionTrait + Debug,
+    C: ConnectionTrait + Debug,
 {
-    let db_txn = db.begin().await?;
-
     let updated_keeper_team_update = team_update_queries::update_keeper_team_update(
         team_model,
         keeper_team_update,
@@ -161,8 +150,6 @@ where
         db,
     )
     .await?;
-
-    db_txn.commit().await?;
 
     Ok(updated_keeper_team_update)
 }

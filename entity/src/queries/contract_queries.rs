@@ -53,7 +53,7 @@ pub async fn drop_contract<C>(
     db: &C,
 ) -> Result<contract::Model>
 where
-    C: ConnectionTrait + TransactionTrait + Debug,
+    C: ConnectionTrait + Debug,
 {
     let contract_to_drop = if is_before_pre_season_keeper_deadline {
         current_contract_model.create_dropped_contract_before_preseason_keeper_deadline()?
@@ -81,7 +81,7 @@ pub async fn find_active_contracts_for_team<C>(
     db: &C,
 ) -> Result<Vec<contract::Model>>
 where
-    C: ConnectionTrait + TransactionTrait + Debug,
+    C: ConnectionTrait + Debug,
 {
     let active_team_contracts = team
         .find_related(contract::Entity)
@@ -98,7 +98,7 @@ pub async fn find_active_contracts_in_league<C>(
     db: &C,
 ) -> Result<Vec<contract::Model>>
 where
-    C: ConnectionTrait + TransactionTrait + Debug,
+    C: ConnectionTrait + Debug,
 {
     let contracts = contract::Entity::find()
         .filter(
@@ -120,7 +120,7 @@ pub async fn find_active_league_contracts_by_player_names<C>(
     db: &C,
 ) -> Result<HashMap<String, contract::Model>>
 where
-    C: ConnectionTrait + TransactionTrait + Debug,
+    C: ConnectionTrait + Debug,
 {
     let contracts_and_player_models = contract::Entity::find()
         .join(JoinType::LeftJoin, contract::Relation::Player.def())
@@ -201,7 +201,7 @@ async fn add_replacement_contract_to_chain<C>(
     db: &C,
 ) -> Result<contract::Model>
 where
-    C: ConnectionTrait + TransactionTrait + Debug,
+    C: ConnectionTrait + Debug,
 {
     let mut original_contract_model_to_update: contract::ActiveModel =
         current_contract_model.into();

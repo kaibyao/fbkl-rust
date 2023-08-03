@@ -23,7 +23,7 @@ pub struct Model {
 impl Model {
     /// Creates a not-yet-persisted Trade Asset `ActiveModel`from a player contract.
     pub fn from_contract(
-        trade_id: i64,
+        trade_id: Option<i64>,
         contract_id: i64,
         from_team_id: i64,
         to_team_id: i64,
@@ -36,7 +36,7 @@ impl Model {
             draft_pick_option_id: ActiveValue::NotSet,
             from_team_id: ActiveValue::Set(from_team_id),
             to_team_id: ActiveValue::Set(to_team_id),
-            trade_id: ActiveValue::Set(trade_id),
+            trade_id: trade_id.map_or(ActiveValue::NotSet, ActiveValue::Set),
         }
     }
 }

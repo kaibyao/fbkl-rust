@@ -6,7 +6,7 @@ use fbkl_entity::{
     contract, contract_queries,
     deadline::DeadlineType,
     deadline_queries,
-    sea_orm::{ConnectionTrait, ModelTrait, TransactionTrait},
+    sea_orm::{ConnectionTrait, ModelTrait},
     team_update::{self, ContractUpdateType, TeamUpdateData, TeamUpdateStatus},
     team_update_queries, transaction,
 };
@@ -20,7 +20,7 @@ pub async fn process_keeper_deadline_transaction<C>(
     db: &C,
 ) -> Result<()>
 where
-    C: ConnectionTrait + TransactionTrait + Debug,
+    C: ConnectionTrait + Debug,
 {
     let (keeper_team_updates, mut active_league_contracts_by_id) =
         validate_and_get_process_keeper_deadline_data(league_id, end_of_season_year, db).await?;
@@ -82,7 +82,7 @@ async fn process_keeper_deadline_transaction_inner<C>(
     db: &C,
 ) -> Result<(i16, i16)>
 where
-    C: ConnectionTrait + TransactionTrait + Debug,
+    C: ConnectionTrait + Debug,
 {
     let mut num_contracts_kept = 0;
     let mut num_contracts_dropped = 0;
@@ -118,7 +118,7 @@ async fn validate_and_get_process_keeper_deadline_data<C>(
     db: &C,
 ) -> Result<(Vec<team_update::Model>, HashMap<i64, contract::Model>)>
 where
-    C: ConnectionTrait + TransactionTrait + Debug,
+    C: ConnectionTrait + Debug,
 {
     let deadline_model = deadline_queries::find_deadline_for_season_by_type(
         league_id,

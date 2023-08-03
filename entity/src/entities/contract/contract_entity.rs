@@ -7,7 +7,7 @@ use color_eyre::{
     eyre::{bail, Error},
     Result,
 };
-use sea_orm::{entity::prelude::*, ConnectionTrait, TransactionTrait};
+use sea_orm::{entity::prelude::*, ConnectionTrait};
 use serde::{Deserialize, Serialize};
 use tracing::instrument;
 
@@ -88,7 +88,7 @@ impl Model {
     #[instrument]
     pub async fn get_player<C>(&self, db: &C) -> Result<RelatedPlayer>
     where
-        C: ConnectionTrait + TransactionTrait + Debug,
+        C: ConnectionTrait + Debug,
     {
         match self.find_related(player::Entity).one(db).await? {
             Some(player_model) => Ok(RelatedPlayer::Player(player_model)),

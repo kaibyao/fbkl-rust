@@ -18,7 +18,7 @@ pub async fn get_or_create_keeper_deadline_transaction<C>(
     db: &C,
 ) -> Result<transaction::Model>
 where
-    C: ConnectionTrait + TransactionTrait + Debug,
+    C: ConnectionTrait + Debug,
 {
     let maybe_existing_keeper_deadline_transaction = transaction::Entity::find()
         .filter(
