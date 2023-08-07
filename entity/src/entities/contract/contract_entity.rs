@@ -5,7 +5,7 @@ use std::fmt::Debug;
 use async_graphql::Enum;
 use async_trait::async_trait;
 use color_eyre::{
-    eyre::{bail, Error},
+    eyre::{bail, eyre, Error},
     Result,
 };
 use sea_orm::{entity::prelude::*, ConnectionTrait};
@@ -101,6 +101,30 @@ impl Model {
                 Some(league_player_model) => Ok(RelatedPlayer::LeaguePlayer(league_player_model)),
             },
         }
+    }
+
+    pub async fn is_latest_in_chain<C>(&self, db: &C) -> Result<bool>
+    where
+        C: ConnectionTrait + Debug,
+    {
+        let mut all_contracts_in_chain = Entity::find()
+            .filter(Column::OriginalContractId.eq(self.original_contract_id))
+            .all(db)
+            .await?;
+        all_contracts_in_chain.sort_by(|a, b| a.id.cmp(&b.id));
+        all_contracts_in_chain
+            .last()
+            .map(|last_contract_in_chain| last_contract_in_chain.id == self.id)
+            .ok_or_else(|| {
+                let contract_ids_in_chain: Vec<String> = all_contracts_in_chain
+                    .iter()
+                    .map(|contract| contract.id.to_string())
+                    .collect();
+                eyre!(
+                    "Could not retrieve last contract in contract chain: [{}]",
+                    contract_ids_in_chain.join(", ")
+                )
+            })
     }
 
     pub fn new_contract_for_veteran_auction(

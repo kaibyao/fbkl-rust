@@ -101,9 +101,9 @@ pub enum TradeStatus {
     #[default]
     #[sea_orm(num_value = 0)]
     Proposed,
-    /// Trade has been accepted.
+    /// Trade has been accepted and processed.
     #[sea_orm(num_value = 1)]
-    Accepted,
+    Completed,
     /// Trade has been canceled by the proposing team.
     #[sea_orm(num_value = 2)]
     Canceled,

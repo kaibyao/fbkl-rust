@@ -1,6 +1,9 @@
 use std::{collections::HashMap, fmt::Debug};
 
-use color_eyre::{eyre::bail, Result};
+use color_eyre::{
+    eyre::{bail, ensure},
+    Result,
+};
 use sea_orm::{
     ActiveModelTrait, ActiveValue, ColumnTrait, ConnectionTrait, EntityTrait, JoinType, ModelTrait,
     QueryFilter, QuerySelect, RelationTrait, TransactionTrait,
@@ -211,4 +214,23 @@ where
     let inserted_replacement_contract = replacement_contract_model.insert(db).await?;
 
     Ok(inserted_replacement_contract)
+}
+
+#[instrument]
+pub async fn validate_contract_is_latest_in_chain<C>(
+    contract_model: &contract::Model,
+    db: &C,
+) -> Result<()>
+where
+    C: ConnectionTrait + Debug,
+{
+    let is_latest = contract_model.is_latest_in_chain(db).await?;
+
+    ensure!(
+        is_latest,
+        "contract_model with id ({}) is not the latest in its chain.",
+        contract_model.id
+    );
+
+    Ok(())
 }
