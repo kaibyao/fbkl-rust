@@ -8,7 +8,6 @@ use serde::{Deserialize, Serialize};
 pub struct Model {
     #[sea_orm(primary_key)]
     pub id: i64,
-    pub protection_clause: Option<String>,
     pub round: i16,
     pub end_of_season_year: i16,
     pub league_id: i64,
