@@ -15,7 +15,7 @@ pub fn sign_veteran_contract(
 ) -> Result<contract::ActiveModel> {
     if !APPLICABLE_CONTRACT_TYPES.contains(&current_contract.contract_type) {
         bail!(
-            "Can only sign a veteran or free agent contract (given contract type: {}).",
+            "Can only sign a veteran or free agent contract (given contract type: {:?}).",
             current_contract.contract_type
         );
     }

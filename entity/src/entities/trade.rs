@@ -3,12 +3,13 @@
 use std::fmt::Debug;
 
 use async_graphql::Enum;
+use async_trait::async_trait;
 use color_eyre::{eyre::eyre, Result};
-use sea_orm::{entity::prelude::*, ConnectionTrait, TransactionTrait};
+use sea_orm::{entity::prelude::*, ConnectionTrait};
 use serde::{Deserialize, Serialize};
 use tracing::instrument;
 
-use crate::{team_trade::TeamsInvolvedInTrade, trade_asset};
+use crate::{team_trade::TeamsInvolvedInTrade, trade_action, trade_asset};
 
 /// Trades made between 2 or more teams can be proposed, accepted, counteroffered, canceled, or rejected. When a trade is counteroffered, a new trade is created that refers to the previous. In this way, a historical chain of record can be made.
 ///
@@ -29,9 +30,18 @@ pub struct Model {
 
 impl Model {
     #[instrument]
+    pub async fn get_trade_actions<C>(&self, db: &C) -> Result<Vec<super::trade_action::Model>>
+    where
+        C: ConnectionTrait + Debug,
+    {
+        let trade_actions = self.find_related(trade_action::Entity).all(db).await?;
+        Ok(trade_actions)
+    }
+
+    #[instrument]
     pub async fn get_traded_assets<C>(&self, db: &C) -> Result<Vec<super::trade_asset::Model>>
     where
-        C: ConnectionTrait + TransactionTrait + Debug,
+        C: ConnectionTrait + Debug,
     {
         let trade_assets = self.find_related(trade_asset::Entity).all(db).await?;
         Ok(trade_assets)
@@ -40,7 +50,7 @@ impl Model {
     #[instrument]
     pub async fn get_teams<C>(&self, db: &C) -> Result<Vec<super::team::Model>>
     where
-        C: ConnectionTrait + TransactionTrait + Debug,
+        C: ConnectionTrait + Debug,
     {
         let teams = self.find_linked(TeamsInvolvedInTrade).all(db).await?;
         Ok(teams)
@@ -48,7 +58,7 @@ impl Model {
 
     pub async fn is_latest_in_chain<C>(&self, db: &C) -> Result<bool>
     where
-        C: ConnectionTrait + TransactionTrait + Debug,
+        C: ConnectionTrait + Debug,
     {
         let mut all_trades_in_chain = Entity::find()
             .filter(Column::OriginalTradeId.eq(self.original_trade_id))
@@ -193,8 +203,12 @@ impl Linked for PreviousTrade {
     }
 }
 
+#[async_trait]
 impl ActiveModelBehavior for ActiveModel {
-    fn before_save(self, insert: bool) -> Result<Self, DbErr> {
+    async fn before_save<C>(self, _db: &C, insert: bool) -> Result<Self, DbErr>
+    where
+        C: ConnectionTrait,
+    {
         non_original_trade_requires_previous_trade(&self)?;
         original_trade_requires_unset_previous_trade(&self)?;
 

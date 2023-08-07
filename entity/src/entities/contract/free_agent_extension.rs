@@ -22,7 +22,7 @@ pub fn sign_rfa_or_ufa_contract_to_team(
 ) -> Result<contract::ActiveModel> {
     if !APPLICABLE_CONTRACT_TYPES.contains(&fa_contract.contract_type) {
         bail!(
-            "Can only sign an RFA or UFA contract (given contract type: {}).",
+            "Can only sign an RFA or UFA contract (given contract type: {:?}).",
             fa_contract.contract_type
         );
     }

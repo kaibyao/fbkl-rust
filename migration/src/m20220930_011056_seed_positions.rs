@@ -1,6 +1,6 @@
 use fbkl_entity::{
     player, position,
-    sea_orm::{ActiveValue, ColumnTrait, DatabaseConnection, EntityTrait},
+    sea_orm::{ActiveValue, ColumnTrait, EntityTrait},
 };
 use sea_orm_migration::{prelude::*, sea_orm::QueryFilter};
 
@@ -52,7 +52,7 @@ impl MigrationTrait for Migration {
     }
 }
 
-async fn generate_positions(db: &DatabaseConnection) -> Result<(), DbErr> {
+async fn generate_positions(db: &SchemaManagerConnection<'_>) -> Result<(), DbErr> {
     let models: Vec<position::ActiveModel> = ESPN_POSITION_IDS
         .iter()
         .map(|(espn_id, name)| position::ActiveModel {

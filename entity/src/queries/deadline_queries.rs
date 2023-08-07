@@ -25,6 +25,6 @@ where
         )
         .one(db)
         .await?
-        .ok_or_else(|| eyre!("Could not find a deadline for league (id = {}) and end-of-season year ({}) of type: {}.", league_id, end_of_season_year, deadline_type))?;
+        .ok_or_else(|| eyre!("Could not find a deadline for league (id = {}) and end-of-season year ({}) of type: {:?}.", league_id, end_of_season_year, deadline_type))?;
     Ok(maybe_deadline_model)
 }

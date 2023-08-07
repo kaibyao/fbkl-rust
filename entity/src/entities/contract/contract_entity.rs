@@ -3,6 +3,7 @@
 use std::fmt::Debug;
 
 use async_graphql::Enum;
+use async_trait::async_trait;
 use color_eyre::{
     eyre::{bail, Error},
     Result,
@@ -324,8 +325,12 @@ impl Linked for PreviousContract {
     }
 }
 
+#[async_trait]
 impl ActiveModelBehavior for ActiveModel {
-    fn before_save(self, is_insert: bool) -> Result<Self, DbErr> {
+    async fn before_save<C>(self, _db: &C, is_insert: bool) -> Result<Self, DbErr>
+    where
+        C: ConnectionTrait,
+    {
         non_original_contract_requires_previous_contract(&self)?;
         original_contract_requires_unset_previous_contract(&self)?;
         validate_contract_years_by_type(&self)?;

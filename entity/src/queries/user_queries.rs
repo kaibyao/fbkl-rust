@@ -3,7 +3,6 @@ use crate::{
     league, team, team_user,
 };
 use sea_orm::{
-    sea_query::{Expr, IntoCondition},
     ActiveModelTrait, ColumnTrait, ConnectionTrait, DbErr, EntityTrait, JoinType, QueryFilter,
     QuerySelect, RelationTrait, Set, TransactionTrait,
 };
@@ -49,16 +48,8 @@ where
     user::Entity::find()
         .join(JoinType::LeftJoin, user::Relation::TeamUser.def())
         .join(JoinType::LeftJoin, team_user::Relation::Team.def())
-        .join(
-            JoinType::LeftJoin,
-            team::Relation::League
-                .def()
-                .on_condition(move |_left, right| {
-                    Expr::tbl(right, league::Column::Id)
-                        .eq(league_id)
-                        .into_condition()
-                }),
-        )
+        .join(JoinType::LeftJoin, team::Relation::League.def())
+        .filter(league::Column::Id.eq(league_id))
         .all(conn)
         .await
 }

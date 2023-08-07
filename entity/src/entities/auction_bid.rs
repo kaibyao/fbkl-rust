@@ -2,6 +2,7 @@
 
 use std::fmt::Debug;
 
+use async_trait::async_trait;
 use color_eyre::{eyre::eyre, Result};
 use sea_orm::{entity::prelude::*, ConnectionTrait, TransactionTrait};
 use serde::{Deserialize, Serialize};
@@ -90,8 +91,12 @@ impl Linked for AuctionBidToTeam {
     }
 }
 
+#[async_trait]
 impl ActiveModelBehavior for ActiveModel {
-    fn before_save(self, _insert: bool) -> Result<Self, DbErr> {
+    async fn before_save<C>(self, _db: &C, _insert: bool) -> Result<Self, DbErr>
+    where
+        C: ConnectionTrait,
+    {
         validate_bid_amount_is_positive(&self)?;
 
         Ok(self)

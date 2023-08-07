@@ -18,7 +18,7 @@ pub async fn get_current_user(
     session: &ReadableSession,
     db: &DatabaseConnection,
 ) -> Option<user::Model> {
-    let user_id = match session.get("user_id") {
+    let user_id: i64 = match session.get("user_id") {
         None => return None,
         Some(user_id) => user_id,
     };
@@ -33,7 +33,7 @@ pub async fn get_current_user_writable(
     session: &WritableSession,
     db: &DatabaseConnection,
 ) -> Option<user::Model> {
-    let user_id = match session.get("user_id") {
+    let user_id: i64 = match session.get("user_id") {
         None => return None,
         Some(user_id) => user_id,
     };

@@ -7,13 +7,14 @@ version = "0.1.0"
 
 [dependencies]
 async-graphql = {git = "https://github.com/kaibyao/async-graphql"}
+async-trait = "0.1.72"
 chrono = "0.4"
 color-eyre = "0.6.2"
 fbkl-constants = {path = "../constants"}
 postcard = {version = "1.0.4", features = ["use-std"], default-features = false }
 rust_decimal = "1.29"
 rust_decimal_macros = "1.29"
-sea-orm = {version = "^0.10", features = ["sqlx-postgres", "runtime-tokio-rustls", "macros"]}
+sea-orm = {version = "0.12", features = ["sqlx-postgres", "runtime-tokio-rustls", "macros"]}
 serde = "1.0.144"
 tracing = "0.1.36"
 

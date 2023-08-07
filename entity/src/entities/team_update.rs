@@ -3,6 +3,7 @@
 use crate::team_user;
 use crate::team_user::LeagueRole;
 use async_graphql::Enum;
+use async_trait::async_trait;
 use color_eyre::{eyre::Error, Result};
 use sea_orm::entity::prelude::*;
 use serde::{Deserialize, Serialize};
@@ -192,8 +193,12 @@ impl Related<super::transaction::Entity> for Entity {
     }
 }
 
+#[async_trait]
 impl ActiveModelBehavior for ActiveModel {
-    fn before_save(self, _insert: bool) -> Result<Self, DbErr> {
+    async fn before_save<C>(self, _db: &C, _insert: bool) -> Result<Self, DbErr>
+    where
+        C: ConnectionTrait,
+    {
         roster_change_requires_transaction(&self)?;
         setting_change_requires_no_transaction(&self)?;
 
