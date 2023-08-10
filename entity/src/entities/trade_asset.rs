@@ -12,7 +12,7 @@ use sea_orm::{entity::prelude::*, ActiveValue};
 use serde::{Deserialize, Serialize};
 use tracing::instrument;
 
-use crate::{contract, team};
+use crate::{contract, draft_pick, draft_pick_option, team};
 
 #[derive(Clone, Debug, PartialEq, DeriveEntityModel, Eq, Serialize, Deserialize)]
 #[sea_orm(table_name = "trade_asset")]
@@ -61,6 +61,42 @@ impl Model {
         maybe_contract.ok_or_else(|| {
             eyre!(
                 "Could not find contract related to trade asset: {}",
+                self.id
+            )
+        })
+    }
+
+    /// Retrieves the draft pick related to the trade asset, assuming that its `TradeAssetType` is `DraftPick`.
+    #[instrument]
+    pub async fn get_draft_pick<C>(&self, db: &C) -> Result<draft_pick::Model>
+    where
+        C: ConnectionTrait + Debug,
+    {
+        ensure!(self.asset_type == TradeAssetType::DraftPick, "Cannot get a related contract for a trade asset whose type is not `DraftPick`. (id = {}, asset type = {:?})", self.id, self.asset_type);
+
+        let maybe_draft_pick = self.find_related(draft_pick::Entity).one(db).await?;
+
+        maybe_draft_pick.ok_or_else(|| {
+            eyre!(
+                "Could not find draft pick related to trade asset: {}",
+                self.id
+            )
+        })
+    }
+
+    /// Retrieves the draft pick option related to the trade asset, assuming that its `TradeAssetType` is `DraftPickOption`.
+    #[instrument]
+    pub async fn get_draft_pick_option<C>(&self, db: &C) -> Result<draft_pick_option::Model>
+    where
+        C: ConnectionTrait + Debug,
+    {
+        ensure!(self.asset_type == TradeAssetType::DraftPickOption, "Cannot get a related contract for a trade asset whose type is not `DraftPickOption`. (id = {}, asset type = {:?})", self.id, self.asset_type);
+
+        let maybe_draft_pick_option = self.find_related(draft_pick_option::Entity).one(db).await?;
+
+        maybe_draft_pick_option.ok_or_else(|| {
+            eyre!(
+                "Could not find draft pick option related to trade asset: {}",
                 self.id
             )
         })

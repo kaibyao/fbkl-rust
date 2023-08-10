@@ -113,6 +113,9 @@ pub enum TradeStatus {
     /// Trade has been counter-offered by the responding team.
     #[sea_orm(num_value = 4)]
     Counteroffered,
+    /// Trade has been invalidated by another trade that was processed that involves any of the offered assets.
+    #[sea_orm(num_value = 5)]
+    InvalidatedByExternalTrade,
 }
 
 #[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]

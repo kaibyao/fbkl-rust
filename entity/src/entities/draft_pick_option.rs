@@ -36,7 +36,7 @@ pub enum DraftPickOptionStatus {
     /// The default status. This means the option has been proposed in a trade, but the trade has not been accepted yet.
     #[default]
     #[sea_orm(num_value = 0)]
-    Pending,
+    Proposed,
     /// The trade that created this option has been accepted and this option currently applies to the referenced draft pick.
     #[sea_orm(num_value = 1)]
     Active,
