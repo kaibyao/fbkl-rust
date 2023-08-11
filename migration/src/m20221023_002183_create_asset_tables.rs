@@ -18,11 +18,20 @@ impl MigrationTrait for Migration {
         setup_contract(manager).await?;
         setup_draft_pick(manager).await?;
         setup_draft_pick_option(manager).await?;
+        setup_draft_pick_draft_pick_option(manager).await?;
 
         transaction.commit().await
     }
 
     async fn down(&self, manager: &SchemaManager) -> Result<(), DbErr> {
+        manager
+            .drop_table(
+                Table::drop()
+                    .table(DraftPickDraftPickOption::Table)
+                    .if_exists()
+                    .to_owned(),
+            )
+            .await?;
         manager
             .drop_table(
                 Table::drop()
@@ -352,11 +361,6 @@ async fn setup_draft_pick_option(manager: &SchemaManager<'_>) -> Result<(), DbEr
                 )
                 .col(ColumnDef::new(DraftPickOption::Clause).string().not_null())
                 .col(
-                    ColumnDef::new(DraftPickOption::DraftPickId)
-                        .big_integer()
-                        .not_null(),
-                )
-                .col(
                     ColumnDef::new(DraftPickOption::Status)
                         .small_integer()
                         .not_null()
@@ -378,13 +382,54 @@ async fn setup_draft_pick_option(manager: &SchemaManager<'_>) -> Result<(), DbEr
         )
         .await?;
 
-    set_auto_updated_at_on_table(manager, DraftPickOption::Table.to_string()).await?;
+    set_auto_updated_at_on_table(manager, DraftPickOption::Table.to_string()).await
+}
+
+async fn setup_draft_pick_draft_pick_option(manager: &SchemaManager<'_>) -> Result<(), DbErr> {
+    manager
+        .create_table(
+            Table::create()
+                .table(DraftPickDraftPickOption::Table)
+                .if_not_exists()
+                .col(
+                    ColumnDef::new(DraftPickDraftPickOption::DraftPickId)
+                        .big_integer()
+                        .not_null(),
+                )
+                .col(
+                    ColumnDef::new(DraftPickDraftPickOption::DraftPickOptionId)
+                        .big_integer()
+                        .not_null(),
+                )
+                .primary_key(
+                    IndexCreateStatement::new()
+                        .name("draft_pick_to_option_pk")
+                        .table(DraftPickDraftPickOption::Table)
+                        .col(DraftPickDraftPickOption::DraftPickId)
+                        .col(DraftPickDraftPickOption::DraftPickOptionId),
+                )
+                .to_owned(),
+        )
+        .await?;
+
+    manager
+        .create_index(
+            IndexCreateStatement::new()
+                .name("draft_pick_to_option_m2m_draft_pick_option_id")
+                .table(DraftPickDraftPickOption::Table)
+                .col(DraftPickDraftPickOption::DraftPickOptionId)
+                .to_owned(),
+        )
+        .await?;
 
     manager
         .create_foreign_key(
             ForeignKey::create()
-                .name("draft_pick_option_fk_draft_pick")
-                .from(DraftPickOption::Table, DraftPickOption::DraftPickId)
+                .name("draft_pick_to_option_m2m_fk_draft_pick")
+                .from(
+                    DraftPickDraftPickOption::Table,
+                    DraftPickDraftPickOption::DraftPickId,
+                )
                 .to(DraftPick::Table, DraftPick::Id)
                 .on_delete(ForeignKeyAction::Cascade)
                 .on_update(ForeignKeyAction::Cascade)
@@ -393,11 +438,16 @@ async fn setup_draft_pick_option(manager: &SchemaManager<'_>) -> Result<(), DbEr
         .await?;
 
     manager
-        .create_index(
-            IndexCreateStatement::new()
-                .name("draft_pick_option_draft_pick")
-                .table(DraftPickOption::Table)
-                .col(DraftPickOption::DraftPickId)
+        .create_foreign_key(
+            ForeignKey::create()
+                .name("draft_pick_to_option_m2m_fk_draft_pick_option")
+                .from(
+                    DraftPickDraftPickOption::Table,
+                    DraftPickDraftPickOption::DraftPickOptionId,
+                )
+                .to(DraftPickOption::Table, DraftPickOption::Id)
+                .on_delete(ForeignKeyAction::Cascade)
+                .on_update(ForeignKeyAction::Cascade)
                 .to_owned(),
         )
         .await
@@ -443,7 +493,13 @@ pub enum DraftPickOption {
     Id,
     Clause,
     Status,
-    DraftPickId,
     CreatedAt,
     UpdatedAt,
+}
+
+#[derive(Iden)]
+pub enum DraftPickDraftPickOption {
+    Table,
+    DraftPickId,
+    DraftPickOptionId,
 }
