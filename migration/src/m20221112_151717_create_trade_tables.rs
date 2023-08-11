@@ -452,6 +452,7 @@ pub enum TradeAsset {
     ContractId,
     DraftPickId,
     DraftPickOptionId,
+    DraftPickOptionAmendmentId,
     FromTeamId,
     ToTeamId,
     TradeId,

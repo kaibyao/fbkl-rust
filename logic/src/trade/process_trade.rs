@@ -48,6 +48,9 @@ where
             TradeAssetType::DraftPickOption => {
                 validate_draft_pick_option_trade_asset(trade_asset_model, db).await?;
             }
+            TradeAssetType::DraftPickOptionAmendment => {
+                validate_draft_pick_option_amendment_trade_asset(trade_asset_model, db).await?;
+            }
         }
     }
 
@@ -114,5 +117,16 @@ where
 
     // The naiive
 
+    Ok(())
+}
+
+#[instrument]
+async fn validate_draft_pick_option_amendment_trade_asset<C>(
+    trade_asset_model: &trade_asset::Model,
+    db: &C,
+) -> Result<()>
+where
+    C: ConnectionTrait + Debug,
+{
     Ok(())
 }

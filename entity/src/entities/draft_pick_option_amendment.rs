@@ -52,11 +52,19 @@ pub enum Relation {
         on_delete = "Cascade"
     )]
     DraftPickOption,
+    #[sea_orm(has_one = "super::trade_asset::Entity")]
+    TradeAsset,
 }
 
 impl Related<super::draft_pick_option::Entity> for Entity {
     fn to() -> RelationDef {
         Relation::DraftPickOption.def()
+    }
+}
+
+impl Related<super::trade_asset::Entity> for Entity {
+    fn to() -> RelationDef {
+        Relation::TradeAsset.def()
     }
 }
 

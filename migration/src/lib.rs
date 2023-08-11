@@ -19,6 +19,7 @@ mod m20221112_151717_create_trade_tables;
 mod m20221117_235325_create_transaction;
 mod m20230217_011454_create_team_update;
 mod m20230811_152800_create_draft_pick_option_amendment;
+mod m20230811_160328_add_draft_pick_option_amendment_fk_to_trade_asset;
 
 pub struct Migrator;
 
@@ -40,6 +41,7 @@ impl MigratorTrait for Migrator {
             Box::new(m20221117_235325_create_transaction::Migration),
             Box::new(m20230217_011454_create_team_update::Migration),
             Box::new(m20230811_152800_create_draft_pick_option_amendment::Migration),
+            Box::new(m20230811_160328_add_draft_pick_option_amendment_fk_to_trade_asset::Migration),
         ]
     }
 }

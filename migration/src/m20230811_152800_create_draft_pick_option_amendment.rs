@@ -98,7 +98,7 @@ impl MigrationTrait for Migration {
 }
 
 #[derive(DeriveIden)]
-enum DraftPickOptionAmendment {
+pub enum DraftPickOptionAmendment {
     Table,
     Id,
     AmendedClause,

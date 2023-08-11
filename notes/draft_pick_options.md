@@ -52,5 +52,6 @@ I think the correct thing to do is to implement the following:
     3. Has the following Amendment Types:
         * `Nullify` / `Removal` / `Cancel` - Removes the effect of an option.
         * `Amend` - Changes the effect of the targeted option or adds to it.
+    4. Also similarly can't be traded after its initial creation and exists in the same space as the draft pick option(s) to which it is attached.
 
 This also means that I cannot continue in fleshing out trade processing until I implement the above.
