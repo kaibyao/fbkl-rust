@@ -100,24 +100,41 @@ impl ActiveModelBehavior for ActiveModel {
     where
         C: ConnectionTrait,
     {
-        validate_status(&self, db, is_insert).await?;
+        require_proposed_status_when_inserting(&self, is_insert)?;
+        validate_update_status(&self, db, is_insert).await?;
 
         Ok(self)
     }
 }
 
-async fn validate_status<C>(model: &ActiveModel, db: &C, is_insert: bool) -> Result<(), DbErr>
+fn require_proposed_status_when_inserting(
+    model: &ActiveModel,
+    is_insert: bool,
+) -> Result<(), DbErr> {
+    if !is_insert {
+        return Ok(());
+    }
+
+    if model.status != ActiveValue::Set(DraftPickOptionStatus::Proposed) {
+        Err(DbErr::Custom(
+            "A new draft pick option must be in the `Proposed` status.".to_string(),
+        ))
+    } else {
+        Ok(())
+    }
+}
+
+async fn validate_update_status<C>(
+    model: &ActiveModel,
+    db: &C,
+    is_insert: bool,
+) -> Result<(), DbErr>
 where
     C: ConnectionTrait,
 {
     if is_insert {
-        return if model.status != ActiveValue::Set(DraftPickOptionStatus::Proposed) {
-            Err(DbErr::Custom(
-                "A new draft pick option must be in the `Proposed` status.".to_string(),
-            ))
-        } else {
-            Ok(())
-        };
+        // handled by require_proposed_status_when_inserting()
+        return Ok(());
     }
 
     static VALID_BEFORE_AND_AFTER_STATUSES: Lazy<

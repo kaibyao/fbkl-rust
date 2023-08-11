@@ -104,18 +104,13 @@ where
 {
     let draft_pick_option = trade_asset_model.get_draft_pick_option(db).await?;
 
-    // Ensure that the draft pick option has a valid status.
+    // Ensure that the draft pick option is in a proposed status, as they can't be traded after creation.
     ensure!(
-        draft_pick_option.status == DraftPickOptionStatus::Proposed
-            || draft_pick_option.status == DraftPickOptionStatus::Active,
-        "Draft pick option (id={}) must have a valid status. (status = {:?})",
+        draft_pick_option.status == DraftPickOptionStatus::Proposed,
+        "Draft pick option (id={}) must have a `Proposed` status. (status = {:?})",
         draft_pick_option.id,
         draft_pick_option.status
     );
-
-    // Getting sleepy thinking about how someone may trade a draft pick option on its own without trading the attached pick, or how a pick may be traded without its option(s)
-
-    // The naiive
 
     Ok(())
 }
@@ -128,5 +123,6 @@ async fn validate_draft_pick_option_amendment_trade_asset<C>(
 where
     C: ConnectionTrait + Debug,
 {
+    // Ensure that the draft pick option amendment is in a proposed status, as they can't be traded after creation.
     Ok(())
 }
