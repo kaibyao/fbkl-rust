@@ -12,7 +12,7 @@ use sea_orm::{entity::prelude::*, ActiveValue};
 use serde::{Deserialize, Serialize};
 use tracing::instrument;
 
-use crate::{contract, draft_pick, draft_pick_option, team};
+use crate::{contract, draft_pick, draft_pick_option, draft_pick_option_amendment, team};
 
 #[derive(Clone, Debug, PartialEq, DeriveEntityModel, Eq, Serialize, Deserialize)]
 #[sea_orm(table_name = "trade_asset")]
@@ -56,7 +56,7 @@ impl Model {
     where
         C: ConnectionTrait + Debug,
     {
-        ensure!(self.asset_type == TradeAssetType::Contract, "Cannot get a related contract for a trade asset whose type is not `Contract`. (id = {}, asset type = {:?})", self.id, self.asset_type);
+        ensure!(self.asset_type == TradeAssetType::Contract, "Cannot retrieve a related contract for a trade asset whose type is not `Contract`. (id = {}, asset type = {:?})", self.id, self.asset_type);
 
         let maybe_contract = self.find_related(contract::Entity).one(db).await?;
 
@@ -74,7 +74,7 @@ impl Model {
     where
         C: ConnectionTrait + Debug,
     {
-        ensure!(self.asset_type == TradeAssetType::DraftPick, "Cannot get a related contract for a trade asset whose type is not `DraftPick`. (id = {}, asset type = {:?})", self.id, self.asset_type);
+        ensure!(self.asset_type == TradeAssetType::DraftPick, "Cannot retrieve a related draft pick for a trade asset whose type is not `DraftPick`. (id = {}, asset type = {:?})", self.id, self.asset_type);
 
         let maybe_draft_pick = self.find_related(draft_pick::Entity).one(db).await?;
 
@@ -92,13 +92,37 @@ impl Model {
     where
         C: ConnectionTrait + Debug,
     {
-        ensure!(self.asset_type == TradeAssetType::DraftPickOption, "Cannot get a related contract for a trade asset whose type is not `DraftPickOption`. (id = {}, asset type = {:?})", self.id, self.asset_type);
+        ensure!(self.asset_type == TradeAssetType::DraftPickOption, "Cannot retrieve a related draft pick option for a trade asset whose type is not `DraftPickOption`. (id = {}, asset type = {:?})", self.id, self.asset_type);
 
         let maybe_draft_pick_option = self.find_related(draft_pick_option::Entity).one(db).await?;
 
         maybe_draft_pick_option.ok_or_else(|| {
             eyre!(
                 "Could not find draft pick option related to trade asset: {}",
+                self.id
+            )
+        })
+    }
+
+    /// Retrieves the draft pick option amendment related to the trade asset, assuming that its `TradeAssetType` is `DraftPickOptionAmendment`.
+    #[instrument]
+    pub async fn get_draft_pick_option_amendment<C>(
+        &self,
+        db: &C,
+    ) -> Result<draft_pick_option_amendment::Model>
+    where
+        C: ConnectionTrait + Debug,
+    {
+        ensure!(self.asset_type == TradeAssetType::DraftPickOptionAmendment, "Cannot retrieve a related draft pick option amendment for a trade asset whose type is not `DraftPickOptionAmendment`. (id = {}, asset type = {:?})", self.id, self.asset_type);
+
+        let maybe_draft_pick_option_amendment = self
+            .find_related(draft_pick_option_amendment::Entity)
+            .one(db)
+            .await?;
+
+        maybe_draft_pick_option_amendment.ok_or_else(|| {
+            eyre!(
+                "Could not find draft pick option amendment related to trade asset: {}",
                 self.id
             )
         })

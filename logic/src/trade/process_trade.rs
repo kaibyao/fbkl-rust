@@ -1,10 +1,13 @@
 use std::fmt::Debug;
 
-use color_eyre::{eyre::ensure, Result};
+use color_eyre::{
+    eyre::{ensure, eyre},
+    Result,
+};
 use fbkl_entity::{
     contract, contract_queries,
-    draft_pick_option::DraftPickOptionStatus,
-    sea_orm::{ConnectionTrait, TransactionTrait},
+    draft_pick_option::{self, DraftPickOptionStatus},
+    sea_orm::{ConnectionTrait, ModelTrait, TransactionTrait},
     trade,
     trade_asset::{self, TradeAssetType},
 };
@@ -107,7 +110,7 @@ where
     // Ensure that the draft pick option is in a proposed status, as they can't be traded after creation.
     ensure!(
         draft_pick_option.status == DraftPickOptionStatus::Proposed,
-        "Draft pick option (id={}) must have a `Proposed` status. (status = {:?})",
+        "Draft pick option (id={}) must have a `Proposed` status (owners can only trade new draft pick options). (status = {:?})",
         draft_pick_option.id,
         draft_pick_option.status
     );
@@ -123,6 +126,25 @@ async fn validate_draft_pick_option_amendment_trade_asset<C>(
 where
     C: ConnectionTrait + Debug,
 {
-    // Ensure that the draft pick option amendment is in a proposed status, as they can't be traded after creation.
+    let draft_pick_option_amendment = trade_asset_model
+        .get_draft_pick_option_amendment(db)
+        .await?;
+    let draft_pick_option = draft_pick_option_amendment
+        .find_related(draft_pick_option::Entity)
+        .one(db)
+        .await?
+        .ok_or_else(|| {
+            eyre!(
+                "Could not find draft pick option related to draft pick option amendment (id = {})",
+                draft_pick_option_amendment.id
+            )
+        })?;
+
+    // Ensure that the draft pick amendment's targeted draft pick option is in a valid status, as they can't be traded after creation.
+    ensure!(
+        draft_pick_option.status != DraftPickOptionStatus::Active,
+        "Draft pick option must be active for an amendment to be processed."
+    );
+
     Ok(())
 }
