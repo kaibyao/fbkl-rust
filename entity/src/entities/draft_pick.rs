@@ -52,8 +52,19 @@ pub enum Relation {
 }
 
 impl Related<super::draft_pick_option::Entity> for Entity {
+    // The final relation is DraftPick -> DraftPickDraftPickOption -> DraftPickOption
     fn to() -> RelationDef {
-        Relation::DraftPickOption.def()
+        super::draft_pick_draft_pick_option::Relation::DraftPickOption.def()
+    }
+
+    fn via() -> Option<RelationDef> {
+        // The original relation is DraftPickDraftPickOption -> DraftPick,
+        // after `rev` it becomes DraftPick -> DraftPickDraftPickOption
+        Some(
+            super::draft_pick_draft_pick_option::Relation::DraftPick
+                .def()
+                .rev(),
+        )
     }
 }
 

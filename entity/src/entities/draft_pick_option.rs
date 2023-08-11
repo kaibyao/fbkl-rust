@@ -15,7 +15,6 @@ pub struct Model {
     #[sea_orm(primary_key)]
     pub id: i64,
     pub clause: String,
-    pub draft_pick_id: i64,
     pub status: DraftPickOptionStatus,
     pub created_at: DateTimeWithTimeZone,
     pub updated_at: DateTimeWithTimeZone,
@@ -58,21 +57,26 @@ pub enum DraftPickOptionStatus {
 
 #[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]
 pub enum Relation {
-    #[sea_orm(
-        belongs_to = "super::draft_pick::Entity",
-        from = "Column::DraftPickId",
-        to = "super::draft_pick::Column::Id",
-        on_update = "Cascade",
-        on_delete = "Cascade"
-    )]
+    #[sea_orm(has_many = "super::draft_pick::Entity")]
     DraftPick,
     #[sea_orm(has_many = "super::trade_asset::Entity")]
     TradeAsset,
 }
 
 impl Related<super::draft_pick::Entity> for Entity {
+    // The final relation is DraftPickOption -> DraftPickDraftPickOption -> DraftPick
     fn to() -> RelationDef {
-        Relation::DraftPick.def()
+        super::draft_pick_draft_pick_option::Relation::DraftPick.def()
+    }
+
+    fn via() -> Option<RelationDef> {
+        // The original relation is DraftPickDraftPickOption -> DraftPickOption,
+        // after `rev` it becomes DraftPickOption -> DraftPickDraftPickOption
+        Some(
+            super::draft_pick_draft_pick_option::Relation::DraftPickOption
+                .def()
+                .rev(),
+        )
     }
 }
 
