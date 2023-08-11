@@ -126,6 +126,8 @@ pub enum TradeAssetType {
     DraftPick,
     #[sea_orm(num_value = 2)]
     DraftPickOption,
+    // #[sea_orm(num_value = 3)]
+    // DraftPickOptionAmendment,
 }
 
 #[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]

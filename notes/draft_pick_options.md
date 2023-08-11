@@ -44,7 +44,7 @@ That said, my original thought of having a pick always move with its attached dr
 I think the correct thing to do is to implement the following:
 1. Allow a draft pick option to target 1 or more draft picks.
 2. Introduce a `Nullified` status (in case a protection is removed) to the Draft Pick option.
-3. Options wouldn't be something traded between teams. Rather, they exist in their own "space" within a League season. Any team that owns a draft pick that's targeted by an option would see that option's description on the draft pick.
+3. Options wouldn't be something traded between teams (after initial creation). Rather, they exist in their own "space" within a League season. Any team that owns a draft pick that's targeted by an option would see that option's description on the draft pick.
 4. Draft picks options would have a string clause that describes the option's effect. It's not really feasible to create a structure around the infinite ways in which teams can protect draft picks.
 5. Introduce a new data structure/schema for `Draft Pick Option Amendment`, which:
     1. Is something that can be traded/accepted in a trade.
