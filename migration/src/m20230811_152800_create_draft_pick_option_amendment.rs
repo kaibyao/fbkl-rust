@@ -33,6 +33,12 @@ impl MigrationTrait for Migration {
                             .default(0),
                     )
                     .col(
+                        ColumnDef::new(DraftPickOptionAmendment::Status)
+                            .small_integer()
+                            .not_null()
+                            .default(0),
+                    )
+                    .col(
                         ColumnDef::new(DraftPickOptionAmendment::CreatedAt)
                             .timestamp_with_time_zone()
                             .not_null()
@@ -103,6 +109,7 @@ pub enum DraftPickOptionAmendment {
     Id,
     AmendedClause,
     AmendmentType,
+    Status,
     DraftPickOptionId,
     CreatedAt,
     UpdatedAt,
