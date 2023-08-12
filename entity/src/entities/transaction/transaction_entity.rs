@@ -5,11 +5,12 @@ use color_eyre::{eyre::eyre, Result};
 use sea_orm::{entity::prelude::*, ConnectionTrait};
 use serde::{Deserialize, Serialize};
 
-use crate::deadline;
+use crate::{deadline, trade};
 
 use super::{
     auction_transaction::new_auction_transaction,
     keeper_deadline_transaction::new_keeper_deadline_transaction,
+    trade_transaction::new_trade_transaction,
 };
 
 /// A Transaction is any action taken by a user or the system that can change the state of a league or its teams.
@@ -61,6 +62,13 @@ impl Model {
     /// Creates a new Keeper Deadline transaction (note that there should only be one per league per year). Also note that this only creates the model, and does not persist the transaction to the database.
     pub fn new_keeper_deadline_transaction(keeper_deadline_model: &deadline::Model) -> ActiveModel {
         new_keeper_deadline_transaction(keeper_deadline_model)
+    }
+
+    pub fn new_trade_transaction(
+        deadline_model: &deadline::Model,
+        trade_model: &trade::Model,
+    ) -> ActiveModel {
+        new_trade_transaction(deadline_model, trade_model)
     }
 }
 

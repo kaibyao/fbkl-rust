@@ -1,7 +1,9 @@
 use std::fmt::Debug;
 
 use color_eyre::{eyre::eyre, Result};
-use sea_orm::{ColumnTrait, ConnectionTrait, EntityTrait, QueryFilter};
+use sea_orm::{
+    prelude::DateTimeWithTimeZone, ColumnTrait, ConnectionTrait, EntityTrait, QueryFilter,
+};
 use tracing::instrument;
 
 use crate::deadline::{self, DeadlineType};
@@ -26,5 +28,29 @@ where
         .one(db)
         .await?
         .ok_or_else(|| eyre!("Could not find a deadline for league (id = {}) and end-of-season year ({}) of type: {:?}.", league_id, end_of_season_year, deadline_type))?;
+    Ok(maybe_deadline_model)
+}
+
+/// Attempts to retrieve the deadline immediately on or after the the given datetime within a league season.
+#[instrument]
+pub async fn find_next_deadline_for_season_by_datetime<C>(
+    league_id: i64,
+    end_of_season_year: i16,
+    datetime: DateTimeWithTimeZone,
+    db: &C,
+) -> Result<deadline::Model>
+where
+    C: ConnectionTrait + Debug,
+{
+    let maybe_deadline_model = deadline::Entity::find()
+        .filter(
+            deadline::Column::LeagueId
+                .eq(league_id)
+                .and(deadline::Column::EndOfSeasonYear.eq(end_of_season_year))
+                .and(deadline::Column::DateTime.gte(datetime)),
+        )
+        .one(db)
+        .await?
+        .ok_or_else(|| eyre!("Could not find a deadline for league (id = {}) and end-of-season year ({}) after: {}.", league_id, end_of_season_year, datetime.to_string()))?;
     Ok(maybe_deadline_model)
 }

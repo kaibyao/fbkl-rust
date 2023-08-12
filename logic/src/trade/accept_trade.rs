@@ -2,7 +2,7 @@ use std::{collections::HashSet, fmt::Debug};
 
 use color_eyre::Result;
 use fbkl_entity::{
-    sea_orm::{ConnectionTrait, TransactionTrait},
+    sea_orm::{prelude::DateTimeWithTimeZone, ConnectionTrait, TransactionTrait},
     team_queries, team_user, trade,
     trade_action::TradeActionType,
     trade_action_queries, trade_queries,
@@ -16,6 +16,7 @@ use super::process_trade;
 pub async fn accept_trade<C>(
     trade_model: trade::Model,
     accepting_team_user_model: &team_user::Model,
+    accept_datetime: &DateTimeWithTimeZone,
     db: &C,
 ) -> Result<()>
 where
@@ -35,7 +36,7 @@ where
 
     // check if other teams have already accepted and if so, process the trade.
     if has_trade_been_accepted_by_all_teams(&trade_model, &db_txn).await? {
-        process_trade(trade_model, &db_txn).await?;
+        process_trade(trade_model, accept_datetime, &db_txn).await?;
     }
 
     db_txn.commit().await?;
