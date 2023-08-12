@@ -12,19 +12,19 @@ use fbkl_entity::{
 use tracing::instrument;
 
 #[instrument]
-pub async fn process_trade_assets<C>(trade_assets: Vec<trade_asset::Model>, db: &C) -> Result<()>
+pub async fn process_trade_assets<C>(trade_assets: &[trade_asset::Model], db: &C) -> Result<()>
 where
     C: ConnectionTrait + Debug,
 {
     for trade_asset in trade_assets {
         match trade_asset.asset_type {
-            TradeAssetType::Contract => update_trade_asset_contract(&trade_asset, db).await?,
-            TradeAssetType::DraftPick => update_trade_asset_draft_pick(&trade_asset, db).await?,
+            TradeAssetType::Contract => update_trade_asset_contract(trade_asset, db).await?,
+            TradeAssetType::DraftPick => update_trade_asset_draft_pick(trade_asset, db).await?,
             TradeAssetType::DraftPickOption => {
-                update_trade_asset_draft_pick_option(&trade_asset, db).await?
+                update_trade_asset_draft_pick_option(trade_asset, db).await?
             }
             TradeAssetType::DraftPickOptionAmendment => {
-                update_trade_asset_draft_pick_option_amendment(&trade_asset, db).await?
+                update_trade_asset_draft_pick_option_amendment(trade_asset, db).await?
             }
         };
     }
