@@ -89,6 +89,7 @@ where
 
     let team_update_data = team_update_model.get_data()?;
     match team_update_data {
+        TeamUpdateData::DraftPick(_) => bail!("Expected Keeper Deadline team update to be a roster update, but got draft pick instead: {:#?}", team_update_data),
         TeamUpdateData::Settings(_) => bail!("Expected Keeper Deadline team update to be a roster update, but got settings instead: {:#?}", team_update_data),
         TeamUpdateData::Roster(contract_updates) => {
             for contract_update in contract_updates {

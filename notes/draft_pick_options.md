@@ -55,3 +55,11 @@ I think the correct thing to do is to implement the following:
     4. Also similarly can't be traded after its initial creation and exists in the same space as the draft pick option(s) to which it is attached.
 
 This also means that I cannot continue in fleshing out trade processing until I implement the above.
+
+### Post-implementation updates
+
+Argh, this is what happens when I think about these things late at night and haven't given an idea enough time to marinate.
+
+I just realized that I don't need the structure around amendments, because I could just add another option to a draft pick instead. IE, if a draft pick already has an option, I can just add another option in a trade that says "Cancel / change the original option".
+
+Welp, time to remove the usage of "amendments" and change its callsites to create a new draft pick option instead. Sooooo much simpler.

@@ -8,6 +8,7 @@ use color_eyre::{eyre::Error, Result};
 use sea_orm::entity::prelude::*;
 use serde::{Deserialize, Serialize};
 
+/// A Team Update contains information about a change that was made to a team within a league. Anything that changes a team's settings, roster, or draft picks is stored as a Team Update. This allows us to look back at a team's history of changes.
 #[derive(Clone, Debug, PartialEq, Eq, DeriveEntityModel, Serialize, Deserialize)]
 #[sea_orm(table_name = "team_update")]
 pub struct Model {
@@ -65,10 +66,12 @@ pub enum TeamUpdateStatus {
 /// Used for storing the roster or settings updates made to the team.
 #[derive(Debug, Serialize, Deserialize)]
 pub enum TeamUpdateData {
-    /// The update to the team is a configuration change.
-    Settings(TeamSettingsChange),
+    /// The update to the team involves changes to its owned draft pick(s).
+    DraftPick(Vec<DraftPickUpdate>),
     /// The update to the team involves a roster change.
     Roster(Vec<ContractUpdate>),
+    /// The update to the team is a configuration change.
+    Settings(TeamSettingsChange),
 }
 
 impl TeamUpdateData {
@@ -83,6 +86,26 @@ impl TeamUpdateData {
         let decoded: Self = postcard::from_bytes(bytes_encoded)?;
         Ok(decoded)
     }
+}
+
+#[derive(Debug, Clone, Eq, PartialEq, Serialize, Deserialize)]
+pub struct DraftPickUpdate {
+    pub draft_pick_id: i64,
+    pub update_type: DraftPickUpdateType,
+    pub before_trade_owner_team_id: i64,
+    pub after_trade_owner_team_id: i64,
+    pub added_draft_pick_option_id: Option<i64>,
+}
+
+/// Represents the different types of updates that can happen to a team's draft pick(s)
+#[derive(Debug, Clone, Copy, Eq, PartialEq, Serialize, Deserialize)]
+pub enum DraftPickUpdateType {
+    /// A draft pick is traded to another team.
+    TradedAway,
+    /// A draft pick is added to the team via a completed trade.
+    AddViaTrade,
+    /// A draft pick option has been added to the draft pick.
+    DraftPickOptionAdded,
 }
 
 #[derive(Debug, Clone, Eq, PartialEq, Serialize, Deserialize)]
@@ -125,17 +148,6 @@ pub enum ContractUpdateType {
 pub struct TeamSettingsChange {
     pub users: Vec<TeamUpdateSettingUser>,
 }
-
-// impl TeamSettingsChange {
-//     fn from_team_users(team_user_models: Vec<team_user::Model>) -> Self {
-//         Self {
-//             users: team_user_models
-//                 .iter()
-//                 .map(TeamUpdateSettingUser::from_team_user)
-//                 .collect(),
-//         }
-//     }
-// }
 
 /// Like `team_user::Model`, but without the created_at/updated_at.
 #[derive(Debug, Serialize, Deserialize)]
@@ -253,10 +265,11 @@ mod tests {
         let decoded = TeamUpdateData::from_bytes(&encoded_bytes)?;
 
         match decoded {
-            TeamUpdateData::Settings(_) => panic!("Settings not expected"),
+            TeamUpdateData::DraftPick(_) => panic!("Draft picks not expected"),
             TeamUpdateData::Roster(contract_updates) => {
                 assert_eq!(contract_update, contract_updates[0]);
             }
+            TeamUpdateData::Settings(_) => panic!("Settings not expected"),
         };
 
         Ok(())
