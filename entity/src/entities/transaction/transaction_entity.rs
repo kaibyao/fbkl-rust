@@ -5,7 +5,7 @@ use color_eyre::{eyre::eyre, Result};
 use sea_orm::{entity::prelude::*, ConnectionTrait};
 use serde::{Deserialize, Serialize};
 
-use crate::{deadline, trade};
+use crate::deadline;
 
 use super::{
     auction_transaction::new_auction_transaction,
@@ -64,11 +64,8 @@ impl Model {
         new_keeper_deadline_transaction(keeper_deadline_model)
     }
 
-    pub fn new_trade_transaction(
-        deadline_model: &deadline::Model,
-        trade_model: &trade::Model,
-    ) -> ActiveModel {
-        new_trade_transaction(deadline_model, trade_model)
+    pub fn new_trade_transaction(deadline_model: &deadline::Model, trade_id: i64) -> ActiveModel {
+        new_trade_transaction(deadline_model, trade_id)
     }
 }
 

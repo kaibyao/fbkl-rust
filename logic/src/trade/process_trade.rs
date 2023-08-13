@@ -5,7 +5,7 @@ use fbkl_entity::{
     deadline_queries,
     sea_orm::{prelude::DateTimeWithTimeZone, ActiveModelTrait, ActiveValue, ConnectionTrait},
     trade::{self, TradeStatus},
-    transaction,
+    transaction_queries,
 };
 use tracing::instrument;
 
@@ -38,11 +38,12 @@ where
         db,
     )
     .await?;
-    let transaction_to_insert =
-        transaction::Model::new_trade_transaction(&next_deadline, &updated_trade);
-    let _inserted_transaction = transaction_to_insert.insert(db).await?;
+    transaction_queries::insert_trade_transaction(&next_deadline, updated_trade.id, db).await?;
 
-    invalidate_external_trades_with_traded_assets(traded_trade_assets, db).await
+    // Create team_update
+    todo!();
+
+    invalidate_external_trades_with_traded_assets(&updated_trade, traded_trade_assets, db).await
 }
 
 #[instrument]

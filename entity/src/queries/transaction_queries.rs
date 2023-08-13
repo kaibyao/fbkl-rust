@@ -1,9 +1,7 @@
 use std::fmt::Debug;
 
 use color_eyre::{eyre::eyre, Result};
-use sea_orm::{
-    ActiveModelTrait, ColumnTrait, ConnectionTrait, EntityTrait, QueryFilter, TransactionTrait,
-};
+use sea_orm::{ActiveModelTrait, ColumnTrait, ConnectionTrait, EntityTrait, QueryFilter};
 use tracing::instrument;
 
 use crate::{
@@ -59,10 +57,25 @@ pub async fn insert_auction_transaction<C>(
     db: &C,
 ) -> Result<transaction::Model>
 where
-    C: ConnectionTrait + TransactionTrait + Debug,
+    C: ConnectionTrait + Debug,
 {
     let transaction_to_insert =
         transaction::Model::new_auction_transaction(deadline_model, auction_id);
     let inserted_auction_transaction = transaction_to_insert.insert(db).await?;
     Ok(inserted_auction_transaction)
+}
+
+/// Creates & inserts a transaction tied to a completed trade.
+#[instrument]
+pub async fn insert_trade_transaction<C>(
+    deadline_model: &deadline::Model,
+    trade_id: i64,
+    db: &C,
+) -> Result<transaction::Model>
+where
+    C: ConnectionTrait + Debug,
+{
+    let transaction_to_insert = transaction::Model::new_trade_transaction(deadline_model, trade_id);
+    let inserted_transaction = transaction_to_insert.insert(db).await?;
+    Ok(inserted_transaction)
 }
