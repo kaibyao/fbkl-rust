@@ -4,7 +4,6 @@ use color_eyre::{eyre::eyre, Result};
 use fbkl_entity::{
     contract, draft_pick,
     draft_pick_option::{self, DraftPickOptionStatus},
-    draft_pick_option_amendment::{self, DraftPickOptionAmendmentStatus},
     prelude::{DraftPick, DraftPickDraftPickOption, DraftPickOption},
     sea_orm::{
         sea_query::Expr, ColumnTrait, ConnectionTrait, EntityTrait, LoaderTrait, QueryFilter,
@@ -34,20 +33,18 @@ where
 
     Based on the above paths, the point in which all paths merge is at: trade_assets (many) -> trades (many). We should use a Loader pattern for this query.
 
-    Before that, draft_pick_option_amendment and draft_pick_option both merge on draft_pick. The final merge paths look like the following:
+    Before that, draft_pick_option merges on draft_pick. The final merge paths look like the following:
 
-    trade_asset -> draft_pick_option_amendment ----\
-    trade_asset ---------------------------------> draft_pick_option --\
-    trade_asset -----------------------------------------------------> draft_pick --\
-    trade_asset -----------------------------------------------------> contract ----\
-                                                                                    trade_asset ----\
-                                                                                                    trade
+    trade_asset --> draft_pick_option --\
+    trade_asset ----------------------> draft_pick -\
+    trade_asset ----------------------> contract ---\
+                                                    trade_asset ----\
+                                                                    trade
     */
 
     let mut contract_trade_assets = vec![];
     let mut draft_pick_trade_assets = vec![];
     let mut draft_pick_option_trade_assets = vec![];
-    let mut draft_pick_option_amendment_trade_assets = vec![];
 
     // first group trade assets by their type
     for traded_asset in traded_assets {
@@ -55,9 +52,6 @@ where
             TradeAssetType::Contract => contract_trade_assets.push(traded_asset),
             TradeAssetType::DraftPick => draft_pick_trade_assets.push(traded_asset),
             TradeAssetType::DraftPickOption => draft_pick_option_trade_assets.push(traded_asset),
-            TradeAssetType::DraftPickOptionAmendment => {
-                draft_pick_option_amendment_trade_assets.push(traded_asset)
-            }
         };
     }
 
@@ -68,21 +62,9 @@ where
         get_external_trade_assets_related_to_traded_contracts(contract_trade_assets, db).await?;
     all_external_affected_trade_assets.extend(external_trade_assets_with_traded_contacts);
 
-    // merge draft_pick_option_amendment to draft_pick_option
-    let draft_pick_options_affected_by_traded_amendments =
-        get_draft_pick_options_affected_by_traded_amendments(
-            draft_pick_option_amendment_trade_assets,
-            db,
-        )
-        .await?;
-
     // merge draft_pick_option to draft_pick
-    let draft_picks_affected_by_affected_options = get_draft_picks_affected_by_affected_options(
-        draft_pick_option_trade_assets,
-        draft_pick_options_affected_by_traded_amendments,
-        db,
-    )
-    .await?;
+    let draft_picks_affected_by_affected_options =
+        get_draft_picks_affected_by_affected_options(draft_pick_option_trade_assets, db).await?;
 
     // merge draft_pick to trade_asset
     let external_trade_asset_with_affected_draft_picks =
@@ -138,54 +120,23 @@ where
 }
 
 #[instrument]
-async fn get_draft_pick_options_affected_by_traded_amendments<C>(
-    draft_pick_option_amendment_trade_assets: Vec<trade_asset::Model>,
-    db: &C,
-) -> Result<Vec<draft_pick_option::Model>>
-where
-    C: ConnectionTrait + Debug,
-{
-    let traded_draft_pick_option_amendments: Vec<draft_pick_option_amendment::Model> =
-        draft_pick_option_amendment_trade_assets
-            .load_many(draft_pick_option_amendment::Entity, db)
-            .await?
-            .into_iter()
-            .flatten()
-            .collect();
-    let draft_pick_options_affected_by_traded_amendments: Vec<draft_pick_option::Model> =
-        traded_draft_pick_option_amendments
-            .load_many(DraftPickOption, db)
-            .await?
-            .into_iter()
-            .flatten()
-            .collect();
-
-    Ok(draft_pick_options_affected_by_traded_amendments)
-}
-
-#[instrument]
 async fn get_draft_picks_affected_by_affected_options<C>(
     draft_pick_option_trade_assets: Vec<trade_asset::Model>,
-    draft_pick_options_affected_by_traded_amendments: Vec<draft_pick_option::Model>,
     db: &C,
 ) -> Result<Vec<draft_pick::Model>>
 where
     C: ConnectionTrait + Debug,
 {
-    let traded_draft_pick_options: Vec<draft_pick_option::Model> = draft_pick_option_trade_assets
-        .load_many(DraftPickOption, db)
-        .await?
-        .into_iter()
-        .flatten()
-        .collect();
-    let mut all_affected_draft_pick_options = vec![
-        draft_pick_options_affected_by_traded_amendments,
-        traded_draft_pick_options,
-    ]
-    .concat();
-    all_affected_draft_pick_options.dedup_by_key(|draft_pick_option| draft_pick_option.id);
+    let mut traded_draft_pick_options: Vec<draft_pick_option::Model> =
+        draft_pick_option_trade_assets
+            .load_many(DraftPickOption, db)
+            .await?
+            .into_iter()
+            .flatten()
+            .collect();
+    traded_draft_pick_options.dedup_by_key(|draft_pick_option| draft_pick_option.id);
     let draft_picks_affected_by_affected_options: Vec<draft_pick::Model> =
-        all_affected_draft_pick_options
+        traded_draft_pick_options
             .load_many_to_many(DraftPick, DraftPickDraftPickOption, db)
             .await?
             .into_iter()
@@ -259,34 +210,21 @@ where
         .collect();
 
     let mut external_draft_pick_option_trade_assets = vec![];
-    let mut external_draft_pick_option_amendment_trade_assets = vec![];
 
     // first group trade assets by their type
     for external_trade_asset in external_trade_assets {
-        match external_trade_asset.asset_type {
-            TradeAssetType::DraftPickOption => {
-                external_draft_pick_option_trade_assets.push(external_trade_asset)
-            }
-            TradeAssetType::DraftPickOptionAmendment => {
-                external_draft_pick_option_amendment_trade_assets.push(external_trade_asset)
-            }
-            // don't care about contracts and draft picks, as they've already been updated
-            _ => (),
+        // don't care about contracts and draft picks, as they've already been updated
+        if TradeAssetType::DraftPickOption == external_trade_asset.asset_type {
+            external_draft_pick_option_trade_assets.push(external_trade_asset)
         };
     }
 
-    invalidate_external_trade_draft_pick_options(
-        external_draft_pick_option_trade_assets,
-        external_draft_pick_option_amendment_trade_assets,
-        db,
-    )
-    .await
+    invalidate_external_trade_draft_pick_options(external_draft_pick_option_trade_assets, db).await
 }
 
 #[instrument]
 async fn invalidate_external_trade_draft_pick_options<C>(
     external_draft_pick_option_trade_assets: Vec<trade_asset::Model>,
-    external_draft_pick_option_amendment_trade_assets: Vec<trade_asset::Model>,
     db: &C,
 ) -> Result<()>
 where
@@ -299,18 +237,6 @@ where
             Expr::value(DraftPickOptionStatus::InvalidatedByExternalTrade),
         )
         .filter(draft_pick_option::Column::Id.is_in(affected_draft_pick_option_ids))
-        .exec(db)
-        .await?;
-
-    let affected_draft_pick_option_amendment_ids = external_draft_pick_option_amendment_trade_assets.iter().map(|draft_pick_option_amendment_trade_asset| draft_pick_option_amendment_trade_asset.draft_pick_option_amendment_id.ok_or_else(|| eyre!("Couldn't get draft pick option amendment id of supposed draft pick option amendment trade asset (id = {})", draft_pick_option_amendment_trade_asset.id))).collect::<Result<Vec<i64>>>()?;
-    draft_pick_option_amendment::Entity::update_many()
-        .col_expr(
-            draft_pick_option_amendment::Column::Status,
-            Expr::value(DraftPickOptionAmendmentStatus::InvalidatedByExternalTrade),
-        )
-        .filter(
-            draft_pick_option_amendment::Column::Id.is_in(affected_draft_pick_option_amendment_ids),
-        )
         .exec(db)
         .await?;
 

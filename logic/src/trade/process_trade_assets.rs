@@ -5,7 +5,6 @@ use fbkl_entity::{
     contract::{self, ContractStatus},
     draft_pick,
     draft_pick_option::{self, DraftPickOptionStatus},
-    draft_pick_option_amendment::{self, DraftPickOptionAmendmentStatus},
     sea_orm::{ActiveModelTrait, ActiveValue, ConnectionTrait},
     trade_asset::{self, TradeAssetType},
 };
@@ -22,9 +21,6 @@ where
             TradeAssetType::DraftPick => update_trade_asset_draft_pick(trade_asset, db).await?,
             TradeAssetType::DraftPickOption => {
                 update_trade_asset_draft_pick_option(trade_asset, db).await?
-            }
-            TradeAssetType::DraftPickOptionAmendment => {
-                update_trade_asset_draft_pick_option_amendment(trade_asset, db).await?
             }
         };
     }
@@ -78,22 +74,6 @@ where
 
     draft_pick_option_to_update.status = ActiveValue::Set(DraftPickOptionStatus::Active);
     draft_pick_option_to_update.update(db).await?;
-
-    Ok(())
-}
-
-#[instrument]
-async fn update_trade_asset_draft_pick_option_amendment<C>(
-    trade_asset: &trade_asset::Model,
-    db: &C,
-) -> Result<()>
-where
-    C: ConnectionTrait + Debug,
-{
-    let amendment = trade_asset.get_draft_pick_option_amendment(db).await?;
-    let mut amendment_to_update: draft_pick_option_amendment::ActiveModel = amendment.into();
-    amendment_to_update.status = ActiveValue::Set(DraftPickOptionAmendmentStatus::Active);
-    amendment_to_update.update(db).await?;
 
     Ok(())
 }

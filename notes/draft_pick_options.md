@@ -46,13 +46,13 @@ I think the correct thing to do is to implement the following:
 2. Introduce a `Nullified` status (in case a protection is removed) to the Draft Pick option.
 3. Options wouldn't be something traded between teams (after initial creation). Rather, they exist in their own "space" within a League season. Any team that owns a draft pick that's targeted by an option would see that option's description on the draft pick.
 4. Draft picks options would have a string clause that describes the option's effect. It's not really feasible to create a structure around the infinite ways in which teams can protect draft picks.
-5. Introduce a new data structure/schema for `Draft Pick Option Amendment`, which:
-    1. Is something that can be traded/accepted in a trade.
-    2. Can target a draft pick option that: A) targets any draft pick currently owned by any team involved in the trade, and B) cannot target a draft pick option that targets a draft pick owned by a team that's not involved in the trade.
-    3. Has the following Amendment Types:
-        * `Nullify` / `Removal` / `Cancel` - Removes the effect of an option.
-        * `Amend` - Changes the effect of the targeted option or adds to it.
-    4. Also similarly can't be traded after its initial creation and exists in the same space as the draft pick option(s) to which it is attached.
+5. (Updated: see below.) ~~Introduce a new data structure/schema for `Draft Pick Option Amendment`, which:~~
+    1. ~~Is something that can be traded/accepted in a trade.~~
+    1. ~~Can target a draft pick option that: A) targets any draft pick currently owned by any team involved in the trade, and B) cannot target a draft pick option that targets a draft pick owned by a team that's not involved in the trade.~~
+    1. ~~Has the following Amendment Types:~~
+        * ~~`Nullify` / `Removal` / `Cancel` - Removes the effect of an option.~~
+        * ~~`Amend` - Changes the effect of the targeted option or adds to it.~~
+    1. ~~Also similarly can't be traded after its initial creation and exists in the same space as the draft pick option(s) to which it is attached.~~
 
 This also means that I cannot continue in fleshing out trade processing until I implement the above.
 
@@ -60,6 +60,6 @@ This also means that I cannot continue in fleshing out trade processing until I 
 
 Argh, this is what happens when I think about these things late at night and haven't given an idea enough time to marinate.
 
-I just realized that I don't need the structure around amendments, because I could just add another option to a draft pick instead. IE, if a draft pick already has an option, I can just add another option in a trade that says "Cancel / change the original option".
+I just realized that I don't need the structure around amendments, because I could just add another option to a draft pick instead. IE, if a draft pick already has an option, I can just add another option (in a trade) to that draft pick with a clause that says "Cancel / change the original option".
 
 Welp, time to remove the usage of "amendments" and change its callsites to create a new draft pick option instead. Sooooo much simpler.

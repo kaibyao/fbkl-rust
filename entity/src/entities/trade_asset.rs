@@ -12,7 +12,7 @@ use sea_orm::{entity::prelude::*, ActiveValue};
 use serde::{Deserialize, Serialize};
 use tracing::instrument;
 
-use crate::{contract, draft_pick, draft_pick_option, draft_pick_option_amendment, team};
+use crate::{contract, draft_pick, draft_pick_option, team};
 
 #[derive(Clone, Debug, PartialEq, DeriveEntityModel, Eq, Serialize, Deserialize)]
 #[sea_orm(table_name = "trade_asset")]
@@ -21,7 +21,6 @@ pub struct Model {
     pub id: i64,
     pub asset_type: TradeAssetType,
     pub draft_pick_option_id: Option<i64>,
-    pub draft_pick_option_amendment_id: Option<i64>,
     pub contract_id: Option<i64>,
     pub draft_pick_id: Option<i64>,
     pub from_team_id: i64,
@@ -43,7 +42,6 @@ impl Model {
             contract_id: ActiveValue::Set(Some(contract_id)),
             draft_pick_id: ActiveValue::NotSet,
             draft_pick_option_id: ActiveValue::NotSet,
-            draft_pick_option_amendment_id: ActiveValue::NotSet,
             from_team_id: ActiveValue::Set(from_team_id),
             to_team_id: ActiveValue::Set(to_team_id),
             trade_id: trade_id.map_or(ActiveValue::NotSet, ActiveValue::Set),
@@ -103,30 +101,6 @@ impl Model {
             )
         })
     }
-
-    /// Retrieves the draft pick option amendment related to the trade asset, assuming that its `TradeAssetType` is `DraftPickOptionAmendment`.
-    #[instrument]
-    pub async fn get_draft_pick_option_amendment<C>(
-        &self,
-        db: &C,
-    ) -> Result<draft_pick_option_amendment::Model>
-    where
-        C: ConnectionTrait + Debug,
-    {
-        ensure!(self.asset_type == TradeAssetType::DraftPickOptionAmendment, "Cannot retrieve a related draft pick option amendment for a trade asset whose type is not `DraftPickOptionAmendment`. (id = {}, asset type = {:?})", self.id, self.asset_type);
-
-        let maybe_draft_pick_option_amendment = self
-            .find_related(draft_pick_option_amendment::Entity)
-            .one(db)
-            .await?;
-
-        maybe_draft_pick_option_amendment.ok_or_else(|| {
-            eyre!(
-                "Could not find draft pick option amendment related to trade asset: {}",
-                self.id
-            )
-        })
-    }
 }
 
 /// Represents the different types of assets (contracts, draft picks, etc.) that can be traded.
@@ -152,8 +126,6 @@ pub enum TradeAssetType {
     DraftPick,
     #[sea_orm(num_value = 2)]
     DraftPickOption,
-    #[sea_orm(num_value = 3)]
-    DraftPickOptionAmendment,
 }
 
 #[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]
@@ -176,8 +148,6 @@ pub enum Relation {
     DraftPick,
     #[sea_orm(has_one = "super::draft_pick_option::Entity")]
     DraftPickOption,
-    #[sea_orm(has_one = "super::draft_pick_option_amendment::Entity")]
-    DraftPickOptionAmendment,
     #[sea_orm(
         belongs_to = "super::team::Entity",
         from = "Column::FromTeamId",
@@ -222,12 +192,6 @@ impl Related<super::draft_pick_option::Entity> for Entity {
     }
 }
 
-impl Related<super::draft_pick_option_amendment::Entity> for Entity {
-    fn to() -> RelationDef {
-        Relation::DraftPickOptionAmendment.def()
-    }
-}
-
 impl Related<super::trade::Entity> for Entity {
     fn to() -> RelationDef {
         Relation::Trade.def()
@@ -265,7 +229,6 @@ impl ActiveModelBehavior for ActiveModel {
         validate_trade_asset_for_contract(&self)?;
         validate_trade_asset_for_draft_pick(&self)?;
         validate_trade_asset_for_draft_pick_option(&self)?;
-        validate_trade_asset_for_draft_pick_option_amendment(&self)?;
 
         Ok(self)
     }
@@ -274,13 +237,6 @@ impl ActiveModelBehavior for ActiveModel {
 fn validate_trade_asset_for_contract(model: &ActiveModel) -> Result<(), DbErr> {
     if !model.asset_type.as_ref().eq(&TradeAssetType::Contract) {
         return Ok(());
-    }
-
-    if model.draft_pick_option_amendment_id.is_set() {
-        return Err(DbErr::Custom(format!(
-            "A trade asset of type=Contract should not have a draft pick option amendment id. Team: {}.",
-            model.from_team_id.as_ref()
-        )));
     }
 
     if model.draft_pick_option_id.is_set() {
@@ -304,13 +260,6 @@ fn validate_trade_asset_for_contract(model: &ActiveModel) -> Result<(), DbErr> {
 fn validate_trade_asset_for_draft_pick(model: &ActiveModel) -> Result<(), DbErr> {
     if !model.asset_type.as_ref().eq(&TradeAssetType::DraftPick) {
         return Ok(());
-    }
-
-    if model.draft_pick_option_amendment_id.is_set() {
-        return Err(DbErr::Custom(format!(
-            "A trade asset of type=DraftPick should not have a draft pick option amendment id. Team: {}.",
-            model.from_team_id.as_ref()
-        )));
     }
 
     if model.draft_pick_option_id.is_set() {
@@ -340,13 +289,6 @@ fn validate_trade_asset_for_draft_pick_option(model: &ActiveModel) -> Result<(),
         return Ok(());
     }
 
-    if model.draft_pick_option_amendment_id.is_set() {
-        return Err(DbErr::Custom(format!(
-            "A trade asset of type=DraftPickOption should not have a draft pick option amendment id. Team: {}.",
-            model.from_team_id.as_ref()
-        )));
-    }
-
     if model.draft_pick_id.is_set() {
         return Err(DbErr::Custom(format!(
             "A trade asset of type=DraftPickOption should not have a draft pick id (redundant with draft_pick_option.draft_pick_id). Team: {}.",
@@ -360,40 +302,6 @@ fn validate_trade_asset_for_draft_pick_option(model: &ActiveModel) -> Result<(),
 
     if model.contract_id.is_set() {
         return Err(DbErr::Custom(format!("A trade asset of type=DraftPickOption should not have a contract. Team: {}. Draft pick id: {:?}", model.from_team_id.as_ref(), model.draft_pick_id.as_ref())));
-    }
-
-    Ok(())
-}
-
-fn validate_trade_asset_for_draft_pick_option_amendment(model: &ActiveModel) -> Result<(), DbErr> {
-    if !model
-        .asset_type
-        .as_ref()
-        .eq(&TradeAssetType::DraftPickOptionAmendment)
-    {
-        return Ok(());
-    }
-
-    if model.draft_pick_id.is_set() {
-        return Err(DbErr::Custom(format!(
-            "A trade asset of type=DraftPickOptionAmendment should not have a draft pick id (redundant with draft_pick_option.draft_pick_id). Team: {}.",
-            model.from_team_id.as_ref()
-        )));
-    }
-
-    if model.draft_pick_option_id.is_set() {
-        return Err(DbErr::Custom(format!("A trade asset of type=DraftPickOptionAmendment should not have a draft pick option id. Team: {}. Draft pick option id: {:?}", model.from_team_id.as_ref(), model.draft_pick_option_id.as_ref())));
-    }
-
-    if model.contract_id.is_set() {
-        return Err(DbErr::Custom(format!("A trade asset of type=DraftPickOptionAmendment should not have a contract. Team: {}. Draft pick id: {:?}", model.from_team_id.as_ref(), model.draft_pick_id.as_ref())));
-    }
-
-    if model.draft_pick_option_amendment_id.is_not_set() {
-        return Err(DbErr::Custom(format!(
-            "A trade asset of type=DraftPickOptionAmendment requires an amendment id. Team: {}.",
-            model.from_team_id.as_ref()
-        )));
     }
 
     Ok(())

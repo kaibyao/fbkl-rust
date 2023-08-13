@@ -62,8 +62,6 @@ pub enum DraftPickOptionStatus {
 pub enum Relation {
     #[sea_orm(has_many = "super::draft_pick::Entity")]
     DraftPick,
-    #[sea_orm(has_many = "super::draft_pick_option_amendment::Entity")]
-    DraftPickOptionAmendment,
     #[sea_orm(has_one = "super::trade_asset::Entity")]
     TradeAsset,
 }
@@ -82,12 +80,6 @@ impl Related<super::draft_pick::Entity> for Entity {
                 .def()
                 .rev(),
         )
-    }
-}
-
-impl Related<super::draft_pick_option_amendment::Entity> for Entity {
-    fn to() -> RelationDef {
-        Relation::DraftPickOptionAmendment.def()
     }
 }
 
