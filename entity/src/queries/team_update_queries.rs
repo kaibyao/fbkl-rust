@@ -12,7 +12,9 @@ use crate::{
     auction_bid,
     contract::{self, ContractType, RelatedPlayer},
     contract_queries, team,
-    team_update::{self, ContractUpdate, ContractUpdateType, TeamUpdateData, TeamUpdateStatus},
+    team_update::{
+        self, ContractUpdate, ContractUpdateType, TeamUpdateAsset, TeamUpdateData, TeamUpdateStatus,
+    },
     transaction,
 };
 
@@ -78,13 +80,13 @@ where
     let contract_update_player_data =
         ContractUpdatePlayerData::from_contract_model(signed_contract_model, db).await?;
 
-    let data = TeamUpdateData::Roster(vec![ContractUpdate {
+    let data = TeamUpdateData::Assets(vec![TeamUpdateAsset::Contracts(vec![ContractUpdate {
         contract_id: signed_contract_model.id,
         player_name_at_time_of_trade: contract_update_player_data.player_name,
         player_team_abbr_at_time_of_trade: contract_update_player_data.real_team_abbr,
         player_team_name_at_time_of_trade: contract_update_player_data.real_team_name,
         update_type: ContractUpdateType::AddViaAuction,
-    }]);
+    }])]);
     let deadline_model = auction_transaction_model.get_deadline(db).await?;
     let team_model = winning_auction_bid_model.get_team(db).await?;
     let new_team_update = team_update::ActiveModel {
@@ -196,7 +198,8 @@ where
             });
         }
     }
-    let team_update_data = TeamUpdateData::Roster(contract_updates);
+    let team_update_data =
+        TeamUpdateData::Assets(vec![TeamUpdateAsset::Contracts(contract_updates)]);
     Ok(team_update_data)
 }
 

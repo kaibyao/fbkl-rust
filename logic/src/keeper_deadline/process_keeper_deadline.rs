@@ -7,7 +7,7 @@ use fbkl_entity::{
     deadline::DeadlineType,
     deadline_queries,
     sea_orm::{ConnectionTrait, ModelTrait},
-    team_update::{self, ContractUpdateType, TeamUpdateData, TeamUpdateStatus},
+    team_update::{self, ContractUpdateType, TeamUpdateAsset, TeamUpdateData, TeamUpdateStatus},
     team_update_queries, transaction,
 };
 use std::{collections::HashMap, fmt::Debug};
@@ -89,24 +89,30 @@ where
 
     let team_update_data = team_update_model.get_data()?;
     match team_update_data {
-        TeamUpdateData::DraftPick(_) => bail!("Expected Keeper Deadline team update to be a roster update, but got draft pick instead: {:#?}", team_update_data),
-        TeamUpdateData::Settings(_) => bail!("Expected Keeper Deadline team update to be a roster update, but got settings instead: {:#?}", team_update_data),
-        TeamUpdateData::Roster(contract_updates) => {
-            for contract_update in contract_updates {
-                match contract_update.update_type {
-                    ContractUpdateType::Keeper => {
-                        num_contracts_kept += 1;
-                    },
-                    ContractUpdateType::Drop => {
-                        let related_league_contract = active_league_contracts_by_id.remove(&contract_update.contract_id).ok_or_else(|| eyre!("Contract referred by keeper deadline team update is not an active contract or wasn't found. contract_id: {}", contract_update.contract_id))?;
-                        contract_queries::drop_contract(related_league_contract, true, db).await?;
+        TeamUpdateData::Assets(updated_assets) => {
+            for updated_asset in updated_assets {
+                match updated_asset {
+                    TeamUpdateAsset::Contracts(updated_contracts) => {
+                        for contract_update in updated_contracts {
+                            match contract_update.update_type {
+                                ContractUpdateType::Keeper => {
+                                    num_contracts_kept += 1;
+                                },
+                                ContractUpdateType::Drop => {
+                                    let related_league_contract = active_league_contracts_by_id.remove(&contract_update.contract_id).ok_or_else(|| eyre!("Contract referred by keeper deadline team update is not an active contract or wasn't found. contract_id: {}", contract_update.contract_id))?;
+                                    contract_queries::drop_contract(related_league_contract, true, db).await?;
 
-                        num_contracts_dropped += 1;
+                                    num_contracts_dropped += 1;
+                                },
+                                x => bail!("Did not expect contract update type while processing keeper deadline: {:#?}", x),
+                            }
+                        }
                     },
-                    x => bail!("Did not expect contract update type while processing keeper deadline: {:#?}", x),
+                    TeamUpdateAsset::DraftPicks(updated_draft_picks) => bail!("Expected Keeper Deadline team update to be a contract update, but got draft pick instead: {:#?}", updated_draft_picks),
                 }
             }
         }
+        TeamUpdateData::Settings(_) => bail!("Expected Keeper Deadline team update to be a contract update, but got settings instead: {:#?}", team_update_data),
     };
 
     Ok((num_contracts_kept, num_contracts_dropped))

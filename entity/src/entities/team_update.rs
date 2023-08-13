@@ -64,14 +64,21 @@ pub enum TeamUpdateStatus {
 }
 
 /// Used for storing the roster or settings updates made to the team.
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, PartialEq)]
 pub enum TeamUpdateData {
-    /// The update to the team involves changes to its owned draft pick(s).
-    DraftPick(Vec<DraftPickUpdate>),
-    /// The update to the team involves a roster change.
-    Roster(Vec<ContractUpdate>),
+    /// The update to the team involves changes to its owned assets.
+    Assets(Vec<TeamUpdateAsset>),
     /// The update to the team is a configuration change.
     Settings(TeamSettingsChange),
+}
+
+/// Stores information about changes made to a team's assets.
+#[derive(Debug, Serialize, Deserialize, PartialEq)]
+pub enum TeamUpdateAsset {
+    /// The update to the team involves a roster change.
+    Contracts(Vec<ContractUpdate>),
+    /// The update to the team involves changes to its owned draft pick(s).
+    DraftPicks(Vec<DraftPickUpdate>),
 }
 
 impl TeamUpdateData {
@@ -88,6 +95,7 @@ impl TeamUpdateData {
     }
 }
 
+/// Stores data for an update to a team's draft pick.
 #[derive(Debug, Clone, Eq, PartialEq, Serialize, Deserialize)]
 pub struct DraftPickUpdate {
     pub draft_pick_id: i64,
@@ -108,6 +116,7 @@ pub enum DraftPickUpdateType {
     DraftPickOptionAdded,
 }
 
+/// Stores data for an update to a team's contract.
 #[derive(Debug, Clone, Eq, PartialEq, Serialize, Deserialize)]
 pub struct ContractUpdate {
     pub contract_id: i64,
@@ -144,13 +153,13 @@ pub enum ContractUpdateType {
     LostViaFreeAgency,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, PartialEq)]
 pub struct TeamSettingsChange {
     pub users: Vec<TeamUpdateSettingUser>,
 }
 
 /// Like `team_user::Model`, but without the created_at/updated_at.
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, PartialEq)]
 pub struct TeamUpdateSettingUser {
     pub id: i64,
     pub league_role: LeagueRole,
@@ -221,9 +230,9 @@ impl ActiveModelBehavior for ActiveModel {
 fn roster_change_requires_transaction(model: &ActiveModel) -> Result<(), DbErr> {
     let decoded_data = TeamUpdateData::from_bytes(model.data.as_ref())
         .map_err(|err| DbErr::Custom(err.to_string()))?;
-    let is_roster_update = matches!(decoded_data, TeamUpdateData::Roster(_));
+    let is_assets_update = matches!(decoded_data, TeamUpdateData::Assets(_));
 
-    if is_roster_update && model.transaction_id.is_not_set() {
+    if is_assets_update && model.transaction_id.is_not_set() {
         Err(DbErr::Custom(
             "A team update (roster change) requires a transaction id.".to_string(),
         ))
@@ -259,18 +268,23 @@ mod tests {
             player_team_abbr_at_time_of_trade: "BOS".to_string(),
             player_team_name_at_time_of_trade: "Boston Celtics".to_string(),
         };
-        let team_update_data = TeamUpdateData::Roster(vec![contract_update.clone()]);
+        let draft_pick_update = DraftPickUpdate {
+            draft_pick_id: 1,
+            update_type: DraftPickUpdateType::AddViaTrade,
+            before_trade_owner_team_id: 1,
+            after_trade_owner_team_id: 2,
+            added_draft_pick_option_id: None,
+        };
+        let team_update_assets = vec![
+            TeamUpdateAsset::DraftPicks(vec![draft_pick_update]),
+            TeamUpdateAsset::Contracts(vec![contract_update]),
+        ];
+        let team_update_data = TeamUpdateData::Assets(team_update_assets);
 
         let encoded_bytes = team_update_data.as_bytes()?;
         let decoded = TeamUpdateData::from_bytes(&encoded_bytes)?;
 
-        match decoded {
-            TeamUpdateData::DraftPick(_) => panic!("Draft picks not expected"),
-            TeamUpdateData::Roster(contract_updates) => {
-                assert_eq!(contract_update, contract_updates[0]);
-            }
-            TeamUpdateData::Settings(_) => panic!("Settings not expected"),
-        };
+        assert_eq!(decoded, team_update_data);
 
         Ok(())
     }
