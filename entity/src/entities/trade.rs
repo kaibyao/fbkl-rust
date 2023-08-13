@@ -39,7 +39,7 @@ impl Model {
     }
 
     #[instrument]
-    pub async fn get_traded_assets<C>(&self, db: &C) -> Result<Vec<super::trade_asset::Model>>
+    pub async fn get_trade_assets<C>(&self, db: &C) -> Result<Vec<super::trade_asset::Model>>
     where
         C: ConnectionTrait + Debug,
     {
@@ -56,6 +56,11 @@ impl Model {
         Ok(teams)
     }
 
+    pub fn is_active(&self) -> bool {
+        self.status == TradeStatus::Proposed || self.status == TradeStatus::Counteroffered
+    }
+
+    #[instrument]
     pub async fn is_latest_in_chain<C>(&self, db: &C) -> Result<bool>
     where
         C: ConnectionTrait + Debug,
@@ -107,10 +112,10 @@ pub enum TradeStatus {
     /// Trade has been canceled by the proposing team.
     #[sea_orm(num_value = 2)]
     Canceled,
-    /// Trade has been rejected by the responding team.
+    /// Trade has been rejected by a responding team.
     #[sea_orm(num_value = 3)]
     Rejected,
-    /// Trade has been counter-offered by the responding team.
+    /// Trade has been counter-offered by a responding team.
     #[sea_orm(num_value = 4)]
     Counteroffered,
     /// Trade has been invalidated by another trade that was processed that involves any of the offered assets.

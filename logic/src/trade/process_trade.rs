@@ -5,13 +5,16 @@ use fbkl_entity::{
     deadline_queries,
     sea_orm::{prelude::DateTimeWithTimeZone, ActiveModelTrait, ActiveValue, ConnectionTrait},
     trade::{self, TradeStatus},
-    trade_asset, transaction,
+    transaction,
 };
 use tracing::instrument;
 
-use super::{process_trade_assets, validate_trade_assets};
+use super::{
+    external_trade_invalidation::invalidate_external_trades_with_traded_assets,
+    process_trade_assets, validate_trade_assets,
+};
 
-/// Moves assets between teams for a created trade, updates the trade status to completed, and creates the appropriate transaction.
+/// Moves assets between teams for a created trade, updates the trade status to `completed`, creates the appropriate transaction, and invalidates all other pending trades that include any of the traded assets.
 #[instrument]
 pub async fn process_trade<C>(
     trade_model: trade::Model,
@@ -21,7 +24,7 @@ pub async fn process_trade<C>(
 where
     C: ConnectionTrait + Debug,
 {
-    let traded_trade_assets = trade_model.get_traded_assets(db).await?;
+    let traded_trade_assets = trade_model.get_trade_assets(db).await?;
     validate_trade_assets(&traded_trade_assets, &trade_model, db).await?;
 
     process_trade_assets(&traded_trade_assets, db).await?;
@@ -39,10 +42,7 @@ where
         transaction::Model::new_trade_transaction(&next_deadline, &updated_trade);
     let _inserted_transaction = transaction_to_insert.insert(db).await?;
 
-    // invalidate other trades that may involve any of the moved trade assets
-    invalidate_external_trades_with_traded_assets(&traded_trade_assets, db).await?;
-
-    Ok(())
+    invalidate_external_trades_with_traded_assets(traded_trade_assets, db).await
 }
 
 #[instrument]
@@ -55,15 +55,4 @@ where
     let updated_trade = trade_to_update.update(db).await?;
 
     Ok(updated_trade)
-}
-
-#[instrument]
-async fn invalidate_external_trades_with_traded_assets<C>(
-    traded_assets: &[trade_asset::Model],
-    db: &C,
-) -> Result<()>
-where
-    C: ConnectionTrait + Debug,
-{
-    Ok(())
 }

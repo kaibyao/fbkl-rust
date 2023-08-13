@@ -23,6 +23,11 @@ pub async fn validate_trade_assets<C>(
 where
     C: ConnectionTrait + Debug,
 {
+    ensure!(
+        !trade_asset_models.is_empty(),
+        "Cannot process a trade with no trade assets."
+    );
+
     for trade_asset_model in trade_asset_models {
         match trade_asset_model.asset_type {
             TradeAssetType::Contract => {

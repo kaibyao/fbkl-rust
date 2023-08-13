@@ -8,6 +8,7 @@ use once_cell::sync::Lazy;
 use sea_orm::{entity::prelude::*, ActiveValue};
 use serde::{Deserialize, Serialize};
 
+/// A Draft Pick Option Amendment is an addition or change to the clause of a draft pick option. It can also be the removal of a draft pick option. They are first created in a trade proposal and become active when a trade is processed.
 #[derive(Clone, Debug, PartialEq, DeriveEntityModel, Eq, Serialize, Deserialize)]
 #[sea_orm(table_name = "draft_pick_option_amendment")]
 pub struct Model {
@@ -48,9 +49,12 @@ pub enum DraftPickOptionAmendmentStatus {
     /// This draft pick option has been activated + used on the draft pick.
     #[sea_orm(num_value = 2)]
     Used,
-    /// The trade did not go through and this option died.
+    /// The trade did not go through and this amendment died.
     #[sea_orm(num_value = 3)]
     CancelledViaTradeRejection,
+    /// Trade has been invalidated by another trade that was processed that involves the draft pick related to this option targeted by the amendment.
+    #[sea_orm(num_value = 4)]
+    InvalidatedByExternalTrade,
 }
 
 /// Represents the different types of amendments that can be applied to a Draft Pick Option.

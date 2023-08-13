@@ -53,6 +53,9 @@ pub enum DraftPickOptionStatus {
     /// The draft pick option has been cancelled by a `DraftPickOptionAmendment`.
     #[sea_orm(num_value = 4)]
     CancelledViaDraftPickOptionAmendment,
+    /// Trade has been invalidated by another trade that was processed that involves the draft pick related to this option.
+    #[sea_orm(num_value = 5)]
+    InvalidatedByExternalTrade,
 }
 
 #[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]
