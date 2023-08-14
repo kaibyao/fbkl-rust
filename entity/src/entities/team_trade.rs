@@ -3,8 +3,6 @@
 use sea_orm::entity::prelude::*;
 use serde::{Deserialize, Serialize};
 
-use crate::{team, trade};
-
 /// Enables multi-team trades. Rather than using this directly, you should use the `TeamsInvolvedInTrade` and `TradesInvolvedByTeam` structs.
 #[derive(Clone, Debug, PartialEq, DeriveEntityModel, Eq, Serialize, Deserialize)]
 #[sea_orm(table_name = "team_trade")]
@@ -44,26 +42,6 @@ impl Related<super::team::Entity> for Entity {
 impl Related<super::trade::Entity> for Entity {
     fn to() -> RelationDef {
         Relation::Trade.def()
-    }
-}
-
-#[derive(Debug)]
-pub struct TeamsInvolvedInTrade;
-impl Linked for TeamsInvolvedInTrade {
-    type FromEntity = trade::Entity;
-    type ToEntity = team::Entity;
-    fn link(&self) -> Vec<RelationDef> {
-        vec![Relation::Trade.def().rev(), Relation::Team.def()]
-    }
-}
-
-#[derive(Debug)]
-pub struct TradesInvolvedByTeam;
-impl Linked for TradesInvolvedByTeam {
-    type FromEntity = team::Entity;
-    type ToEntity = trade::Entity;
-    fn link(&self) -> Vec<RelationDef> {
-        vec![Relation::Team.def().rev(), Relation::Trade.def()]
     }
 }
 

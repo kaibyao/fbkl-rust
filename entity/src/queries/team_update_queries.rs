@@ -2,8 +2,8 @@ use chrono::{NaiveDate, Utc};
 use color_eyre::Result;
 use fbkl_constants::FREE_AGENCY_TEAM;
 use sea_orm::{
-    ActiveModelTrait, ActiveValue, ColumnTrait, ConnectionTrait, EntityTrait, QueryFilter,
-    TransactionTrait,
+    prelude::DateTimeWithTimeZone, ActiveModelTrait, ActiveValue, ColumnTrait, ConnectionTrait,
+    EntityTrait, QueryFilter,
 };
 use std::fmt::Debug;
 use tracing::instrument;
@@ -67,7 +67,7 @@ where
     Ok(team_update)
 }
 
-/// Creates & inserts a team update
+/// Creates & inserts a team update from a completed auction.
 pub async fn insert_team_update_from_auction_won<C>(
     winning_auction_bid_model: &auction_bid::Model,
     auction_transaction_model: &transaction::Model,
@@ -75,7 +75,7 @@ pub async fn insert_team_update_from_auction_won<C>(
     db: &C,
 ) -> Result<team_update::Model>
 where
-    C: ConnectionTrait + TransactionTrait + Debug,
+    C: ConnectionTrait + Debug,
 {
     let contract_update_player_data =
         ContractUpdatePlayerData::from_contract_model(signed_contract_model, db).await?;
@@ -146,7 +146,7 @@ pub async fn update_team_update_for_preseason_veteran_auction<C>(
     db: &C,
 ) -> Result<team_update::Model>
 where
-    C: ConnectionTrait + TransactionTrait + Debug,
+    C: ConnectionTrait + Debug,
 {
     let mut update_team_update_date_and_status: team_update::ActiveModel =
         team_update_model.clone().into();

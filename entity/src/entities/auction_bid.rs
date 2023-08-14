@@ -4,7 +4,7 @@ use std::fmt::Debug;
 
 use async_trait::async_trait;
 use color_eyre::{eyre::eyre, Result};
-use sea_orm::{entity::prelude::*, ConnectionTrait, TransactionTrait};
+use sea_orm::{entity::prelude::*, ConnectionTrait};
 use serde::{Deserialize, Serialize};
 use tracing::instrument;
 
@@ -24,16 +24,10 @@ pub struct Model {
 }
 
 impl Model {
-    // #[instrument]
-    // pub async fn get_team_user<C>(&self, db: &C) -> Result<team_user::Model> where C: ConnectionTrait + TransactionTrait + Debug {
-    //     let related_team_user_model = self.find_related(team_user::Entity).one(db).await?.ok_or_else(|| eyre!("Could not find team_user related to auction bid (id={}).", self.id))?;
-    //     Ok(related_team_user_model)
-    // }
-
     #[instrument]
     pub async fn get_team<C>(&self, db: &C) -> Result<team::Model>
     where
-        C: ConnectionTrait + TransactionTrait + Debug,
+        C: ConnectionTrait + Debug,
     {
         let related_team_model = self
             .find_linked(AuctionBidToTeam)

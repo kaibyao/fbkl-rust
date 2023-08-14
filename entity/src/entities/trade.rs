@@ -9,7 +9,7 @@ use sea_orm::{entity::prelude::*, ConnectionTrait};
 use serde::{Deserialize, Serialize};
 use tracing::instrument;
 
-use crate::{team_trade::TeamsInvolvedInTrade, trade_action, trade_asset};
+use crate::{prelude::Team, trade_action, trade_asset};
 
 /// Trades made between 2 or more teams can be proposed, accepted, counteroffered, canceled, or rejected. When a trade is counteroffered, a new trade is created that refers to the previous. In this way, a historical chain of record can be made.
 ///
@@ -52,7 +52,7 @@ impl Model {
     where
         C: ConnectionTrait + Debug,
     {
-        let teams = self.find_linked(TeamsInvolvedInTrade).all(db).await?;
+        let teams = self.find_related(Team).all(db).await?;
         Ok(teams)
     }
 
@@ -149,8 +149,8 @@ pub enum Relation {
         on_delete = "Cascade"
     )]
     PreviousTrade,
-    #[sea_orm(has_many = "super::team_trade::Entity")]
-    TeamTrade,
+    #[sea_orm(has_many = "super::team::Entity")]
+    Team,
     #[sea_orm(has_many = "super::trade_action::Entity")]
     TradeAction,
     #[sea_orm(has_many = "super::trade_asset::Entity")]
@@ -165,9 +165,16 @@ impl Related<super::league::Entity> for Entity {
     }
 }
 
-impl Related<super::team_trade::Entity> for Entity {
+impl Related<super::team::Entity> for Entity {
+    // The final relation is Trade -> TeamTrade -> Team
     fn to() -> RelationDef {
-        Relation::TeamTrade.def()
+        super::team_trade::Relation::Team.def()
+    }
+
+    fn via() -> Option<RelationDef> {
+        // The original relation is TeamTrade -> Trade,
+        // after `rev` it becomes Trade -> TeamTrade
+        Some(super::team_trade::Relation::Trade.def().rev())
     }
 }
 

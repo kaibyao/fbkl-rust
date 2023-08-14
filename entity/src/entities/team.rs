@@ -57,8 +57,8 @@ pub enum Relation {
         on_delete = "Cascade"
     )]
     League,
-    #[sea_orm(has_many = "super::team_trade::Entity")]
-    TeamTrade,
+    #[sea_orm(has_many = "super::trade::Entity")]
+    Trade,
     #[sea_orm(has_many = "super::team_user::Entity")]
     TeamUser,
     #[sea_orm(has_many = "super::team_update::Entity")]
@@ -77,9 +77,16 @@ impl Related<super::league::Entity> for Entity {
     }
 }
 
-impl Related<super::team_trade::Entity> for Entity {
+impl Related<super::trade::Entity> for Entity {
+    // The final relation is Team -> TeamTrade -> Trade
     fn to() -> RelationDef {
-        Relation::TeamTrade.def()
+        super::team_trade::Relation::Trade.def()
+    }
+
+    fn via() -> Option<RelationDef> {
+        // The original relation is TeamTrade -> Team,
+        // after `rev` it becomes Team -> TeamTrade
+        Some(super::team_trade::Relation::Team.def().rev())
     }
 }
 
