@@ -82,10 +82,12 @@ impl Model {
         create_dropped_contract(self, false)
     }
 
+    /// Creates a new contract (not yet inserted) from this one, where the contract is expired.
     pub fn create_expired_contract(&self) -> Result<ActiveModel, Error> {
         expire_contract(self)
     }
 
+    /// Retrieves the player model related to this contract.
     #[instrument]
     pub async fn get_player<C>(&self, db: &C) -> Result<RelatedPlayer>
     where
@@ -103,7 +105,8 @@ impl Model {
         }
     }
 
-    pub async fn is_latest_in_chain<C>(&self, db: &C) -> Result<bool>
+    /// Retrieves the latest contract in the contract history chain.
+    pub async fn get_latest_in_chain<C>(&self, db: &C) -> Result<Model>
     where
         C: ConnectionTrait + Debug,
     {
@@ -112,19 +115,25 @@ impl Model {
             .all(db)
             .await?;
         all_contracts_in_chain.sort_by(|a, b| a.id.cmp(&b.id));
-        all_contracts_in_chain
-            .last()
-            .map(|last_contract_in_chain| last_contract_in_chain.id == self.id)
-            .ok_or_else(|| {
-                let contract_ids_in_chain: Vec<String> = all_contracts_in_chain
-                    .iter()
-                    .map(|contract| contract.id.to_string())
-                    .collect();
-                eyre!(
-                    "Could not retrieve last contract in contract chain: [{}]",
-                    contract_ids_in_chain.join(", ")
-                )
-            })
+        all_contracts_in_chain.pop().ok_or_else(|| {
+            let contract_ids_in_chain: Vec<String> = all_contracts_in_chain
+                .iter()
+                .map(|contract| contract.id.to_string())
+                .collect();
+            eyre!(
+                "Could not retrieve last contract in contract chain: [{}]",
+                contract_ids_in_chain.join(", ")
+            )
+        })
+    }
+
+    /// Checks whether this contract is the most recent in the contract history chain.
+    pub async fn is_latest_in_chain<C>(&self, db: &C) -> Result<bool>
+    where
+        C: ConnectionTrait + Debug,
+    {
+        let last_contract_in_history_chain = self.get_latest_in_chain(db).await?;
+        Ok(last_contract_in_history_chain.id == self.id)
     }
 
     pub fn new_contract_for_veteran_auction(

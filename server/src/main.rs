@@ -30,6 +30,7 @@ async fn main() -> Result<()> {
     info!("Starting fbkl/server on port 9001...");
 
     // TODO: Build Transaction Processor. The idea being there's a job that runs every minute to update contracts, change teams, etc.
+    // TODO: Something that automatically creates team updates. This might just be the same thing as the transaction processor.
     // TODO: Need some kind of storage for NBA dates (start of season, ASB start and end dates, MLK week early start times)
     // TODO: Maybe ping NBA API for game start times each week?
     // TODO: Reconciling end dates of different transaction types w/ when they go into effect.

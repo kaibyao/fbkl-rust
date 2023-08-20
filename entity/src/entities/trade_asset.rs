@@ -146,7 +146,13 @@ pub enum Relation {
         on_delete = "Cascade"
     )]
     DraftPick,
-    #[sea_orm(has_one = "super::draft_pick_option::Entity")]
+    #[sea_orm(
+        belongs_to = "super::draft_pick_option::Entity",
+        from = "Column::DraftPickOptionId",
+        to = "super::draft_pick_option::Column::Id",
+        on_update = "Cascade",
+        on_delete = "Cascade"
+    )]
     DraftPickOption,
     #[sea_orm(
         belongs_to = "super::team::Entity",
