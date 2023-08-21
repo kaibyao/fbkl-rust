@@ -4,7 +4,8 @@ use color_eyre::{eyre::eyre, Result};
 use fbkl_entity::{
     contract, draft_pick,
     draft_pick_option::{self, DraftPickOptionStatus},
-    prelude::{DraftPick, DraftPickDraftPickOption, DraftPickOption},
+    draft_pick_queries,
+    prelude::DraftPickOption,
     sea_orm::{
         sea_query::Expr, ColumnTrait, ConnectionTrait, EntityTrait, LoaderTrait, QueryFilter,
     },
@@ -63,7 +64,8 @@ where
         .map(|(_trade_asset, draft_pick_option_model)| draft_pick_option_model.clone())
         .collect();
     let draft_picks_affected_by_affected_options =
-        get_draft_picks_affected_by_affected_options(&traded_draft_pick_options, db).await?;
+        draft_pick_queries::get_draft_picks_affected_by_options(&traded_draft_pick_options, db)
+            .await?;
 
     // merge draft_pick to trade_asset
     let traded_draft_picks: Vec<draft_pick::Model> = trade_asset_related_models
@@ -115,25 +117,6 @@ where
         .flatten();
 
     Ok(external_trade_assets_with_traded_contacts)
-}
-
-#[instrument]
-async fn get_draft_picks_affected_by_affected_options<C>(
-    traded_draft_pick_options: &[draft_pick_option::Model],
-    db: &C,
-) -> Result<Vec<draft_pick::Model>>
-where
-    C: ConnectionTrait + Debug,
-{
-    let draft_picks_affected_by_affected_options: Vec<draft_pick::Model> =
-        traded_draft_pick_options
-            .load_many_to_many(DraftPick, DraftPickDraftPickOption, db)
-            .await?
-            .into_iter()
-            .flatten()
-            .collect();
-
-    Ok(draft_picks_affected_by_affected_options)
 }
 
 #[instrument]

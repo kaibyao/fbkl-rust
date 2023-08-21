@@ -100,8 +100,6 @@ impl TeamUpdateData {
 pub struct DraftPickUpdate {
     pub draft_pick_id: i64,
     pub update_type: DraftPickUpdateType,
-    pub before_trade_owner_team_id: i64,
-    pub after_trade_owner_team_id: i64,
     pub added_draft_pick_option_id: Option<i64>,
 }
 
@@ -271,8 +269,6 @@ mod tests {
         let draft_pick_update = DraftPickUpdate {
             draft_pick_id: 1,
             update_type: DraftPickUpdateType::AddViaTrade,
-            before_trade_owner_team_id: 1,
-            after_trade_owner_team_id: 2,
             added_draft_pick_option_id: None,
         };
         let team_update_assets = vec![

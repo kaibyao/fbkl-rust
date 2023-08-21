@@ -11,6 +11,7 @@ async-trait = "0.1.72"
 chrono = "0.4"
 color-eyre = "0.6.2"
 fbkl-constants = {path = "../constants"}
+multimap = "0.9.0"
 once_cell = "1.17.1"
 postcard = {version = "1.0.4", features = ["use-std"], default-features = false }
 rust_decimal = "1.29"

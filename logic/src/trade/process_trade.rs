@@ -127,13 +127,34 @@ where
         transaction_queries::insert_trade_transaction(&next_deadline, updated_trade.id, db).await?;
 
     // Create team_update
-    // team_update_queries::insert_team_updates_from_completed_trade(
-    //     &updated_trade,
-    //     &traded_trade_assets,
-    //     trade_datetime,
-    //     &trade_transaction,
-    //     db
-    // ).await?;
+    let trade_asset_contracts: Vec<(trade_asset::Model, contract::Model)> =
+        trade_asset_related_models
+            .trade_asset_contracts_by_trade_asset_id
+            .values()
+            .map(|(trade_asset_model, model)| (trade_asset_model.clone(), model.clone()))
+            .collect();
+    let trade_asset_draft_picks: Vec<(trade_asset::Model, draft_pick::Model)> =
+        trade_asset_related_models
+            .trade_asset_draft_picks_by_trade_asset_id
+            .values()
+            .map(|(trade_asset_model, model)| (trade_asset_model.clone(), model.clone()))
+            .collect();
+    let trade_asset_draft_pick_options: Vec<(trade_asset::Model, draft_pick_option::Model)> =
+        trade_asset_related_models
+            .trade_asset_draft_pick_options_by_trade_asset_id
+            .values()
+            .map(|(trade_asset_model, model)| (trade_asset_model.clone(), model.clone()))
+            .collect();
+    team_update_queries::insert_team_updates_from_completed_trade(
+        &trade_asset_contracts,
+        &trade_asset_draft_picks,
+        &trade_asset_draft_pick_options,
+        &updated_trade_asset_models.contracts_by_trade_asset_id,
+        trade_datetime,
+        &trade_transaction,
+        db,
+    )
+    .await?;
 
     invalidate_external_trades_with_traded_assets(&updated_trade, &trade_asset_related_models, db)
         .await

@@ -1,10 +1,13 @@
 use std::fmt::Debug;
 
 use color_eyre::Result;
-use sea_orm::{ActiveModelTrait, ConnectionTrait, TransactionTrait};
+use sea_orm::{ActiveModelTrait, ConnectionTrait, LoaderTrait, TransactionTrait};
 use tracing::instrument;
 
-use crate::draft_pick;
+use crate::{
+    draft_pick, draft_pick_option,
+    prelude::{DraftPick, DraftPickDraftPickOption},
+};
 
 #[instrument]
 pub async fn insert_draft_pick<C>(
@@ -16,4 +19,22 @@ where
 {
     let inserted_draft_pick_model = draft_pick_model.insert(db).await?;
     Ok(inserted_draft_pick_model)
+}
+
+#[instrument]
+pub async fn get_draft_picks_affected_by_options<C>(
+    draft_pick_options: &[draft_pick_option::Model],
+    db: &C,
+) -> Result<Vec<draft_pick::Model>>
+where
+    C: ConnectionTrait + Debug,
+{
+    let related_draft_picks: Vec<draft_pick::Model> = draft_pick_options
+        .load_many_to_many(DraftPick, DraftPickDraftPickOption, db)
+        .await?
+        .into_iter()
+        .flatten()
+        .collect();
+
+    Ok(related_draft_picks)
 }
