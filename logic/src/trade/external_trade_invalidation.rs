@@ -5,7 +5,6 @@ use fbkl_entity::{
     contract, draft_pick,
     draft_pick_option::{self, DraftPickOptionStatus},
     draft_pick_queries,
-    prelude::DraftPickOption,
     sea_orm::{
         sea_query::Expr, ColumnTrait, ConnectionTrait, EntityTrait, LoaderTrait, QueryFilter,
     },
@@ -198,7 +197,7 @@ where
     C: ConnectionTrait + Debug,
 {
     let affected_draft_pick_option_ids = external_draft_pick_option_trade_assets.iter().map(|draft_pick_option_trade_asset| draft_pick_option_trade_asset.draft_pick_option_id.ok_or_else(|| eyre!("Couldn't get draft pick option id of supposed draft pick option trade asset (id = {})", draft_pick_option_trade_asset.id))).collect::<Result<Vec<i64>>>()?;
-    DraftPickOption::update_many()
+    draft_pick_option::Entity::update_many()
         .col_expr(
             draft_pick_option::Column::Status,
             Expr::value(DraftPickOptionStatus::InvalidatedByExternalTrade),

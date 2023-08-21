@@ -3,7 +3,6 @@ use std::{collections::HashMap, fmt::Debug};
 use color_eyre::{eyre::eyre, Result};
 use fbkl_entity::{
     contract, deadline_queries, draft_pick, draft_pick_option,
-    prelude::{Contract, DraftPick, DraftPickOption},
     sea_orm::{
         prelude::DateTimeWithTimeZone, ActiveModelTrait, ActiveValue, ConnectionTrait, LoaderTrait,
     },
@@ -51,16 +50,18 @@ impl TradeAssetRelatedModelCache {
             };
         }
 
-        let traded_contracts = contract_trade_assets.load_one(Contract, db).await?;
+        let traded_contracts = contract_trade_assets.load_one(contract::Entity, db).await?;
         let trade_asset_contracts_by_trade_asset_id =
             Self::map_trade_asset_models(contract_trade_assets, traded_contracts)?;
 
-        let traded_draft_picks = draft_pick_trade_assets.load_one(DraftPick, db).await?;
+        let traded_draft_picks = draft_pick_trade_assets
+            .load_one(draft_pick::Entity, db)
+            .await?;
         let trade_asset_draft_picks_by_trade_asset_id =
             Self::map_trade_asset_models(draft_pick_trade_assets, traded_draft_picks)?;
 
         let traded_draft_pick_options = draft_pick_option_trade_assets
-            .load_one(DraftPickOption, db)
+            .load_one(draft_pick_option::Entity, db)
             .await?;
         let trade_asset_draft_pick_options_by_trade_asset_id = Self::map_trade_asset_models(
             draft_pick_option_trade_assets,

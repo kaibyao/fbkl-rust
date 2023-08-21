@@ -9,7 +9,7 @@ use sea_orm::{entity::prelude::*, ConnectionTrait};
 use serde::{Deserialize, Serialize};
 use tracing::instrument;
 
-use crate::{prelude::Team, trade_action, trade_asset};
+use crate::{team, trade_action, trade_asset};
 
 /// Trades made between 2 or more teams can be proposed, accepted, counteroffered, canceled, or rejected. When a trade is counteroffered, a new trade is created that refers to the previous. In this way, a historical chain of record can be made.
 ///
@@ -52,7 +52,7 @@ impl Model {
     where
         C: ConnectionTrait + Debug,
     {
-        let teams = self.find_related(Team).all(db).await?;
+        let teams = self.find_related(team::Entity).all(db).await?;
         Ok(teams)
     }
 

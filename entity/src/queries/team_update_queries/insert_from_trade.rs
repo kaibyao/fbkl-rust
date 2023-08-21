@@ -8,7 +8,6 @@ use tracing::instrument;
 use crate::{
     contract::{self, RelatedPlayer},
     draft_pick, draft_pick_option, draft_pick_queries,
-    prelude::TeamUpdate,
     team_update::{
         self, ContractUpdate, ContractUpdateType, DraftPickUpdate, DraftPickUpdateType,
         TeamUpdateAsset, TeamUpdateData, TeamUpdateStatus,
@@ -72,7 +71,7 @@ where
         })
         .collect::<Result<Vec<team_update::ActiveModel>>>()?;
 
-    TeamUpdate::insert_many(team_update_models_to_insert)
+    team_update::Entity::insert_many(team_update_models_to_insert)
         .exec(db)
         .await?;
 
