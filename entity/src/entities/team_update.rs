@@ -72,15 +72,6 @@ pub enum TeamUpdateData {
     Settings(TeamSettingsChange),
 }
 
-/// Stores information about changes made to a team's assets.
-#[derive(Debug, Serialize, Deserialize, PartialEq)]
-pub enum TeamUpdateAsset {
-    /// The update to the team involves a roster change.
-    Contracts(Vec<ContractUpdate>),
-    /// The update to the team involves changes to its owned draft pick(s).
-    DraftPicks(Vec<DraftPickUpdate>),
-}
-
 impl TeamUpdateData {
     pub fn as_bytes(&self) -> Result<Vec<u8>, Error> {
         // But what happens if the shape of the struct changes in the future?
@@ -93,6 +84,15 @@ impl TeamUpdateData {
         let decoded: Self = postcard::from_bytes(bytes_encoded)?;
         Ok(decoded)
     }
+}
+
+/// Stores information about changes made to a team's assets.
+#[derive(Debug, Serialize, Deserialize, PartialEq)]
+pub enum TeamUpdateAsset {
+    /// The update to the team involves a roster change.
+    Contracts(Vec<ContractUpdate>),
+    /// The update to the team involves changes to its owned draft pick(s).
+    DraftPicks(Vec<DraftPickUpdate>),
 }
 
 /// Stores data for an update to a team's draft pick.
