@@ -24,10 +24,10 @@ where
         !trade_asset_related_models
             .trade_asset_contracts_by_trade_asset_id
             .is_empty()
-            && !trade_asset_related_models
+            || !trade_asset_related_models
                 .trade_asset_draft_picks_by_trade_asset_id
                 .is_empty()
-            && !trade_asset_related_models
+            || !trade_asset_related_models
                 .trade_asset_draft_pick_options_by_trade_asset_id
                 .is_empty(),
         "Cannot process a trade with no trade assets."

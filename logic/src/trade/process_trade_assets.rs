@@ -2,8 +2,7 @@ use std::{collections::HashMap, fmt::Debug};
 
 use color_eyre::Result;
 use fbkl_entity::{
-    contract::{self, ContractStatus},
-    draft_pick,
+    contract, contract_queries, draft_pick,
     draft_pick_option::{self, DraftPickOptionStatus},
     sea_orm::{ActiveModelTrait, ActiveValue, ConnectionTrait},
 };
@@ -32,8 +31,12 @@ where
         .trade_asset_contracts_by_trade_asset_id
         .iter()
     {
-        let updated_contract =
-            update_trade_asset_contract(contract_model, trade_asset_model.to_team_id, db).await?;
+        let updated_contract = contract_queries::trade_contract_to_team(
+            contract_model.clone(),
+            trade_asset_model.to_team_id,
+            db,
+        )
+        .await?;
         updated_contracts.insert(*trade_asset_id, updated_contract);
     }
 
@@ -64,28 +67,6 @@ where
         draft_picks_by_trade_asset_id: updated_draft_picks,
         draft_pick_options_by_trade_asset_id: updated_draft_pick_options,
     })
-}
-
-#[instrument]
-async fn update_trade_asset_contract<C>(
-    contract_model: &contract::Model,
-    new_team_id: i64,
-    db: &C,
-) -> Result<contract::Model>
-where
-    C: ConnectionTrait + Debug,
-{
-    let mut new_contract: contract::ActiveModel = contract_model.clone().into();
-
-    new_contract.team_id = ActiveValue::Set(Some(new_team_id));
-    new_contract.previous_contract_id = ActiveValue::Set(Some(contract_model.id));
-    let mut existing_contract_to_update: contract::ActiveModel = contract_model.clone().into();
-    existing_contract_to_update.status = ActiveValue::Set(ContractStatus::Replaced);
-
-    existing_contract_to_update.update(db).await?;
-    let updated_contract = new_contract.update(db).await?;
-
-    Ok(updated_contract)
 }
 
 #[instrument]

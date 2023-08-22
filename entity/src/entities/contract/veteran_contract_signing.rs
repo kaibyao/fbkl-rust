@@ -32,7 +32,7 @@ pub fn sign_veteran_contract(
         contract_type: ActiveValue::Set(ContractType::Veteran),
         is_ir: ActiveValue::Set(false),
         salary: ActiveValue::Set(salary),
-        end_of_season_year: ActiveValue::Set(1),
+        end_of_season_year: ActiveValue::Set(current_contract.end_of_season_year),
         status: ActiveValue::Set(ContractStatus::Active),
         league_id: ActiveValue::Set(current_contract.league_id),
         league_player_id: ActiveValue::Set(current_contract.league_player_id),

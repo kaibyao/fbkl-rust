@@ -16,6 +16,7 @@ use crate::{
 };
 
 /// Creates & inserts a team update from a completed trade.
+#[instrument]
 pub async fn insert_team_updates_from_completed_trade<C>(
     trade_asset_contracts: &[(trade_asset::Model, contract::Model)],
     trade_asset_draft_picks: &[(trade_asset::Model, draft_pick::Model)],

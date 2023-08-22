@@ -86,7 +86,7 @@ where
         .retain(|trade_asset| trade_asset.trade_id != completed_trade.id);
     let mut all_active_external_trades_affected_by_traded_assets: Vec<trade::Model> =
         all_external_affected_trade_assets
-            .load_many(trade::Entity, db)
+            .load_one(trade::Entity, db)
             .await?
             .into_iter()
             .flatten()

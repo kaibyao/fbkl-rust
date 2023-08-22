@@ -195,6 +195,19 @@ where
     add_replacement_contract_to_chain(contract_model, signed_contract_model_to_insert, db).await
 }
 
+/// Trades a contract to a new team
+pub async fn trade_contract_to_team<C>(
+    contract_model: contract::Model,
+    new_team_id: i64,
+    db: &C,
+) -> Result<contract::Model>
+where
+    C: ConnectionTrait + Debug,
+{
+    let new_contract: contract::ActiveModel = contract_model.trade_contract_to_team(new_team_id);
+    add_replacement_contract_to_chain(contract_model, new_contract, db).await
+}
+
 /// Used to replace an existing contract with a new one. The new one refers to the original as its original_contract_id, and the old one's status is set to `Replaced`.
 /// Returns a tuple containing the
 #[instrument]

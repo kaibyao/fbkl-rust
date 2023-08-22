@@ -3,10 +3,9 @@ use std::fmt::Debug;
 use color_eyre::{eyre::eyre, Result};
 use fbkl_entity::{
     sea_orm::{ActiveModelTrait, ActiveValue, ConnectionTrait, ModelTrait, TransactionTrait},
-    team, team_trade, team_user,
-    trade::{self, TradeStatus},
+    team, team_trade, team_user, trade,
     trade_action::TradeActionType,
-    trade_action_queries, trade_asset,
+    trade_action_queries, trade_asset, trade_queries,
 };
 use tracing::instrument;
 
@@ -24,28 +23,15 @@ pub async fn propose_trade<C>(
 where
     C: ConnectionTrait + TransactionTrait + Debug,
 {
-    let trade_model_to_insert = trade::ActiveModel {
-        id: ActiveValue::NotSet,
-        end_of_season_year: ActiveValue::Set(end_of_season_year),
-        status: ActiveValue::Set(TradeStatus::Proposed),
-        league_id: ActiveValue::Set(league_id),
-        original_trade_id: ActiveValue::NotSet,
-        previous_trade_id: ActiveValue::NotSet,
-        created_at: ActiveValue::NotSet,
-        updated_at: ActiveValue::NotSet,
-    };
+    let db_txn = db.begin().await?;
 
-    let inserted_trade = trade_model_to_insert.insert(db).await?;
-    let inserted_trade_id = inserted_trade.id;
-
-    let mut model_to_update: trade::ActiveModel = inserted_trade.into();
-    model_to_update.original_trade_id = ActiveValue::Set(Some(inserted_trade_id));
-    let updated_trade = model_to_update.update(db).await?;
+    let inserted_trade =
+        trade_queries::insert_new_trade(league_id, end_of_season_year, &db_txn).await?;
 
     // insert team_trade records
     let from_team_model = proposing_team_user_model
         .find_related(team::Entity)
-        .one(db)
+        .one(&db_txn)
         .await?
         .ok_or_else(|| {
             eyre!(
@@ -62,25 +48,27 @@ where
         let team_trade_to_insert = team_trade::ActiveModel {
             id: ActiveValue::NotSet,
             team_id: ActiveValue::Set(team_id),
-            trade_id: ActiveValue::Set(updated_trade.id),
+            trade_id: ActiveValue::Set(inserted_trade.id),
         };
-        let _inserted_team_trade_model = team_trade_to_insert.insert(db).await?;
+        let _inserted_team_trade_model = team_trade_to_insert.insert(&db_txn).await?;
     }
 
     // insert trade_asset records
     for mut trade_asset_to_insert in proposed_trade_assets {
-        trade_asset_to_insert.trade_id = ActiveValue::Set(updated_trade.id);
-        let _inserted_trade_asset = trade_asset_to_insert.insert(db).await?;
+        trade_asset_to_insert.trade_id = ActiveValue::Set(inserted_trade.id);
+        let _inserted_trade_asset = trade_asset_to_insert.insert(&db_txn).await?;
     }
 
     // create trade action for proposal
     let _proposed_trade_action = trade_action_queries::insert_trade_action(
         TradeActionType::Propose,
-        updated_trade.id,
+        inserted_trade.id,
         proposing_team_user_model.id,
-        db,
+        &db_txn,
     )
     .await?;
 
-    Ok(updated_trade)
+    db_txn.commit().await?;
+
+    Ok(inserted_trade)
 }

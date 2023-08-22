@@ -74,9 +74,21 @@ pub enum TradeActionType {
 
 #[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]
 pub enum Relation {
-    #[sea_orm(has_one = "super::team_user::Entity")]
+    #[sea_orm(
+        belongs_to = "super::team_user::Entity",
+        from = "Column::TeamUserId",
+        to = "super::team_user::Column::Id",
+        on_update = "Cascade",
+        on_delete = "Cascade"
+    )]
     TeamUser,
-    #[sea_orm(has_one = "super::trade::Entity")]
+    #[sea_orm(
+        belongs_to = "super::trade::Entity",
+        from = "Column::TradeId",
+        to = "super::trade::Column::Id",
+        on_update = "Cascade",
+        on_delete = "Cascade"
+    )]
     Trade,
 }
 

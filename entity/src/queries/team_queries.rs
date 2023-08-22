@@ -7,7 +7,7 @@ use sea_orm::{
 };
 use tracing::instrument;
 
-use crate::{team, trade_action};
+use crate::{team, team_user, trade_action};
 
 #[instrument]
 pub async fn find_teams_in_league<C>(league_id: i64, db: &C) -> Result<Vec<team::Model>>
@@ -47,14 +47,16 @@ pub async fn find_teams_by_trade_actions<C>(
 where
     C: ConnectionTrait + Debug,
 {
-    let trade_action_teams = trade_actions.load_one(team::Entity, db).await?;
+    let trade_action_teams = trade_actions
+        .load_many_to_many(team::Entity, team_user::Entity, db)
+        .await?;
     let mut teams_by_trade_action: HashMap<i64, team::Model> = HashMap::new();
 
-    for (trade_action, maybe_trade_action_team) in
+    for (trade_action, mut maybe_trade_action_teams) in
         trade_actions.iter().zip(trade_action_teams.into_iter())
     {
         // There is only ever 1 team per trade action.
-        let trade_action_team = maybe_trade_action_team.ok_or_else(|| {
+        let trade_action_team = maybe_trade_action_teams.pop().ok_or_else(|| {
             eyre!(
                 "Could not find team related to trade action: {}.",
                 trade_action.id

@@ -18,7 +18,7 @@ use super::{
     annual_contract_advancement::create_advancement_for_contract,
     drop_contract::create_dropped_contract, expire_contract::expire_contract,
     free_agent_extension::sign_rfa_or_ufa_contract_to_team,
-    rookie_activation::create_rookie_contract_from_rd,
+    rookie_activation::create_rookie_contract_from_rd, trade_contract::trade_contract_to_team,
     veteran_auction_contract::new_contract_for_veteran_auction,
     veteran_contract_signing::sign_veteran_contract,
 };
@@ -121,8 +121,9 @@ impl Model {
                 .map(|contract| contract.id.to_string())
                 .collect();
             eyre!(
-                "Could not retrieve last contract in contract chain: [{}]",
-                contract_ids_in_chain.join(", ")
+                "Could not retrieve last contract in contract chain: [{}], called on contract (id = {})",
+                contract_ids_in_chain.join(", "),
+                self.id
             )
         })
     }
@@ -160,6 +161,11 @@ impl Model {
         salary: i16,
     ) -> Result<ActiveModel, Error> {
         sign_veteran_contract(self, team_id, salary)
+    }
+
+    /// Creates a new contract in the history chain to denote that the contract has been traded to a new team. Note that this doesn't do anything to insert the new contract or update the original.
+    pub fn trade_contract_to_team(&self, new_team_id: i64) -> ActiveModel {
+        trade_contract_to_team(self, new_team_id)
     }
 }
 
@@ -371,6 +377,8 @@ impl ActiveModelBehavior for ActiveModel {
 
         if !is_insert {
             update_requires_original_contract(&self)?;
+        } else {
+            non_original_contract_requires_original_contract(&self)?;
         }
 
         Ok(self)
@@ -383,6 +391,14 @@ fn non_original_contract_requires_previous_contract(model: &ActiveModel) -> Resu
         && model.original_contract_id.as_ref().as_ref().unwrap() != model.id.as_ref()
     {
         Err(DbErr::Custom(format!("This contract (id={}, original_contract_id={:?}) is missing a reference to the previous contract for this player.", model.id.as_ref(), model.original_contract_id.as_ref())))
+    } else {
+        Ok(())
+    }
+}
+
+fn non_original_contract_requires_original_contract(model: &ActiveModel) -> Result<(), DbErr> {
+    if model.previous_contract_id.is_set() && model.original_contract_id.is_not_set() {
+        Err(DbErr::Custom(format!("This contract (id={}, previous_contract_id={:?}) is missing a reference to the original contract for this player.", model.id.as_ref(), model.previous_contract_id.as_ref())))
     } else {
         Ok(())
     }

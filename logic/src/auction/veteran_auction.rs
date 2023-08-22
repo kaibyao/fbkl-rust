@@ -9,7 +9,7 @@ use fbkl_entity::{
     contract_queries,
     deadline::DeadlineType,
     deadline_queries,
-    sea_orm::{ActiveModelTrait, ConnectionTrait, TransactionTrait},
+    sea_orm::{ConnectionTrait, TransactionTrait},
     team_update_queries,
 };
 use tracing::instrument;
@@ -133,12 +133,14 @@ where
     let player_contract = match maybe_existing_contract {
         None => {
             // Create new contract
-            contract::Model::new_contract_for_veteran_auction(
-                league_id,
-                end_of_season_year,
-                player_id,
+            contract_queries::create_new_contract(
+                contract::Model::new_contract_for_veteran_auction(
+                    league_id,
+                    end_of_season_year,
+                    player_id,
+                ),
+                db,
             )
-            .insert(db)
             .await?
         }
         Some(existing_player_contract) => {
