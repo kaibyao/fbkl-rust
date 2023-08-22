@@ -7,7 +7,7 @@ use color_eyre::{
 };
 use sea_orm::{
     prelude::DateTimeWithTimeZone, ActiveModelTrait, ActiveValue, ColumnTrait, ConnectionTrait,
-    EntityTrait, QueryFilter, TransactionTrait,
+    EntityTrait, QueryFilter,
 };
 use tracing::instrument;
 
@@ -19,7 +19,7 @@ use crate::{
 #[instrument]
 pub async fn find_auction_by_id<C>(auction_id: i64, db: &C) -> Result<auction::Model>
 where
-    C: ConnectionTrait + TransactionTrait + Debug,
+    C: ConnectionTrait + Debug,
 {
     let maybe_auction_model = auction::Entity::find()
         .filter(auction::Column::Id.eq(auction_id))
@@ -40,7 +40,7 @@ pub async fn insert_new_auction<C>(
     db: &C,
 ) -> Result<auction::Model>
 where
-    C: ConnectionTrait + TransactionTrait + Debug,
+    C: ConnectionTrait + Debug,
 {
     let soft_end_timestamp = start_datetime
         .checked_add_days(Days::new(1))
@@ -76,7 +76,7 @@ pub async fn insert_auction_bid<C>(
     db: &C,
 ) -> Result<auction_bid::Model>
 where
-    C: ConnectionTrait + TransactionTrait + Debug,
+    C: ConnectionTrait + Debug,
 {
     let auction_model = find_auction_by_id(auction_id, db).await?;
     let maybe_latest_bid = auction_model.get_latest_bid(db).await?;

@@ -12,13 +12,14 @@ use tracing::instrument;
 use super::process_trade;
 
 /// Accepts a trade by a team_user. Also processes the trade if the other teams involved in the trade have already accepted the trade proposal.
+/// Returns an option containing the updated trade if it's been processed, and None otherwise.
 #[instrument]
 pub async fn accept_trade<C>(
     trade_model: trade::Model,
     accepting_team_user_model: &team_user::Model,
     accept_datetime: &DateTimeWithTimeZone,
     db: &C,
-) -> Result<()>
+) -> Result<Option<trade::Model>>
 where
     C: ConnectionTrait + TransactionTrait + Debug,
 {
@@ -35,13 +36,16 @@ where
     .await?;
 
     // check if other teams have already accepted and if so, process the trade.
-    if has_trade_been_accepted_by_all_teams(&trade_model, &db_txn).await? {
-        process_trade(trade_model, accept_datetime, &db_txn).await?;
-    }
+    let maybe_processed_trade =
+        if has_trade_been_accepted_by_all_teams(&trade_model, &db_txn).await? {
+            Some(process_trade(trade_model, accept_datetime, &db_txn).await?)
+        } else {
+            None
+        };
 
     db_txn.commit().await?;
 
-    Ok(())
+    Ok(maybe_processed_trade)
 }
 
 async fn has_trade_been_accepted_by_all_teams<C>(trade_model: &trade::Model, db: &C) -> Result<bool>

@@ -36,11 +36,13 @@ where
     let auction_contract_model = auction_model.get_contract(db).await?;
 
     // Create contract for player <--> team
-    let maybe_latest_bid = auction_model.get_latest_bid(db).await?;
+    let db_txn = db.begin().await?;
+
+    let maybe_latest_bid = auction_model.get_latest_bid(&db_txn).await?;
     let final_contract_model = match maybe_latest_bid {
         None => {
             // No one bid on the player; expire the contract. Player is now a free agent.
-            contract_queries::expire_contract(auction_contract_model, db).await?
+            contract_queries::expire_contract(auction_contract_model, &db_txn).await?
         }
         Some(winning_bid_model) => {
             // Find preseason FA auction start deadline model, as that only starts at the end of the veteran auction
@@ -49,7 +51,7 @@ where
                     auction_contract_model.league_id,
                     auction_contract_model.end_of_season_year,
                     DeadlineType::PreseasonFaAuctionStart,
-                    db,
+                    &db_txn,
                 )
                 .await?;
 
@@ -57,7 +59,7 @@ where
                 &auction_model,
                 &winning_bid_model,
                 &preseason_fa_auction_start_deadline_model,
-                db,
+                &db_txn,
             )
             .await?;
 
@@ -65,13 +67,15 @@ where
             team_update_queries::update_team_update_for_preseason_veteran_auction(
                 &team_update_model,
                 maybe_override_effective_date,
-                db,
+                &db_txn,
             )
             .await?;
 
             signed_contract_model
         }
     };
+
+    db_txn.commit().await?;
 
     Ok(final_contract_model)
 }
@@ -87,7 +91,7 @@ pub async fn start_new_veteran_auction_for_nba_player<C>(
     db: &C,
 ) -> Result<auction::Model>
 where
-    C: ConnectionTrait + TransactionTrait + Debug,
+    C: ConnectionTrait + Debug,
 {
     let player_contract = get_or_create_player_contract_for_veteran_auction(
         league_id,
@@ -120,7 +124,7 @@ async fn get_or_create_player_contract_for_veteran_auction<C>(
     db: &C,
 ) -> Result<contract::Model>
 where
-    C: ConnectionTrait + TransactionTrait + Debug,
+    C: ConnectionTrait + Debug,
 {
     let maybe_existing_contract = contract_queries::find_active_contracts_in_league(league_id, db)
         .await?

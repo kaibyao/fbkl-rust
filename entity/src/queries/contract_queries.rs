@@ -6,7 +6,7 @@ use color_eyre::{
 };
 use sea_orm::{
     ActiveModelTrait, ActiveValue, ColumnTrait, ConnectionTrait, EntityTrait, JoinType, ModelTrait,
-    QueryFilter, QuerySelect, RelationTrait, TransactionTrait,
+    QueryFilter, QuerySelect, RelationTrait,
 };
 use tracing::instrument;
 
@@ -23,7 +23,7 @@ pub async fn advance_contract<C>(
     db: &C,
 ) -> Result<contract::Model>
 where
-    C: ConnectionTrait + TransactionTrait + Debug,
+    C: ConnectionTrait + Debug,
 {
     let contract_to_advance = current_contract_model.create_annual_contract_advancement()?;
     add_replacement_contract_to_chain(current_contract_model, contract_to_advance, db).await
@@ -36,7 +36,7 @@ pub async fn create_new_contract<C>(
     db: &C,
 ) -> Result<contract::Model>
 where
-    C: ConnectionTrait + TransactionTrait + Debug,
+    C: ConnectionTrait + Debug,
 {
     let inserted_contract = contract_to_insert.insert(db).await?;
     let inserted_contract_id = inserted_contract.id;
@@ -71,7 +71,7 @@ where
 #[instrument]
 pub async fn expire_contract<C>(contract_model: contract::Model, db: &C) -> Result<contract::Model>
 where
-    C: ConnectionTrait + TransactionTrait + Debug,
+    C: ConnectionTrait + Debug,
 {
     let contract_to_expire = contract_model.create_expired_contract()?;
     add_replacement_contract_to_chain(contract_model, contract_to_expire, db).await
@@ -181,7 +181,7 @@ pub async fn sign_auction_contract_to_team<C>(
     db: &C,
 ) -> Result<contract::Model>
 where
-    C: ConnectionTrait + TransactionTrait + Debug,
+    C: ConnectionTrait + Debug,
 {
     let contract_model = auction_model.get_contract(db).await?;
     let winning_team_model = winning_auction_bid_model.get_team(db).await?;

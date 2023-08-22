@@ -4,7 +4,7 @@ use std::fmt::Debug;
 
 use async_graphql::Enum;
 use color_eyre::{eyre::eyre, Result};
-use sea_orm::{entity::prelude::*, ConnectionTrait, QueryOrder, TransactionTrait};
+use sea_orm::{entity::prelude::*, ConnectionTrait, QueryOrder};
 use serde::{Deserialize, Serialize};
 use tracing::instrument;
 
@@ -29,7 +29,7 @@ impl Model {
     #[instrument]
     pub async fn get_bids<C>(&self, db: &C) -> Result<Vec<auction_bid::Model>>
     where
-        C: ConnectionTrait + TransactionTrait + Debug,
+        C: ConnectionTrait + Debug,
     {
         let related_bids = self
             .find_related(auction_bid::Entity)
@@ -41,7 +41,7 @@ impl Model {
 
     pub async fn get_latest_bid<C>(&self, db: &C) -> Result<Option<auction_bid::Model>>
     where
-        C: ConnectionTrait + TransactionTrait + Debug,
+        C: ConnectionTrait + Debug,
     {
         let maybe_latest_bid = self
             .find_related(auction_bid::Entity)
@@ -54,7 +54,7 @@ impl Model {
     #[instrument]
     pub async fn get_contract<C>(&self, db: &C) -> Result<contract::Model>
     where
-        C: ConnectionTrait + TransactionTrait + Debug,
+        C: ConnectionTrait + Debug,
     {
         let related_contract = self
             .find_related(contract::Entity)

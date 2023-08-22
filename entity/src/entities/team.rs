@@ -3,7 +3,7 @@
 use std::fmt::Debug;
 
 use color_eyre::{eyre::eyre, Result};
-use sea_orm::{entity::prelude::*, ConnectionTrait, TransactionTrait};
+use sea_orm::{entity::prelude::*, ConnectionTrait};
 use serde::{Deserialize, Serialize};
 use tracing::instrument;
 
@@ -38,7 +38,7 @@ impl Model {
 
     pub async fn get_team_users<C>(&self, db: &C) -> Result<Vec<team_user::Model>>
     where
-        C: ConnectionTrait + TransactionTrait + Debug,
+        C: ConnectionTrait + Debug,
     {
         let team_user_models = self.find_related(team_user::Entity).all(db).await?;
         Ok(team_user_models)
