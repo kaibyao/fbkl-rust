@@ -10,11 +10,10 @@ pub struct Model {
     #[sea_orm(primary_key)]
     pub id: i64,
     pub order: Option<i16>,
-    pub end_of_season_year: i16,
     pub status: RookieDraftSelectionStatus,
+    pub contract_id: i64,
     pub draft_pick_id: i64,
     pub league_id: i64,
-    pub selected_player_id: Option<i64>,
 }
 
 #[derive(
@@ -63,15 +62,21 @@ pub enum Relation {
     )]
     League,
     #[sea_orm(
-        belongs_to = "super::player::Entity",
-        from = "Column::SelectedPlayerId",
-        to = "super::player::Column::Id",
+        belongs_to = "super::contract::Entity",
+        from = "Column::ContractId",
+        to = "super::contract::Column::Id",
         on_update = "Cascade",
         on_delete = "Cascade"
     )]
-    Player,
+    Contract,
     #[sea_orm(has_one = "super::transaction::Entity")]
     Transaction,
+}
+
+impl Related<super::contract::Entity> for Entity {
+    fn to() -> RelationDef {
+        Relation::Contract.def()
+    }
 }
 
 impl Related<super::draft_pick::Entity> for Entity {
@@ -83,12 +88,6 @@ impl Related<super::draft_pick::Entity> for Entity {
 impl Related<super::league::Entity> for Entity {
     fn to() -> RelationDef {
         Relation::League.def()
-    }
-}
-
-impl Related<super::player::Entity> for Entity {
-    fn to() -> RelationDef {
-        Relation::Player.def()
     }
 }
 

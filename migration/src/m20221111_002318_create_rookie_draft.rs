@@ -1,7 +1,7 @@
 use sea_orm_migration::prelude::*;
 
+use crate::m20221023_002183_create_asset_tables::Contract;
 use crate::{
-    m20220922_012310_create_real_world_tables::Player,
     m20220924_004529_create_league_tables::League, m20221023_002183_create_asset_tables::DraftPick,
     set_auto_updated_at_on_table,
 };
@@ -26,15 +26,15 @@ impl MigrationTrait for Migration {
                     )
                     .col(ColumnDef::new(RookieDraftSelection::Order).small_integer())
                     .col(
-                        ColumnDef::new(RookieDraftSelection::EndOfSeasonYear)
-                            .small_integer()
-                            .not_null(),
-                    )
-                    .col(
                         ColumnDef::new(RookieDraftSelection::Status)
                             .small_integer()
                             .not_null()
                             .default(0),
+                    )
+                    .col(
+                        ColumnDef::new(RookieDraftSelection::ContractId)
+                            .big_integer()
+                            .not_null(),
                     )
                     .col(
                         ColumnDef::new(RookieDraftSelection::DraftPickId)
@@ -46,7 +46,6 @@ impl MigrationTrait for Migration {
                             .big_integer()
                             .not_null(),
                     )
-                    .col(ColumnDef::new(RookieDraftSelection::SelectedPlayerId).big_integer())
                     .col(
                         ColumnDef::new(RookieDraftSelection::CreatedAt)
                             .timestamp_with_time_zone()
@@ -70,9 +69,19 @@ impl MigrationTrait for Migration {
                 IndexCreateStatement::new()
                     .name("rookie_draft_selection_year_league")
                     .table(RookieDraftSelection::Table)
-                    .col(RookieDraftSelection::EndOfSeasonYear)
                     .col(RookieDraftSelection::LeagueId)
                     .col(RookieDraftSelection::Status)
+                    .to_owned(),
+            )
+            .await?;
+
+        manager
+            .create_index(
+                IndexCreateStatement::new()
+                    .name("rookie_draft_selection_unique_contract")
+                    .table(RookieDraftSelection::Table)
+                    .col(RookieDraftSelection::ContractId)
+                    .unique()
                     .to_owned(),
             )
             .await?;
@@ -89,22 +98,14 @@ impl MigrationTrait for Migration {
             .await?;
 
         manager
-            .create_index(
-                IndexCreateStatement::new()
-                    .name("rookie_draft_selection_unique_player")
-                    .table(RookieDraftSelection::Table)
-                    .col(RookieDraftSelection::SelectedPlayerId)
-                    .unique()
-                    .to_owned(),
-            )
-            .await?;
-
-        manager
             .create_foreign_key(
                 ForeignKey::create()
-                    .name("rookie_draft_selection_fk_league")
-                    .from(RookieDraftSelection::Table, RookieDraftSelection::LeagueId)
-                    .to(League::Table, League::Id)
+                    .name("rookie_draft_selection_fk_contract")
+                    .from(
+                        RookieDraftSelection::Table,
+                        RookieDraftSelection::ContractId,
+                    )
+                    .to(Contract::Table, Contract::Id)
                     .on_delete(ForeignKeyAction::Cascade)
                     .on_update(ForeignKeyAction::Cascade)
                     .to_owned(),
@@ -129,12 +130,9 @@ impl MigrationTrait for Migration {
         manager
             .create_foreign_key(
                 ForeignKey::create()
-                    .name("rookie_draft_selection_fk_selected_player")
-                    .from(
-                        RookieDraftSelection::Table,
-                        RookieDraftSelection::SelectedPlayerId,
-                    )
-                    .to(Player::Table, Player::Id)
+                    .name("rookie_draft_selection_fk_league")
+                    .from(RookieDraftSelection::Table, RookieDraftSelection::LeagueId)
+                    .to(League::Table, League::Id)
                     .on_delete(ForeignKeyAction::Cascade)
                     .on_update(ForeignKeyAction::Cascade)
                     .to_owned(),
@@ -160,11 +158,10 @@ pub enum RookieDraftSelection {
     Table,
     Id,
     Order,
-    EndOfSeasonYear,
     Status,
+    ContractId,
     DraftPickId,
     LeagueId,
-    SelectedPlayerId,
     CreatedAt,
     UpdatedAt,
 }

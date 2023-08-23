@@ -97,8 +97,6 @@ pub enum Relation {
         on_delete = "NoAction"
     )]
     RealTeam,
-    #[sea_orm(has_many = "super::rookie_draft_selection::Entity")]
-    RookieDraftSelection,
 }
 
 impl Related<super::contract::Entity> for Entity {
@@ -122,12 +120,6 @@ impl Related<super::position::Entity> for Entity {
 impl Related<super::real_team::Entity> for Entity {
     fn to() -> RelationDef {
         Relation::RealTeam.def()
-    }
-}
-
-impl Related<super::rookie_draft_selection::Entity> for Entity {
-    fn to() -> RelationDef {
-        Relation::RookieDraftSelection.def()
     }
 }
 
