@@ -18,7 +18,8 @@ use super::{
     annual_contract_advancement::create_advancement_for_contract,
     drop_contract::create_dropped_contract, expire_contract::expire_contract,
     free_agent_extension::sign_rfa_or_ufa_contract_to_team,
-    rookie_activation::create_rookie_contract_from_rd, trade_contract::trade_contract_to_team,
+    rookie_activation::create_rookie_contract_from_rd,
+    rookie_draft::new_contract_from_rookie_draft, trade_contract::trade_contract_to_team,
     veteran_auction_contract::new_contract_for_veteran_auction,
     veteran_contract_signing::sign_veteran_contract,
 };
@@ -143,6 +144,24 @@ impl Model {
         player_id: i64,
     ) -> ActiveModel {
         new_contract_for_veteran_auction(league_id, end_of_season_year, player_id)
+    }
+
+    pub fn new_contract_from_rookie_draft(
+        league_id: i64,
+        end_of_season_year: i16,
+        team_id: i64,
+        salary: i16,
+        player_id: i64,
+        is_league_player: bool,
+    ) -> ActiveModel {
+        new_contract_from_rookie_draft(
+            league_id,
+            end_of_season_year,
+            team_id,
+            salary,
+            player_id,
+            is_league_player,
+        )
     }
 
     /// Creates a new Veteran or Rookie Extension contract from the current contract as a result of a team winning the contract during the Preseason Veteran Auction. Note that this doesn't do anything to insert the new contract or update the original.
