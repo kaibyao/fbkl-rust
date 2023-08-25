@@ -1,4 +1,4 @@
-use std::fmt::Debug;
+use std::{collections::HashMap, fmt::Debug};
 
 use color_eyre::{eyre::eyre, Result};
 use sea_orm::{
@@ -7,6 +7,30 @@ use sea_orm::{
 use tracing::instrument;
 
 use crate::deadline::{self, DeadlineType};
+
+#[instrument]
+pub async fn find_deadlines_by_date_for_league_season<C>(
+    league_id: i64,
+    end_of_season_year: i16,
+    db: &C,
+) -> Result<HashMap<DateTimeWithTimeZone, deadline::Model>>
+where
+    C: ConnectionTrait + Debug,
+{
+    let deadlines = deadline::Entity::find()
+        .filter(
+            deadline::Column::LeagueId
+                .eq(league_id)
+                .and(deadline::Column::EndOfSeasonYear.eq(end_of_season_year)),
+        )
+        .all(db)
+        .await?;
+
+    Ok(deadlines
+        .into_iter()
+        .map(|deadline_model| (deadline_model.date_time, deadline_model))
+        .collect())
+}
 
 #[instrument]
 pub async fn find_deadline_for_season_by_type<C>(
