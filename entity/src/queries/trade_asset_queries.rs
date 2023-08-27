@@ -4,13 +4,65 @@ use color_eyre::{
     eyre::{bail, eyre},
     Result,
 };
-use sea_orm::{ActiveModelTrait, ConnectionTrait, TransactionTrait};
+use sea_orm::{ActiveModelTrait, ConnectionTrait, LoaderTrait, TransactionTrait};
 use tracing::instrument;
 
 use crate::{
     contract::{self, ContractStatus},
-    trade, trade_asset,
+    draft_pick, trade, trade_asset,
 };
+
+#[instrument]
+pub async fn get_trade_assets_related_to_contracts<C>(
+    contracts: &[contract::Model],
+    db: &C,
+) -> Result<impl Iterator<Item = trade_asset::Model>>
+where
+    C: ConnectionTrait + Debug,
+{
+    let trade_assets_with_contracts = contracts
+        .load_many(trade_asset::Entity, db)
+        .await?
+        .into_iter()
+        .flatten();
+
+    Ok(trade_assets_with_contracts)
+}
+
+#[instrument]
+pub async fn get_trade_assets_related_to_draft_picks<C>(
+    draft_picks: Vec<draft_pick::Model>,
+    db: &C,
+) -> Result<impl Iterator<Item = trade_asset::Model>>
+where
+    C: ConnectionTrait + Debug,
+{
+    let trade_assets_with_draft_picks = draft_picks
+        .load_many(trade_asset::Entity, db)
+        .await?
+        .into_iter()
+        .flatten();
+
+    Ok(trade_assets_with_draft_picks)
+}
+
+#[instrument]
+pub async fn get_trade_assets_for_trades<C>(
+    trades: &[trade::Model],
+    db: &C,
+) -> Result<Vec<trade_asset::Model>>
+where
+    C: ConnectionTrait + Debug,
+{
+    let trade_assets = trades
+        .load_many(trade_asset::Entity, db)
+        .await?
+        .into_iter()
+        .flatten()
+        .collect();
+
+    Ok(trade_assets)
+}
 
 /// Creates a new, not-yet-inserted trade asset from a given contract, without a set `trade_id`.
 #[instrument]
@@ -64,31 +116,6 @@ fn validate_contract_trade_asset(
     if contract_team_id != from_team_id {
         bail!("Contract's owning team and trade asset's sending team do not match. contract.team_id = {}. trade_asset.from_team_id = {}.", contract_team_id, from_team_id);
     }
-
-    // let teams_involved_in_trade_models = trade_model
-    //     .find_linked(TeamsInvolvedInTrade)
-    //     .all(db)
-    //     .await?;
-    // let trade_team_ids: Vec<i64> = teams_involved_in_trade_models
-    //     .iter()
-    //     .map(|team_model| team_model.id)
-    //     .collect();
-    // if !trade_team_ids.contains(&from_team_id) {
-    //     bail!(
-    //         "Trade asset's sending team is not involved in this trade. trade_id = {}. involved team_ids = {}. trade_asset.from_team_id = {}.",
-    //         trade_model.id,
-    //         trade_team_ids.iter().map(|team_id| team_id.to_string()).collect::<Vec<_>>().join(", "),
-    //         from_team_id
-    //     );
-    // }
-    // if !trade_team_ids.contains(&to_team_id) {
-    //     bail!(
-    //         "Trade asset's receiving team is not involved in this trade. trade_id = {}. involved team_ids = {}. trade_asset.to_team_id = {}.",
-    //         trade_model.id,
-    //         trade_team_ids.iter().map(|team_id| team_id.to_string()).collect::<Vec<_>>().join(", "),
-    //         to_team_id
-    //     );
-    // }
 
     Ok(())
 }

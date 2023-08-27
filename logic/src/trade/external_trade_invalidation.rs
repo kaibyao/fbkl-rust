@@ -10,6 +10,7 @@ use fbkl_entity::{
     },
     trade::{self, TradeStatus},
     trade_asset::{self, TradeAssetType},
+    trade_asset_queries,
 };
 use tracing::instrument;
 
@@ -53,7 +54,7 @@ where
         .map(|(_trade_asset, contract_model)| contract_model.clone())
         .collect();
     let external_trade_assets_with_traded_contacts =
-        get_external_trade_assets_related_to_traded_contracts(&traded_contracts, db).await?;
+        trade_asset_queries::get_trade_assets_related_to_contracts(&traded_contracts, db).await?;
     all_external_affected_trade_assets.extend(external_trade_assets_with_traded_contacts);
 
     // merge draft_pick_option to draft_pick
@@ -72,13 +73,12 @@ where
         .values()
         .map(|(_trade_asset, draft_pick_model)| draft_pick_model.clone())
         .collect();
+    let mut all_affected_draft_picks =
+        vec![draft_picks_affected_by_affected_options, traded_draft_picks].concat();
+    all_affected_draft_picks.dedup_by_key(|draft_pick| draft_pick.id);
     let external_trade_asset_with_affected_draft_picks =
-        get_external_trade_assets_related_to_affected_draft_picks(
-            traded_draft_picks,
-            draft_picks_affected_by_affected_options,
-            db,
-        )
-        .await?;
+        trade_asset_queries::get_trade_assets_related_to_draft_picks(all_affected_draft_picks, db)
+            .await?;
     all_external_affected_trade_assets.extend(external_trade_asset_with_affected_draft_picks);
 
     // get external trades
@@ -99,44 +99,6 @@ where
     all_active_external_trades_affected_by_traded_assets.dedup_by_key(|trade| trade.id);
 
     invalidate_external_trades(all_active_external_trades_affected_by_traded_assets, db).await
-}
-
-#[instrument]
-async fn get_external_trade_assets_related_to_traded_contracts<C>(
-    traded_contracts: &[contract::Model],
-    db: &C,
-) -> Result<impl Iterator<Item = trade_asset::Model>>
-where
-    C: ConnectionTrait + Debug,
-{
-    let external_trade_assets_with_traded_contacts = traded_contracts
-        .load_many(trade_asset::Entity, db)
-        .await?
-        .into_iter()
-        .flatten();
-
-    Ok(external_trade_assets_with_traded_contacts)
-}
-
-#[instrument]
-async fn get_external_trade_assets_related_to_affected_draft_picks<C>(
-    traded_draft_picks: Vec<draft_pick::Model>,
-    draft_picks_affected_by_affected_options: Vec<draft_pick::Model>,
-    db: &C,
-) -> Result<impl Iterator<Item = trade_asset::Model>>
-where
-    C: ConnectionTrait + Debug,
-{
-    let mut all_affected_draft_picks =
-        vec![draft_picks_affected_by_affected_options, traded_draft_picks].concat();
-    all_affected_draft_picks.dedup_by_key(|draft_pick| draft_pick.id);
-    let external_trade_asset_with_affected_draft_picks = all_affected_draft_picks
-        .load_many(trade_asset::Entity, db)
-        .await?
-        .into_iter()
-        .flatten();
-
-    Ok(external_trade_asset_with_affected_draft_picks)
 }
 
 #[instrument]
@@ -168,12 +130,8 @@ async fn invalidate_external_trade_assets<C>(
 where
     C: ConnectionTrait + Debug,
 {
-    let external_trade_assets: Vec<trade_asset::Model> = external_trades
-        .load_many(trade_asset::Entity, db)
-        .await?
-        .into_iter()
-        .flatten()
-        .collect();
+    let external_trade_assets =
+        trade_asset_queries::get_trade_assets_for_trades(&external_trades, db).await?;
 
     let mut external_draft_pick_option_trade_assets = vec![];
 
