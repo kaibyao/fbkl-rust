@@ -5,7 +5,7 @@ use fbkl_constants::league_rules::{
     KEEPER_CONTRACT_COUNT_LIMIT, KEEPER_CONTRACT_TOTAL_SALARY_LIMIT,
 };
 use fbkl_entity::{
-    contract,
+    contract::{self, ContractType},
     sea_orm::ConnectionTrait,
     team,
     team_update::{self},
@@ -74,15 +74,15 @@ fn validate_team_keepers(contracts: &[contract::Model]) -> Result<()> {
     let counted_contracts: Vec<&contract::Model> = contracts
         .iter()
         .filter(|contract| match contract.contract_type {
-            contract::ContractType::RookieDevelopment => true,
-            contract::ContractType::RookieDevelopmentInternational => true,
-            contract::ContractType::Rookie => true,
-            contract::ContractType::RestrictedFreeAgent => false,
-            contract::ContractType::RookieExtension => true,
-            contract::ContractType::UnrestrictedFreeAgentOriginalTeam => false,
-            contract::ContractType::Veteran => true,
-            contract::ContractType::UnrestrictedFreeAgentVeteran => false,
-            contract::ContractType::FreeAgent => false,
+            ContractType::RookieDevelopment => true,
+            ContractType::RookieDevelopmentInternational => true,
+            ContractType::Rookie => true,
+            ContractType::RestrictedFreeAgent => false,
+            ContractType::RookieExtension => true,
+            ContractType::UnrestrictedFreeAgentOriginalTeam => false,
+            ContractType::Veteran => true,
+            ContractType::UnrestrictedFreeAgentVeteran => false,
+            ContractType::FreeAgent => false,
         })
         .collect();
 
@@ -93,8 +93,8 @@ fn validate_team_keepers(contracts: &[contract::Model]) -> Result<()> {
     let counted_non_rd_contracts: Vec<&contract::Model> = counted_contracts
         .into_iter()
         .filter(|contract| {
-            contract.contract_type != contract::ContractType::RookieDevelopment
-                && contract.contract_type != contract::ContractType::RookieDevelopmentInternational
+            contract.contract_type != ContractType::RookieDevelopment
+                && contract.contract_type != ContractType::RookieDevelopmentInternational
         })
         .collect();
 

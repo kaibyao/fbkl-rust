@@ -200,6 +200,16 @@ pub enum Relation {
     Transaction,
 }
 
+impl Related<super::deadline::Entity> for Entity {
+    fn to() -> RelationDef {
+        super::transaction::Relation::Deadline.def()
+    }
+
+    fn via() -> Option<RelationDef> {
+        Some(Relation::Transaction.def())
+    }
+}
+
 impl Related<super::team::Entity> for Entity {
     fn to() -> RelationDef {
         Relation::Team.def()

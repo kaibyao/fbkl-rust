@@ -1,11 +1,31 @@
 use color_eyre::Result;
 use sea_orm::{
-    ActiveModelTrait, ActiveValue, ColumnTrait, ConnectionTrait, EntityTrait, QueryFilter,
+    sea_query::Expr, ActiveModelTrait, ActiveValue, ColumnTrait, ConnectionTrait, EntityTrait,
+    ModelTrait, QueryFilter,
 };
 use std::fmt::Debug;
 use tracing::instrument;
 
-use crate::team_update::{self, TeamUpdateStatus};
+use crate::{
+    deadline,
+    team_update::{self, TeamUpdateStatus},
+};
+
+/// Finds the team_updates related to the given deadline.
+#[instrument]
+pub async fn find_team_updates_for_deadline<C>(
+    deadline_model: &deadline::Model,
+    db: &C,
+) -> Result<Vec<team_update::Model>>
+where
+    C: ConnectionTrait + Debug,
+{
+    let team_updates = deadline_model
+        .find_related(team_update::Entity)
+        .all(db)
+        .await?;
+    Ok(team_updates)
+}
 
 /// Finds the team_updates related to the given transaction id.
 #[instrument]
@@ -36,4 +56,22 @@ where
     setting_status_to_in_progress.status = ActiveValue::Set(status);
     let status_set_to_in_progress = setting_status_to_in_progress.update(db).await?;
     Ok(status_set_to_in_progress)
+}
+
+#[instrument]
+pub async fn update_team_updates_with_status<C>(
+    team_update_model_ids: Vec<i64>,
+    status: TeamUpdateStatus,
+    db: &C,
+) -> Result<Vec<team_update::Model>>
+where
+    C: ConnectionTrait + Debug,
+{
+    let updated_models = team_update::Entity::update_many()
+        .col_expr(team_update::Column::Status, Expr::value(status))
+        .filter(team_update::Column::Id.is_in(team_update_model_ids))
+        .exec_with_returning(db)
+        .await?;
+
+    Ok(updated_models)
 }

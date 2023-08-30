@@ -12,3 +12,4 @@ This document is to keep track of things for which we need to add automated test
     1. Draft pick options are traded between three parties correctly.
     1. Draft pick option amendments are traded between two parties correctly.
     1. Draft pick option amendments are traded between three parties correctly.
+1. Roster lock & validation

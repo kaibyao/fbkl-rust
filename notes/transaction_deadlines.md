@@ -103,3 +103,12 @@ Here's the list of all transaction types and when they'd happen:
 * `TeamUpdateConfigChange` - Immediately.
 
 For the ones that happen immediately, there would be a separate deadline validation that runs to make a team's roster is legal for a deadline.
+
+## UPDATE 2023-08-26
+
+Wondering if we actually need to tie transactions to deadlines. Thinking more high level, deadlines are just dates by which certain actions have to happen. Transactions are changes that are made to a team. My previous thoughts on transactions happening at a different time than the changes effected by the transactions might be incorrect... In a simpler model, all transactions happen immediately, while separate roster lock validation and processing happens when a deadline is reached.
+
+Are there any downsides to doing things this way?
+* What if people want to keep the flexibility they have now with choosing how to legalize their roster at the end of the week? Right now, while it's true that a roster has to be legal at the time of a trade, you don't have to decide HOW to make it legal until the end of the week. With this system, you need to choose which players to drop in order to make your roster legal for a trade, during the time of the trade.
+* Probably still good to link the team_updates / transactions to the deadline, so we can know if a roster lock isn't completed in a league, which team updates haven't been processed.
+* Then again, couldn't we just use error logging?

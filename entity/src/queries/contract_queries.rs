@@ -174,6 +174,21 @@ where
     Ok(contracts_by_player_name)
 }
 
+#[instrument]
+pub async fn find_contracts_by_ids<C>(
+    contract_ids: Vec<i64>,
+    db: &C,
+) -> Result<Vec<contract::Model>>
+where
+    C: ConnectionTrait + Debug,
+{
+    let contracts = contract::Entity::find()
+        .filter(contract::Column::Id.is_in(contract_ids))
+        .all(db)
+        .await?;
+    Ok(contracts)
+}
+
 /// Signs a contract to a team as a result of an auction ending (either the pre-season veteran auction or in-season FA auction).
 pub async fn sign_auction_contract_to_team<C>(
     auction_model: &auction::Model,
@@ -209,7 +224,7 @@ where
 }
 
 /// Used to replace an existing contract with a new one. The new one refers to the original as its original_contract_id, and the old one's status is set to `Replaced`.
-/// Returns a tuple containing the
+/// Returns the new replacement contract.
 #[instrument]
 async fn add_replacement_contract_to_chain<C>(
     current_contract_model: contract::Model,
