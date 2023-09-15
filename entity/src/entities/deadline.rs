@@ -3,9 +3,15 @@
 use std::fmt::Debug;
 
 use async_graphql::Enum;
-use color_eyre::eyre::Result;
+use color_eyre::eyre::{bail, Result};
+use fbkl_constants::league_rules::{
+    POST_SEASON_DEFAULT_TOTAL_SALARY_LIMIT, REGULAR_SEASON_DEFAULT_TOTAL_SALARY_LIMIT,
+};
 use sea_orm::entity::prelude::*;
 use serde::{Deserialize, Serialize};
+use tracing::instrument;
+
+use crate::deadline_queries;
 
 /// A Deadline is the date & time at which specific things happen over the course of a league season.
 #[derive(Clone, Debug, PartialEq, DeriveEntityModel, Eq, Serialize, Deserialize)]
@@ -20,6 +26,39 @@ pub struct Model {
     pub league_id: i64,
     pub created_at: DateTimeWithTimeZone,
     pub updated_at: DateTimeWithTimeZone,
+}
+
+impl Model {
+    #[instrument]
+    pub async fn get_salary_cap<C>(&self, db: &C) -> Result<i16>
+    where
+        C: ConnectionTrait + Debug,
+    {
+        let salary_cap = match self.deadline_type {
+            DeadlineType::InSeasonRosterLock => {
+                let fa_auction_end_deadline = deadline_queries::find_deadline_for_season_by_type(
+                    self.league_id,
+                    self.end_of_season_year,
+                    DeadlineType::FreeAgentAuctionEnd,
+                    db,
+                )
+                .await?;
+                if self.date_time > fa_auction_end_deadline.date_time {
+                    POST_SEASON_DEFAULT_TOTAL_SALARY_LIMIT
+                } else {
+                    REGULAR_SEASON_DEFAULT_TOTAL_SALARY_LIMIT
+                }
+            }
+            DeadlineType::TradeDeadlineAndPlayoffStart => POST_SEASON_DEFAULT_TOTAL_SALARY_LIMIT,
+            DeadlineType::SeasonEnd => POST_SEASON_DEFAULT_TOTAL_SALARY_LIMIT,
+            DeadlineType::PreseasonKeeper => {
+                bail!("Not validating pre-season keeper deadline in this function.")
+            }
+            _ => REGULAR_SEASON_DEFAULT_TOTAL_SALARY_LIMIT,
+        };
+
+        Ok(salary_cap)
+    }
 }
 
 /// The different types of deadlines that happen in a league. This is a leaky abstraction, in that there is no common way that related models use these deadline types.
