@@ -1,16 +1,26 @@
 use color_eyre::Result;
+use fbkl_constants::league_rules::KEEPER_CONTRACT_TOTAL_SALARY_LIMIT;
 use sea_orm::{ActiveModelTrait, ActiveValue, ConnectionTrait};
 use std::fmt::Debug;
 use tracing::instrument;
 
 use crate::{
     contract::{self, ContractType},
-    contract_queries, team,
-    team_update::{self, ContractUpdate, ContractUpdateType, TeamUpdateAsset, TeamUpdateData},
+    team,
+    team_update::{
+        self, ContractUpdate, ContractUpdateType, TeamUpdateAsset, TeamUpdateAssetSummary,
+        TeamUpdateData,
+    },
     transaction,
 };
 
 use super::ContractUpdatePlayerData;
+
+static IGNORE_CONTRACT_TYPES_FOR_KEEPERS: [ContractType; 3] = [
+    ContractType::RestrictedFreeAgent,
+    ContractType::UnrestrictedFreeAgentOriginalTeam,
+    ContractType::UnrestrictedFreeAgentVeteran,
+];
 
 #[instrument]
 async fn generate_keeper_team_update_data<C>(
@@ -21,15 +31,11 @@ async fn generate_keeper_team_update_data<C>(
 where
     C: ConnectionTrait + Debug,
 {
-    let all_active_team_contracts =
-        contract_queries::find_active_contracts_for_team(team_model, db).await?;
-    let ignore_contract_types_for_keepers = [
-        ContractType::RestrictedFreeAgent,
-        ContractType::UnrestrictedFreeAgentOriginalTeam,
-        ContractType::UnrestrictedFreeAgentVeteran,
-    ];
+    let all_active_team_contracts = team_model.get_active_contracts(db).await?;
 
     let mut contract_updates = vec![];
+    let mut team_contract_ids = vec![];
+    let mut total_salary = 0;
     for team_contract_model in all_active_team_contracts {
         let contract_update_player_data =
             ContractUpdatePlayerData::from_contract_model(&team_contract_model, db).await?;
@@ -42,7 +48,10 @@ where
                 player_team_abbr_at_time_of_trade: contract_update_player_data.real_team_abbr,
                 player_team_name_at_time_of_trade: contract_update_player_data.real_team_name,
             });
-        } else if !ignore_contract_types_for_keepers.contains(&team_contract_model.contract_type) {
+
+            team_contract_ids.push(team_contract_model.id);
+            total_salary += team_contract_model.salary;
+        } else if !IGNORE_CONTRACT_TYPES_FOR_KEEPERS.contains(&team_contract_model.contract_type) {
             contract_updates.push(ContractUpdate {
                 contract_id: team_contract_model.id,
                 update_type: ContractUpdateType::Drop,
@@ -52,8 +61,14 @@ where
             });
         }
     }
-    let team_update_data =
-        TeamUpdateData::Assets(vec![TeamUpdateAsset::Contracts(contract_updates)]);
+    let team_update_data = TeamUpdateData::Assets(TeamUpdateAssetSummary {
+        all_contract_ids: team_contract_ids,
+        changed_assets: vec![TeamUpdateAsset::Contracts(contract_updates)],
+        new_salary: total_salary,
+        new_salary_cap: KEEPER_CONTRACT_TOTAL_SALARY_LIMIT,
+        previous_salary: 0,
+        previous_salary_cap: 0,
+    });
     Ok(team_update_data)
 }
 

@@ -89,8 +89,8 @@ where
 
     let team_update_data = team_update_model.get_data()?;
     match team_update_data {
-        TeamUpdateData::Assets(updated_assets) => {
-            for updated_asset in updated_assets {
+        TeamUpdateData::Assets(team_update_asset_summary) => {
+            for updated_asset in team_update_asset_summary.changed_assets {
                 match updated_asset {
                     TeamUpdateAsset::Contracts(updated_contracts) => {
                         for contract_update in updated_contracts {

@@ -1,31 +1,36 @@
 use color_eyre::{eyre::eyre, Result};
 use fbkl_constants::FREE_AGENCY_TEAM;
+use fbkl_entity::{
+    deadline,
+    sea_orm::{prelude::DateTimeWithTimeZone, ActiveValue, ConnectionTrait, EntityTrait},
+};
 use multimap::MultiMap;
-use sea_orm::{prelude::DateTimeWithTimeZone, ActiveValue, ConnectionTrait, EntityTrait};
 use std::{collections::HashMap, fmt::Debug};
 use tracing::instrument;
 
-use crate::{
+use fbkl_entity::{
     contract::{self, RelatedPlayer},
-    draft_pick, draft_pick_option, draft_pick_queries,
+    contract_queries, draft_pick, draft_pick_option, draft_pick_queries,
     team_update::{
         self, ContractUpdate, ContractUpdateType, DraftPickUpdate, DraftPickUpdateType,
-        TeamUpdateAsset, TeamUpdateData, TeamUpdateStatus,
+        TeamUpdateAsset, TeamUpdateAssetSummary, TeamUpdateData, TeamUpdateStatus,
     },
     trade_asset, transaction,
 };
 
-/// Creates & inserts a team update from a completed trade.
+use crate::roster::calculate_team_contract_salary;
+
+static EMPTY_VEC: &Vec<contract::Model> = &vec![];
+
+/// Generates the data needed to create the team updates related to a trade. Returns a MultiMap w/ `team_id`s as its key and Team Update Assets as its values.
 #[instrument]
-pub async fn insert_team_updates_from_completed_trade<C>(
+pub async fn generate_team_update_assets_data_for_trade<C>(
     trade_asset_contracts: &[(trade_asset::Model, contract::Model)],
     trade_asset_draft_picks: &[(trade_asset::Model, draft_pick::Model)],
     trade_asset_draft_pick_options: &[(trade_asset::Model, draft_pick_option::Model)],
     updated_contracts_by_trade_asset_id: &HashMap<i64, contract::Model>,
-    trade_datetime: &DateTimeWithTimeZone,
-    trade_transaction: &transaction::Model,
     db: &C,
-) -> Result<()>
+) -> Result<MultiMap<i64, TeamUpdateAsset>>
 where
     C: ConnectionTrait + Debug,
 {
@@ -53,24 +58,65 @@ where
             .insert(team_id, TeamUpdateAsset::DraftPicks(draft_pick_updates));
     }
 
+    Ok(team_update_assets_by_team_id)
+}
+
+/// Creates & inserts a team update from a completed trade.
+#[instrument]
+pub async fn insert_team_updates_from_completed_trade<C>(
+    team_update_assets_by_team_id: MultiMap<i64, TeamUpdateAsset>,
+    trade_datetime: &DateTimeWithTimeZone,
+    trade_transaction: &transaction::Model,
+    deadline_model: &deadline::Model,
+    team_salaries_before_trade: &HashMap<i64, (i16, i16)>,
+    team_ids_involved_in_trade: Vec<i64>,
+    db: &C,
+) -> Result<()>
+where
+    C: ConnectionTrait + Debug,
+{
+    // get all contracts + draft picks per team; the new contracts have already been created by this point
+    let active_contracts_by_team_id =
+        contract_queries::find_active_contracts_by_teams(team_ids_involved_in_trade, db).await?;
+
     // Insert new team updates
-    let team_update_models_to_insert: Vec<team_update::ActiveModel> = team_update_assets_by_team_id
-        .into_iter()
-        .map(|(team_id, team_update_asset)| {
-            let team_update_data = TeamUpdateData::Assets(team_update_asset);
-            let new_team_update = team_update::ActiveModel {
-                id: ActiveValue::NotSet,
-                data: ActiveValue::Set(team_update_data.as_bytes()?),
-                effective_date: ActiveValue::Set(trade_datetime.date_naive()),
-                status: ActiveValue::Set(TeamUpdateStatus::Done),
-                team_id: ActiveValue::Set(team_id),
-                transaction_id: ActiveValue::Set(Some(trade_transaction.id)),
-                created_at: ActiveValue::NotSet,
-                updated_at: ActiveValue::NotSet,
-            };
-            Ok(new_team_update)
-        })
-        .collect::<Result<Vec<team_update::ActiveModel>>>()?;
+    let mut team_update_models_to_insert = vec![];
+    for (team_id, team_update_assets) in team_update_assets_by_team_id.into_iter() {
+        let team_active_contracts = active_contracts_by_team_id
+            .get_vec(&team_id)
+            .unwrap_or(EMPTY_VEC);
+        let team_contract_ids = team_active_contracts
+            .iter()
+            .map(|contract_model| contract_model.id)
+            .collect();
+        let (new_salary, new_salary_cap) =
+            calculate_team_contract_salary(team_id, team_active_contracts, deadline_model, db)
+                .await?;
+        let (previous_salary, previous_salary_cap) =
+            team_salaries_before_trade.get(&team_id).expect(
+                "Team salaries should have been generated using all team_ids involved in trade.",
+            );
+
+        let team_update_data = TeamUpdateData::Assets(TeamUpdateAssetSummary {
+            all_contract_ids: team_contract_ids,
+            changed_assets: team_update_assets,
+            new_salary,
+            new_salary_cap,
+            previous_salary: *previous_salary,
+            previous_salary_cap: *previous_salary_cap,
+        });
+        let new_team_update = team_update::ActiveModel {
+            id: ActiveValue::NotSet,
+            data: ActiveValue::Set(team_update_data.as_bytes()?),
+            effective_date: ActiveValue::Set(trade_datetime.date_naive()),
+            status: ActiveValue::Set(TeamUpdateStatus::Done),
+            team_id: ActiveValue::Set(team_id),
+            transaction_id: ActiveValue::Set(Some(trade_transaction.id)),
+            created_at: ActiveValue::NotSet,
+            updated_at: ActiveValue::NotSet,
+        };
+        team_update_models_to_insert.push(new_team_update);
+    }
 
     team_update::Entity::insert_many(team_update_models_to_insert)
         .exec(db)

@@ -1,4 +1,5 @@
 mod accept_trade;
+mod create_trade_team_update;
 mod external_trade_invalidation;
 mod process_trade;
 mod process_trade_assets;

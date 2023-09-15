@@ -1,6 +1,5 @@
 mod auction_team_update;
 mod basic;
-mod insert_from_trade;
 mod keeper_team_update;
 
 use crate::contract::{self, RelatedPlayer};
@@ -12,13 +11,12 @@ use tracing::instrument;
 
 pub use auction_team_update::*;
 pub use basic::*;
-pub use insert_from_trade::*;
 pub use keeper_team_update::*;
 
-struct ContractUpdatePlayerData {
-    player_name: String,
-    real_team_abbr: String,
-    real_team_name: String,
+pub struct ContractUpdatePlayerData {
+    pub player_name: String,
+    pub real_team_abbr: String,
+    pub real_team_name: String,
 }
 
 impl ContractUpdatePlayerData {

@@ -4,6 +4,7 @@ use color_eyre::{
     eyre::{bail, ensure},
     Result,
 };
+use multimap::MultiMap;
 use sea_orm::{
     ActiveModelTrait, ActiveValue, ColumnTrait, ConnectionTrait, EntityTrait, JoinType, ModelTrait,
     QueryFilter, QuerySelect, RelationTrait,
@@ -12,8 +13,9 @@ use tracing::instrument;
 
 use crate::{
     auction, auction_bid,
-    contract::{self, ContractStatus, ContractType},
-    league_player, player, team,
+    contract::{self, ContractType},
+    league_player, player,
+    transaction::{self, TransactionType},
 };
 
 /// Inserts the new/advanced contract and sets the status of the old one appropriately.
@@ -77,23 +79,6 @@ where
     add_replacement_contract_to_chain(contract_model, contract_to_expire, db).await
 }
 
-/// Retrieves all active contracts for a given team.
-#[instrument]
-pub async fn find_active_contracts_for_team<C>(
-    team: &team::Model,
-    db: &C,
-) -> Result<Vec<contract::Model>>
-where
-    C: ConnectionTrait + Debug,
-{
-    let active_team_contracts = team
-        .find_related(contract::Entity)
-        .filter(contract::Column::Status.eq(ContractStatus::Active))
-        .all(db)
-        .await?;
-    Ok(active_team_contracts)
-}
-
 /// Retrieves all contracts currently active in a league. Note that this includes Free Agent contracts where the player had been signed onto a team at some point but ended the season as a free agent.
 #[instrument]
 pub async fn find_active_contracts_in_league<C>(
@@ -113,6 +98,32 @@ where
         .await?;
 
     Ok(contracts)
+}
+
+/// Finds active contracts that belong to the given teams.
+#[instrument]
+pub async fn find_active_contracts_by_teams<C>(
+    team_ids: Vec<i64>,
+    db: &C,
+) -> Result<MultiMap<i64, contract::Model>>
+where
+    C: ConnectionTrait + Debug,
+{
+    let all_contracts = contract::Entity::find()
+        .filter(
+            contract::Column::TeamId
+                .is_in(team_ids)
+                .and(contract::Column::Status.eq(contract::ContractStatus::Active)),
+        )
+        .all(db)
+        .await?;
+
+    let mut active_contracts_by_team_id = MultiMap::new();
+    for active_contract in all_contracts {
+        active_contracts_by_team_id.insert(active_contract.team_id.expect("A contract model retrieved by filtering on team_id should have a non-empty team_id value."), active_contract);
+    }
+
+    Ok(active_contracts_by_team_id)
 }
 
 /// Retrieves all contracts currently in the given league that match the given list of player names.
@@ -187,6 +198,34 @@ where
         .all(db)
         .await?;
     Ok(contracts)
+}
+
+#[instrument]
+pub async fn find_dropped_contracts_for_team_in_season<C>(
+    team_id: i64,
+    end_of_season_year: i16,
+    db: &C,
+) -> Result<Vec<contract::Model>>
+where
+    C: ConnectionTrait + Debug,
+{
+    let dropped_team_contracts = contract::Entity::find()
+        .join(
+            JoinType::LeftJoin,
+            contract::Relation::DroppedContractTransaction.def(),
+        )
+        .filter(
+            contract::Column::TeamId
+                .eq(team_id)
+                .and(contract::Column::EndOfSeasonYear.eq(end_of_season_year))
+                .and(
+                    transaction::Column::TransactionType
+                        .eq(TransactionType::TeamUpdateDropContract),
+                ),
+        )
+        .all(db)
+        .await?;
+    Ok(dropped_team_contracts)
 }
 
 /// Signs a contract to a team as a result of an auction ending (either the pre-season veteran auction or in-season FA auction).

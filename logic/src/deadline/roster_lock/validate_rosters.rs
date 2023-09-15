@@ -2,8 +2,7 @@ use std::fmt::Debug;
 
 use color_eyre::eyre::{bail, ensure, Result};
 use fbkl_constants::league_rules::{
-    POST_SEASON_DEFAULT_TOTAL_SALARY_LIMIT, PRE_SEASON_CONTRACTS_PER_ROSTER_LIMIT,
-    REGULAR_SEASON_DEFAULT_TOTAL_SALARY_LIMIT,
+    PRE_SEASON_CONTRACTS_PER_ROSTER_LIMIT,
     REGULAR_SEASON_INTL_ROOKIE_DEVELOPMENT_CONTRACTS_PER_ROSTER_LIMIT,
     REGULAR_SEASON_IR_CONTRACTS_PER_ROSTER_LIMIT,
     REGULAR_SEASON_ROOKIE_DEVELOPMENT_CONTRACTS_PER_ROSTER_LIMIT,
@@ -13,16 +12,13 @@ use fbkl_entity::{
     contract::{self, ContractType},
     contract_queries,
     deadline::{self, DeadlineType},
-    deadline_queries,
     sea_orm::ConnectionTrait,
     team_update::{self, ContractUpdateType, TeamUpdateAsset, TeamUpdateData},
-    team_update_queries,
 };
 use multimap::MultiMap;
-use once_cell::sync::Lazy;
 use tracing::instrument;
 
-static EMPTY_VEC: &Vec<team_update::Model> = &vec![];
+use crate::roster::calculate_team_contract_salary;
 
 /// Validate if a roster is ready for a lock.
 #[instrument]
@@ -48,93 +44,28 @@ where
                     .map(|team_id| (team_id, contract_model))
             })
             .collect();
-    let team_updates_by_team: MultiMap<i64, team_update::Model> =
-        team_update_queries::find_team_updates_for_deadline(roster_lock_deadline, db)
-            .await?
-            .into_iter()
-            .map(|team_update_model| (team_update_model.team_id, team_update_model))
-            .collect();
 
     for (team_id, team_contracts) in league_contracts_by_team.iter_all() {
-        let team_updates = team_updates_by_team.get_vec(team_id).unwrap_or(EMPTY_VEC);
         validate_roster_ir_slot_limits(team_contracts)?;
         validate_roster_contract_type_limits_not_exceeded(team_contracts, roster_lock_deadline)?;
-        validate_roster_cap_not_exceeded(team_contracts, team_updates, roster_lock_deadline, db)
+        validate_roster_cap_not_exceeded(*team_id, team_contracts, roster_lock_deadline, db)
             .await?;
     }
 
     Ok(())
 }
 
-static CONTRACT_TYPES_COUNTED_TOWARD_CAP: Lazy<&[ContractType]> = Lazy::new(|| {
-    &[
-        ContractType::Rookie,
-        ContractType::RookieExtension,
-        ContractType::Veteran,
-    ]
-});
-
 async fn validate_roster_cap_not_exceeded<C>(
+    team_id: i64,
     team_contracts: &[contract::Model],
-    team_updates: &[team_update::Model],
     roster_lock_deadline: &deadline::Model,
     db: &C,
 ) -> Result<()>
 where
     C: ConnectionTrait + Debug,
 {
-    let contracts_counted_towards_cap: Vec<&contract::Model> = team_contracts
-        .iter()
-        .filter(|contract_model| {
-            CONTRACT_TYPES_COUNTED_TOWARD_CAP.contains(&contract_model.contract_type)
-                && !contract_model.is_ir
-        })
-        .collect();
-    let total_contract_amount = contracts_counted_towards_cap
-        .iter()
-        .fold(0, |sum, contract_model| sum + contract_model.salary);
-
-    // Need to calculate the used cap, which could be affected by dropped contracts since the start of the season.
-    let mut team_salary_cap = match roster_lock_deadline.deadline_type {
-        DeadlineType::InSeasonRosterLock => {
-            let fa_auction_end_deadline = deadline_queries::find_deadline_for_season_by_type(
-                roster_lock_deadline.league_id,
-                roster_lock_deadline.end_of_season_year,
-                DeadlineType::FreeAgentAuctionEnd,
-                db,
-            )
-            .await?;
-            if roster_lock_deadline.date_time > fa_auction_end_deadline.date_time {
-                POST_SEASON_DEFAULT_TOTAL_SALARY_LIMIT
-            } else {
-                REGULAR_SEASON_DEFAULT_TOTAL_SALARY_LIMIT
-            }
-        }
-        DeadlineType::TradeDeadlineAndPlayoffStart => POST_SEASON_DEFAULT_TOTAL_SALARY_LIMIT,
-        DeadlineType::SeasonEnd => POST_SEASON_DEFAULT_TOTAL_SALARY_LIMIT,
-        DeadlineType::PreseasonKeeper => {
-            bail!("Not validating pre-season keeper deadline in this function.")
-        }
-        _ => REGULAR_SEASON_DEFAULT_TOTAL_SALARY_LIMIT,
-    };
-
-    if roster_lock_deadline.deadline_type != DeadlineType::PreseasonKeeper {
-        let dropped_contract_ids = get_dropped_contract_ids(team_updates)?;
-        let dropped_contracts =
-            contract_queries::find_contracts_by_ids(dropped_contract_ids, db).await?;
-        let dropped_contract_cap_penalty = dropped_contracts
-            .iter()
-            .filter(|contract_model| {
-                contract_model.contract_type != ContractType::RookieDevelopment
-                    && contract_model.contract_type != ContractType::RookieDevelopmentInternational
-            })
-            .fold(0, |sum, dropped_contract| {
-                let penalty_amount_rounded_up = (f32::from(dropped_contract.salary) * 0.2).ceil();
-                sum + penalty_amount_rounded_up as i16
-            });
-
-        team_salary_cap -= dropped_contract_cap_penalty;
-    }
+    let (total_contract_amount, team_salary_cap) =
+        calculate_team_contract_salary(team_id, team_contracts, roster_lock_deadline, db).await?;
 
     if total_contract_amount > team_salary_cap {
         bail!("Roster contracts are invalid for roster lock: contract salaries exceed the team's cap. Deadline: {}, League: {}, End-of-season year: {}, Team: {}.", roster_lock_deadline.id, roster_lock_deadline.league_id, roster_lock_deadline.end_of_season_year, team_contracts[0].team_id.unwrap());
@@ -146,11 +77,11 @@ where
 fn get_dropped_contract_ids(team_updates: &[team_update::Model]) -> Result<Vec<i64>> {
     let mut dropped_contract_ids = vec![];
     for team_update_model in team_updates {
-        let TeamUpdateData::Assets(team_update_assets) = team_update_model.get_data()? else {
+        let TeamUpdateData::Assets(team_update_asset_summary) = team_update_model.get_data()? else {
             continue
         };
 
-        for team_update_asset in team_update_assets {
+        for team_update_asset in team_update_asset_summary.changed_assets {
             let TeamUpdateAsset::Contracts(team_update_contracts) = team_update_asset else {
                 continue
             };

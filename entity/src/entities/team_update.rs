@@ -67,7 +67,7 @@ pub enum TeamUpdateStatus {
 #[derive(Debug, Serialize, Deserialize, PartialEq)]
 pub enum TeamUpdateData {
     /// The update to the team involves changes to its owned assets.
-    Assets(Vec<TeamUpdateAsset>),
+    Assets(TeamUpdateAssetSummary),
     /// The update to the team is a configuration change.
     Settings(TeamSettingsChange),
 }
@@ -84,6 +84,18 @@ impl TeamUpdateData {
         let decoded: Self = postcard::from_bytes(bytes_encoded)?;
         Ok(decoded)
     }
+}
+
+/// Stores asset changes (contracts, draft picks) as well as salary changes to a team roster.
+#[derive(Debug, Serialize, Deserialize, PartialEq)]
+pub struct TeamUpdateAssetSummary {
+    /// Contract IDs that map to ALL contracts owned by the team.
+    pub all_contract_ids: Vec<i64>,
+    pub changed_assets: Vec<TeamUpdateAsset>,
+    pub new_salary: i16,
+    pub new_salary_cap: i16,
+    pub previous_salary: i16,
+    pub previous_salary_cap: i16,
 }
 
 /// Stores information about changes made to a team's assets.
@@ -285,7 +297,14 @@ mod tests {
             TeamUpdateAsset::DraftPicks(vec![draft_pick_update]),
             TeamUpdateAsset::Contracts(vec![contract_update]),
         ];
-        let team_update_data = TeamUpdateData::Assets(team_update_assets);
+        let team_update_data = TeamUpdateData::Assets(TeamUpdateAssetSummary {
+            all_contract_ids: vec![1],
+            changed_assets: team_update_assets,
+            previous_salary: 98,
+            previous_salary_cap: 100,
+            new_salary_cap: 200,
+            new_salary: 189,
+        });
 
         let encoded_bytes = team_update_data.as_bytes()?;
         let decoded = TeamUpdateData::from_bytes(&encoded_bytes)?;

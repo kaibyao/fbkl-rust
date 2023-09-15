@@ -7,7 +7,10 @@ use sea_orm::{entity::prelude::*, ConnectionTrait};
 use serde::{Deserialize, Serialize};
 use tracing::instrument;
 
-use crate::{league, team_user};
+use crate::{
+    contract::{self, ContractStatus},
+    league, team_user,
+};
 
 #[derive(Clone, Debug, PartialEq, Eq, DeriveEntityModel, Serialize, Deserialize)]
 #[sea_orm(table_name = "team")]
@@ -42,6 +45,19 @@ impl Model {
     {
         let team_user_models = self.find_related(team_user::Entity).all(db).await?;
         Ok(team_user_models)
+    }
+
+    /// Retrieves all active contracts for a given team.
+    pub async fn get_active_contracts<C>(&self, db: &C) -> Result<Vec<contract::Model>>
+    where
+        C: ConnectionTrait + Debug,
+    {
+        let active_team_contracts = self
+            .find_related(contract::Entity)
+            .filter(contract::Column::Status.eq(ContractStatus::Active))
+            .all(db)
+            .await?;
+        Ok(active_team_contracts)
     }
 }
 
