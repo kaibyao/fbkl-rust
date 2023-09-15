@@ -12,7 +12,9 @@ use sea_orm::{entity::prelude::*, ConnectionTrait};
 use serde::{Deserialize, Serialize};
 use tracing::instrument;
 
-use crate::{auction, league, league_player, player, rookie_draft_selection, team, trade_asset};
+use crate::{
+    auction, league, league_player, player, rookie_draft_selection, team, trade_asset, transaction,
+};
 
 use super::{
     annual_contract_advancement::create_advancement_for_contract,
@@ -273,6 +275,8 @@ pub enum ContractStatus {
 pub enum Relation {
     #[sea_orm(has_many = "auction::Entity")]
     Auction,
+    #[sea_orm(has_one = "transaction::Entity")]
+    DroppedContractTransaction,
     #[sea_orm(
         belongs_to = "league::Entity",
         from = "Column::LeagueId",
@@ -366,6 +370,12 @@ impl Related<team::Entity> for Entity {
 impl Related<trade_asset::Entity> for Entity {
     fn to() -> RelationDef {
         Relation::TradeAsset.def()
+    }
+}
+
+impl Related<transaction::Entity> for Entity {
+    fn to() -> RelationDef {
+        Relation::DroppedContractTransaction.def()
     }
 }
 

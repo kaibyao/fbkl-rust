@@ -1,7 +1,7 @@
 use sea_orm_migration::prelude::*;
 
 use crate::{
-    m20220924_004529_create_league_tables::League,
+    m20220924_004529_create_league_tables::League, m20221023_002183_create_asset_tables::Contract,
     m20221111_002318_create_rookie_draft::RookieDraftSelection,
     m20221112_132607_create_auction_tables::Auction, m20221112_151717_create_trade_tables::Trade,
     set_auto_updated_at_on_table,
@@ -133,6 +133,11 @@ async fn setup_transaction(manager: &SchemaManager<'_>) -> Result<(), DbErr> {
                         .not_null(),
                 )
                 .col(
+                    ColumnDef::new(Transaction::LeagueId)
+                        .big_integer()
+                        .not_null(),
+                )
+                .col(
                     ColumnDef::new(Transaction::TransactionType)
                         .small_integer()
                         .not_null(),
@@ -143,11 +148,7 @@ async fn setup_transaction(manager: &SchemaManager<'_>) -> Result<(), DbErr> {
                         .big_integer()
                         .not_null(),
                 )
-                .col(
-                    ColumnDef::new(Transaction::LeagueId)
-                        .big_integer()
-                        .not_null(),
-                )
+                .col(ColumnDef::new(Transaction::DroppedContractId).big_integer())
                 .col(ColumnDef::new(Transaction::RookieDraftSelectionId).big_integer())
                 .col(ColumnDef::new(Transaction::TradeId).big_integer())
                 .col(
@@ -185,6 +186,17 @@ async fn setup_transaction(manager: &SchemaManager<'_>) -> Result<(), DbErr> {
                 .name("transaction_fk_deadline")
                 .from(Transaction::Table, Transaction::DeadlineId)
                 .to(Deadline::Table, Deadline::Id)
+                .on_delete(ForeignKeyAction::Cascade)
+                .on_update(ForeignKeyAction::Cascade)
+                .to_owned(),
+        )
+        .await?;
+    manager
+        .create_foreign_key(
+            ForeignKey::create()
+                .name("transaction_fk_dropped_contract")
+                .from(Transaction::Table, Transaction::DroppedContractId)
+                .to(Contract::Table, Contract::Id)
                 .on_delete(ForeignKeyAction::Cascade)
                 .on_update(ForeignKeyAction::Cascade)
                 .to_owned(),
@@ -246,6 +258,15 @@ async fn setup_transaction(manager: &SchemaManager<'_>) -> Result<(), DbErr> {
     manager
         .create_index(
             IndexCreateStatement::new()
+                .name("transaction_dropped_contract")
+                .table(Transaction::Table)
+                .col(Transaction::DroppedContractId)
+                .to_owned(),
+        )
+        .await?;
+    manager
+        .create_index(
+            IndexCreateStatement::new()
                 .name("transaction_type")
                 .table(Transaction::Table)
                 .col(Transaction::TransactionType)
@@ -276,6 +297,7 @@ pub enum Transaction {
     TransactionType,
     AuctionId,
     DeadlineId,
+    DroppedContractId,
     LeagueId,
     RookieDraftSelectionId,
     TradeId,

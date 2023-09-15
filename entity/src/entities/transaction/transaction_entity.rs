@@ -27,6 +27,7 @@ pub struct Model {
     pub league_id: i64,
     // Represents the deadline to which this transaction is tied. The reason this is necessary is because transactions may "happen" immediately, but they aren't executed until the date & time of their associated deadline.
     pub deadline_id: i64,
+    pub dropped_contract_id: Option<i64>,
     pub auction_id: Option<i64>,
     pub rookie_draft_selection_id: Option<i64>,
     pub trade_id: Option<i64>,
@@ -117,6 +118,14 @@ pub enum Relation {
     )]
     Deadline,
     #[sea_orm(
+        belongs_to = "crate::contract::Entity",
+        from = "Column::DroppedContractId",
+        to = "crate::contract::Column::Id",
+        on_update = "Cascade",
+        on_delete = "Cascade"
+    )]
+    DroppedContract,
+    #[sea_orm(
         belongs_to = "crate::league::Entity",
         from = "Column::LeagueId",
         to = "crate::league::Column::Id",
@@ -135,6 +144,12 @@ pub enum Relation {
 impl Related<crate::auction::Entity> for Entity {
     fn to() -> RelationDef {
         Relation::Auction.def()
+    }
+}
+
+impl Related<crate::contract::Entity> for Entity {
+    fn to() -> RelationDef {
+        Relation::DroppedContract.def()
     }
 }
 
