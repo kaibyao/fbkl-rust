@@ -67,10 +67,10 @@ impl Model {
 )]
 #[sea_orm(rs_type = "i16", db_type = "Integer")]
 pub enum DeadlineType {
-    /// Standard weekly lock that happens on Mondays (our start of the weekly matchups) at the first tip-off of the day.
+    /// The inauguration of a new season, which starts with the advancement of team contracts from the previous season.
     #[sea_orm(num_value = 0)]
-    InSeasonRosterLock,
-    /// The first roster lock of a season that determines which contracts from the previous season are kept + advanced. Happens before the veteran auction and rookie draft. Cap is increased from $200 to $210 after this time.
+    PreseasonStart,
+    /// The first roster lock of a season that determines which contracts that have been advanced from the previous season are kept. Happens before the veteran auction and rookie draft. Cap is increased from $100 to $200 after this time.
     #[sea_orm(num_value = 1)]
     PreseasonKeeper,
     /// The start date & time of the veteran (RFA/UFA/FA) auction. Open bidding is allowed after the last predetermined contracts auction starts.
@@ -97,11 +97,14 @@ pub enum DeadlineType {
     /// The first weekly roster lock of the season. Coincides with the first NBA game's tipoff time.
     #[sea_orm(num_value = 9)]
     Week1RosterLock,
-    /// Owners cannot nominate new FA auctions after this. This coincides with a $20 cap increase, which can be used for subsequent roster locks.
+    /// Standard weekly lock that happens on Mondays (our start of the weekly matchups) at the first tip-off of the day.
     #[sea_orm(num_value = 10)]
+    InSeasonRosterLock,
+    /// Owners cannot nominate new FA auctions after this. This coincides with a $20 cap increase, which can be used for subsequent roster locks.
+    #[sea_orm(num_value = 11)]
     FreeAgentAuctionEnd,
     /// Trades cannot be completed after this time. Coincides with the start of the playoffs week.
-    #[sea_orm(num_value = 11)]
+    #[sea_orm(num_value = 12)]
     TradeDeadlineAndPlayoffStart,
     /// End of the basketball season, after the last playoff week.
     #[sea_orm(num_value = 13)]

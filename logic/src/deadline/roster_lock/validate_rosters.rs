@@ -13,7 +13,6 @@ use fbkl_entity::{
     contract_queries,
     deadline::{self, DeadlineType},
     sea_orm::ConnectionTrait,
-    team_update::{self, ContractUpdateType, TeamUpdateAsset, TeamUpdateData},
 };
 use multimap::MultiMap;
 use tracing::instrument;
@@ -74,29 +73,6 @@ where
     Ok(())
 }
 
-fn get_dropped_contract_ids(team_updates: &[team_update::Model]) -> Result<Vec<i64>> {
-    let mut dropped_contract_ids = vec![];
-    for team_update_model in team_updates {
-        let TeamUpdateData::Assets(team_update_asset_summary) = team_update_model.get_data()? else {
-            continue
-        };
-
-        for team_update_asset in team_update_asset_summary.changed_assets {
-            let TeamUpdateAsset::Contracts(team_update_contracts) = team_update_asset else {
-                continue
-            };
-
-            for contract_update in team_update_contracts {
-                if contract_update.update_type == ContractUpdateType::Drop {
-                    dropped_contract_ids.push(contract_update.contract_id);
-                }
-            }
-        }
-    }
-
-    Ok(dropped_contract_ids)
-}
-
 fn validate_roster_contract_type_limits_not_exceeded(
     team_contracts: &[contract::Model],
     roster_lock_deadline: &deadline::Model,
@@ -123,6 +99,9 @@ fn validate_roster_contract_type_limits_not_exceeded(
     match roster_lock_deadline.deadline_type {
         DeadlineType::PreseasonKeeper => {
             bail!("Not validating pre-season keeper deadline in this function.")
+        }
+        DeadlineType::PreseasonStart => {
+            bail!("Not validating pre-season start deadline in this function.")
         }
         DeadlineType::PreseasonVeteranAuctionStart
         | DeadlineType::PreseasonFaAuctionStart

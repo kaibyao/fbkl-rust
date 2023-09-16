@@ -73,6 +73,26 @@ pub enum TeamUpdateData {
 }
 
 impl TeamUpdateData {
+    pub fn from_assets(
+        all_contract_ids: Vec<i64>,
+        changed_assets: Vec<TeamUpdateAsset>,
+        new_salary: i16,
+        new_salary_cap: i16,
+        previous_salary: i16,
+        previous_salary_cap: i16,
+    ) -> Self {
+        TeamUpdateData::Assets(TeamUpdateAssetSummary {
+            all_contract_ids,
+            changed_assets,
+            new_salary,
+            new_salary_cap,
+            previous_salary,
+            previous_salary_cap,
+        })
+    }
+}
+
+impl TeamUpdateData {
     pub fn as_bytes(&self) -> Result<Vec<u8>, Error> {
         // But what happens if the shape of the struct changes in the future?
         // I suppose you'd have to figure that out no matter how you store the data.
@@ -297,14 +317,8 @@ mod tests {
             TeamUpdateAsset::DraftPicks(vec![draft_pick_update]),
             TeamUpdateAsset::Contracts(vec![contract_update]),
         ];
-        let team_update_data = TeamUpdateData::Assets(TeamUpdateAssetSummary {
-            all_contract_ids: vec![1],
-            changed_assets: team_update_assets,
-            previous_salary: 98,
-            previous_salary_cap: 100,
-            new_salary_cap: 200,
-            new_salary: 189,
-        });
+        let team_update_data =
+            TeamUpdateData::from_assets(vec![1], team_update_assets, 98, 100, 200, 189);
 
         let encoded_bytes = team_update_data.as_bytes()?;
         let decoded = TeamUpdateData::from_bytes(&encoded_bytes)?;

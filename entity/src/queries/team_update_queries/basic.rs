@@ -44,6 +44,18 @@ where
 }
 
 #[instrument]
+pub async fn insert_team_update<C>(
+    team_update_to_insert: team_update::ActiveModel,
+    db: &C,
+) -> Result<team_update::Model>
+where
+    C: ConnectionTrait + Debug,
+{
+    let inserted_team_update = team_update_to_insert.insert(db).await?;
+    Ok(inserted_team_update)
+}
+
+#[instrument]
 pub async fn update_team_update_status<C>(
     team_update_model: team_update::Model,
     status: TeamUpdateStatus,

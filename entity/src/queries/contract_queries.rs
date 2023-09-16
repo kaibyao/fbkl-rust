@@ -12,7 +12,7 @@ use sea_orm::{
 use tracing::instrument;
 
 use crate::{
-    auction, auction_bid,
+    auction,
     contract::{self, ContractType},
     league_player, player,
     transaction::{self, TransactionType},
@@ -231,18 +231,18 @@ where
 /// Signs a contract to a team as a result of an auction ending (either the pre-season veteran auction or in-season FA auction).
 pub async fn sign_auction_contract_to_team<C>(
     auction_model: &auction::Model,
-    winning_auction_bid_model: &auction_bid::Model,
+    winning_bid_amount: i16,
+    winning_team_id: i64,
     db: &C,
 ) -> Result<contract::Model>
 where
     C: ConnectionTrait + Debug,
 {
     let contract_model = auction_model.get_contract(db).await?;
-    let winning_team_model = winning_auction_bid_model.get_team(db).await?;
 
     let signed_contract_model_to_insert = match contract_model.contract_type {
-        ContractType::RestrictedFreeAgent | ContractType::UnrestrictedFreeAgentOriginalTeam | ContractType::UnrestrictedFreeAgentVeteran => contract_model.sign_rfa_or_ufa_contract_to_team(winning_team_model.id, winning_auction_bid_model.bid_amount)?,
-        ContractType::Veteran | ContractType::FreeAgent => contract_model.sign_veteran_contract_to_team(winning_team_model.id, winning_auction_bid_model.bid_amount)?,
+        ContractType::RestrictedFreeAgent | ContractType::UnrestrictedFreeAgentOriginalTeam | ContractType::UnrestrictedFreeAgentVeteran => contract_model.sign_rfa_or_ufa_contract_to_team(winning_team_id, winning_bid_amount)?,
+        ContractType::Veteran | ContractType::FreeAgent => contract_model.sign_veteran_contract_to_team(winning_team_id, winning_bid_amount)?,
         _ => bail!("Cannot sign a contract won via auction to a team if the contract was not a valid free agent contract type. (auction_id = {}, contract_id = {})", auction_model.id, contract_model.id),
     };
 

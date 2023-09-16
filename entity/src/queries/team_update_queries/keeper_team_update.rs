@@ -7,10 +7,7 @@ use tracing::instrument;
 use crate::{
     contract::{self, ContractType},
     team,
-    team_update::{
-        self, ContractUpdate, ContractUpdateType, TeamUpdateAsset, TeamUpdateAssetSummary,
-        TeamUpdateData,
-    },
+    team_update::{self, ContractUpdate, ContractUpdateType, TeamUpdateAsset, TeamUpdateData},
     transaction,
 };
 
@@ -61,14 +58,14 @@ where
             });
         }
     }
-    let team_update_data = TeamUpdateData::Assets(TeamUpdateAssetSummary {
-        all_contract_ids: team_contract_ids,
-        changed_assets: vec![TeamUpdateAsset::Contracts(contract_updates)],
-        new_salary: total_salary,
-        new_salary_cap: KEEPER_CONTRACT_TOTAL_SALARY_LIMIT,
-        previous_salary: 0,
-        previous_salary_cap: 0,
-    });
+    let team_update_data = TeamUpdateData::from_assets(
+        team_contract_ids,
+        vec![TeamUpdateAsset::Contracts(contract_updates)],
+        total_salary,
+        KEEPER_CONTRACT_TOTAL_SALARY_LIMIT,
+        0,
+        0,
+    );
     Ok(team_update_data)
 }
 

@@ -13,7 +13,7 @@ use fbkl_entity::{
     contract_queries, draft_pick, draft_pick_option, draft_pick_queries,
     team_update::{
         self, ContractUpdate, ContractUpdateType, DraftPickUpdate, DraftPickUpdateType,
-        TeamUpdateAsset, TeamUpdateAssetSummary, TeamUpdateData, TeamUpdateStatus,
+        TeamUpdateAsset, TeamUpdateData, TeamUpdateStatus,
     },
     trade_asset, transaction,
 };
@@ -97,14 +97,14 @@ where
                 "Team salaries should have been generated using all team_ids involved in trade.",
             );
 
-        let team_update_data = TeamUpdateData::Assets(TeamUpdateAssetSummary {
-            all_contract_ids: team_contract_ids,
-            changed_assets: team_update_assets,
+        let team_update_data = TeamUpdateData::from_assets(
+            team_contract_ids,
+            team_update_assets,
             new_salary,
             new_salary_cap,
-            previous_salary: *previous_salary,
-            previous_salary_cap: *previous_salary_cap,
-        });
+            *previous_salary,
+            *previous_salary_cap,
+        );
         let new_team_update = team_update::ActiveModel {
             id: ActiveValue::NotSet,
             data: ActiveValue::Set(team_update_data.as_bytes()?),

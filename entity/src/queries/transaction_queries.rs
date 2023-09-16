@@ -45,8 +45,7 @@ where
 
     let transaction_to_insert =
         transaction::Model::new_keeper_deadline_transaction(&keeper_deadline);
-    let keeper_deadline_transaction = transaction_to_insert.insert(db).await?;
-    Ok(keeper_deadline_transaction)
+    insert_transaction(transaction_to_insert, db).await
 }
 
 /// Creates & inserts a transaction tied to the end of an auction.
@@ -61,8 +60,7 @@ where
 {
     let transaction_to_insert =
         transaction::Model::new_auction_transaction(deadline_model, auction_id);
-    let inserted_auction_transaction = transaction_to_insert.insert(db).await?;
-    Ok(inserted_auction_transaction)
+    insert_transaction(transaction_to_insert, db).await
 }
 
 /// Creates & inserts a transaction tied to a completed trade.
@@ -76,6 +74,17 @@ where
     C: ConnectionTrait + Debug,
 {
     let transaction_to_insert = transaction::Model::new_trade_transaction(deadline_model, trade_id);
+    insert_transaction(transaction_to_insert, db).await
+}
+
+#[instrument]
+pub async fn insert_transaction<C>(
+    transaction_to_insert: transaction::ActiveModel,
+    db: &C,
+) -> Result<transaction::Model>
+where
+    C: ConnectionTrait + Debug,
+{
     let inserted_transaction = transaction_to_insert.insert(db).await?;
     Ok(inserted_transaction)
 }

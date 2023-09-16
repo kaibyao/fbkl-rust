@@ -2,7 +2,7 @@
 
 use async_graphql::Enum;
 use color_eyre::{eyre::eyre, Result};
-use sea_orm::{entity::prelude::*, ConnectionTrait};
+use sea_orm::{entity::prelude::*, ActiveValue, ConnectionTrait};
 use serde::{Deserialize, Serialize};
 
 use crate::deadline;
@@ -65,6 +65,18 @@ impl Model {
         new_keeper_deadline_transaction(keeper_deadline_model)
     }
 
+    pub fn new_preseason_start_transaction(
+        preseason_start_deadline_model: &deadline::Model,
+    ) -> ActiveModel {
+        ActiveModel {
+            end_of_season_year: ActiveValue::Set(preseason_start_deadline_model.end_of_season_year),
+            transaction_type: ActiveValue::Set(TransactionType::PreseasonStart),
+            league_id: ActiveValue::Set(preseason_start_deadline_model.league_id),
+            deadline_id: ActiveValue::Set(preseason_start_deadline_model.id),
+            ..Default::default()
+        }
+    }
+
     pub fn new_trade_transaction(deadline_model: &deadline::Model, trade_id: i64) -> ActiveModel {
         new_trade_transaction(deadline_model, trade_id)
     }
@@ -82,26 +94,29 @@ pub enum TransactionType {
     /// The transaction is the result of a team winning a player auction.
     #[sea_orm(num_value = 1)]
     AuctionDone,
-    /// Pre-season keepers set.
+    /// Pre-season start.
     #[sea_orm(num_value = 2)]
+    PreseasonStart,
+    /// Pre-season keepers set.
+    #[sea_orm(num_value = 3)]
     PreseasonKeeper,
     /// A rookie player was selected during the rookie draft.
-    #[sea_orm(num_value = 3)]
+    #[sea_orm(num_value = 4)]
     RookieDraftSelection,
     /// A team has manually dropped a player contract.
-    #[sea_orm(num_value = 4)]
+    #[sea_orm(num_value = 5)]
     TeamUpdateDropContract,
     /// A team has moved a player contract to IR.
-    #[sea_orm(num_value = 5)]
+    #[sea_orm(num_value = 6)]
     TeamUpdateToIr,
     /// A team has moved a player contract from IR.
-    #[sea_orm(num_value = 6)]
+    #[sea_orm(num_value = 7)]
     TeamUpdateFromIr,
     /// A team has activated a rookie contract, converting them to a rookie extension.
-    #[sea_orm(num_value = 7)]
+    #[sea_orm(num_value = 8)]
     RookieContractActivation,
     /// A team has made a configuration change (ownership/name change).
-    #[sea_orm(num_value = 8)]
+    #[sea_orm(num_value = 9)]
     TeamUpdateConfigChange,
 }
 
