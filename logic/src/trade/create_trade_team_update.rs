@@ -107,7 +107,7 @@ where
         );
         let new_team_update = team_update::ActiveModel {
             id: ActiveValue::NotSet,
-            data: ActiveValue::Set(team_update_data.as_bytes()?),
+            data: ActiveValue::Set(team_update_data.to_json()?),
             effective_date: ActiveValue::Set(trade_datetime.date_naive()),
             status: ActiveValue::Set(TeamUpdateStatus::Done),
             team_id: ActiveValue::Set(team_id),

@@ -63,7 +63,7 @@ where
             0,
         );
         team_updates_to_insert.push(team_update::ActiveModel {
-            data: ActiveValue::Set(team_update_data.as_bytes()?),
+            data: ActiveValue::Set(team_update_data.to_json()?),
             effective_date: ActiveValue::Set(preseason_start_deadline_model.date_time.date_naive()),
             status: ActiveValue::Set(TeamUpdateStatus::Done),
             team_id: ActiveValue::Set(*team_id),

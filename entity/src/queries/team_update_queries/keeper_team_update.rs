@@ -84,7 +84,7 @@ where
         generate_keeper_team_update_data(team_model, keeper_contracts, db).await?;
 
     let team_update_to_insert = team_update::ActiveModel {
-        data: ActiveValue::Set(team_update_data.as_bytes()?),
+        data: ActiveValue::Set(team_update_data.to_json()?),
         effective_date: ActiveValue::Set(
             keeper_transaction
                 .get_deadline(db)
@@ -115,7 +115,7 @@ where
     let mut keeper_team_update_to_edit: team_update::ActiveModel = keeper_team_update.into();
     let team_update_data =
         generate_keeper_team_update_data(team_model, keeper_contracts, db).await?;
-    keeper_team_update_to_edit.data = ActiveValue::Set(team_update_data.as_bytes()?);
+    keeper_team_update_to_edit.data = ActiveValue::Set(team_update_data.to_json()?);
     let updated_model = keeper_team_update_to_edit.update(db).await?;
     Ok(updated_model)
 }

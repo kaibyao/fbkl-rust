@@ -4,7 +4,7 @@ use crate::team_user;
 use crate::team_user::LeagueRole;
 use async_graphql::Enum;
 use async_trait::async_trait;
-use color_eyre::{eyre::Error, Result};
+use color_eyre::Result;
 use sea_orm::entity::prelude::*;
 use serde::{Deserialize, Serialize};
 
@@ -16,7 +16,7 @@ pub struct Model {
     #[sea_orm(primary_key)]
     pub id: i64,
     /// Data containing the update made to team settings or roster. Converted to/from TeamUpdateData.
-    pub data: Vec<u8>,
+    pub data: serde_json::Value,
     pub effective_date: Date,
     pub status: TeamUpdateStatus,
     pub team_id: i64,
@@ -28,7 +28,7 @@ pub struct Model {
 
 impl Model {
     pub fn get_data(&self) -> Result<TeamUpdateData> {
-        let data = TeamUpdateData::from_bytes(&self.data)?;
+        let data: TeamUpdateData = serde_json::from_value(self.data.clone())?;
         Ok(data)
     }
 }
@@ -64,7 +64,7 @@ pub enum TeamUpdateStatus {
 }
 
 /// Used for storing the roster or settings updates made to the team.
-#[derive(Debug, Serialize, Deserialize, PartialEq)]
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
 pub enum TeamUpdateData {
     /// The update to the team involves changes to its owned assets.
     Assets(TeamUpdateAssetSummary),
@@ -73,6 +73,7 @@ pub enum TeamUpdateData {
 }
 
 impl TeamUpdateData {
+    /// Generates a new data struct from given assets.
     pub fn from_assets(
         all_contract_ids: Vec<i64>,
         changed_assets: Vec<TeamUpdateAsset>,
@@ -90,24 +91,21 @@ impl TeamUpdateData {
             previous_salary_cap,
         })
     }
-}
 
-impl TeamUpdateData {
-    pub fn as_bytes(&self) -> Result<Vec<u8>, Error> {
-        // But what happens if the shape of the struct changes in the future?
-        // I suppose you'd have to figure that out no matter how you store the data.
-        let bytes_encoded = postcard::to_allocvec(self)?;
-        Ok(bytes_encoded)
+    /// Consumes & converts the team update data into a json value, to be stored in the database.
+    pub fn to_json(self) -> Result<serde_json::Value> {
+        let self_as_json: serde_json::Value = serde_json::value::to_value(self)?;
+        Ok(self_as_json)
     }
 
-    pub fn from_bytes(bytes_encoded: &[u8]) -> Result<Self, Error> {
-        let decoded: Self = postcard::from_bytes(bytes_encoded)?;
-        Ok(decoded)
+    pub fn from_json(data_as_json: serde_json::Value) -> Result<Self> {
+        let data: Self = serde_json::value::from_value(data_as_json)?;
+        Ok(data)
     }
 }
 
 /// Stores asset changes (contracts, draft picks) as well as salary changes to a team roster.
-#[derive(Debug, Serialize, Deserialize, PartialEq)]
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
 pub struct TeamUpdateAssetSummary {
     /// Contract IDs that map to ALL contracts owned by the team.
     pub all_contract_ids: Vec<i64>,
@@ -119,7 +117,7 @@ pub struct TeamUpdateAssetSummary {
 }
 
 /// Stores information about changes made to a team's assets.
-#[derive(Debug, Serialize, Deserialize, PartialEq)]
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
 pub enum TeamUpdateAsset {
     /// The update to the team involves a roster change.
     Contracts(Vec<ContractUpdate>),
@@ -183,13 +181,13 @@ pub enum ContractUpdateType {
     LostViaFreeAgency,
 }
 
-#[derive(Debug, Serialize, Deserialize, PartialEq)]
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
 pub struct TeamSettingsChange {
     pub users: Vec<TeamUpdateSettingUser>,
 }
 
 /// Like `team_user::Model`, but without the created_at/updated_at.
-#[derive(Debug, Serialize, Deserialize, PartialEq)]
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
 pub struct TeamUpdateSettingUser {
     pub id: i64,
     pub league_role: LeagueRole,
@@ -268,7 +266,7 @@ impl ActiveModelBehavior for ActiveModel {
 }
 
 fn roster_change_requires_transaction(model: &ActiveModel) -> Result<(), DbErr> {
-    let decoded_data = TeamUpdateData::from_bytes(model.data.as_ref())
+    let decoded_data = TeamUpdateData::from_json(model.data.as_ref().clone())
         .map_err(|err| DbErr::Custom(err.to_string()))?;
     let is_assets_update = matches!(decoded_data, TeamUpdateData::Assets(_));
 
@@ -282,7 +280,7 @@ fn roster_change_requires_transaction(model: &ActiveModel) -> Result<(), DbErr> 
 }
 
 fn setting_change_requires_no_transaction(model: &ActiveModel) -> Result<(), DbErr> {
-    let decoded_data = TeamUpdateData::from_bytes(model.data.as_ref())
+    let decoded_data = TeamUpdateData::from_json(model.data.as_ref().clone())
         .map_err(|err| DbErr::Custom(err.to_string()))?;
     let is_settings_update = matches!(decoded_data, TeamUpdateData::Settings(_));
 
@@ -320,8 +318,8 @@ mod tests {
         let team_update_data =
             TeamUpdateData::from_assets(vec![1], team_update_assets, 98, 100, 200, 189);
 
-        let encoded_bytes = team_update_data.as_bytes()?;
-        let decoded = TeamUpdateData::from_bytes(&encoded_bytes)?;
+        let encoded = team_update_data.clone().to_json()?;
+        let decoded = TeamUpdateData::from_json(encoded)?;
 
         assert_eq!(decoded, team_update_data);
 

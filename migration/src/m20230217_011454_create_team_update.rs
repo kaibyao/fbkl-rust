@@ -23,7 +23,7 @@ impl MigrationTrait for Migration {
                             .auto_increment()
                             .primary_key(),
                     )
-                    .col(ColumnDef::new(TeamUpdate::Data).binary().not_null())
+                    .col(ColumnDef::new(TeamUpdate::Data).json_binary().not_null())
                     .col(ColumnDef::new(TeamUpdate::EffectiveDate).date().not_null())
                     .col(
                         ColumnDef::new(TeamUpdate::Status)

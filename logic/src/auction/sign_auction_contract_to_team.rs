@@ -109,7 +109,7 @@ where
 
     let new_team_update = team_update::ActiveModel {
         id: ActiveValue::NotSet,
-        data: ActiveValue::Set(data.as_bytes()?),
+        data: ActiveValue::Set(data.to_json()?),
         effective_date: ActiveValue::Set(deadline_model.date_time.date_naive()),
         status: ActiveValue::Set(TeamUpdateStatus::Pending),
         team_id: ActiveValue::Set(team_model.id),
