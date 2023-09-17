@@ -10,6 +10,7 @@ use crate::deadline;
 use super::{
     auction_transaction::new_auction_transaction,
     keeper_deadline_transaction::new_keeper_deadline_transaction,
+    rookie_draft_selection_transaction::new_rookie_draft_selection_transaction,
     trade_transaction::new_trade_transaction,
 };
 
@@ -75,6 +76,13 @@ impl Model {
             deadline_id: ActiveValue::Set(preseason_start_deadline_model.id),
             ..Default::default()
         }
+    }
+
+    pub fn new_rookie_draft_selection_transaction(
+        deadline_model: &deadline::Model,
+        rookie_draft_selection_id: i64,
+    ) -> ActiveModel {
+        new_rookie_draft_selection_transaction(deadline_model, rookie_draft_selection_id)
     }
 
     pub fn new_trade_transaction(deadline_model: &deadline::Model, trade_id: i64) -> ActiveModel {

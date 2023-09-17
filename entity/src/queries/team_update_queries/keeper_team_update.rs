@@ -41,9 +41,9 @@ where
             contract_updates.push(ContractUpdate {
                 contract_id: team_contract_model.id,
                 update_type: ContractUpdateType::Keeper,
-                player_name_at_time_of_trade: contract_update_player_data.player_name,
-                player_team_abbr_at_time_of_trade: contract_update_player_data.real_team_abbr,
-                player_team_name_at_time_of_trade: contract_update_player_data.real_team_name,
+                player_name_at_time: contract_update_player_data.player_name,
+                player_team_abbr_at_time: contract_update_player_data.real_team_abbr,
+                player_team_name_at_time: contract_update_player_data.real_team_name,
             });
 
             team_contract_ids.push(team_contract_model.id);
@@ -52,9 +52,9 @@ where
             contract_updates.push(ContractUpdate {
                 contract_id: team_contract_model.id,
                 update_type: ContractUpdateType::Drop,
-                player_name_at_time_of_trade: contract_update_player_data.player_name,
-                player_team_abbr_at_time_of_trade: contract_update_player_data.real_team_abbr,
-                player_team_name_at_time_of_trade: contract_update_player_data.real_team_name,
+                player_name_at_time: contract_update_player_data.player_name,
+                player_team_abbr_at_time: contract_update_player_data.real_team_abbr,
+                player_team_name_at_time: contract_update_player_data.real_team_name,
             });
         }
     }

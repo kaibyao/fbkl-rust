@@ -3,9 +3,10 @@
 use std::fmt::Debug;
 
 use async_graphql::Enum;
-use color_eyre::eyre::{bail, Result};
+use color_eyre::eyre::Result;
 use fbkl_constants::league_rules::{
-    POST_SEASON_DEFAULT_TOTAL_SALARY_LIMIT, REGULAR_SEASON_DEFAULT_TOTAL_SALARY_LIMIT,
+    KEEPER_CONTRACT_TOTAL_SALARY_LIMIT, POST_SEASON_DEFAULT_TOTAL_SALARY_LIMIT,
+    REGULAR_SEASON_DEFAULT_TOTAL_SALARY_LIMIT,
 };
 use sea_orm::entity::prelude::*;
 use serde::{Deserialize, Serialize};
@@ -51,9 +52,7 @@ impl Model {
             }
             DeadlineType::TradeDeadlineAndPlayoffStart => POST_SEASON_DEFAULT_TOTAL_SALARY_LIMIT,
             DeadlineType::SeasonEnd => POST_SEASON_DEFAULT_TOTAL_SALARY_LIMIT,
-            DeadlineType::PreseasonKeeper => {
-                bail!("Not validating pre-season keeper deadline in this function.")
-            }
+            DeadlineType::PreseasonKeeper => KEEPER_CONTRACT_TOTAL_SALARY_LIMIT,
             _ => REGULAR_SEASON_DEFAULT_TOTAL_SALARY_LIMIT,
         };
 

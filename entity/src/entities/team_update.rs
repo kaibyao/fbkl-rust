@@ -125,33 +125,14 @@ pub enum TeamUpdateAsset {
     DraftPicks(Vec<DraftPickUpdate>),
 }
 
-/// Stores data for an update to a team's draft pick.
-#[derive(Debug, Clone, Eq, PartialEq, Serialize, Deserialize)]
-pub struct DraftPickUpdate {
-    pub draft_pick_id: i64,
-    pub update_type: DraftPickUpdateType,
-    pub added_draft_pick_option_id: Option<i64>,
-}
-
-/// Represents the different types of updates that can happen to a team's draft pick(s)
-#[derive(Debug, Clone, Copy, Eq, PartialEq, Serialize, Deserialize)]
-pub enum DraftPickUpdateType {
-    /// A draft pick is traded to another team.
-    TradedAway,
-    /// A draft pick is added to the team via a completed trade.
-    AddViaTrade,
-    /// A draft pick option has been added to the draft pick.
-    DraftPickOptionAdded,
-}
-
 /// Stores data for an update to a team's contract.
 #[derive(Debug, Clone, Eq, PartialEq, Serialize, Deserialize)]
 pub struct ContractUpdate {
     pub contract_id: i64,
     pub update_type: ContractUpdateType,
-    pub player_name_at_time_of_trade: String,
-    pub player_team_abbr_at_time_of_trade: String,
-    pub player_team_name_at_time_of_trade: String,
+    pub player_name_at_time: String,
+    pub player_team_abbr_at_time: String,
+    pub player_team_name_at_time: String,
 }
 
 /// Represents the different types of updates that can happen to a contract on a team.
@@ -179,6 +160,25 @@ pub enum ContractUpdateType {
     ContractAdvanced,
     /// A contract is lost to another team via Free Agency (in the Veteran Auction).
     LostViaFreeAgency,
+}
+
+/// Stores data for an update to a team's draft pick.
+#[derive(Debug, Clone, Eq, PartialEq, Serialize, Deserialize)]
+pub struct DraftPickUpdate {
+    pub draft_pick_id: i64,
+    pub update_type: DraftPickUpdateType,
+    pub added_draft_pick_option_id: Option<i64>,
+}
+
+/// Represents the different types of updates that can happen to a team's draft pick(s)
+#[derive(Debug, Clone, Copy, Eq, PartialEq, Serialize, Deserialize)]
+pub enum DraftPickUpdateType {
+    /// A draft pick is traded to another team.
+    TradedAway,
+    /// A draft pick is added to the team via a completed trade.
+    AddViaTrade,
+    /// A draft pick option has been added to the draft pick.
+    DraftPickOptionAdded,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
@@ -302,9 +302,9 @@ mod tests {
         let contract_update = ContractUpdate {
             contract_id: 1,
             update_type: ContractUpdateType::Keeper,
-            player_name_at_time_of_trade: "Enes Kanter".to_string(),
-            player_team_abbr_at_time_of_trade: "BOS".to_string(),
-            player_team_name_at_time_of_trade: "Boston Celtics".to_string(),
+            player_name_at_time: "Enes Kanter".to_string(),
+            player_team_abbr_at_time: "BOS".to_string(),
+            player_team_name_at_time: "Boston Celtics".to_string(),
         };
         let draft_pick_update = DraftPickUpdate {
             draft_pick_id: 1,

@@ -161,9 +161,9 @@ where
             ContractUpdate {
                 contract_id: contract_model.id,
                 update_type: ContractUpdateType::TradedAway,
-                player_name_at_time_of_trade: player_name.clone(),
-                player_team_abbr_at_time_of_trade: team_abbr.clone(),
-                player_team_name_at_time_of_trade: team_name.clone(),
+                player_name_at_time: player_name.clone(),
+                player_team_abbr_at_time: team_abbr.clone(),
+                player_team_name_at_time: team_name.clone(),
             },
         );
 
@@ -173,9 +173,9 @@ where
             ContractUpdate {
                 contract_id: updated_contract_model.id,
                 update_type: ContractUpdateType::AddViaTrade,
-                player_name_at_time_of_trade: player_name,
-                player_team_abbr_at_time_of_trade: team_abbr,
-                player_team_name_at_time_of_trade: team_name,
+                player_name_at_time: player_name,
+                player_team_abbr_at_time: team_abbr,
+                player_team_name_at_time: team_name,
             },
         );
     }

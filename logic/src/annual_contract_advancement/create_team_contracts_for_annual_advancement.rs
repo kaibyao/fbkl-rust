@@ -48,9 +48,9 @@ where
             contract_updates.push(ContractUpdate {
                 contract_id: contract_model.id,
                 update_type: ContractUpdateType::ContractAdvanced,
-                player_name_at_time_of_trade: contract_update_player_data.player_name,
-                player_team_abbr_at_time_of_trade: contract_update_player_data.real_team_abbr,
-                player_team_name_at_time_of_trade: contract_update_player_data.real_team_name,
+                player_name_at_time: contract_update_player_data.player_name,
+                player_team_abbr_at_time: contract_update_player_data.real_team_abbr,
+                player_team_name_at_time: contract_update_player_data.real_team_name,
             });
         }
 
