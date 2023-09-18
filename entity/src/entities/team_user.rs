@@ -38,17 +38,17 @@ pub struct Model {
     Serialize,
     Deserialize,
 )]
-#[sea_orm(rs_type = "i16", db_type = "Integer")]
+#[sea_orm(rs_type = "String", db_type = "String(None)")]
 pub enum LeagueRole {
     /// Owns a team. Has access to their team's settings & roster.
     #[default]
-    #[sea_orm(num_value = 0)]
+    #[sea_orm(string_value = "TeamOwner")]
     TeamOwner,
     /// Has access to a league's settings.
-    #[sea_orm(num_value = 1)]
+    #[sea_orm(string_value = "LeagueCommissioner")]
     LeagueCommissioner,
     /// User is inactive/deactivated in the league.
-    #[sea_orm(num_value = 2)]
+    #[sea_orm(string_value = "Inactive")]
     Inactive,
 }
 

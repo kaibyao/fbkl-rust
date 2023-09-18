@@ -64,14 +64,14 @@ impl Model {
     Serialize,
     Deserialize,
 )]
-#[sea_orm(rs_type = "i16", db_type = "Integer")]
+#[sea_orm(rs_type = "String", db_type = "String(None)")]
 pub enum PlayerStatus {
     /// Player has been flagged as non-rostered + played a final year in the NBA + doesn't exist in ESPN fantasy data.
     #[default]
-    #[sea_orm(num_value = 0)]
+    #[sea_orm(string_value = "Retired")]
     Retired,
     /// Player exists as an active player in either ESPN fantasy or the NBA's player data.
-    #[sea_orm(num_value = 1)]
+    #[sea_orm(string_value = "Active")]
     Active,
 }
 

@@ -51,11 +51,7 @@ async fn setup_deadline(manager: &SchemaManager<'_>) -> Result<(), DbErr> {
                         .timestamp_with_time_zone()
                         .not_null(),
                 )
-                .col(
-                    ColumnDef::new(Deadline::DeadlineType)
-                        .small_integer()
-                        .not_null(),
-                )
+                .col(ColumnDef::new(Deadline::DeadlineType).string().not_null())
                 .col(ColumnDef::new(Deadline::Name).string().not_null())
                 .col(
                     ColumnDef::new(Deadline::EndOfSeasonYear)
@@ -139,7 +135,7 @@ async fn setup_transaction(manager: &SchemaManager<'_>) -> Result<(), DbErr> {
                 )
                 .col(
                     ColumnDef::new(Transaction::TransactionType)
-                        .small_integer()
+                        .string()
                         .not_null(),
                 )
                 .col(ColumnDef::new(Transaction::AuctionId).big_integer())

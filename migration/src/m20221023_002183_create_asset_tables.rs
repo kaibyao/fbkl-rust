@@ -68,11 +68,7 @@ async fn setup_contract(manager: &SchemaManager<'_>) -> Result<(), DbErr> {
                         .not_null()
                         .default(1),
                 )
-                .col(
-                    ColumnDef::new(Contract::ContractType)
-                        .small_integer()
-                        .not_null(),
-                )
+                .col(ColumnDef::new(Contract::ContractType).string().not_null())
                 .col(
                     ColumnDef::new(Contract::IsIR)
                         .boolean()
@@ -92,9 +88,9 @@ async fn setup_contract(manager: &SchemaManager<'_>) -> Result<(), DbErr> {
                 )
                 .col(
                     ColumnDef::new(Contract::Status)
-                        .small_integer()
+                        .string()
                         .not_null()
-                        .default(0),
+                        .default("Active"),
                 )
                 .col(ColumnDef::new(Contract::LeagueId).big_integer().not_null())
                 .col(ColumnDef::new(Contract::PlayerId).big_integer())
@@ -362,9 +358,9 @@ async fn setup_draft_pick_option(manager: &SchemaManager<'_>) -> Result<(), DbEr
                 .col(ColumnDef::new(DraftPickOption::Clause).string().not_null())
                 .col(
                     ColumnDef::new(DraftPickOption::Status)
-                        .small_integer()
+                        .string()
                         .not_null()
-                        .default(0),
+                        .default("Proposed"),
                 )
                 .col(
                     ColumnDef::new(DraftPickOption::CreatedAt)

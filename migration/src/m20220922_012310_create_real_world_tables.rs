@@ -151,9 +151,9 @@ async fn setup_player(manager: &SchemaManager<'_>) -> Result<(), DbErr> {
                 .col(ColumnDef::new(Player::PhotoUrl).string())
                 .col(
                     ColumnDef::new(Player::Status)
-                        .small_integer()
+                        .string()
                         .not_null()
-                        .default(0),
+                        .default("Retired"),
                 )
                 .col(ColumnDef::new(Player::ThumbnailUrl).string())
                 .col(

@@ -117,14 +117,14 @@ impl Model {
     Serialize,
     Deserialize,
 )]
-#[sea_orm(rs_type = "i16", db_type = "Integer")]
+#[sea_orm(rs_type = "String", db_type = "String(None)")]
 pub enum TradeAssetType {
     #[default]
-    #[sea_orm(num_value = 0)]
+    #[sea_orm(string_value = "Contract")]
     Contract,
-    #[sea_orm(num_value = 1)]
+    #[sea_orm(string_value = "DraftPick")]
     DraftPick,
-    #[sea_orm(num_value = 2)]
+    #[sea_orm(string_value = "DraftPickOption")]
     DraftPickOption,
 }
 

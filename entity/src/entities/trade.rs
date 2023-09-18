@@ -100,26 +100,26 @@ impl Model {
     Serialize,
     Deserialize,
 )]
-#[sea_orm(rs_type = "i16", db_type = "Integer")]
+#[sea_orm(rs_type = "String", db_type = "String(None)")]
 pub enum TradeStatus {
     /// Trade has been proposed (default).
     #[default]
-    #[sea_orm(num_value = 0)]
+    #[sea_orm(string_value = "Proposed")]
     Proposed,
     /// Trade has been accepted and processed.
-    #[sea_orm(num_value = 1)]
+    #[sea_orm(string_value = "Completed")]
     Completed,
     /// Trade has been canceled by the proposing team.
-    #[sea_orm(num_value = 2)]
+    #[sea_orm(string_value = "Canceled")]
     Canceled,
     /// Trade has been rejected by a responding team.
-    #[sea_orm(num_value = 3)]
+    #[sea_orm(string_value = "Rejected")]
     Rejected,
     /// Trade has been counter-offered by a responding team.
-    #[sea_orm(num_value = 4)]
+    #[sea_orm(string_value = "Counteroffered")]
     Counteroffered,
     /// Trade has been invalidated by another trade that was processed that involves any of the offered assets.
-    #[sea_orm(num_value = 5)]
+    #[sea_orm(string_value = "InvalidatedByExternalTrade")]
     InvalidatedByExternalTrade,
 }
 

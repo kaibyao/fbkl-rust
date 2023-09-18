@@ -223,9 +223,9 @@ async fn setup_team_user(manager: &SchemaManager<'_>) -> Result<(), DbErr> {
                 )
                 .col(
                     ColumnDef::new(TeamUser::LeagueRole)
-                        .small_integer()
+                        .string()
                         .not_null()
-                        .default(0),
+                        .default("TeamOwner"),
                 )
                 .col(ColumnDef::new(TeamUser::Nickname).string().not_null())
                 .col(

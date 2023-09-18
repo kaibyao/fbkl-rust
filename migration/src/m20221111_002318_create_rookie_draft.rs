@@ -27,9 +27,9 @@ impl MigrationTrait for Migration {
                     .col(ColumnDef::new(RookieDraftSelection::Order).small_integer())
                     .col(
                         ColumnDef::new(RookieDraftSelection::Status)
-                            .small_integer()
+                            .string()
                             .not_null()
-                            .default(0),
+                            .default("Unused"),
                     )
                     .col(
                         ColumnDef::new(RookieDraftSelection::ContractId)

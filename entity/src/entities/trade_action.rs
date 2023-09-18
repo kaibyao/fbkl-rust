@@ -52,23 +52,23 @@ impl Model {
     Serialize,
     Deserialize,
 )]
-#[sea_orm(rs_type = "i16", db_type = "Integer")]
+#[sea_orm(rs_type = "String", db_type = "String(None)")]
 pub enum TradeActionType {
     /// A trade is proposed by a team.
     #[default]
-    #[sea_orm(num_value = 0)]
+    #[sea_orm(string_value = "Propose")]
     Propose,
     /// A trade has been accepted by the responding team.
-    #[sea_orm(num_value = 1)]
+    #[sea_orm(string_value = "Accept")]
     Accept,
     /// A trade has been canceled by the proposing team. If a trade has been canceled, no other action can be taken on it.
-    #[sea_orm(num_value = 2)]
+    #[sea_orm(string_value = "Cancel")]
     Cancel,
     /// A trade has been rejected by the responding team.
-    #[sea_orm(num_value = 3)]
+    #[sea_orm(string_value = "Reject")]
     Reject,
     /// A trade has been counter-offered by the responding team. Once a trade has been countered, no other action can be taken on the now-obsolete version of the trade.
-    #[sea_orm(num_value = 4)]
+    #[sea_orm(string_value = "Counteroffer")]
     Counteroffer,
 }
 

@@ -47,17 +47,17 @@ impl Model {
     Serialize,
     Deserialize,
 )]
-#[sea_orm(rs_type = "i16", db_type = "Integer")]
+#[sea_orm(rs_type = "String", db_type = "String(None)")]
 pub enum RookieDraftSelectionStatus {
     /// Draft pick has not been used or skipped yet.
     #[default]
-    #[sea_orm(num_value = 0)]
+    #[sea_orm(string_value = "Unused")]
     Unused,
     /// Draft pick was used on a player selection.
-    #[sea_orm(num_value = 1)]
+    #[sea_orm(string_value = "PlayerSelected")]
     PlayerSelected,
     /// Draft pick was skipped/passed.
-    #[sea_orm(num_value = 2)]
+    #[sea_orm(string_value = "Skipped")]
     Skipped,
 }
 

@@ -64,9 +64,9 @@ async fn setup_trade(manager: &SchemaManager<'_>) -> Result<(), DbErr> {
                 )
                 .col(
                     ColumnDef::new(Trade::Status)
-                        .small_integer()
+                        .string()
                         .not_null()
-                        .default(0),
+                        .default("Proposed"),
                 )
                 .col(ColumnDef::new(Trade::LeagueId).big_integer().not_null())
                 .col(ColumnDef::new(Trade::OriginalTradeId).big_integer())
@@ -232,9 +232,9 @@ async fn setup_trade_action(manager: &SchemaManager<'_>) -> Result<(), DbErr> {
                 )
                 .col(
                     ColumnDef::new(TradeAction::ActionType)
-                        .small_integer()
+                        .string()
                         .not_null()
-                        .default(0),
+                        .default("Propose"),
                 )
                 .col(
                     ColumnDef::new(TradeAction::TeamUserId)
@@ -322,9 +322,9 @@ async fn setup_trade_asset(manager: &SchemaManager<'_>) -> Result<(), DbErr> {
                 )
                 .col(
                     ColumnDef::new(TradeAsset::AssetType)
-                        .small_integer()
+                        .string()
                         .not_null()
-                        .default(0),
+                        .default("Contract"),
                 )
                 .col(ColumnDef::new(TradeAsset::ContractId).big_integer())
                 .col(ColumnDef::new(TradeAsset::DraftPickId).big_integer())

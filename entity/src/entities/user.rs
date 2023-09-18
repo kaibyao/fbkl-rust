@@ -17,12 +17,15 @@ pub struct Model {
     pub updated_at: DateTimeWithTimeZone,
 }
 
-#[derive(Debug, Clone, Eq, PartialEq, EnumIter, DeriveActiveEnum, Serialize, Deserialize)]
-#[sea_orm(rs_type = "i16", db_type = "Integer")]
+#[derive(
+    Debug, Clone, Default, Eq, PartialEq, EnumIter, DeriveActiveEnum, Serialize, Deserialize,
+)]
+#[sea_orm(rs_type = "String", db_type = "String(None)")]
 pub enum UserAppAdminStatus {
-    #[sea_orm(num_value = 0)]
+    #[default]
+    #[sea_orm(string_value = "User")]
     User,
-    #[sea_orm(num_value = 1)]
+    #[sea_orm(string_value = "Admin")]
     Admin,
 }
 

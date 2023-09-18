@@ -46,9 +46,9 @@ async fn setup_auction(manager: &SchemaManager<'_>) -> Result<(), DbErr> {
                 )
                 .col(
                     ColumnDef::new(Auction::AuctionType)
-                        .small_integer()
+                        .string()
                         .not_null()
-                        .default(0),
+                        .default("FreeAgent"),
                 )
                 .col(
                     ColumnDef::new(Auction::MinimumBidAmount)

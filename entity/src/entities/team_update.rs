@@ -46,20 +46,20 @@ impl Model {
     Serialize,
     Deserialize,
 )]
-#[sea_orm(rs_type = "i16", db_type = "Integer")]
+#[sea_orm(rs_type = "String", db_type = "String(None)")]
 pub enum TeamUpdateStatus {
     /// Has not been processed yet.
     #[default]
-    #[sea_orm(num_value = 0)]
+    #[sea_orm(string_value = "Pending")]
     Pending,
     /// Is currently being processed.
-    #[sea_orm(num_value = 1)]
+    #[sea_orm(string_value = "InProgress")]
     InProgress,
     /// Has finished processing.
-    #[sea_orm(num_value = 2)]
+    #[sea_orm(string_value = "Done")]
     Done,
     /// An error occurred during processing.
-    #[sea_orm(num_value = 3)]
+    #[sea_orm(string_value = "Error")]
     Error,
 }
 

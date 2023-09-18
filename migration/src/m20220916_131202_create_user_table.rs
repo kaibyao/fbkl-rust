@@ -24,9 +24,9 @@ impl MigrationTrait for Migration {
                     .col(ColumnDef::new(User::HashedPassword).string().not_null())
                     .col(
                         ColumnDef::new(User::AppAdminStatus)
-                            .small_integer()
+                            .string()
                             .not_null()
-                            .default(0),
+                            .default("User"),
                     )
                     .col(
                         ColumnDef::new(User::CreatedAt)

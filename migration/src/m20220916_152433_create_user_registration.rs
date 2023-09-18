@@ -28,9 +28,9 @@ impl MigrationTrait for Migration {
                     .col(ColumnDef::new(UserRegistration::Token).binary().not_null())
                     .col(
                         ColumnDef::new(UserRegistration::Status)
-                            .small_integer()
+                            .string()
                             .not_null()
-                            .default(0),
+                            .default("Created"),
                     )
                     .col(
                         ColumnDef::new(UserRegistration::CreatedAt)

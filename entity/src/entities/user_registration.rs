@@ -17,17 +17,20 @@ pub struct Model {
 }
 
 /// The status of a user registration.
-#[derive(Debug, Clone, Eq, PartialEq, EnumIter, DeriveActiveEnum, Serialize, Deserialize)]
-#[sea_orm(rs_type = "i16", db_type = "Integer")]
+#[derive(
+    Debug, Clone, Default, Eq, PartialEq, EnumIter, DeriveActiveEnum, Serialize, Deserialize,
+)]
+#[sea_orm(rs_type = "String", db_type = "String(None)")]
 pub enum UserRegistrationStatus {
     /// Initial status, where the token was generated and stored, but was not yet sent to the user.
-    #[sea_orm(num_value = 0)]
+    #[default]
+    #[sea_orm(string_value = "Created")]
     Created,
     /// Confirmation email was sent to the user.
-    #[sea_orm(num_value = 1)]
+    #[sea_orm(string_value = "Sent")]
     Sent,
     /// The user has confirmed their registration.
-    #[sea_orm(num_value = 2)]
+    #[sea_orm(string_value = "Confirmed")]
     Confirmed,
 }
 

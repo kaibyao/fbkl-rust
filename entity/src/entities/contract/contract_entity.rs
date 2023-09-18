@@ -211,35 +211,35 @@ pub enum RelatedPlayer {
     Serialize,
     Deserialize,
 )]
-#[sea_orm(rs_type = "i16", db_type = "Integer")]
+#[sea_orm(rs_type = "String", db_type = "String(None)")]
 pub enum ContractType {
     /// When a drafted player has not yet been activated, they are considered to be on a RD contract. An RD contract can last up to 3 years, though activating an RD player on their 4th year on a team converts them to their second year as a Rookie (R2 instead of R1).
-    #[sea_orm(num_value = 0)]
+    #[sea_orm(string_value = "RD")]
     RookieDevelopment, // --------------- RD 1-3
     /// A player that has been drafted but is playing overseas can be moved from a RD contract to an RDI contract.
-    #[sea_orm(num_value = 1)]
+    #[sea_orm(string_value = "RDI")]
     RookieDevelopmentInternational, // -- RDI 1-3
     /// When a player that was previously on an RD contract is activated, they are converted to a Rookie contract, which lasts up to 3 years.
-    #[sea_orm(num_value = 2)]
+    #[sea_orm(string_value = "Rookie")]
     Rookie, // -------------------------- R 1-3
     /// A player that is on their 3rd rookie season (Rookie) is converted to an RFA contract for the duration of the following preseason. They are then re-signed (RookieExtension) at a 10% discount, signed to a different team (Veteran), or dropped (expired status).
-    #[sea_orm(num_value = 3)]
+    #[sea_orm(string_value = "RFA")]
     RestrictedFreeAgent, // ------------- RFA - 10%
     /// After a rookie has been active for 3 years, they become a restricted free agent. If re-signed to their original team (original team being the team that controlled their rookie contract), they are converted to a rookie extension, which lasts up to 2 years.
-    #[sea_orm(num_value = 4)]
+    #[sea_orm(string_value = "RookieExtension")]
     RookieExtension, // ----------------- R 4-5
     /// A player that is on their 5th rookie season (RookieExtension) is converted to a UFA-20 for the duration of the following preseason. They are then re-signed (Veteran) at a 20% discount, signed to a different team (Veteran, no discount), or dropped (expired status).
-    #[sea_orm(num_value = 5)]
+    #[sea_orm(string_value = "UFA-OriginalTeam")]
     UnrestrictedFreeAgentOriginalTeam, // UFA - 20%
     /// Signing a free agent to a team puts them on a V contract, which lasts up to 3 years.
     #[default]
-    #[sea_orm(num_value = 6)]
+    #[sea_orm(string_value = "Veteran")]
     Veteran, // ------------------------- V 1-3
     /// A player that is on their 3rd veteran season is converted to a UFA-10 for the duration of the following preseason. They are then re-signed (Veteran) at a 10% discount, signed to a different team (Veteran, no discount), or dropped (expired status).
-    #[sea_orm(num_value = 7)]
+    #[sea_orm(string_value = "UFA-FreeAgent")]
     UnrestrictedFreeAgentVeteran, // ---- UFA - 10%
     /// Signing on a new player via auction creates a Veteran contract, and dropping a player from a team for any reason moves them to free agency. A free agent can be signed onto any team starting from the beginning of the week after they are dropped.
-    #[sea_orm(num_value = 8)]
+    #[sea_orm(string_value = "FreeAgent")]
     FreeAgent, // This is needed when resigning previously-dropped players, as we need to know their previous contract's value.
 }
 
@@ -257,17 +257,17 @@ pub enum ContractType {
     Serialize,
     Deserialize,
 )]
-#[sea_orm(rs_type = "i16", db_type = "Integer")]
+#[sea_orm(rs_type = "String", db_type = "String(None)")]
 pub enum ContractStatus {
     /// Represents an active player on a team or in free agency. An active contract’s $-value takes up a team’s cap space.
     #[default]
-    #[sea_orm(num_value = 0)]
+    #[sea_orm(string_value = "Active")]
     Active,
     /// Represents a contract that has been replaced by a newer contract. The current contract should be referenced by the newer contract's previous_contract_id. A replaced contract is not counted towards a team’s cap space.
-    #[sea_orm(num_value = 1)]
+    #[sea_orm(string_value = "Replaced")]
     Replaced,
     /// Represents a contract that is no longer valid and should not be used as a previous_contract_id for any other contract. This happens at the start of each season (for the previous season's contracts), as well as when an RFA/UFA/RD/RDI contract is dropped.
-    #[sea_orm(num_value = 2)]
+    #[sea_orm(string_value = "Expired")]
     Expired,
 }
 

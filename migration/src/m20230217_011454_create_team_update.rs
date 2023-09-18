@@ -27,9 +27,9 @@ impl MigrationTrait for Migration {
                     .col(ColumnDef::new(TeamUpdate::EffectiveDate).date().not_null())
                     .col(
                         ColumnDef::new(TeamUpdate::Status)
-                            .small_integer()
+                            .string()
                             .not_null()
-                            .default(0),
+                            .default("Pending"),
                     )
                     .col(ColumnDef::new(TeamUpdate::TeamId).big_integer().not_null())
                     .col(ColumnDef::new(TeamUpdate::TransactionId).big_integer())

@@ -64,49 +64,49 @@ impl Model {
 #[derive(
     Debug, Clone, Copy, Enum, Eq, PartialEq, EnumIter, DeriveActiveEnum, Serialize, Deserialize,
 )]
-#[sea_orm(rs_type = "i16", db_type = "Integer")]
+#[sea_orm(rs_type = "String", db_type = "String(None)")]
 pub enum DeadlineType {
     /// The inauguration of a new season, which starts with the advancement of team contracts from the previous season.
-    #[sea_orm(num_value = 0)]
+    #[sea_orm(string_value = "PreseasonStart")]
     PreseasonStart,
     /// The first roster lock of a season that determines which contracts that have been advanced from the previous season are kept. Happens before the veteran auction and rookie draft. Cap is increased from $100 to $200 after this time.
-    #[sea_orm(num_value = 1)]
+    #[sea_orm(string_value = "PreseasonKeeper")]
     PreseasonKeeper,
     /// The start date & time of the veteran (RFA/UFA/FA) auction. Open bidding is allowed after the last predetermined contracts auction starts.
-    #[sea_orm(num_value = 2)]
+    #[sea_orm(string_value = "PreseasonVeteranAuctionStart")]
     PreseasonVeteranAuctionStart,
     /// Open bidding that starts at the time when auctions for players in the veteran auction have finished.
-    #[sea_orm(num_value = 3)]
+    #[sea_orm(string_value = "PreseasonFaAuctionStart")]
     PreseasonFaAuctionStart,
     /// The time when owners can no longer nominate bids for free agents during the preseason. Note that this is separate from the Week 1 FA auctions that are still allowed before the start of the official season.
-    #[sea_orm(num_value = 4)]
+    #[sea_orm(string_value = "PreseasonFaAuctionEnd")]
     PreseasonFaAuctionEnd,
     /// The start date & time of the rookie draft. Draft picks for the current season +2 years can be traded after this is finished.
-    #[sea_orm(num_value = 5)]
+    #[sea_orm(string_value = "PreseasonRookieDraftStart")]
     PreseasonRookieDraftStart,
     /// Following the rookie draft, rosters must be finalized by this date. Week 1 FA auctions open after this.
-    #[sea_orm(num_value = 6)]
+    #[sea_orm(string_value = "PreseasonFinalRosterLock")]
     PreseasonFinalRosterLock,
     /// The start date & time of the final free agent auction before the official start of the NBA season.
-    #[sea_orm(num_value = 7)]
+    #[sea_orm(string_value = "Week1FreeAgentAuctionStart")]
     Week1FreeAgentAuctionStart,
     /// The end date & time of the final free agent auction before the official start of the NBA season.
-    #[sea_orm(num_value = 8)]
+    #[sea_orm(string_value = "Week1FreeAgentAuctionEnd")]
     Week1FreeAgentAuctionEnd,
     /// The first weekly roster lock of the season. Coincides with the first NBA game's tipoff time.
-    #[sea_orm(num_value = 9)]
+    #[sea_orm(string_value = "Week1RosterLock")]
     Week1RosterLock,
     /// Standard weekly lock that happens on Mondays (our start of the weekly matchups) at the first tip-off of the day.
-    #[sea_orm(num_value = 10)]
+    #[sea_orm(string_value = "InSeasonRosterLock")]
     InSeasonRosterLock,
     /// Owners cannot nominate new FA auctions after this. This coincides with a $20 cap increase, which can be used for subsequent roster locks.
-    #[sea_orm(num_value = 11)]
+    #[sea_orm(string_value = "FreeAgentAuctionEnd")]
     FreeAgentAuctionEnd,
     /// Trades cannot be completed after this time. Coincides with the start of the playoffs week.
-    #[sea_orm(num_value = 12)]
+    #[sea_orm(string_value = "TradeDeadlineAndPlayoffStart")]
     TradeDeadlineAndPlayoffStart,
     /// End of the basketball season, after the last playoff week.
-    #[sea_orm(num_value = 13)]
+    #[sea_orm(string_value = "SeasonEnd")]
     SeasonEnd,
 }
 

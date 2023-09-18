@@ -94,37 +94,37 @@ impl Model {
 #[derive(
     Debug, Clone, Copy, Enum, Eq, PartialEq, EnumIter, DeriveActiveEnum, Serialize, Deserialize,
 )]
-#[sea_orm(rs_type = "i16", db_type = "Integer")]
+#[sea_orm(rs_type = "String", db_type = "String(None)")]
 pub enum TransactionType {
     /// The transaction is a trade between two teams.
-    #[sea_orm(num_value = 0)]
+    #[sea_orm(string_value = "Trade")]
     Trade,
     /// The transaction is the result of a team winning a player auction.
-    #[sea_orm(num_value = 1)]
+    #[sea_orm(string_value = "AuctionDone")]
     AuctionDone,
     /// Pre-season start.
-    #[sea_orm(num_value = 2)]
+    #[sea_orm(string_value = "PreseasonStart")]
     PreseasonStart,
     /// Pre-season keepers set.
-    #[sea_orm(num_value = 3)]
+    #[sea_orm(string_value = "PreseasonKeeper")]
     PreseasonKeeper,
     /// A rookie player was selected during the rookie draft.
-    #[sea_orm(num_value = 4)]
+    #[sea_orm(string_value = "RookieDraftSelection")]
     RookieDraftSelection,
     /// A team has manually dropped a player contract.
-    #[sea_orm(num_value = 5)]
+    #[sea_orm(string_value = "TeamUpdateDropContract")]
     TeamUpdateDropContract,
     /// A team has moved a player contract to IR.
-    #[sea_orm(num_value = 6)]
+    #[sea_orm(string_value = "TeamUpdateToIr")]
     TeamUpdateToIr,
     /// A team has moved a player contract from IR.
-    #[sea_orm(num_value = 7)]
+    #[sea_orm(string_value = "TeamUpdateFromIr")]
     TeamUpdateFromIr,
     /// A team has activated a rookie contract, converting them to a rookie extension.
-    #[sea_orm(num_value = 8)]
+    #[sea_orm(string_value = "RookieContractActivation")]
     RookieContractActivation,
     /// A team has made a configuration change (ownership/name change).
-    #[sea_orm(num_value = 9)]
+    #[sea_orm(string_value = "TeamUpdateConfigChange")]
     TeamUpdateConfigChange,
 }
 

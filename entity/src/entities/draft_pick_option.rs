@@ -35,26 +35,23 @@ pub struct Model {
     Serialize,
     Deserialize,
 )]
-#[sea_orm(rs_type = "i16", db_type = "Integer")]
+#[sea_orm(rs_type = "String", db_type = "String(None)")]
 pub enum DraftPickOptionStatus {
     /// The default status. This means the option has been proposed in a trade, but the trade has not been accepted yet.
     #[default]
-    #[sea_orm(num_value = 0)]
+    #[sea_orm(string_value = "Proposed")]
     Proposed,
     /// The trade that created this option has been accepted and this option currently applies to the referenced draft pick.
-    #[sea_orm(num_value = 1)]
+    #[sea_orm(string_value = "Active")]
     Active,
     /// This draft pick option has been activated + used on the draft pick.
-    #[sea_orm(num_value = 2)]
+    #[sea_orm(string_value = "Used")]
     Used,
     /// The trade did not go through and this option died.
-    #[sea_orm(num_value = 3)]
+    #[sea_orm(string_value = "CancelledViaTradeRejection")]
     CancelledViaTradeRejection,
-    /// The draft pick option has been cancelled by a `DraftPickOptionAmendment`.
-    #[sea_orm(num_value = 4)]
-    CancelledViaDraftPickOptionAmendment,
     /// Trade has been invalidated by another trade that was processed that involves the draft pick related to this option.
-    #[sea_orm(num_value = 5)]
+    #[sea_orm(string_value = "InvalidatedByExternalTrade")]
     InvalidatedByExternalTrade,
 }
 
@@ -145,16 +142,9 @@ where
             ),
             (
                 &DraftPickOptionStatus::Active,
-                vec![
-                    &DraftPickOptionStatus::Used,
-                    &DraftPickOptionStatus::CancelledViaDraftPickOptionAmendment,
-                ],
+                vec![&DraftPickOptionStatus::Used],
             ),
             (&DraftPickOptionStatus::Used, vec![]),
-            (
-                &DraftPickOptionStatus::CancelledViaDraftPickOptionAmendment,
-                vec![],
-            ),
             (&DraftPickOptionStatus::CancelledViaTradeRejection, vec![]),
         ]
         .into_iter()

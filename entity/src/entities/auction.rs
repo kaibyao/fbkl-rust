@@ -79,18 +79,18 @@ impl Model {
     Serialize,
     Deserialize,
 )]
-#[sea_orm(rs_type = "i16", db_type = "Integer")]
+#[sea_orm(rs_type = "String", db_type = "String(None)")]
 pub enum AuctionType {
     /// Represents a free agent auction that happens throughout the league season.
     #[default]
-    #[sea_orm(num_value = 0)]
+    #[sea_orm(string_value = "FreeAgent")]
     InSeasonFreeAgent,
     /// Represents an auction generated as part of the veteran auction during the league preseason.
-    #[sea_orm(num_value = 1)]
+    #[sea_orm(string_value = "PreseasonVeteranAuction")]
     PreseasonVeteranAuction,
-    /// Represents a free agent auction that happens during the league preseason. This is either during the open nomination period that immediately follows the veteran auction, or the week 1 free agent period.
-    #[sea_orm(num_value = 2)]
-    PreseasonFreeAgent,
+    // /// Represents a free agent auction that happens during the league preseason. This is either during the open nomination period that immediately follows the veteran auction, or the week 1 free agent period.
+    // #[sea_orm(string_value = "2")]
+    // PreseasonFreeAgent,
 }
 
 #[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]
