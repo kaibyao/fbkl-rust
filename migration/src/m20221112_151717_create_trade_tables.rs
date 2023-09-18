@@ -2,7 +2,8 @@ use sea_orm_migration::prelude::*;
 
 use crate::{
     m20220924_004529_create_league_tables::{League, Team, TeamUser},
-    m20221023_002183_create_asset_tables::{Contract, DraftPick},
+    m20221023_002183_create_contract::Contract,
+    m20221023_002184_create_draft_pick::DraftPick,
     set_auto_updated_at_on_table,
 };
 

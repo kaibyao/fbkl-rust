@@ -12,7 +12,9 @@ mod m20220916_152433_create_user_registration;
 mod m20220922_012310_create_real_world_tables;
 mod m20220924_004529_create_league_tables;
 mod m20220930_011056_seed_positions;
-mod m20221023_002183_create_asset_tables;
+mod m20221023_002183_create_contract;
+mod m20221023_002184_create_draft_pick;
+mod m20221023_002185_create_draft_pick_option;
 mod m20221111_002318_create_rookie_draft;
 mod m20221112_132607_create_auction_tables;
 mod m20221112_151717_create_trade_tables;
@@ -32,7 +34,9 @@ impl MigratorTrait for Migrator {
             Box::new(m20220922_012310_create_real_world_tables::Migration),
             Box::new(m20220924_004529_create_league_tables::Migration),
             Box::new(m20220930_011056_seed_positions::Migration),
-            Box::new(m20221023_002183_create_asset_tables::Migration),
+            Box::new(m20221023_002183_create_contract::Migration),
+            Box::new(m20221023_002184_create_draft_pick::Migration),
+            Box::new(m20221023_002185_create_draft_pick_option::Migration),
             Box::new(m20221111_002318_create_rookie_draft::Migration),
             Box::new(m20221112_132607_create_auction_tables::Migration),
             Box::new(m20221112_151717_create_trade_tables::Migration),

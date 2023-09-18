@@ -1,8 +1,8 @@
 use sea_orm_migration::prelude::*;
 
 use crate::{
-    m20220924_004529_create_league_tables::TeamUser,
-    m20221023_002183_create_asset_tables::Contract, set_auto_updated_at_on_table,
+    m20220924_004529_create_league_tables::TeamUser, m20221023_002183_create_contract::Contract,
+    set_auto_updated_at_on_table,
 };
 
 #[derive(DeriveMigrationName)]

@@ -1,7 +1,7 @@
 use sea_orm_migration::prelude::*;
 
 use crate::{
-    m20220924_004529_create_league_tables::League, m20221023_002183_create_asset_tables::Contract,
+    m20220924_004529_create_league_tables::League, m20221023_002183_create_contract::Contract,
     m20221111_002318_create_rookie_draft::RookieDraftSelection,
     m20221112_132607_create_auction_tables::Auction, m20221112_151717_create_trade_tables::Trade,
     set_auto_updated_at_on_table,

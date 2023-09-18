@@ -39,7 +39,6 @@ async fn main() -> Result<()> {
     // TODO: Configuration for rookie draft + end-of-season standings
     // TODO: import data (transactions)
     // TODO: Rest of DB migrations (incl. FK relations)
-    // TODO: Convert enums to be strings instead of int.
     // TODO: Auto-drop logic for weekly locks to ensure teams are legal.
     // TODO: login/registration needs validation (password length, email is correct, etc.)
     // TODO: Handle errors with actual HTTP status codes + logging (test w/ graphql errors)
