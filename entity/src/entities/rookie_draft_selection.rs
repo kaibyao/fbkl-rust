@@ -9,9 +9,9 @@ use serde::{Deserialize, Serialize};
 pub struct Model {
     #[sea_orm(primary_key)]
     pub id: i64,
-    pub order: Option<i16>,
+    pub order: i16,
     pub status: RookieDraftSelectionStatus,
-    pub contract_id: i64,
+    pub contract_id: Option<i64>,
     pub draft_pick_id: i64,
     pub league_id: i64,
 }
@@ -25,9 +25,9 @@ impl Model {
     ) -> ActiveModel {
         ActiveModel {
             id: ActiveValue::NotSet,
-            order: ActiveValue::Set(Some(order)),
+            order: ActiveValue::Set(order),
             status: ActiveValue::Set(RookieDraftSelectionStatus::PlayerSelected),
-            contract_id: ActiveValue::Set(contract_id),
+            contract_id: ActiveValue::Set(Some(contract_id)),
             draft_pick_id: ActiveValue::Set(draft_pick_id),
             league_id: ActiveValue::Set(league_id),
         }

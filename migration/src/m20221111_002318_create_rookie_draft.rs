@@ -24,18 +24,18 @@ impl MigrationTrait for Migration {
                             .auto_increment()
                             .primary_key(),
                     )
-                    .col(ColumnDef::new(RookieDraftSelection::Order).small_integer())
+                    .col(
+                        ColumnDef::new(RookieDraftSelection::Order)
+                            .small_integer()
+                            .not_null(),
+                    )
                     .col(
                         ColumnDef::new(RookieDraftSelection::Status)
                             .string()
                             .not_null()
                             .default("Unused"),
                     )
-                    .col(
-                        ColumnDef::new(RookieDraftSelection::ContractId)
-                            .big_integer()
-                            .not_null(),
-                    )
+                    .col(ColumnDef::new(RookieDraftSelection::ContractId).big_integer())
                     .col(
                         ColumnDef::new(RookieDraftSelection::DraftPickId)
                             .big_integer()

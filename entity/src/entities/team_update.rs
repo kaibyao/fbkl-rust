@@ -8,7 +8,7 @@ use color_eyre::Result;
 use sea_orm::entity::prelude::*;
 use serde::{Deserialize, Serialize};
 
-/// A Team Update contains information about a change that was made to a team within a league. Anything that changes a team's settings, roster, or draft picks is stored as a Team Update. This allows us to look back at a team's history of changes.
+/// A Team Update contains information about a change that was made to a team within a league. Anything that changes a team's settings or assets owned is stored as a Team Update. This allows us to look back at a team's history of changes.
 #[derive(Clone, Debug, PartialEq, Eq, DeriveEntityModel, Serialize, Deserialize)]
 #[sea_orm(table_name = "team_update")]
 pub struct Model {
