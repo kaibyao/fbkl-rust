@@ -13,7 +13,7 @@ use tracing::instrument;
 
 use crate::{
     auction,
-    contract::{self, ContractType},
+    contract::{self, ContractStatus, ContractType},
     league_player, player,
     transaction::{self, TransactionType},
 };
@@ -153,10 +153,11 @@ where
     let mut matching_contracts = contract::Entity::find()
         .join(JoinType::LeftJoin, contract::Relation::Player.def())
         .join(JoinType::LeftJoin, contract::Relation::LeaguePlayer.def())
+        .filter(contract::Column::Status.eq(ContractStatus::Active))
+        .filter(contract::Column::TeamId.eq(team_id))
         .filter(
-            contract::Column::TeamId
-                .eq(team_id)
-                .or(player::Column::Name.eq(player_name))
+            player::Column::Name
+                .eq(player_name)
                 .or(league_player::Column::Name.eq(player_name)),
         )
         .all(db)

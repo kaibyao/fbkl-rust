@@ -148,22 +148,28 @@ async fn setup_player(manager: &SchemaManager<'_>) -> Result<(), DbErr> {
                         .primary_key(),
                 )
                 .col(ColumnDef::new(Player::Name).string().not_null())
-                .col(ColumnDef::new(Player::PhotoUrl).string())
+                .col(ColumnDef::new(Player::PositionId).integer().not_null())
                 .col(
                     ColumnDef::new(Player::Status)
                         .string()
                         .not_null()
                         .default("Retired"),
                 )
-                .col(ColumnDef::new(Player::ThumbnailUrl).string())
                 .col(
                     ColumnDef::new(Player::CurrentRealTeamId)
                         .big_integer()
                         .not_null(),
                 )
+                .col(
+                    ColumnDef::new(Player::IsRdiEligible)
+                        .boolean()
+                        .not_null()
+                        .default(false),
+                )
+                .col(ColumnDef::new(Player::PhotoUrl).string())
+                .col(ColumnDef::new(Player::ThumbnailUrl).string())
                 .col(ColumnDef::new(Player::EspnId).integer())
                 .col(ColumnDef::new(Player::NbaId).integer())
-                .col(ColumnDef::new(Player::PositionId).integer().not_null())
                 .col(
                     ColumnDef::new(Player::CreatedAt)
                         .timestamp_with_time_zone()
@@ -274,13 +280,14 @@ pub enum Player {
     Table,
     Id,
     Name,
-    PhotoUrl,
+    PositionId,
     Status,
-    ThumbnailUrl,
     CurrentRealTeamId,
+    IsRdiEligible,
+    PhotoUrl,
+    ThumbnailUrl,
     EspnId,
     NbaId,
-    PositionId,
     CreatedAt,
     UpdatedAt,
 }

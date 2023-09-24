@@ -16,6 +16,8 @@ use crate::real_team;
 pub struct Model {
     #[sea_orm(primary_key)]
     pub id: i64,
+    /// Whether a Rookie Development contract for the player is eligible to be converted to an International contract.
+    pub is_rdi_eligible: bool,
     pub name: String,
     pub photo_url: Option<String>,
     pub thumbnail_url: Option<String>,
