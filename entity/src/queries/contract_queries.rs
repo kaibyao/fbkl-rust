@@ -33,6 +33,22 @@ where
     Ok(updated_contract)
 }
 
+/// Activates a rookie development (+ international) contract
+#[instrument]
+pub async fn activate_rookie_development_contract<C>(
+    contract_model: contract::Model,
+    db: &C,
+) -> Result<contract::Model>
+where
+    C: ConnectionTrait + Debug,
+{
+    let activated_contract_to_insert = contract_model.activate_rookie()?;
+    let activated_contract =
+        add_replacement_contract_to_chain(contract_model, activated_contract_to_insert, db).await?;
+
+    Ok(activated_contract)
+}
+
 /// Inserts the new/advanced contract and sets the status of the old one appropriately.
 #[instrument]
 pub async fn advance_contract<C>(

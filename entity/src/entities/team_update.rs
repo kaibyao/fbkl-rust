@@ -148,7 +148,7 @@ pub enum ContractUpdateType {
     AddViaAuction,
     /// A contract is added via rookie draft selection.
     AddViaRookieDraft,
-    /// A contract representing a rookie is activated.
+    /// A contract representing a rookie development is activated.
     ActivateRookie,
     /// A contract is updated to IR status.
     ToIR,
