@@ -15,7 +15,7 @@ use crate::roster::calculate_team_contract_salary_with_model;
 use super::ir_team_update::create_ir_team_update;
 
 #[instrument]
-pub async fn move_contract_to_ir<C>(
+pub async fn activate_contract_from_ir<C>(
     contract_model: contract::Model,
     deadline_model: &deadline::Model,
     db: &C,
@@ -27,20 +27,20 @@ where
 
     let team_model = contract_model.get_team(db).await?.ok_or_else(|| {
         eyre!(
-            "Could not retrieve the expected team for an contract with id: {}",
+            "Could not retrieve the expected team for an IR contract with id: {}",
             contract_model.id
         )
     })?;
     let (original_salary, original_salary_cap) =
         calculate_team_contract_salary_with_model(&team_model, deadline_model, db).await?;
 
-    let updated_contract = contract_queries::move_contract_to_ir(contract_model, db).await?;
+    let updated_contract = contract_queries::activate_contract_from_ir(contract_model, db).await?;
 
     // create transaction
     let ir_transaction_to_insert = transaction::ActiveModel {
         id: ActiveValue::NotSet,
         end_of_season_year: ActiveValue::Set(updated_contract.end_of_season_year),
-        transaction_type: ActiveValue::Set(TransactionType::TeamUpdateToIr),
+        transaction_type: ActiveValue::Set(TransactionType::TeamUpdateFromIr),
         league_id: ActiveValue::Set(updated_contract.league_id),
         deadline_id: ActiveValue::Set(deadline_model.id),
         ir_contract_id: ActiveValue::Set(Some(updated_contract.id)),
@@ -54,7 +54,7 @@ where
         &updated_contract,
         deadline_model,
         &team_model,
-        ContractUpdateType::ToIR,
+        ContractUpdateType::FromIR,
         (original_salary, original_salary_cap),
         ir_transaction.id,
         db,
@@ -66,8 +66,8 @@ where
 
 fn validate_contract_eligibility(contract_model: &contract::Model) -> Result<()> {
     ensure!(
-        !contract_model.is_ir,
-        "Cannot move a contract to IR when it is already in IR. (contract_id = {})",
+        contract_model.is_ir,
+        "Cannot activate a contract from IR when it is not in IR. (contract_id = {})",
         contract_model.id
     );
     Ok(())

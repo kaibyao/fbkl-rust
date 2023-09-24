@@ -18,6 +18,21 @@ use crate::{
     transaction::{self, TransactionType},
 };
 
+/// Moves a contract to IR and returns the new contract in the contract chain
+pub async fn activate_contract_from_ir<C>(
+    contract_model: contract::Model,
+    db: &C,
+) -> Result<contract::Model>
+where
+    C: ConnectionTrait + Debug,
+{
+    let contract_to_insert = contract_model.activate_from_ir();
+    let updated_contract =
+        add_replacement_contract_to_chain(contract_model, contract_to_insert, db).await?;
+
+    Ok(updated_contract)
+}
+
 /// Inserts the new/advanced contract and sets the status of the old one appropriately.
 #[instrument]
 pub async fn advance_contract<C>(

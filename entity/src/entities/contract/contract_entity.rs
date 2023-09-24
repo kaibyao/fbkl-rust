@@ -61,6 +61,15 @@ pub struct Model {
 }
 
 impl Model {
+    /// Returns the contract (now in IR) to be added to the contract chain.
+    pub fn activate_from_ir(&self) -> ActiveModel {
+        let mut updated_contract: ActiveModel = self.clone().into();
+        updated_contract.id = ActiveValue::NotSet;
+        updated_contract.is_ir = ActiveValue::Set(false);
+        updated_contract.previous_contract_id = ActiveValue::Set(Some(self.id));
+        updated_contract
+    }
+
     /// Creates a new contract that converts the RD(I) contract to a standard rookie contract. Note that this doesn't do anything to insert the new contract or update the original.
     pub fn activate_rookie(&self) -> Result<ActiveModel, Error> {
         create_rookie_contract_from_rd(self)
@@ -150,7 +159,7 @@ impl Model {
         Ok(last_contract_in_history_chain.id == self.id)
     }
 
-    // Returns the contract (now in IR) to be added to the contract chain.
+    /// Returns the contract (now in IR) to be added to the contract chain.
     pub fn move_to_ir(&self) -> ActiveModel {
         let mut updated_contract: ActiveModel = self.clone().into();
         updated_contract.id = ActiveValue::NotSet;
