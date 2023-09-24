@@ -11,6 +11,8 @@ use serde::{Deserialize, Serialize};
 pub struct Model {
     #[sea_orm(primary_key)]
     pub id: i64,
+    /// Whether a Rookie Development contract for the player is eligible to be converted to an International contract.
+    pub is_rdi_eligible: bool,
     pub name: String,
     pub end_of_season_year: i16,
     pub league_id: i64,

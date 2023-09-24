@@ -95,6 +95,12 @@ async fn setup_league_player(manager: &SchemaManager<'_>) -> Result<(), DbErr> {
                         .not_null(),
                 )
                 .col(
+                    ColumnDef::new(LeaguePlayer::IsRdiEligible)
+                        .boolean()
+                        .not_null()
+                        .default(false),
+                )
+                .col(
                     ColumnDef::new(LeaguePlayer::LeagueId)
                         .big_integer()
                         .not_null(),
@@ -307,6 +313,7 @@ pub enum LeaguePlayer {
     Id,
     Name,
     EndOfSeasonYear,
+    IsRdiEligible,
     LeagueId,
     RealPlayerId,
     CreatedAt,
