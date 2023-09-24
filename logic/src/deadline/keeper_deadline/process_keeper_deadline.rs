@@ -6,14 +6,16 @@ use fbkl_entity::{
     contract, contract_queries,
     deadline::DeadlineType,
     deadline_queries,
-    sea_orm::{ConnectionTrait, ModelTrait},
+    sea_orm::{ColumnTrait, ConnectionTrait, ModelTrait, QueryFilter},
     team_update::{self, ContractUpdateType, TeamUpdateAsset, TeamUpdateData, TeamUpdateStatus},
-    team_update_queries, transaction,
+    team_update_queries,
+    transaction::{self, TransactionType},
 };
 use std::{collections::HashMap, fmt::Debug};
-use tracing::{info, instrument};
+use tracing::instrument;
 
 /// Processes the team_updates that have been created for the Keeper Deadline and sets the status for them.
+#[instrument]
 pub async fn process_keeper_deadline_transaction<C>(
     league_id: i64,
     end_of_season_year: i16,
@@ -25,18 +27,13 @@ where
     let (keeper_team_updates, mut active_league_contracts_by_id) =
         validate_and_get_process_keeper_deadline_data(league_id, end_of_season_year, db).await?;
 
-    let mut total_contracts_kept = 0;
-    let mut total_contracts_dropped = 0;
-
     for team_update_model in keeper_team_updates {
-        let team_id = team_update_model.team_id;
         let status_set_to_in_progress = team_update_queries::update_team_update_status(
             team_update_model,
             TeamUpdateStatus::InProgress,
             db,
         )
         .await?;
-
         match process_keeper_deadline_transaction_inner(
             status_set_to_in_progress.clone(),
             &mut active_league_contracts_by_id,
@@ -44,18 +41,13 @@ where
         )
         .await
         {
-            Ok((num_keepers, num_dropped)) => {
-                total_contracts_kept += num_keepers;
-                total_contracts_dropped += num_dropped;
-
+            Ok(()) => {
                 team_update_queries::update_team_update_status(
                     status_set_to_in_progress,
                     TeamUpdateStatus::Done,
                     db,
                 )
                 .await?;
-
-                info!(team_id, num_keepers, num_dropped);
             }
             Err(e) => {
                 team_update_queries::update_team_update_status(
@@ -69,8 +61,6 @@ where
         }
     }
 
-    info!(total_contracts_kept, total_contracts_dropped);
-
     Ok(())
 }
 
@@ -80,13 +70,10 @@ async fn process_keeper_deadline_transaction_inner<C>(
     team_update_model: team_update::Model,
     active_league_contracts_by_id: &mut HashMap<i64, contract::Model>,
     db: &C,
-) -> Result<(i16, i16)>
+) -> Result<()>
 where
     C: ConnectionTrait + Debug,
 {
-    let mut num_contracts_kept = 0;
-    let mut num_contracts_dropped = 0;
-
     let team_update_data = team_update_model.get_data()?;
     match team_update_data {
         TeamUpdateData::Assets(team_update_asset_summary) => {
@@ -95,14 +82,10 @@ where
                     TeamUpdateAsset::Contracts(updated_contracts) => {
                         for contract_update in updated_contracts {
                             match contract_update.update_type {
-                                ContractUpdateType::Keeper => {
-                                    num_contracts_kept += 1;
-                                },
+                                ContractUpdateType::Keeper => (),
                                 ContractUpdateType::Drop => {
                                     let related_league_contract = active_league_contracts_by_id.remove(&contract_update.contract_id).ok_or_else(|| eyre!("Contract referred by keeper deadline team update is not an active contract or wasn't found. contract_id: {}", contract_update.contract_id))?;
                                     contract_queries::drop_contract(related_league_contract, true, db).await?;
-
-                                    num_contracts_dropped += 1;
                                 },
                                 x => bail!("Did not expect contract update type while processing keeper deadline: {:#?}", x),
                             }
@@ -115,7 +98,7 @@ where
         TeamUpdateData::Settings(_) => bail!("Expected Keeper Deadline team update to be a contract update, but got settings instead: {:#?}", team_update_data),
     };
 
-    Ok((num_contracts_kept, num_contracts_dropped))
+    Ok(())
 }
 
 #[instrument]
@@ -137,11 +120,16 @@ where
 
     let maybe_keeper_deadline_transaction = deadline_model
         .find_related(transaction::Entity)
+        .filter(transaction::Column::TransactionType.eq(TransactionType::PreseasonKeeper))
         .one(db)
         .await?;
     let keeper_deadline_transaction_model = maybe_keeper_deadline_transaction.ok_or_else(||eyre!("Could not find transaction associated with keeper deadline. One should already exist for the league and season when processing the keeper deadline."))?;
     let keeper_team_updates = keeper_deadline_transaction_model
         .find_related(team_update::Entity)
+        .filter(
+            team_update::Column::Status
+                .is_in(vec![TeamUpdateStatus::Pending, TeamUpdateStatus::Error]),
+        )
         .all(db)
         .await?;
 

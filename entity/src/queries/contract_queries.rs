@@ -126,6 +126,38 @@ where
     Ok(active_contracts_by_team_id)
 }
 
+#[instrument]
+pub async fn find_active_team_contract_by_player_name<C>(
+    team_id: i64,
+    player_name: &str,
+    db: &C,
+) -> Result<contract::Model>
+where
+    C: ConnectionTrait + Debug,
+{
+    let mut matching_contracts = contract::Entity::find()
+        .join(JoinType::LeftJoin, contract::Relation::Player.def())
+        .join(JoinType::LeftJoin, contract::Relation::LeaguePlayer.def())
+        .filter(
+            contract::Column::TeamId
+                .eq(team_id)
+                .or(player::Column::Name.eq(player_name))
+                .or(league_player::Column::Name.eq(player_name)),
+        )
+        .all(db)
+        .await?;
+
+    ensure!(
+        matching_contracts.len() == 1,
+        "Found more than 1 contract for player, '{}', for team with id = {}. Contract ids: {:?}",
+        player_name,
+        team_id,
+        matching_contracts.iter().map(|c| c.id).collect::<Vec<_>>()
+    );
+
+    Ok(matching_contracts.swap_remove(0))
+}
+
 /// Retrieves all contracts currently in the given league that match the given list of player names.
 #[instrument]
 pub async fn find_active_league_contracts_by_player_names<C>(
@@ -226,6 +258,21 @@ where
         .all(db)
         .await?;
     Ok(dropped_team_contracts)
+}
+
+/// Moves a contract to IR and returns the new contract in the contract chain
+pub async fn move_contract_to_ir<C>(
+    contract_model: contract::Model,
+    db: &C,
+) -> Result<contract::Model>
+where
+    C: ConnectionTrait + Debug,
+{
+    let contract_to_insert = contract_model.move_to_ir();
+    let updated_contract =
+        add_replacement_contract_to_chain(contract_model, contract_to_insert, db).await?;
+
+    Ok(updated_contract)
 }
 
 /// Signs a contract to a team as a result of an auction ending (either the pre-season veteran auction or in-season FA auction).

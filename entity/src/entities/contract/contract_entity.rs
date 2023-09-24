@@ -8,7 +8,7 @@ use color_eyre::{
     eyre::{bail, eyre, Error},
     Result,
 };
-use sea_orm::{entity::prelude::*, ConnectionTrait};
+use sea_orm::{entity::prelude::*, ActiveValue, ConnectionTrait};
 use serde::{Deserialize, Serialize};
 use tracing::instrument;
 
@@ -108,6 +108,16 @@ impl Model {
         }
     }
 
+    /// Retrieves the team model related to this contract.
+    #[instrument]
+    pub async fn get_team<C>(&self, db: &C) -> Result<Option<team::Model>>
+    where
+        C: ConnectionTrait + Debug,
+    {
+        let maybe_team_model = self.find_related(team::Entity).one(db).await?;
+        Ok(maybe_team_model)
+    }
+
     /// Retrieves the latest contract in the contract history chain.
     pub async fn get_latest_in_chain<C>(&self, db: &C) -> Result<Model>
     where
@@ -138,6 +148,15 @@ impl Model {
     {
         let last_contract_in_history_chain = self.get_latest_in_chain(db).await?;
         Ok(last_contract_in_history_chain.id == self.id)
+    }
+
+    // Returns the contract (now in IR) to be added to the contract chain.
+    pub fn move_to_ir(&self) -> ActiveModel {
+        let mut updated_contract: ActiveModel = self.clone().into();
+        updated_contract.id = ActiveValue::NotSet;
+        updated_contract.is_ir = ActiveValue::Set(true);
+        updated_contract.previous_contract_id = ActiveValue::Set(Some(self.id));
+        updated_contract
     }
 
     pub fn new_contract_for_veteran_auction(

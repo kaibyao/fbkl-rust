@@ -6,7 +6,7 @@ use fbkl_entity::{
     contract_queries,
     deadline::DeadlineType,
     deadline_queries,
-    sea_orm::{ConnectionTrait, TransactionTrait},
+    sea_orm::ConnectionTrait,
     transaction, transaction_queries,
 };
 use tracing::instrument;
@@ -21,22 +21,20 @@ pub async fn advance_league_contracts<C>(
     db: &C,
 ) -> Result<Vec<contract::Model>>
 where
-    C: ConnectionTrait + TransactionTrait + Debug,
+    C: ConnectionTrait + Debug,
 {
     let active_league_contracts =
         contract_queries::find_active_contracts_in_league(league_id, db).await?;
-
-    let db_txn = db.begin().await?;
 
     let mut advanced_contracts = vec![];
     for active_league_contract in active_league_contracts {
         if active_league_contract.contract_type == contract::ContractType::FreeAgent {
             // Expire the contracts of players that ended the season as a free agent.
-            contract_queries::expire_contract(active_league_contract, &db_txn).await?;
+            contract_queries::expire_contract(active_league_contract, db).await?;
         } else {
             // Advance the rest in preparation for Keeper Deadline.
             let advanced_contract =
-                contract_queries::advance_contract(active_league_contract, &db_txn).await?;
+                contract_queries::advance_contract(active_league_contract, db).await?;
             advanced_contracts.push(advanced_contract);
         }
     }
@@ -61,8 +59,6 @@ where
         db,
     )
     .await?;
-
-    db_txn.commit().await?;
 
     Ok(advanced_contracts)
 }

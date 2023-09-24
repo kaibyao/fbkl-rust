@@ -3,7 +3,6 @@ use std::{collections::HashMap, fmt::Debug};
 use color_eyre::Result;
 use sea_orm::{
     ActiveModelTrait, ActiveValue, ColumnTrait, ConnectionTrait, EntityTrait, QueryFilter,
-    TransactionTrait,
 };
 use tracing::instrument;
 
@@ -15,7 +14,7 @@ pub async fn find_all_league_players_in_league<C>(
     db: &C,
 ) -> Result<HashMap<String, league_player::Model>>
 where
-    C: ConnectionTrait + TransactionTrait + Debug,
+    C: ConnectionTrait + Debug,
 {
     let league_players_by_name = league_player::Entity::find()
         .filter(league_player::Column::LeagueId.eq(league_id))
@@ -35,7 +34,7 @@ pub async fn insert_league_player_with_name<C>(
     db: &C,
 ) -> Result<league_player::Model>
 where
-    C: ConnectionTrait + TransactionTrait + Debug,
+    C: ConnectionTrait + Debug,
 {
     let league_player_to_insert = league_player::ActiveModel {
         name: ActiveValue::Set(name),
