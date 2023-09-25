@@ -181,7 +181,7 @@ where
 
     ensure!(
         matching_contracts.len() == 1,
-        "Found more than 1 contract for player, '{}', for team with id = {}. Contract ids: {:?}",
+        "Found more (or less) than 1 contract for player, '{}', for team with id = {}. Contract ids: {:?}",
         player_name,
         team_id,
         matching_contracts.iter().map(|c| c.id).collect::<Vec<_>>()
