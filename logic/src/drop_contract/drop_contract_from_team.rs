@@ -3,8 +3,7 @@ use std::fmt::Debug;
 use color_eyre::eyre::{ensure, eyre, Result};
 use fbkl_entity::{
     contract::{self, ContractStatus},
-    contract_queries,
-    deadline::{self, DeadlineType},
+    contract_queries, deadline,
     sea_orm::{ActiveValue, ConnectionTrait},
     transaction::{self, TransactionType},
     transaction_queries,
@@ -35,9 +34,12 @@ where
     let (original_salary, original_salary_cap) =
         calculate_team_contract_salary_with_model(&team_model, deadline_model, db).await?;
 
-    let is_drop_before_keeper_deadline = is_deadline_before_preseason_keeper(deadline_model);
-    let dropped_contract =
-        contract_queries::drop_contract(contract_model, is_drop_before_keeper_deadline, db).await?;
+    let dropped_contract = contract_queries::drop_contract(
+        contract_model,
+        deadline_model.is_preseason_keeper_or_before(),
+        db,
+    )
+    .await?;
 
     // create transaction
     let transaction_to_insert = transaction::ActiveModel {
@@ -73,9 +75,4 @@ fn validate_contract_eligibility(contract_model: &contract::Model) -> Result<()>
         contract_model.id
     );
     Ok(())
-}
-
-fn is_deadline_before_preseason_keeper(deadline_model: &deadline::Model) -> bool {
-    [DeadlineType::PreseasonStart, DeadlineType::PreseasonKeeper]
-        .contains(&deadline_model.deadline_type)
 }

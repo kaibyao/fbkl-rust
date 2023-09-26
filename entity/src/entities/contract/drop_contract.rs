@@ -56,7 +56,7 @@ pub fn create_dropped_contract(
         player_id: ActiveValue::Set(current_contract.player_id),
         previous_contract_id: ActiveValue::Set(Some(current_contract.id)),
         original_contract_id: ActiveValue::Set(current_contract.original_contract_id),
-        team_id: ActiveValue::Set(current_contract.team_id),
+        team_id: ActiveValue::NotSet,
         created_at: ActiveValue::NotSet,
         updated_at: ActiveValue::NotSet,
     };

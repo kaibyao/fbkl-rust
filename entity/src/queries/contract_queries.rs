@@ -288,8 +288,10 @@ where
                     transaction::Column::TransactionType
                         .eq(TransactionType::TeamUpdateDropContract),
                 )
-                .and(deadline::Column::DeadlineType.ne(DeadlineType::PreseasonStart))
-                .and(deadline::Column::DeadlineType.ne(DeadlineType::PreseasonKeeper)),
+                .and(
+                    deadline::Column::DeadlineType
+                        .is_not_in([DeadlineType::PreseasonStart, DeadlineType::PreseasonKeeper]),
+                ),
         )
         .all(db)
         .await?;

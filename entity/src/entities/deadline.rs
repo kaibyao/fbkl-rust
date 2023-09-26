@@ -58,6 +58,11 @@ impl Model {
 
         Ok(salary_cap)
     }
+
+    #[instrument]
+    pub fn is_preseason_keeper_or_before(&self) -> bool {
+        [DeadlineType::PreseasonStart, DeadlineType::PreseasonKeeper].contains(&self.deadline_type)
+    }
 }
 
 /// The different types of deadlines that happen in a league. This is a leaky abstraction, in that there is no common way that related models use these deadline types.

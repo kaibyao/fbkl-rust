@@ -54,7 +54,9 @@ pub struct Model {
     pub previous_contract_id: Option<i64>,
     /// The root-level contract that started the contract chain. The root-level contract has this field set to its `id`.
     pub original_contract_id: Option<i64>,
-    /// Points to a league's team id. The only time this field is `None` is during an auction, where a player has yet to be on a team for the season.
+    /// Points to a league's team id. The only times this field is `None` is:
+    /// * During an auction, where a player has yet to be on a team for the season.
+    /// * After a player has been dropped, where it's now in free agency status.
     pub team_id: Option<i64>,
     pub created_at: DateTimeWithTimeZone,
     pub updated_at: DateTimeWithTimeZone,
