@@ -164,12 +164,6 @@ async fn setup_team(manager: &SchemaManager<'_>) -> Result<(), DbErr> {
                         .primary_key(),
                 )
                 .col(ColumnDef::new(Team::Name).string().not_null())
-                .col(
-                    ColumnDef::new(Team::SalaryCap)
-                        .small_integer()
-                        .not_null()
-                        .default(200),
-                )
                 .col(ColumnDef::new(Team::LeagueId).big_integer().not_null())
                 .col(
                     ColumnDef::new(Team::CreatedAt)
@@ -325,7 +319,6 @@ pub enum Team {
     Table,
     Id,
     Name,
-    SalaryCap,
     LeagueId,
     CreatedAt,
     UpdatedAt,

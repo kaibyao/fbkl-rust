@@ -18,7 +18,6 @@ pub struct Model {
     #[sea_orm(primary_key)]
     pub id: i64,
     pub name: String,
-    pub salary_cap: i16,
     pub league_id: i64,
     pub created_at: DateTimeWithTimeZone,
     pub updated_at: DateTimeWithTimeZone,
