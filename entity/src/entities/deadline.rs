@@ -145,7 +145,7 @@ impl Related<super::team_update::Entity> for Entity {
     }
 
     fn via() -> Option<RelationDef> {
-        Some(super::transaction::Relation::Deadline.def())
+        Some(super::transaction::Relation::Deadline.def().rev())
     }
 }
 
