@@ -67,7 +67,7 @@ where
         calculate_team_contract_salary(team_id, team_contracts, roster_lock_deadline, db).await?;
 
     if total_contract_amount > team_salary_cap {
-        bail!("Roster contracts are invalid for roster lock: contract salaries exceed the team's cap. Deadline: {}, League: {}, End-of-season year: {}, Team: {}.", roster_lock_deadline.id, roster_lock_deadline.league_id, roster_lock_deadline.end_of_season_year, team_contracts[0].team_id.unwrap());
+        bail!("Roster contracts are invalid for roster lock: contract salaries exceed the team's cap. Deadline: {}, League: {}, End-of-season year: {}, Team: {}. Salary/Cap: {}/{}.", roster_lock_deadline.id, roster_lock_deadline.league_id, roster_lock_deadline.end_of_season_year, team_id, total_contract_amount, team_salary_cap);
     }
 
     Ok(())

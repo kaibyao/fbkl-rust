@@ -62,12 +62,13 @@ where
         return Ok((total_contract_amount, max_salary_cap_for_deadline));
     }
 
-    let dropped_team_contracts = contract_queries::find_dropped_contracts_for_team_in_season(
-        team_id,
-        deadline_model.end_of_season_year,
-        db,
-    )
-    .await?;
+    let dropped_team_contracts =
+        contract_queries::find_contracts_dropped_by_team_in_regular_season(
+            team_id,
+            deadline_model.end_of_season_year,
+            db,
+        )
+        .await?;
     let dropped_contract_cap_penalty = dropped_team_contracts
         .iter()
         .filter(|contract_model| {

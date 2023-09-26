@@ -14,6 +14,7 @@ use tracing::instrument;
 use crate::{
     auction,
     contract::{self, ContractStatus, ContractType},
+    deadline::{self, DeadlineType},
     league_player, player,
     transaction::{self, TransactionType},
 };
@@ -265,7 +266,7 @@ where
 }
 
 #[instrument]
-pub async fn find_dropped_contracts_for_team_in_season<C>(
+pub async fn find_contracts_dropped_by_team_in_regular_season<C>(
     team_id: i64,
     end_of_season_year: i16,
     db: &C,
@@ -278,6 +279,7 @@ where
             JoinType::LeftJoin,
             contract::Relation::DroppedContractTransaction.def(),
         )
+        .join(JoinType::LeftJoin, transaction::Relation::Deadline.def())
         .filter(
             contract::Column::TeamId
                 .eq(team_id)
@@ -285,7 +287,9 @@ where
                 .and(
                     transaction::Column::TransactionType
                         .eq(TransactionType::TeamUpdateDropContract),
-                ),
+                )
+                .and(deadline::Column::DeadlineType.ne(DeadlineType::PreseasonStart))
+                .and(deadline::Column::DeadlineType.ne(DeadlineType::PreseasonKeeper)),
         )
         .all(db)
         .await?;
