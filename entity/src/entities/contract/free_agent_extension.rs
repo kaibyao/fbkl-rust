@@ -69,7 +69,7 @@ pub fn sign_rfa_or_ufa_contract_to_team(
         player_id: ActiveValue::Set(fa_contract.player_id),
         previous_contract_id: ActiveValue::Set(Some(fa_contract.id)),
         original_contract_id: ActiveValue::Set(fa_contract.original_contract_id),
-        team_id: ActiveValue::Set(fa_contract.team_id),
+        team_id: ActiveValue::Set(Some(signing_team_id)),
         created_at: ActiveValue::NotSet,
         updated_at: ActiveValue::NotSet,
     };

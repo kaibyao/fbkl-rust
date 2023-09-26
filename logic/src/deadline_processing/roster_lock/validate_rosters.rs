@@ -143,7 +143,7 @@ fn validate_roster_contract_type_limits_not_exceeded(
         }
     };
 
-    todo!()
+    Ok(())
 }
 
 fn validate_roster_ir_slot_limits(team_contracts: &[contract::Model]) -> Result<()> {

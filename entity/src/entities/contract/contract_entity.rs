@@ -225,6 +225,22 @@ pub enum RelatedPlayer {
     Player(player::Model),
 }
 
+impl RelatedPlayer {
+    pub fn get_name(&self) -> &str {
+        match self {
+            RelatedPlayer::LeaguePlayer(lp) => &lp.name,
+            RelatedPlayer::Player(p) => &p.name,
+        }
+    }
+
+    pub fn get_is_rdi_eligible(&self) -> bool {
+        match self {
+            RelatedPlayer::LeaguePlayer(lp) => lp.is_rdi_eligible,
+            RelatedPlayer::Player(p) => p.is_rdi_eligible,
+        }
+    }
+}
+
 /// Represents the different types of contract to which a player can be signed. When a player is signed to a team, their contract must be of one of these types.
 #[derive(
     Debug,
