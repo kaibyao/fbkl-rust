@@ -15,7 +15,7 @@ use tracing::instrument;
 
 use super::sign_auction_contract_to_team;
 
-static VALID_VETERAN_AUCTION_FA_TYPES: &[ContractType] = &[
+pub static VALID_VETERAN_AUCTION_FA_TYPES: &[ContractType] = &[
     ContractType::RestrictedFreeAgent,
     ContractType::UnrestrictedFreeAgentOriginalTeam,
     ContractType::UnrestrictedFreeAgentVeteran,
