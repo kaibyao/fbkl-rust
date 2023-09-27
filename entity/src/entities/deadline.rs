@@ -5,8 +5,8 @@ use std::fmt::Debug;
 use async_graphql::Enum;
 use color_eyre::eyre::Result;
 use fbkl_constants::league_rules::{
-    KEEPER_CONTRACT_TOTAL_SALARY_LIMIT, POST_SEASON_DEFAULT_TOTAL_SALARY_LIMIT,
-    REGULAR_SEASON_DEFAULT_TOTAL_SALARY_LIMIT,
+    KEEPER_CONTRACT_TOTAL_SALARY_LIMIT, POST_SEASON_TOTAL_SALARY_LIMIT,
+    PRE_SEASON_TOTAL_SALARY_LIMIT, REGULAR_SEASON_TOTAL_SALARY_LIMIT,
 };
 use sea_orm::entity::prelude::*;
 use serde::{Deserialize, Serialize};
@@ -45,15 +45,20 @@ impl Model {
                 )
                 .await?;
                 if self.date_time > fa_auction_end_deadline.date_time {
-                    POST_SEASON_DEFAULT_TOTAL_SALARY_LIMIT
+                    POST_SEASON_TOTAL_SALARY_LIMIT
                 } else {
-                    REGULAR_SEASON_DEFAULT_TOTAL_SALARY_LIMIT
+                    REGULAR_SEASON_TOTAL_SALARY_LIMIT
                 }
             }
-            DeadlineType::TradeDeadlineAndPlayoffStart => POST_SEASON_DEFAULT_TOTAL_SALARY_LIMIT,
-            DeadlineType::SeasonEnd => POST_SEASON_DEFAULT_TOTAL_SALARY_LIMIT,
+            DeadlineType::TradeDeadlineAndPlayoffStart => POST_SEASON_TOTAL_SALARY_LIMIT,
+            DeadlineType::SeasonEnd => POST_SEASON_TOTAL_SALARY_LIMIT,
             DeadlineType::PreseasonKeeper => KEEPER_CONTRACT_TOTAL_SALARY_LIMIT,
-            _ => REGULAR_SEASON_DEFAULT_TOTAL_SALARY_LIMIT,
+            DeadlineType::PreseasonVeteranAuctionStart
+            | DeadlineType::PreseasonRookieDraftStart
+            | DeadlineType::PreseasonFaAuctionStart
+            | DeadlineType::PreseasonFaAuctionEnd
+            | DeadlineType::PreseasonFinalRosterLock => PRE_SEASON_TOTAL_SALARY_LIMIT,
+            _ => REGULAR_SEASON_TOTAL_SALARY_LIMIT,
         };
 
         Ok(salary_cap)

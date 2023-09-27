@@ -2,7 +2,7 @@ use sea_orm::ActiveValue;
 
 use crate::contract::{self, ContractStatus, ContractType};
 
-pub fn new_contract_for_veteran_auction(
+pub fn new_contract_for_auction(
     league_id: i64,
     end_of_season_year: i16,
     player_id: i64,

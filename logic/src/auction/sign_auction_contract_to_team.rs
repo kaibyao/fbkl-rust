@@ -14,7 +14,7 @@ use tracing::instrument;
 
 use crate::roster::{calculate_team_contract_salary, calculate_team_contract_salary_with_model};
 
-/// Signs a contract to the team that submitted the last/winning bid to an auction before it ended. Creates + inserts the contract, transaction, and team update.
+/// Signs a contract to the team that submitted the last/winning bid to a preseason veteran auction before it ended. Creates + inserts the contract, transaction, and team update.
 #[instrument]
 pub async fn sign_auction_contract_to_team<C>(
     auction_model: &auction::Model,

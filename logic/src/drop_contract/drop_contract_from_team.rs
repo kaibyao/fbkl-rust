@@ -34,6 +34,9 @@ where
     let (original_salary, original_salary_cap) =
         calculate_team_contract_salary_with_model(&team_model, deadline_model, db).await?;
 
+    // Saving the contract id to be used as a reference for the transaction's dropped_contract_id, because the dropped one does not have a team_id and it becomes hard to calculate salary cap penalties without it.
+    let contract_id = contract_model.id;
+
     let dropped_contract = contract_queries::drop_contract(
         contract_model,
         deadline_model.is_preseason_keeper_or_before(),
@@ -48,7 +51,7 @@ where
         transaction_type: ActiveValue::Set(TransactionType::TeamUpdateDropContract),
         league_id: ActiveValue::Set(dropped_contract.league_id),
         deadline_id: ActiveValue::Set(deadline_model.id),
-        dropped_contract_id: ActiveValue::Set(Some(dropped_contract.id)),
+        dropped_contract_id: ActiveValue::Set(Some(contract_id)),
         ..Default::default()
     };
     let transaction_model =

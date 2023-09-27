@@ -22,7 +22,7 @@ use super::{
     free_agent_extension::sign_rfa_or_ufa_contract_to_team,
     rookie_activation::create_rookie_contract_from_rd,
     rookie_draft::new_contract_from_rookie_draft, trade_contract::trade_contract_to_team,
-    veteran_auction_contract::new_contract_for_veteran_auction,
+    veteran_auction_contract::new_contract_for_auction,
     veteran_contract_signing::sign_veteran_contract,
 };
 
@@ -170,12 +170,12 @@ impl Model {
         updated_contract
     }
 
-    pub fn new_contract_for_veteran_auction(
+    pub fn new_contract_for_auction(
         league_id: i64,
         end_of_season_year: i16,
         player_id: i64,
     ) -> ActiveModel {
-        new_contract_for_veteran_auction(league_id, end_of_season_year, player_id)
+        new_contract_for_auction(league_id, end_of_season_year, player_id)
     }
 
     pub fn new_contract_from_rookie_draft(

@@ -50,6 +50,7 @@ async fn setup_auction(manager: &SchemaManager<'_>) -> Result<(), DbErr> {
                         .not_null()
                         .default("FreeAgent"),
                 )
+                .col(ColumnDef::new(Auction::ContractId).big_integer().not_null())
                 .col(
                     ColumnDef::new(Auction::MinimumBidAmount)
                         .small_integer()
@@ -72,7 +73,6 @@ async fn setup_auction(manager: &SchemaManager<'_>) -> Result<(), DbErr> {
                         .timestamp_with_time_zone()
                         .not_null(),
                 )
-                .col(ColumnDef::new(Auction::ContractId).big_integer().not_null())
                 .col(
                     ColumnDef::new(Auction::CreatedAt)
                         .timestamp_with_time_zone()

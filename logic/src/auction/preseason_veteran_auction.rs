@@ -1,9 +1,8 @@
 use std::fmt::Debug;
 
-use chrono::{DateTime, FixedOffset, NaiveDate};
+use chrono::NaiveDate;
 use color_eyre::{eyre::bail, Result};
 use fbkl_entity::{
-    auction::{self, AuctionType},
     auction_queries,
     contract::{self, ContractType},
     contract_queries,
@@ -80,44 +79,9 @@ where
     Ok(final_contract_model)
 }
 
-/// Creates a new veteran auction for a given player + league.
-#[instrument]
-pub async fn start_new_veteran_auction_for_nba_player<C>(
-    league_id: i64,
-    end_of_season_year: i16,
-    player_id: i64,
-    start_timestamp: DateTime<FixedOffset>,
-    starting_bid_amount: i16,
-    db: &C,
-) -> Result<auction::Model>
-where
-    C: ConnectionTrait + Debug,
-{
-    let player_contract = get_or_create_player_contract_for_veteran_auction(
-        league_id,
-        end_of_season_year,
-        player_id,
-        db,
-    )
-    .await?;
-
-    // Create the auction for it.
-    let inserted_auction = auction_queries::insert_new_auction(
-        player_contract.id,
-        AuctionType::PreseasonVeteranAuction,
-        starting_bid_amount,
-        start_timestamp,
-        None,
-        db,
-    )
-    .await?;
-
-    Ok(inserted_auction)
-}
-
 /// Either retrieves + validates an existing player contract that can be used for a new veteran auction, or creates one based on given arguments.
 #[instrument]
-async fn get_or_create_player_contract_for_veteran_auction<C>(
+pub async fn get_or_create_player_contract_for_veteran_auction<C>(
     league_id: i64,
     end_of_season_year: i16,
     player_id: i64,
@@ -138,11 +102,7 @@ where
         None => {
             // Create new contract
             contract_queries::create_new_contract(
-                contract::Model::new_contract_for_veteran_auction(
-                    league_id,
-                    end_of_season_year,
-                    player_id,
-                ),
+                contract::Model::new_contract_for_auction(league_id, end_of_season_year, player_id),
                 db,
             )
             .await?
