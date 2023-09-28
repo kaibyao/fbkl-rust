@@ -17,4 +17,4 @@ pub static REGULAR_SEASON_VET_OR_ROOKIE_CONTRACTS_PER_ROSTER_LIMIT: i16 = 22;
 /// The sum of contract values retained by a team for a regular season roster lock must be at or below this value.
 pub static REGULAR_SEASON_TOTAL_SALARY_LIMIT: i16 = 210;
 /// The sum of contract values retained by a team for a roster lock taking place at or after the auction deadline must be at or below this value.
-pub static POST_SEASON_TOTAL_SALARY_LIMIT: i16 = 220;
+pub static POST_SEASON_TOTAL_SALARY_LIMIT: i16 = 230;
