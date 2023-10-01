@@ -1,6 +1,6 @@
 use std::fmt::Debug;
 
-use color_eyre::eyre::Result;
+use color_eyre::eyre::{eyre, Result};
 use sea_orm::{
     ColumnTrait, ConnectionTrait, EntityTrait, JoinType, ModelTrait, QueryFilter, QuerySelect,
     RelationTrait,
@@ -23,12 +23,12 @@ where
     let default_team_user = team_user_models
         .into_iter()
         .find(|team_user_model| {
-            team_user_model.first_end_of_season_year >= end_of_season_year
+            team_user_model.first_end_of_season_year <= end_of_season_year
                 && team_user_model
                     .final_end_of_season_year
-                    .map_or(true, |year| year <= end_of_season_year)
+                    .map_or(true, |year| year >= end_of_season_year)
         })
-        .unwrap();
+        .ok_or_else(|| eyre!("Could not find a default team_user for team (team_id = {}) and end-of-season year {}", team_model.id, end_of_season_year))?;
     Ok(default_team_user)
 }
 
