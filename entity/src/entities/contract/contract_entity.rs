@@ -21,6 +21,7 @@ use super::{
     drop_contract::create_dropped_contract, expire_contract::expire_contract,
     free_agent_extension::sign_rfa_or_ufa_contract_to_team,
     rookie_activation::create_rookie_contract_from_rd,
+    rookie_development_international::create_rdi_contract_from_rd,
     rookie_draft::new_contract_from_rookie_draft, trade_contract::trade_contract_to_team,
     veteran_auction_contract::new_contract_for_auction,
     veteran_contract_signing::sign_veteran_contract,
@@ -168,6 +169,14 @@ impl Model {
         updated_contract.is_ir = ActiveValue::Set(true);
         updated_contract.previous_contract_id = ActiveValue::Set(Some(self.id));
         updated_contract
+    }
+
+    /// Returns a new contract (not yet inserted) where the RD player has been moved to an RDI contract.
+    pub async fn move_rd_to_international<C>(&self, db: &C) -> Result<ActiveModel>
+    where
+        C: ConnectionTrait + Debug,
+    {
+        create_rdi_contract_from_rd(self, db).await
     }
 
     pub fn new_contract_for_auction(
@@ -512,7 +521,12 @@ fn update_requires_original_contract(model: &ActiveModel) -> Result<(), DbErr> {
 
 static VALID_CONTRACT_TYPE_YEARS: &[&(&ContractType, &[i16])] = &[
     &(&ContractType::RookieDevelopment, &[1, 2, 3]),
-    &(&ContractType::RookieDevelopmentInternational, &[1, 2, 3]),
+    &(
+        &ContractType::RookieDevelopmentInternational,
+        &[
+            1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20,
+        ],
+    ),
     &(&ContractType::Rookie, &[1, 2, 3]),
     &(&ContractType::RookieExtension, &[4, 5]),
     &(&ContractType::Veteran, &[1, 2, 3]),

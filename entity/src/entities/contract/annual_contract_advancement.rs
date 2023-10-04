@@ -35,7 +35,7 @@ pub fn create_advancement_for_contract(
     };
 
     match current_contract.contract_type {
-        ContractType::RookieDevelopment | ContractType::RookieDevelopmentInternational => match current_contract.contract_year {
+        ContractType::RookieDevelopment => match current_contract.contract_year {
             1 => {
                 new_contract.contract_year = ActiveValue::Set(2);
             },
@@ -49,6 +49,9 @@ pub fn create_advancement_for_contract(
             _ => {
                 bail!("Invalid year for contract type: ({:?}, {})", current_contract.contract_type, current_contract.contract_year);
             }
+        },
+        ContractType::RookieDevelopmentInternational => {
+            new_contract.contract_year = ActiveValue::Set(current_contract.contract_year + 1);
         },
         ContractType::Rookie => match current_contract.contract_year {
                 1 => {

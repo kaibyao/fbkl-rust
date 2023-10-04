@@ -313,6 +313,21 @@ where
     Ok(updated_contract)
 }
 
+/// Moves a rookie development contract to international and returns the new contract in the contract chain.
+pub async fn move_rd_contract_to_rdi<C>(
+    rd_contract_model: contract::Model,
+    db: &C,
+) -> Result<contract::Model>
+where
+    C: ConnectionTrait + Debug,
+{
+    let contract_to_insert = rd_contract_model.move_rd_to_international(db).await?;
+    let updated_contract =
+        add_replacement_contract_to_chain(rd_contract_model, contract_to_insert, db).await?;
+
+    Ok(updated_contract)
+}
+
 /// Signs a contract to a team as a result of an auction ending (either the pre-season veteran auction or in-season FA auction).
 pub async fn sign_auction_contract_to_team<C>(
     auction_model: &auction::Model,
