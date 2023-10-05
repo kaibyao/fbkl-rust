@@ -17,6 +17,7 @@ where
     validate_player_eligibility(rd_contract, db).await?;
 
     let mut active_model: contract_entity::ActiveModel = rd_contract.clone().into();
+    active_model.id = ActiveValue::NotSet;
     active_model.contract_year = ActiveValue::Set(1);
     active_model.contract_type = ActiveValue::Set(ContractType::RookieDevelopmentInternational);
 

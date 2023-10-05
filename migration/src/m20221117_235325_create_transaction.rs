@@ -146,6 +146,7 @@ async fn setup_transaction(manager: &SchemaManager<'_>) -> Result<(), DbErr> {
                 )
                 .col(ColumnDef::new(Transaction::DroppedContractId).big_integer())
                 .col(ColumnDef::new(Transaction::IrContractId).big_integer())
+                .col(ColumnDef::new(Transaction::RdiContractId).big_integer())
                 .col(ColumnDef::new(Transaction::RookieContractActivationId).big_integer())
                 .col(ColumnDef::new(Transaction::RookieDraftSelectionId).big_integer())
                 .col(ColumnDef::new(Transaction::TradeId).big_integer())
@@ -291,13 +292,14 @@ pub enum Deadline {
 pub enum Transaction {
     Table,
     Id,
+    LeagueId,
     EndOfSeasonYear,
     TransactionType,
     AuctionId,
     DeadlineId,
     DroppedContractId,
     IrContractId,
-    LeagueId,
+    RdiContractId,
     RookieContractActivationId,
     RookieDraftSelectionId,
     TradeId,

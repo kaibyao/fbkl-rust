@@ -35,6 +35,8 @@ pub struct Model {
     pub dropped_contract_id: Option<i64>,
     /// Represents the contract that is tied to an IR move.
     pub ir_contract_id: Option<i64>,
+    /// Represents the contract that is tied to an RD <--> RDI move.
+    pub rdi_contract_id: Option<i64>,
     /// Represents the contract that is tied to a rookie development -> rookie activation.
     pub rookie_contract_activation_id: Option<i64>,
     /// Represents a rookie draft selection.
@@ -129,6 +131,12 @@ pub enum TransactionType {
     /// A team has moved a player contract from IR.
     #[sea_orm(string_value = "TeamUpdateFromIr")]
     TeamUpdateFromIr,
+    /// A team has moved an RD player contract to RDI.
+    #[sea_orm(string_value = "TeamUpdateToRdi")]
+    TeamUpdateToRdi,
+    /// A team has moved an RDI player contract back to RD.
+    #[sea_orm(string_value = "TeamUpdateFromRdi")]
+    TeamUpdateFromRdi,
     /// A team has activated a rookie contract, converting them to a rookie extension.
     #[sea_orm(string_value = "RookieContractActivation")]
     RookieContractActivation,
@@ -273,6 +281,22 @@ fn validate_required_column_values_for_transaction_types(model: &ActiveModel) ->
             if model.ir_contract_id.is_not_set() {
                 return Err(DbErr::Custom(format!(
                     "Transaction of type 'TeamUpdateFromIr' must have a ir_contract_id. ({:#?})",
+                    model
+                )));
+            }
+        }
+        TransactionType::TeamUpdateToRdi => {
+            if model.rdi_contract_id.is_not_set() {
+                return Err(DbErr::Custom(format!(
+                    "Transaction of type 'TeamUpdateToRdi' must have a rdi_contract_id. ({:#?})",
+                    model
+                )));
+            }
+        }
+        TransactionType::TeamUpdateFromRdi => {
+            if model.rdi_contract_id.is_not_set() {
+                return Err(DbErr::Custom(format!(
+                    "Transaction of type 'TeamUpdateFromRdi' must have a rdi_contract_id. ({:#?})",
                     model
                 )));
             }

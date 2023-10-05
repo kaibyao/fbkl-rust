@@ -154,6 +154,10 @@ pub enum ContractUpdateType {
     ToIR,
     /// A contract is updated to no longer have IR status.
     FromIR,
+    /// An RD contract is updated to RDI status.
+    ToRdi,
+    /// An RDI contract is updated to RD status.
+    FromRdi,
     /// A contract is kept on the team for the Keeper Deadline.
     Keeper,
     /// A contract is advanced by one year.

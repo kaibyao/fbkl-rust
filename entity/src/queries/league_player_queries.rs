@@ -40,6 +40,7 @@ where
         name: ActiveValue::Set(name),
         league_id: ActiveValue::Set(league_id),
         end_of_season_year: ActiveValue::Set(end_of_season_year),
+        is_rdi_eligible: ActiveValue::Set(true),
         ..Default::default()
     };
     let inserted_league_player = league_player_to_insert.insert(db).await?;

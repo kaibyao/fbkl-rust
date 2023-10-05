@@ -100,6 +100,27 @@
     {
       "type": "lldb",
       "request": "launch",
+      "name": "import-data real-world",
+      "cargo": {
+        "args": [
+          "build",
+          "--bin=fbkl-import-data",
+          "--package=fbkl-import-data"
+        ],
+        "filter": {
+          "name": "fbkl-import-data",
+          "kind": "bin"
+        }
+      },
+      "args": [
+        "--data",
+        "real-world"
+      ],
+      "cwd": "${workspaceFolder}/import-data"
+    },
+    {
+      "type": "lldb",
+      "request": "launch",
       "name": "import-data transactions",
       "cargo": {
         "args": [
