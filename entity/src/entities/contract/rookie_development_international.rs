@@ -6,6 +6,19 @@ use sea_orm::{ActiveValue, ConnectionTrait};
 
 use super::contract_entity;
 
+pub fn create_rd_contract_from_rdi(
+    rdi_contract: &contract_entity::Model,
+) -> Result<contract_entity::ActiveModel> {
+    validate_contract_type_for_rdi_to_rd(rdi_contract)?;
+
+    let mut active_model: contract_entity::ActiveModel = rdi_contract.clone().into();
+    active_model.id = ActiveValue::NotSet;
+    active_model.contract_year = ActiveValue::Set(1);
+    active_model.contract_type = ActiveValue::Set(ContractType::RookieDevelopment);
+
+    Ok(active_model)
+}
+
 pub async fn create_rdi_contract_from_rd<C>(
     rd_contract: &contract_entity::Model,
     db: &C,
@@ -13,7 +26,7 @@ pub async fn create_rdi_contract_from_rd<C>(
 where
     C: ConnectionTrait + Debug,
 {
-    validate_contract_type(rd_contract)?;
+    validate_contract_type_for_rd_to_rdi(rd_contract)?;
     validate_player_eligibility(rd_contract, db).await?;
 
     let mut active_model: contract_entity::ActiveModel = rd_contract.clone().into();
@@ -24,11 +37,21 @@ where
     Ok(active_model)
 }
 
-fn validate_contract_type(rd_contract: &contract_entity::Model) -> Result<()> {
+fn validate_contract_type_for_rd_to_rdi(rd_contract: &contract_entity::Model) -> Result<()> {
     ensure!(
         rd_contract.contract_type == ContractType::RookieDevelopment,
         "Only RD contracts can be converted to an RDI contract (id = {}).",
         rd_contract.id
+    );
+
+    Ok(())
+}
+
+fn validate_contract_type_for_rdi_to_rd(rdi_contract: &contract_entity::Model) -> Result<()> {
+    ensure!(
+        rdi_contract.contract_type == ContractType::RookieDevelopmentInternational,
+        "Only RDI contracts can be converted to an RD contract (id = {}).",
+        rdi_contract.id
     );
 
     Ok(())

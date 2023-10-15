@@ -18,11 +18,13 @@ use crate::{
 
 use super::{
     annual_contract_advancement::create_advancement_for_contract,
-    drop_contract::create_dropped_contract, expire_contract::expire_contract,
+    drop_contract::create_dropped_contract,
+    expire_contract::expire_contract,
     free_agent_extension::sign_rfa_or_ufa_contract_to_team,
     rookie_activation::create_rookie_contract_from_rd,
-    rookie_development_international::create_rdi_contract_from_rd,
-    rookie_draft::new_contract_from_rookie_draft, trade_contract::trade_contract_to_team,
+    rookie_development_international::{create_rd_contract_from_rdi, create_rdi_contract_from_rd},
+    rookie_draft::new_contract_from_rookie_draft,
+    trade_contract::trade_contract_to_team,
     veteran_auction_contract::new_contract_for_auction,
     veteran_contract_signing::sign_veteran_contract,
 };
@@ -177,6 +179,11 @@ impl Model {
         C: ConnectionTrait + Debug,
     {
         create_rdi_contract_from_rd(self, db).await
+    }
+
+    /// Returns a new contract (not yet inserted) where the RDI player has been moved to an RD contract.
+    pub fn move_rdi_to_rd(&self) -> Result<ActiveModel> {
+        create_rd_contract_from_rdi(self)
     }
 
     pub fn new_contract_for_auction(
