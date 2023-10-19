@@ -3,6 +3,7 @@ use std::collections::HashMap;
 
 use super::NaiveDateRange;
 
+/// The dates where no games happen because of the NBA All-star Break.
 pub static NBA_ASB_DATE_RANGES_BY_END_OF_SEASON_YEAR: Lazy<HashMap<i16, NaiveDateRange>> =
     Lazy::new(|| {
         [
@@ -41,6 +42,10 @@ pub static NBA_ASB_DATE_RANGES_BY_END_OF_SEASON_YEAR: Lazy<HashMap<i16, NaiveDat
             (
                 2023,
                 NaiveDateRange::from_date_strings("2023-02-17", "2023-02-22").unwrap(),
+            ),
+            (
+                2024,
+                NaiveDateRange::from_date_strings("2024-02-16", "2024-02-21").unwrap(),
             ),
         ]
         .into_iter()
