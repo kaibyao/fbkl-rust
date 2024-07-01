@@ -1,6 +1,6 @@
 use sea_orm::ActiveValue;
 
-use crate::contract::{self, ContractStatus, ContractType};
+use crate::contract::{self, ContractStatus, ContractKind};
 
 pub fn new_contract_for_auction(
     league_id: i64,
@@ -11,8 +11,8 @@ pub fn new_contract_for_auction(
         id: ActiveValue::NotSet,
         created_at: ActiveValue::NotSet,
         updated_at: ActiveValue::NotSet,
-        contract_year: ActiveValue::Set(1),
-        contract_type: ActiveValue::Set(ContractType::Veteran),
+        year_number: ActiveValue::Set(1),
+        kind: ActiveValue::Set(ContractKind::Veteran),
         is_ir: ActiveValue::Set(false),
         salary: ActiveValue::Set(1),
         end_of_season_year: ActiveValue::Set(end_of_season_year),

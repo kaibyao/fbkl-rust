@@ -2,7 +2,6 @@
 
 use std::fmt::Debug;
 
-use async_graphql::Enum;
 use async_trait::async_trait;
 use color_eyre::{eyre::eyre, Result};
 use sea_orm::{entity::prelude::*, ConnectionTrait};
@@ -92,7 +91,6 @@ impl Model {
     Default,
     Clone,
     Copy,
-    Enum,
     Eq,
     PartialEq,
     EnumIter,

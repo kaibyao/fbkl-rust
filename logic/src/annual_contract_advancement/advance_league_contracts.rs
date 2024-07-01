@@ -4,7 +4,7 @@ use color_eyre::Result;
 use fbkl_entity::{
     contract::{self},
     contract_queries,
-    deadline::DeadlineType,
+    deadline::DeadlineKind,
     deadline_queries,
     sea_orm::ConnectionTrait,
     transaction, transaction_queries,
@@ -28,7 +28,7 @@ where
 
     let mut advanced_contracts = vec![];
     for active_league_contract in active_league_contracts {
-        if active_league_contract.contract_type == contract::ContractType::FreeAgent {
+        if active_league_contract.kind == contract::ContractKind::FreeAgent {
             // Expire the contracts of players that ended the season as a free agent.
             contract_queries::expire_contract(active_league_contract, db).await?;
         } else {
@@ -42,7 +42,7 @@ where
     let preseason_start_deadline = deadline_queries::find_deadline_for_season_by_type(
         league_id,
         end_of_season_year,
-        DeadlineType::PreseasonStart,
+        DeadlineKind::PreseasonStart,
         db,
     )
     .await?;

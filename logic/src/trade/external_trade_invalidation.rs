@@ -74,7 +74,7 @@ where
         .map(|(_trade_asset, draft_pick_model)| draft_pick_model.clone())
         .collect();
     let mut all_affected_draft_picks =
-        vec![draft_picks_affected_by_affected_options, traded_draft_picks].concat();
+        [draft_picks_affected_by_affected_options, traded_draft_picks].concat();
     all_affected_draft_picks.dedup_by_key(|draft_pick| draft_pick.id);
     let external_trade_asset_with_affected_draft_picks =
         trade_asset_queries::get_trade_assets_related_to_draft_picks(all_affected_draft_picks, db)

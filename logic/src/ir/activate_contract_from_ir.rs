@@ -5,7 +5,7 @@ use fbkl_entity::{
     contract, contract_queries, deadline,
     sea_orm::{ActiveValue, ConnectionTrait},
     team_update::ContractUpdateType,
-    transaction::{self, TransactionType},
+    transaction::{self, TransactionKind},
     transaction_queries,
 };
 use tracing::instrument;
@@ -40,7 +40,7 @@ where
     let ir_transaction_to_insert = transaction::ActiveModel {
         id: ActiveValue::NotSet,
         end_of_season_year: ActiveValue::Set(updated_contract.end_of_season_year),
-        transaction_type: ActiveValue::Set(TransactionType::TeamUpdateFromIr),
+        kind: ActiveValue::Set(TransactionKind::TeamUpdateFromIr),
         league_id: ActiveValue::Set(updated_contract.league_id),
         deadline_id: ActiveValue::Set(deadline_model.id),
         ir_contract_id: ActiveValue::Set(Some(updated_contract.id)),

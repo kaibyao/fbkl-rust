@@ -1,6 +1,6 @@
 use sea_orm::ActiveValue;
 
-use super::{ActiveModel, ContractType};
+use super::{ActiveModel, ContractKind};
 
 pub fn new_contract_from_rookie_draft(
     league_id: i64,
@@ -12,8 +12,8 @@ pub fn new_contract_from_rookie_draft(
 ) -> ActiveModel {
     let mut model = ActiveModel {
         id: ActiveValue::NotSet,
-        contract_year: ActiveValue::Set(1),
-        contract_type: ActiveValue::Set(ContractType::RookieDevelopment),
+        year_number: ActiveValue::Set(1),
+        kind: ActiveValue::Set(ContractKind::RookieDevelopment),
         is_ir: ActiveValue::Set(false),
         salary: ActiveValue::Set(salary),
         end_of_season_year: ActiveValue::Set(end_of_season_year),

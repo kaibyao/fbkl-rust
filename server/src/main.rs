@@ -1,11 +1,11 @@
 #![deny(clippy::all)]
 
 mod error;
-mod graphql;
 mod handlers;
 mod server;
 mod session;
 
+use axum::serve;
 use color_eyre::Result;
 use fbkl_auth::{encode_token, generate_token};
 use fbkl_entity::sea_orm::Database;
@@ -20,12 +20,16 @@ async fn main() -> Result<()> {
     let database_url = std::env::var("FBKL_DATABASE_URL").expect("FBKL_DATABASE_URL must be set");
     let db_connection = Database::connect(&database_url).await?;
 
-    let session_secret = std::env::var("SESSION_SECRET").map_or_else(
-        |_| encode_token(&generate_token().into_iter().collect()),
-        |session_str| session_str,
-    );
+    let session_secret = std::env::var("SESSION_SECRET").unwrap_or_else(|_| encode_token(&generate_token().into_iter().collect()));
     let app = server::generate_server(db_connection, session_secret).await?;
-    let server = axum::Server::bind(&"127.0.0.1:9001".parse()?).serve(app.into_make_service());
+    let listener = tokio::net::TcpListener::bind("0.0.0.0:9001").await.unwrap();
+
+    // let test_app = server::test_server();
+
+    let server = serve(listener, app);
+    // let server = serve(listener, test_app);
+
+    // let server = axum::Server::bind(&"127.0.0.1:9001".parse()?).serve(app.into_make_service());
 
     info!("Starting fbkl/server on port 9001...");
 

@@ -2,20 +2,20 @@ use std::fmt::Debug;
 
 use color_eyre::eyre::Result;
 use fbkl_entity::{
-    contract::{self, ContractType},
+    contract::{self, ContractKind},
     contract_queries,
-    deadline::{self, DeadlineType},
+    deadline::{self, DeadlineKind},
     sea_orm::ConnectionTrait,
     team,
 };
 use once_cell::sync::Lazy;
 use tracing::instrument;
 
-static CONTRACT_TYPES_COUNTED_TOWARD_CAP: Lazy<&[ContractType]> = Lazy::new(|| {
+static CONTRACT_TYPES_COUNTED_TOWARD_CAP: Lazy<&[ContractKind]> = Lazy::new(|| {
     &[
-        ContractType::Rookie,
-        ContractType::RookieExtension,
-        ContractType::Veteran,
+        ContractKind::Rookie,
+        ContractKind::RookieExtension,
+        ContractKind::Veteran,
     ]
 });
 
@@ -50,7 +50,7 @@ where
     let contracts_counted_towards_cap: Vec<&contract::Model> = team_active_contracts
         .iter()
         .filter(|contract_model| {
-            CONTRACT_TYPES_COUNTED_TOWARD_CAP.contains(&contract_model.contract_type)
+            CONTRACT_TYPES_COUNTED_TOWARD_CAP.contains(&contract_model.kind)
                 && !contract_model.is_ir
         })
         .collect();
@@ -58,7 +58,7 @@ where
         .iter()
         .fold(0, |sum, contract_model| sum + contract_model.salary);
 
-    if deadline_model.deadline_type == DeadlineType::PreseasonKeeper {
+    if deadline_model.kind == DeadlineKind::PreseasonKeeper {
         return Ok((total_contract_amount, max_salary_cap_for_deadline));
     }
 
@@ -72,7 +72,7 @@ where
     let dropped_contract_cap_penalty = dropped_team_contracts
         .iter()
         .filter(|contract_model| {
-            CONTRACT_TYPES_COUNTED_TOWARD_CAP.contains(&contract_model.contract_type)
+            CONTRACT_TYPES_COUNTED_TOWARD_CAP.contains(&contract_model.kind)
         })
         .fold(0, |sum, dropped_contract| {
             let penalty_amount_rounded_up = (f32::from(dropped_contract.salary) * 0.2).ceil();

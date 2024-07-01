@@ -2,7 +2,6 @@
 
 use crate::team_user;
 use crate::team_user::LeagueRole;
-use async_graphql::Enum;
 use async_trait::async_trait;
 use color_eyre::Result;
 use sea_orm::entity::prelude::*;
@@ -38,7 +37,6 @@ impl Model {
     Default,
     Clone,
     Copy,
-    Enum,
     Eq,
     PartialEq,
     EnumIter,

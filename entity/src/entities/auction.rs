@@ -2,7 +2,6 @@
 
 use std::fmt::Debug;
 
-use async_graphql::Enum;
 use color_eyre::{eyre::eyre, Result};
 use sea_orm::{entity::prelude::*, ConnectionTrait, QueryOrder};
 use serde::{Deserialize, Serialize};
@@ -15,7 +14,7 @@ use crate::{auction_bid, contract};
 pub struct Model {
     #[sea_orm(primary_key)]
     pub id: i64,
-    pub auction_type: AuctionType,
+    pub kind: AuctionKind,
     pub minimum_bid_amount: i16,
     pub start_timestamp: DateTimeWithTimeZone,
     pub soft_end_timestamp: DateTimeWithTimeZone,
@@ -71,7 +70,6 @@ impl Model {
     Default,
     Clone,
     Copy,
-    Enum,
     Eq,
     PartialEq,
     EnumIter,
@@ -80,7 +78,7 @@ impl Model {
     Deserialize,
 )]
 #[sea_orm(rs_type = "String", db_type = "String(None)")]
-pub enum AuctionType {
+pub enum AuctionKind {
     /// Represents a free agent auction that happens throughout the league season.
     #[default]
     #[sea_orm(string_value = "FreeAgent")]

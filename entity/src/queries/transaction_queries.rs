@@ -5,8 +5,8 @@ use sea_orm::{ActiveModelTrait, ColumnTrait, ConnectionTrait, EntityTrait, Query
 use tracing::instrument;
 
 use crate::{
-    deadline::{self, DeadlineType},
-    transaction::{self, TransactionType},
+    deadline::{self, DeadlineKind as DeadlineKind},
+    transaction::{self, TransactionKind as TransactionKind},
 };
 
 #[instrument]
@@ -20,8 +20,8 @@ where
 {
     let maybe_existing_keeper_deadline_transaction = transaction::Entity::find()
         .filter(
-            transaction::Column::TransactionType
-                .eq(TransactionType::PreseasonKeeper)
+            transaction::Column::Kind
+                .eq(TransactionKind::PreseasonKeeper)
                 .and(transaction::Column::EndOfSeasonYear.eq(end_of_season_year))
                 .and(transaction::Column::LeagueId.eq(league_id)),
         )
@@ -37,7 +37,7 @@ where
             deadline::Column::LeagueId
                 .eq(league_id)
                 .and(deadline::Column::EndOfSeasonYear.eq(end_of_season_year))
-                .and(deadline::Column::DeadlineType.eq(DeadlineType::PreseasonKeeper)),
+                .and(deadline::Column::Kind.eq(DeadlineKind::PreseasonKeeper)),
         )
         .one(db)
         .await?;

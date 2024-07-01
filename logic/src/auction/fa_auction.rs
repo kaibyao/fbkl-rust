@@ -4,7 +4,7 @@ use chrono::NaiveDate;
 use color_eyre::{eyre::eyre, Result};
 use fbkl_entity::{
     auction_queries,
-    contract::{self, ContractType},
+    contract::{self, ContractKind},
     contract_queries, deadline,
     sea_orm::{ConnectionTrait, TransactionTrait},
 };
@@ -66,7 +66,7 @@ where
             contract_model
                 .player_id
                 .map_or(false, |contract_player_id| contract_player_id == player_id)
-                && contract_model.contract_type == ContractType::FreeAgent
+                && contract_model.kind == ContractKind::FreeAgent
         });
     let player_contract = match maybe_existing_contract {
         None => {

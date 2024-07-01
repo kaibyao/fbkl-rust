@@ -2,7 +2,6 @@
 
 use std::fmt::Debug;
 
-use async_graphql::Enum;
 use color_eyre::Result;
 use sea_orm::{entity::prelude::*, ActiveValue};
 use serde::{Deserialize, Serialize};
@@ -44,7 +43,6 @@ impl Model {
     Default,
     Clone,
     Copy,
-    Enum,
     Eq,
     PartialEq,
     EnumIter,

@@ -1,10 +1,10 @@
 use axum::response::Html;
-use axum_sessions::extractors::ReadableSession;
+use tower_sessions::Session;
 
 use crate::{error::FbklError, session::enforce_logged_in};
 
-pub async fn get_application(session: ReadableSession) -> Result<Html<&'static str>, FbklError> {
-    enforce_logged_in(&session)?;
+pub async fn get_application(session: Session) -> Result<Html<&'static str>, FbklError> {
+    enforce_logged_in(session).await?;
 
     Ok(Html(
         r#"

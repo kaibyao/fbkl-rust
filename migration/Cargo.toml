@@ -9,7 +9,6 @@ name = "fbkl_migration"
 path = "src/lib.rs"
 
 [dependencies]
-async-sea-orm-session = {git = "https://github.com/kaibyao/async-sea-orm-session"}
 async-std = {version = "^1", features = ["attributes", "tokio1"]}
 fbkl-entity = {path = "../entity"}
 

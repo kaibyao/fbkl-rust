@@ -2,7 +2,7 @@ use crate::contract;
 use color_eyre::{eyre::bail, Result};
 use sea_orm::ActiveValue;
 
-use super::{ContractStatus, ContractType};
+use super::{ContractStatus, ContractKind};
 
 /// Creates a new contract from the given one, where the contract is expired.
 pub fn expire_contract(current_contract: &contract::Model) -> Result<contract::ActiveModel> {
@@ -15,8 +15,8 @@ pub fn expire_contract(current_contract: &contract::Model) -> Result<contract::A
 
     let new_contract = contract::ActiveModel {
         id: ActiveValue::NotSet,
-        contract_year: ActiveValue::Set(1),
-        contract_type: ActiveValue::Set(ContractType::FreeAgent),
+        year_number: ActiveValue::Set(1),
+        kind: ActiveValue::Set(ContractKind::FreeAgent),
         is_ir: ActiveValue::Set(false),
         salary: ActiveValue::Set(1),
         end_of_season_year: ActiveValue::Set(current_contract.end_of_season_year),

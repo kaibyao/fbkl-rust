@@ -4,7 +4,7 @@ use color_eyre::eyre::{eyre, Result};
 use fbkl_entity::{
     contract, contract_queries, deadline,
     sea_orm::{ActiveValue, ConnectionTrait},
-    transaction::{self, TransactionType},
+    transaction::{self, TransactionKind},
     transaction_queries,
 };
 use tracing::instrument;
@@ -37,7 +37,7 @@ where
     let transaction_to_insert = transaction::ActiveModel {
         id: ActiveValue::NotSet,
         end_of_season_year: ActiveValue::Set(activated_contract.end_of_season_year),
-        transaction_type: ActiveValue::Set(TransactionType::RookieContractActivation),
+        kind: ActiveValue::Set(TransactionKind::RookieContractActivation),
         league_id: ActiveValue::Set(activated_contract.league_id),
         deadline_id: ActiveValue::Set(deadline_model.id),
         rookie_contract_activation_id: ActiveValue::Set(Some(activated_contract.id)),

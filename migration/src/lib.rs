@@ -5,7 +5,6 @@ use sea_orm_migration::{
     DbErr, MigrationTrait, SchemaManager,
 };
 
-mod m20220916_131200_create_session_table;
 mod m20220916_131201_create_auto_updated_at_fn;
 mod m20220916_131202_create_user_table;
 mod m20220916_152433_create_user_registration;
@@ -27,7 +26,6 @@ pub struct Migrator;
 impl MigratorTrait for Migrator {
     fn migrations() -> Vec<Box<dyn MigrationTrait>> {
         vec![
-            Box::new(m20220916_131200_create_session_table::Migration),
             Box::new(m20220916_131201_create_auto_updated_at_fn::Migration),
             Box::new(m20220916_131202_create_user_table::Migration),
             Box::new(m20220916_152433_create_user_registration::Migration),

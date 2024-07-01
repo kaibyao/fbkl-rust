@@ -12,7 +12,7 @@ use sea_orm::{
 use tracing::instrument;
 
 use crate::{
-    auction::{self, AuctionType},
+    auction::{self, AuctionKind},
     auction_bid,
 };
 
@@ -33,7 +33,7 @@ where
 #[instrument]
 pub async fn insert_new_auction<C>(
     contract_id: i64,
-    auction_type: AuctionType,
+    kind: AuctionKind,
     minimum_bid_amount: i16,
     start_datetime: DateTimeWithTimeZone,
     fixed_end_datetime: Option<DateTimeWithTimeZone>,
@@ -53,7 +53,7 @@ where
 
     let auction_model_to_insert = auction::ActiveModel {
         id: ActiveValue::NotSet,
-        auction_type: ActiveValue::Set(auction_type),
+        kind: ActiveValue::Set(kind),
         minimum_bid_amount: ActiveValue::Set(minimum_bid_amount),
         start_timestamp: ActiveValue::Set(start_datetime),
         soft_end_timestamp: ActiveValue::Set(soft_end_timestamp),

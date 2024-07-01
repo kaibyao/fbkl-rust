@@ -45,7 +45,7 @@ async fn setup_auction(manager: &SchemaManager<'_>) -> Result<(), DbErr> {
                         .primary_key(),
                 )
                 .col(
-                    ColumnDef::new(Auction::AuctionType)
+                    ColumnDef::new(Auction::Kind)
                         .string()
                         .not_null()
                         .default("FreeAgent"),
@@ -202,7 +202,7 @@ async fn setup_auction_bid(manager: &SchemaManager<'_>) -> Result<(), DbErr> {
 pub enum Auction {
     Table,
     Id,
-    AuctionType,
+    Kind,
     MinimumBidAmount,
     StartTimestamp,
     SoftEndTimestamp,

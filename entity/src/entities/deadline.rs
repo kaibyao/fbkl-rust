@@ -2,7 +2,6 @@
 
 use std::fmt::Debug;
 
-use async_graphql::Enum;
 use color_eyre::eyre::Result;
 use fbkl_constants::league_rules::{
     KEEPER_CONTRACT_TOTAL_SALARY_LIMIT, POST_SEASON_TOTAL_SALARY_LIMIT,
@@ -21,7 +20,7 @@ pub struct Model {
     #[sea_orm(primary_key)]
     pub id: i64,
     pub date_time: DateTimeWithTimeZone,
-    pub deadline_type: DeadlineType,
+    pub kind: DeadlineKind,
     pub name: String,
     pub end_of_season_year: i16,
     pub league_id: i64,
@@ -35,12 +34,12 @@ impl Model {
     where
         C: ConnectionTrait + Debug,
     {
-        let salary_cap = match self.deadline_type {
-            DeadlineType::InSeasonRosterLock => {
+        let salary_cap = match self.kind {
+            DeadlineKind::InSeasonRosterLock => {
                 let fa_auction_end_deadline = deadline_queries::find_deadline_for_season_by_type(
                     self.league_id,
                     self.end_of_season_year,
-                    DeadlineType::FreeAgentAuctionEnd,
+                    DeadlineKind::FreeAgentAuctionEnd,
                     db,
                 )
                 .await?;
@@ -50,14 +49,14 @@ impl Model {
                     REGULAR_SEASON_TOTAL_SALARY_LIMIT
                 }
             }
-            DeadlineType::TradeDeadlineAndPlayoffStart => POST_SEASON_TOTAL_SALARY_LIMIT,
-            DeadlineType::SeasonEnd => POST_SEASON_TOTAL_SALARY_LIMIT,
-            DeadlineType::PreseasonKeeper => KEEPER_CONTRACT_TOTAL_SALARY_LIMIT,
-            DeadlineType::PreseasonVeteranAuctionStart
-            | DeadlineType::PreseasonRookieDraftStart
-            | DeadlineType::PreseasonFaAuctionStart
-            | DeadlineType::PreseasonFaAuctionEnd
-            | DeadlineType::PreseasonFinalRosterLock => PRE_SEASON_TOTAL_SALARY_LIMIT,
+            DeadlineKind::TradeDeadlineAndPlayoffStart => POST_SEASON_TOTAL_SALARY_LIMIT,
+            DeadlineKind::SeasonEnd => POST_SEASON_TOTAL_SALARY_LIMIT,
+            DeadlineKind::PreseasonKeeper => KEEPER_CONTRACT_TOTAL_SALARY_LIMIT,
+            DeadlineKind::PreseasonVeteranAuctionStart
+            | DeadlineKind::PreseasonRookieDraftStart
+            | DeadlineKind::PreseasonFaAuctionStart
+            | DeadlineKind::PreseasonFaAuctionEnd
+            | DeadlineKind::PreseasonFinalRosterLock => PRE_SEASON_TOTAL_SALARY_LIMIT,
             _ => REGULAR_SEASON_TOTAL_SALARY_LIMIT,
         };
 
@@ -66,16 +65,14 @@ impl Model {
 
     #[instrument]
     pub fn is_preseason_keeper_or_before(&self) -> bool {
-        [DeadlineType::PreseasonStart, DeadlineType::PreseasonKeeper].contains(&self.deadline_type)
+        [DeadlineKind::PreseasonStart, DeadlineKind::PreseasonKeeper].contains(&self.kind)
     }
 }
 
 /// The different types of deadlines that happen in a league. This is a leaky abstraction, in that there is no common way that related models use these deadline types.
-#[derive(
-    Debug, Clone, Copy, Enum, Eq, PartialEq, EnumIter, DeriveActiveEnum, Serialize, Deserialize,
-)]
+#[derive(Debug, Clone, Copy, Eq, PartialEq, EnumIter, DeriveActiveEnum, Serialize, Deserialize)]
 #[sea_orm(rs_type = "String", db_type = "String(None)")]
-pub enum DeadlineType {
+pub enum DeadlineKind {
     /// The inauguration of a new season, which starts with the advancement of team contracts from the previous season.
     #[sea_orm(string_value = "PreseasonStart")]
     PreseasonStart,

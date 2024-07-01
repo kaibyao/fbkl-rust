@@ -4,9 +4,9 @@ use chrono::NaiveDate;
 use color_eyre::{eyre::bail, Result};
 use fbkl_entity::{
     auction_queries,
-    contract::{self, ContractType},
+    contract::{self, ContractKind},
     contract_queries,
-    deadline::DeadlineType,
+    deadline::DeadlineKind,
     deadline_queries,
     sea_orm::{ConnectionTrait, TransactionTrait},
     team_update_queries,
@@ -15,11 +15,11 @@ use tracing::instrument;
 
 use super::sign_auction_contract_to_team;
 
-pub static VALID_VETERAN_AUCTION_FA_TYPES: &[ContractType] = &[
-    ContractType::FreeAgent,
-    ContractType::RestrictedFreeAgent,
-    ContractType::UnrestrictedFreeAgentOriginalTeam,
-    ContractType::UnrestrictedFreeAgentVeteran,
+pub static VALID_VETERAN_AUCTION_FA_TYPES: &[ContractKind] = &[
+    ContractKind::FreeAgent,
+    ContractKind::RestrictedFreeAgent,
+    ContractKind::UnrestrictedFreeAgentOriginalTeam,
+    ContractKind::UnrestrictedFreeAgentVeteran,
 ];
 
 /// Ends a veteran auction and creates the associated transaction + team contract OR expires the associated contract.
@@ -50,7 +50,7 @@ where
                 deadline_queries::find_deadline_for_season_by_type(
                     auction_contract_model.league_id,
                     auction_contract_model.end_of_season_year,
-                    DeadlineType::PreseasonFaAuctionStart,
+                    DeadlineKind::PreseasonFaAuctionStart,
                     &db_txn,
                 )
                 .await?;
@@ -109,7 +109,7 @@ where
             .await?
         }
         Some(existing_player_contract) => {
-            if !VALID_VETERAN_AUCTION_FA_TYPES.contains(&existing_player_contract.contract_type) {
+            if !VALID_VETERAN_AUCTION_FA_TYPES.contains(&existing_player_contract.kind) {
                 // If another type of active contract exists for this player by this point, something went wrong.
                 // The Keeper deadline should have caused all non-active contracts to be dropped & expired.
                 bail!(

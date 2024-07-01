@@ -6,7 +6,7 @@ use sea_orm::{
 };
 use tracing::instrument;
 
-use crate::deadline::{self, DeadlineType};
+use crate::deadline::{self, DeadlineKind};
 
 #[instrument]
 pub async fn find_deadlines_by_date_for_league_season<C>(
@@ -36,7 +36,7 @@ where
 pub async fn find_deadline_for_season_by_type<C>(
     league_id: i64,
     end_of_season_year: i16,
-    deadline_type: DeadlineType,
+    kind: DeadlineKind,
     db: &C,
 ) -> Result<deadline::Model>
 where
@@ -47,11 +47,11 @@ where
             deadline::Column::LeagueId
                 .eq(league_id)
                 .and(deadline::Column::EndOfSeasonYear.eq(end_of_season_year))
-                .and(deadline::Column::DeadlineType.eq(deadline_type)),
+                .and(deadline::Column::Kind.eq(kind)),
         )
         .one(db)
         .await?
-        .ok_or_else(|| eyre!("Could not find a deadline for league (id = {}) and end-of-season year ({}) of type: {:?}.", league_id, end_of_season_year, deadline_type))?;
+        .ok_or_else(|| eyre!("Could not find a deadline for league (id = {}) and end-of-season year ({}) of type: {:?}.", league_id, end_of_season_year, kind))?;
     Ok(maybe_deadline_model)
 }
 

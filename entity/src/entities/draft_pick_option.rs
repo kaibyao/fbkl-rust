@@ -2,7 +2,6 @@
 
 use std::collections::HashMap;
 
-use async_graphql::Enum;
 use async_trait::async_trait;
 use once_cell::sync::Lazy;
 use sea_orm::{entity::prelude::*, ActiveValue};
@@ -26,7 +25,6 @@ pub struct Model {
     Default,
     Clone,
     Copy,
-    Enum,
     Eq,
     Hash,
     PartialEq,

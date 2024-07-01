@@ -13,10 +13,10 @@ use tracing::instrument;
 
 use crate::{
     auction,
-    contract::{self, ContractStatus, ContractType},
-    deadline::{self, DeadlineType},
+    contract::{self, ContractStatus, ContractKind},
+    deadline::{self, DeadlineKind as DeadlineKind},
     league_player, player,
-    transaction::{self, TransactionType},
+    transaction::{self, TransactionKind as TransactionKind},
 };
 
 /// Moves a contract to IR and returns the new contract in the contract chain
@@ -285,12 +285,12 @@ where
                 .eq(team_id)
                 .and(contract::Column::EndOfSeasonYear.eq(end_of_season_year))
                 .and(
-                    transaction::Column::TransactionType
-                        .eq(TransactionType::TeamUpdateDropContract),
+                    transaction::Column::Kind
+                        .eq(TransactionKind::TeamUpdateDropContract),
                 )
                 .and(
-                    deadline::Column::DeadlineType
-                        .is_not_in([DeadlineType::PreseasonStart, DeadlineType::PreseasonKeeper]),
+                    deadline::Column::Kind
+                        .is_not_in([DeadlineKind::PreseasonStart, DeadlineKind::PreseasonKeeper]),
                 ),
         )
         .all(db)
@@ -355,9 +355,9 @@ where
 {
     let contract_model = auction_model.get_contract(db).await?;
 
-    let signed_contract_model_to_insert = match contract_model.contract_type {
-        ContractType::RestrictedFreeAgent | ContractType::UnrestrictedFreeAgentOriginalTeam | ContractType::UnrestrictedFreeAgentVeteran => contract_model.sign_rfa_or_ufa_contract_to_team(winning_team_id, winning_bid_amount)?,
-        ContractType::Veteran | ContractType::FreeAgent => contract_model.sign_veteran_contract_to_team(winning_team_id, winning_bid_amount)?,
+    let signed_contract_model_to_insert = match contract_model.kind {
+        ContractKind::RestrictedFreeAgent | ContractKind::UnrestrictedFreeAgentOriginalTeam | ContractKind::UnrestrictedFreeAgentVeteran => contract_model.sign_rfa_or_ufa_contract_to_team(winning_team_id, winning_bid_amount)?,
+        ContractKind::Veteran | ContractKind::FreeAgent => contract_model.sign_veteran_contract_to_team(winning_team_id, winning_bid_amount)?,
         _ => bail!("Cannot sign a contract won via auction to a team if the contract was not a valid free agent contract type. (auction_id = {}, contract_id = {})", auction_model.id, contract_model.id),
     };
 

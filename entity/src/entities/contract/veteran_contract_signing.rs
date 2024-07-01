@@ -2,10 +2,10 @@ use crate::contract;
 use color_eyre::{eyre::bail, Result};
 use sea_orm::ActiveValue;
 
-use super::{ContractStatus, ContractType};
+use super::{ContractStatus, ContractKind};
 
-static APPLICABLE_CONTRACT_TYPES: [ContractType; 2] =
-    [ContractType::Veteran, ContractType::FreeAgent];
+static APPLICABLE_CONTRACT_TYPES: [ContractKind; 2] =
+    [ContractKind::Veteran, ContractKind::FreeAgent];
 
 /// Creates a new contract from the given one, where the contract is signed to a team.
 pub fn sign_veteran_contract(
@@ -13,10 +13,10 @@ pub fn sign_veteran_contract(
     team_id: i64,
     salary: i16,
 ) -> Result<contract::ActiveModel> {
-    if !APPLICABLE_CONTRACT_TYPES.contains(&current_contract.contract_type) {
+    if !APPLICABLE_CONTRACT_TYPES.contains(&current_contract.kind) {
         bail!(
             "Can only sign a veteran or free agent contract (given contract type: {:?}).",
-            current_contract.contract_type
+            current_contract.kind
         );
     }
     if current_contract.status != ContractStatus::Active {
@@ -28,8 +28,8 @@ pub fn sign_veteran_contract(
 
     let new_contract = contract::ActiveModel {
         id: ActiveValue::NotSet,
-        contract_year: ActiveValue::Set(1),
-        contract_type: ActiveValue::Set(ContractType::Veteran),
+        year_number: ActiveValue::Set(1),
+        kind: ActiveValue::Set(ContractKind::Veteran),
         is_ir: ActiveValue::Set(false),
         salary: ActiveValue::Set(salary),
         end_of_season_year: ActiveValue::Set(current_contract.end_of_season_year),

@@ -9,9 +9,9 @@ use fbkl_constants::league_rules::{
     REGULAR_SEASON_VET_OR_ROOKIE_CONTRACTS_PER_ROSTER_LIMIT,
 };
 use fbkl_entity::{
-    contract::{self, ContractType},
+    contract::{self, ContractKind},
     contract_queries,
-    deadline::{self, DeadlineType},
+    deadline::{self, DeadlineKind},
     sea_orm::ConnectionTrait,
 };
 use multimap::MultiMap;
@@ -28,7 +28,7 @@ pub async fn validate_league_rosters<C>(
 where
     C: ConnectionTrait + Debug,
 {
-    if roster_lock_deadline.deadline_type == DeadlineType::PreseasonKeeper {
+    if roster_lock_deadline.kind == DeadlineKind::PreseasonKeeper {
         // Reason being that the keeper lock uses rules that are so different from the regular season that it made sense for it to have its own validation functions.
         bail!("validate_league_rosters should not be used to validate keepers. use 'save_keeper_team_update' instead.");
     }
@@ -86,27 +86,27 @@ fn validate_roster_contract_type_limits_not_exceeded(
             continue;
         }
 
-        match contract_model.contract_type {
-            ContractType::RookieDevelopment => num_rd_contracts += 1,
-            ContractType::RookieDevelopmentInternational => num_rdi_contracts += 1,
-            ContractType::Rookie | ContractType::RookieExtension | ContractType::Veteran => {
+        match contract_model.kind {
+            ContractKind::RookieDevelopment => num_rd_contracts += 1,
+            ContractKind::RookieDevelopmentInternational => num_rdi_contracts += 1,
+            ContractKind::Rookie | ContractKind::RookieExtension | ContractKind::Veteran => {
                 num_v_r_contracts += 1
             }
             _ => (),
         }
     }
 
-    match roster_lock_deadline.deadline_type {
-        DeadlineType::PreseasonKeeper => {
+    match roster_lock_deadline.kind {
+        DeadlineKind::PreseasonKeeper => {
             bail!("Not validating pre-season keeper deadline in this function.")
         }
-        DeadlineType::PreseasonStart => {
+        DeadlineKind::PreseasonStart => {
             bail!("Not validating pre-season start deadline in this function.")
         }
-        DeadlineType::PreseasonVeteranAuctionStart
-        | DeadlineType::PreseasonFaAuctionStart
-        | DeadlineType::PreseasonFaAuctionEnd
-        | DeadlineType::PreseasonRookieDraftStart => {
+        DeadlineKind::PreseasonVeteranAuctionStart
+        | DeadlineKind::PreseasonFaAuctionStart
+        | DeadlineKind::PreseasonFaAuctionEnd
+        | DeadlineKind::PreseasonRookieDraftStart => {
             if num_rd_contracts + num_rdi_contracts + num_v_r_contracts
                 > PRE_SEASON_CONTRACTS_PER_ROSTER_LIMIT
             {
@@ -116,14 +116,14 @@ fn validate_roster_contract_type_limits_not_exceeded(
                 )
             }
         }
-        DeadlineType::PreseasonFinalRosterLock
-        | DeadlineType::Week1FreeAgentAuctionStart
-        | DeadlineType::Week1FreeAgentAuctionEnd
-        | DeadlineType::Week1RosterLock
-        | DeadlineType::InSeasonRosterLock
-        | DeadlineType::FreeAgentAuctionEnd
-        | DeadlineType::TradeDeadlineAndPlayoffStart
-        | DeadlineType::SeasonEnd => {
+        DeadlineKind::PreseasonFinalRosterLock
+        | DeadlineKind::Week1FreeAgentAuctionStart
+        | DeadlineKind::Week1FreeAgentAuctionEnd
+        | DeadlineKind::Week1RosterLock
+        | DeadlineKind::InSeasonRosterLock
+        | DeadlineKind::FreeAgentAuctionEnd
+        | DeadlineKind::TradeDeadlineAndPlayoffStart
+        | DeadlineKind::SeasonEnd => {
             if num_rd_contracts > REGULAR_SEASON_ROOKIE_DEVELOPMENT_CONTRACTS_PER_ROSTER_LIMIT {
                 bail!(
                     "Roster cannot exceed {} rookie development contracts. (team = {}).",

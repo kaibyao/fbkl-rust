@@ -51,7 +51,7 @@ async fn setup_deadline(manager: &SchemaManager<'_>) -> Result<(), DbErr> {
                         .timestamp_with_time_zone()
                         .not_null(),
                 )
-                .col(ColumnDef::new(Deadline::DeadlineType).string().not_null())
+                .col(ColumnDef::new(Deadline::Kind).string().not_null())
                 .col(ColumnDef::new(Deadline::Name).string().not_null())
                 .col(
                     ColumnDef::new(Deadline::EndOfSeasonYear)
@@ -102,9 +102,9 @@ async fn setup_deadline(manager: &SchemaManager<'_>) -> Result<(), DbErr> {
     manager
         .create_index(
             IndexCreateStatement::new()
-                .name("deadline_type")
+                .name("deadline_kind")
                 .table(Deadline::Table)
-                .col(Deadline::DeadlineType)
+                .col(Deadline::Kind)
                 .to_owned(),
         )
         .await
@@ -134,7 +134,7 @@ async fn setup_transaction(manager: &SchemaManager<'_>) -> Result<(), DbErr> {
                         .not_null(),
                 )
                 .col(
-                    ColumnDef::new(Transaction::TransactionType)
+                    ColumnDef::new(Transaction::Kind)
                         .string()
                         .not_null(),
                 )
@@ -266,9 +266,9 @@ async fn setup_transaction(manager: &SchemaManager<'_>) -> Result<(), DbErr> {
     manager
         .create_index(
             IndexCreateStatement::new()
-                .name("transaction_type")
+                .name("transaction_kind")
                 .table(Transaction::Table)
-                .col(Transaction::TransactionType)
+                .col(Transaction::Kind)
                 .to_owned(),
         )
         .await
@@ -280,7 +280,7 @@ pub enum Deadline {
     Table,
     Id,
     DateTime,
-    DeadlineType,
+    Kind,
     Name,
     EndOfSeasonYear,
     LeagueId,
@@ -294,7 +294,7 @@ pub enum Transaction {
     Id,
     LeagueId,
     EndOfSeasonYear,
-    TransactionType,
+    Kind,
     AuctionId,
     DeadlineId,
     DroppedContractId,

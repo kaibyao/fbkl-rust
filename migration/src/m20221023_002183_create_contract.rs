@@ -41,12 +41,12 @@ async fn setup_contract(manager: &SchemaManager<'_>) -> Result<(), DbErr> {
                         .primary_key(),
                 )
                 .col(
-                    ColumnDef::new(Contract::ContractYear)
+                    ColumnDef::new(Contract::YearNumber)
                         .small_integer()
                         .not_null()
                         .default(1),
                 )
-                .col(ColumnDef::new(Contract::ContractType).string().not_null())
+                .col(ColumnDef::new(Contract::Kind).string().not_null())
                 .col(
                     ColumnDef::new(Contract::IsIR)
                         .boolean()
@@ -205,8 +205,8 @@ async fn setup_contract(manager: &SchemaManager<'_>) -> Result<(), DbErr> {
 pub enum Contract {
     Table,
     Id,
-    ContractYear,
-    ContractType,
+    YearNumber,
+    Kind,
     IsIR,
     Salary,
     EndOfSeasonYear,

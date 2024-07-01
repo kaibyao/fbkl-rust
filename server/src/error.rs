@@ -2,7 +2,7 @@ use axum::{
     http::{Error as AxumError, StatusCode},
     response::{IntoResponse, Response},
 };
-use axum_sessions::async_session::{serde_json::Error as JsonError, Error as SessionError};
+use tower_sessions::session::Error as SessionError;
 use fbkl_auth::{argon2::password_hash::Error as Argon2Error, hex::FromHexError};
 use fbkl_entity::sea_orm::DbErr;
 use std::error::Error;
@@ -13,7 +13,6 @@ pub enum FbklError {
     Axum(AxumError),
     Db(DbErr),
     HexStringConversion(FromHexError),
-    Json(JsonError),
     PasswordHasher(Argon2Error),
     Session(SessionError),
     StatusCode(StatusCode),
@@ -25,7 +24,6 @@ impl Display for FbklError {
             Self::Axum(err) => write!(fmt, "{}", err),
             Self::Db(err) => write!(fmt, "{}", err),
             Self::HexStringConversion(err) => write!(fmt, "{}", err),
-            Self::Json(err) => write!(fmt, "{}", err),
             Self::PasswordHasher(err) => write!(fmt, "{}", err),
             Self::Session(err) => write!(fmt, "{}", err),
             Self::StatusCode(err) => write!(fmt, "{}", err),
@@ -50,12 +48,6 @@ impl From<DbErr> for FbklError {
 impl From<FromHexError> for FbklError {
     fn from(err: FromHexError) -> Self {
         FbklError::HexStringConversion(err)
-    }
-}
-
-impl From<JsonError> for FbklError {
-    fn from(err: JsonError) -> Self {
-        FbklError::Json(err)
     }
 }
 
@@ -88,9 +80,6 @@ impl IntoResponse for FbklError {
             }
             Self::HexStringConversion(err) => {
                 format!("Tokenization encountered an error: {:?}", err)
-            }
-            Self::Json(err) => {
-                format!("JSON0 conversion encountered an error: {:?}", err)
             }
             Self::PasswordHasher(err) => {
                 format!("Password hasher encountered an error: {:?}", err)

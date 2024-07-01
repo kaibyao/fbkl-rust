@@ -1,7 +1,7 @@
 use std::fmt::Debug;
 
 use color_eyre::eyre::{ensure, Result};
-use contract_entity::ContractType;
+use contract_entity::ContractKind;
 use sea_orm::{ActiveValue, ConnectionTrait};
 
 use super::contract_entity;
@@ -13,8 +13,8 @@ pub fn create_rd_contract_from_rdi(
 
     let mut active_model: contract_entity::ActiveModel = rdi_contract.clone().into();
     active_model.id = ActiveValue::NotSet;
-    active_model.contract_year = ActiveValue::Set(1);
-    active_model.contract_type = ActiveValue::Set(ContractType::RookieDevelopment);
+    active_model.year_number = ActiveValue::Set(1);
+    active_model.kind = ActiveValue::Set(ContractKind::RookieDevelopment);
 
     Ok(active_model)
 }
@@ -31,15 +31,15 @@ where
 
     let mut active_model: contract_entity::ActiveModel = rd_contract.clone().into();
     active_model.id = ActiveValue::NotSet;
-    active_model.contract_year = ActiveValue::Set(1);
-    active_model.contract_type = ActiveValue::Set(ContractType::RookieDevelopmentInternational);
+    active_model.year_number = ActiveValue::Set(1);
+    active_model.kind = ActiveValue::Set(ContractKind::RookieDevelopmentInternational);
 
     Ok(active_model)
 }
 
 fn validate_contract_type_for_rd_to_rdi(rd_contract: &contract_entity::Model) -> Result<()> {
     ensure!(
-        rd_contract.contract_type == ContractType::RookieDevelopment,
+        rd_contract.kind == ContractKind::RookieDevelopment,
         "Only RD contracts can be converted to an RDI contract (id = {}).",
         rd_contract.id
     );
@@ -49,7 +49,7 @@ fn validate_contract_type_for_rd_to_rdi(rd_contract: &contract_entity::Model) ->
 
 fn validate_contract_type_for_rdi_to_rd(rdi_contract: &contract_entity::Model) -> Result<()> {
     ensure!(
-        rdi_contract.contract_type == ContractType::RookieDevelopmentInternational,
+        rdi_contract.kind == ContractKind::RookieDevelopmentInternational,
         "Only RDI contracts can be converted to an RD contract (id = {}).",
         rdi_contract.id
     );

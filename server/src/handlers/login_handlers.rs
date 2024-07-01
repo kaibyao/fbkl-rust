@@ -1,15 +1,12 @@
 use axum::{
-    body::Full,
-    extract::State,
-    http::StatusCode,
-    response::{Html, IntoResponse, Response},
-    Form,
+    extract::State, http::StatusCode, response::{Html, IntoResponse, Response}, Form
 };
-use axum_sessions::extractors::WritableSession;
 use fbkl_auth::verify_password_against_hash;
 use fbkl_entity::user_queries;
 use serde::Deserialize;
-use std::{sync::Arc, time::Duration};
+use std::sync::Arc;
+use time::Duration;
+use tower_sessions::{Expiry, Session};
 
 use crate::{error::FbklError, server::AppState};
 
@@ -41,9 +38,9 @@ pub async fn login_page() -> Html<&'static str> {
 
 pub async fn process_login(
     State(state): State<Arc<AppState>>,
-    mut session: WritableSession,
+    session: Session,
     Form(form): Form<LoginFormData>,
-) -> Result<Response, FbklError> {
+) -> Result<Response<String>, FbklError> {
     let email = form.email;
 
     let matching_user = match user_queries::find_user_by_email(&email, &state.db).await? {
@@ -51,35 +48,37 @@ pub async fn process_login(
         None => {
             let err_response = Response::builder()
                 .status(StatusCode::NOT_FOUND)
-                .body(Full::from("USER_NOT_FOUND"))?;
-            return Ok(err_response.into_response());
+                .body("USER_NOT_FOUND".to_string())?;
+            return Ok(err_response);
         }
     };
 
     verify_password_against_hash(&form.password, &matching_user.hashed_password)?;
 
     // create session
-    session.regenerate();
-    session.expire_in(Duration::from_secs(90 * 24 * 60 * 60)); // 90 days
-    session.insert("user_id", matching_user.id)?;
+    session.cycle_id().await?;
+    session.set_expiry(Some(Expiry::OnInactivity(Duration::days(90)))); // 90 days
+    session.insert("user_id", matching_user.id).await?;
 
-    let html = r#"
-<!doctype html>
-<html>
-    <head>
-        <title>Login successful</title>
-    </head>
-    <body>
-        OK!
-    </body>
-</html>
-    "#;
+    // TODO: Separate page for login success
 
-    Ok(Html(html).into_response())
+//     let html = r#"
+// <!doctype html>
+// <html>
+//     <head>
+//         <title>Login successful</title>
+//     </head>
+//     <body>
+//         OK!
+//     </body>
+// </html>
+//     "#;
+
+    Ok(Response::new("ok".to_string()))
 }
 
-pub async fn logout(mut session: WritableSession) -> Result<Response, FbklError> {
-    session.destroy();
+pub async fn logout(session: Session) -> Result<Response, FbklError> {
+    session.flush().await?;
 
     Ok(StatusCode::OK.into_response())
 }

@@ -6,18 +6,18 @@ use axum::{
     response::{IntoResponse, Response},
     Json,
 };
-use axum_sessions::extractors::WritableSession;
+use tower_sessions::Session;
 use fbkl_entity::league_queries::find_league_by_user;
 use serde_json::Value;
 
-use crate::{server::AppState, session::get_current_user_writable};
+use crate::{server::AppState, session::get_current_user};
 
 pub async fn select_league(
     State(state): State<Arc<AppState>>,
-    mut write_session: WritableSession,
+    session: Session,
     Json(payload): Json<Value>,
 ) -> Result<Response, Response> {
-    let user_model = match get_current_user_writable(&write_session, &state.db).await {
+    let user_model = match get_current_user(session.clone(), &state.db).await {
         None => return Err(StatusCode::UNAUTHORIZED.into_response()),
         Some(model) => model,
     };
@@ -62,7 +62,7 @@ pub async fn select_league(
             Err((StatusCode::INTERNAL_SERVER_ERROR, "Could not find league.").into_response())
         }
         // write league id to session
-        Ok(Some(_league_model)) => match write_session.insert("selected_league_id", league_id) {
+        Ok(Some(_league_model)) => match session.insert("selected_league_id", league_id).await {
             Err(_) => Err((
                 StatusCode::INTERNAL_SERVER_ERROR,
                 "Could not select league.",

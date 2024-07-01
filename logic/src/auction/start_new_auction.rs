@@ -3,7 +3,7 @@ use std::fmt::Debug;
 use chrono::{DateTime, FixedOffset};
 use color_eyre::Result;
 use fbkl_entity::{
-    auction::{self, AuctionType},
+    auction::{self, AuctionKind},
     auction_queries, contract,
     sea_orm::ConnectionTrait,
 };
@@ -16,7 +16,7 @@ pub async fn start_new_auction_for_nba_player<C>(
     league_id: i64,
     end_of_season_year: i16,
     start_timestamp: DateTime<FixedOffset>,
-    auction_type: AuctionType,
+    auction_type: AuctionKind,
     starting_bid_amount: i16,
     db: &C,
 ) -> Result<auction::Model>

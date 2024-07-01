@@ -1,5 +1,4 @@
 pub mod application_handlers;
-pub mod graphql_handlers;
 pub mod league_handlers;
 pub mod login_handlers;
 pub mod public_handlers;

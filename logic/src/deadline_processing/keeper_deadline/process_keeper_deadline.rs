@@ -4,12 +4,12 @@ use color_eyre::{
 };
 use fbkl_entity::{
     contract, contract_queries,
-    deadline::DeadlineType,
+    deadline::DeadlineKind,
     deadline_queries,
     sea_orm::{ColumnTrait, ConnectionTrait, ModelTrait, QueryFilter},
     team_update::{self, ContractUpdateType, TeamUpdateAsset, TeamUpdateData, TeamUpdateStatus},
     team_update_queries,
-    transaction::{self, TransactionType},
+    transaction::{self, TransactionKind},
 };
 use std::{collections::HashMap, fmt::Debug};
 use tracing::instrument;
@@ -113,14 +113,14 @@ where
     let deadline_model = deadline_queries::find_deadline_for_season_by_type(
         league_id,
         end_of_season_year,
-        DeadlineType::PreseasonKeeper,
+        DeadlineKind::PreseasonKeeper,
         db,
     )
     .await?;
 
     let maybe_keeper_deadline_transaction = deadline_model
         .find_related(transaction::Entity)
-        .filter(transaction::Column::TransactionType.eq(TransactionType::PreseasonKeeper))
+        .filter(transaction::Column::Kind.eq(TransactionKind::PreseasonKeeper))
         .one(db)
         .await?;
     let keeper_deadline_transaction_model = maybe_keeper_deadline_transaction.ok_or_else(||eyre!("Could not find transaction associated with keeper deadline. One should already exist for the league and season when processing the keeper deadline."))?;

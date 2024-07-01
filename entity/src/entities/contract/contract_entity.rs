@@ -2,7 +2,6 @@
 
 use std::fmt::Debug;
 
-use async_graphql::Enum;
 use async_trait::async_trait;
 use color_eyre::{
     eyre::{bail, eyre, Error},
@@ -39,9 +38,9 @@ use super::{
 pub struct Model {
     #[sea_orm(primary_key)]
     pub id: i64,
-    pub contract_year: i16,
+    pub year_number: i16,
     /// RD | RDI | R1-3 | R4-5 | V | RFA10 | UFA10 | UFA20 | FA
-    pub contract_type: ContractType,
+    pub kind: ContractKind,
     /// Represents an inactive/injured player on a team's active roster. A contract in IR status does not count towards a team’s cap space.
     pub is_ir: bool,
     /// The $-value paid out to the player via the team’s cap space.
@@ -265,7 +264,6 @@ impl RelatedPlayer {
     Default,
     Clone,
     Copy,
-    Enum,
     Eq,
     PartialEq,
     EnumIter,
@@ -274,7 +272,7 @@ impl RelatedPlayer {
     Deserialize,
 )]
 #[sea_orm(rs_type = "String", db_type = "String(None)")]
-pub enum ContractType {
+pub enum ContractKind {
     /// When a drafted player has not yet been activated, they are considered to be on a RD contract. An RD contract can last up to 3 years, though activating an RD player on their 4th year on a team converts them to their second year as a Rookie (R2 instead of R1).
     #[sea_orm(string_value = "RD")]
     RookieDevelopment, // --------------- RD 1-3
@@ -311,7 +309,6 @@ pub enum ContractType {
     Default,
     Clone,
     Copy,
-    Enum,
     Eq,
     PartialEq,
     EnumIter,
@@ -526,32 +523,32 @@ fn update_requires_original_contract(model: &ActiveModel) -> Result<(), DbErr> {
     }
 }
 
-static VALID_CONTRACT_TYPE_YEARS: &[&(&ContractType, &[i16])] = &[
-    &(&ContractType::RookieDevelopment, &[1, 2, 3]),
+static VALID_CONTRACT_TYPE_YEARS: &[&(&ContractKind, &[i16])] = &[
+    &(&ContractKind::RookieDevelopment, &[1, 2, 3]),
     &(
-        &ContractType::RookieDevelopmentInternational,
+        &ContractKind::RookieDevelopmentInternational,
         &[
             1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20,
         ],
     ),
-    &(&ContractType::Rookie, &[1, 2, 3]),
-    &(&ContractType::RookieExtension, &[4, 5]),
-    &(&ContractType::Veteran, &[1, 2, 3]),
+    &(&ContractKind::Rookie, &[1, 2, 3]),
+    &(&ContractKind::RookieExtension, &[4, 5]),
+    &(&ContractKind::Veteran, &[1, 2, 3]),
 ];
 
 fn validate_contract_years_by_type(model: &ActiveModel) -> Result<(), DbErr> {
     match VALID_CONTRACT_TYPE_YEARS
         .iter()
-        .find(|(contract_type, _years_allowed)| contract_type == &model.contract_type.as_ref())
+        .find(|(contract_type, _years_allowed)| contract_type == &model.kind.as_ref())
     {
         None => Ok(()),
         Some((_contract_type, valid_years_for_contract_type)) => {
-            match valid_years_for_contract_type.contains(model.contract_year.as_ref()) {
+            match valid_years_for_contract_type.contains(model.year_number.as_ref()) {
                 true => Ok(()),
                 false => Err(DbErr::Custom(format!(
-                    "contract_year value ({:?}) for contract type ({:?}) not allowed.",
-                    model.contract_year.as_ref(),
-                    model.contract_type.as_ref()
+                    "year_number value ({:?}) for contract type ({:?}) not allowed.",
+                    model.year_number.as_ref(),
+                    model.kind.as_ref()
                 ))),
             }
         }

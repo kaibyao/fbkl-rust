@@ -5,7 +5,7 @@ use std::fmt::Debug;
 use tracing::instrument;
 
 use crate::{
-    contract::{self, ContractType},
+    contract::{self, ContractKind},
     team,
     team_update::{self, ContractUpdate, ContractUpdateType, TeamUpdateAsset, TeamUpdateData},
     transaction,
@@ -13,10 +13,10 @@ use crate::{
 
 use super::ContractUpdatePlayerData;
 
-static IGNORE_CONTRACT_TYPES_FOR_KEEPERS: [ContractType; 3] = [
-    ContractType::RestrictedFreeAgent,
-    ContractType::UnrestrictedFreeAgentOriginalTeam,
-    ContractType::UnrestrictedFreeAgentVeteran,
+static IGNORE_CONTRACT_TYPES_FOR_KEEPERS: [ContractKind; 3] = [
+    ContractKind::RestrictedFreeAgent,
+    ContractKind::UnrestrictedFreeAgentOriginalTeam,
+    ContractKind::UnrestrictedFreeAgentVeteran,
 ];
 
 #[instrument]
@@ -48,7 +48,7 @@ where
 
             team_contract_ids.push(team_contract_model.id);
             total_salary += team_contract_model.salary;
-        } else if !IGNORE_CONTRACT_TYPES_FOR_KEEPERS.contains(&team_contract_model.contract_type) {
+        } else if !IGNORE_CONTRACT_TYPES_FOR_KEEPERS.contains(&team_contract_model.kind) {
             contract_updates.push(ContractUpdate {
                 contract_id: team_contract_model.id,
                 update_type: ContractUpdateType::Drop,
