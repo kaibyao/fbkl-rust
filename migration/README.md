@@ -4,10 +4,10 @@ This library + binary package is used for database updates. Make sure you first 
 
 ## Steps to creating a new database table
 
-1. Create your migration file: `sea-orm-cli migrate generate <name_of_your_migration>`.
+1. Create your migration file: `sea migrate generate <name_of_your_migration>`.
 2. Update your migration file code.
-3. Run your migration: `sea-orm-cli migrate up`.
-4. Generate your entity file: `sea-orm-cli generate entity -o entity/src/entities --tables <table_name> --with-serde both`. **IT IS IMPORTANT THAT YOU INCLUDE `--tables <table_name>` or else you will override all custom changes to existing entity files.**
+3. Run your migration: `sea migrate up`.
+4. Generate your entity file: `sea generate entity -o entity/src/entities --tables <table_name> --with-serde both`. **IT IS IMPORTANT THAT YOU INCLUDE `--tables <table_name>` or else you will override all custom changes to existing entity files.**
     - If your migration includes foreign key relations, it's possible that your existing entities may have become overriden. Make sure those existing entities only include the new relations.
 5. If your new table has an `id` column, you probably don't want the application to be able to overwrite that column. Add the `#[serde(skip_deserializing)]` macro above the column definition. See `entities/user.rs` for example.
 

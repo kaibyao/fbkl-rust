@@ -20,7 +20,8 @@ async fn main() -> Result<()> {
     let database_url = std::env::var("FBKL_DATABASE_URL").expect("FBKL_DATABASE_URL must be set");
     let db_connection = Database::connect(&database_url).await?;
 
-    let session_secret = std::env::var("SESSION_SECRET").unwrap_or_else(|_| encode_token(&generate_token().into_iter().collect()));
+    let session_secret = std::env::var("SESSION_SECRET")
+        .unwrap_or_else(|_| encode_token(&generate_token().into_iter().collect()));
     let app = server::generate_server(db_connection, session_secret).await?;
     let listener = tokio::net::TcpListener::bind("0.0.0.0:9001").await.unwrap();
 
@@ -35,9 +36,11 @@ async fn main() -> Result<()> {
 
     // TODO: Build Transaction Processor. The idea being there's a job that runs every minute to update contracts, change teams, etc.
     // TODO: Something that automatically creates team updates. This might just be the same thing as the transaction processor.
+    // TODO: Need to update players db table with new players from the NBA API.
     // TODO: Need some kind of storage for NBA dates (start of season, ASB start and end dates, MLK week early start times)
     // TODO: Maybe ping NBA API for game start times each week?
     // TODO: Reconciling end dates of different transaction types w/ when they go into effect.
+    // TODO: Players change names.
     // TODO: Account for roster legalization (pre-season).
     // TODO: Account for roster legalization (weekly).
     // TODO: Configuration for rookie draft + end-of-season standings
