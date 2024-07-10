@@ -87,16 +87,7 @@ impl Model {
 
 /// Represents the different types of contract to which a player can be signed. When a player is signed to a team, their contract must be of one of these types.
 #[derive(
-    Debug,
-    Default,
-    Clone,
-    Copy,
-    Eq,
-    PartialEq,
-    EnumIter,
-    DeriveActiveEnum,
-    Serialize,
-    Deserialize,
+    Debug, Default, Clone, Copy, Eq, PartialEq, EnumIter, DeriveActiveEnum, Serialize, Deserialize,
 )]
 #[sea_orm(rs_type = "String", db_type = "String(None)")]
 pub enum TradeStatus {

@@ -24,13 +24,7 @@ async fn main() -> Result<()> {
         .unwrap_or_else(|_| encode_token(&generate_token().into_iter().collect()));
     let app = server::generate_server(db_connection, session_secret).await?;
     let listener = tokio::net::TcpListener::bind("0.0.0.0:9001").await.unwrap();
-
-    // let test_app = server::test_server();
-
     let server = serve(listener, app);
-    // let server = serve(listener, test_app);
-
-    // let server = axum::Server::bind(&"127.0.0.1:9001".parse()?).serve(app.into_make_service());
 
     info!("Starting fbkl/server on port 9001...");
 

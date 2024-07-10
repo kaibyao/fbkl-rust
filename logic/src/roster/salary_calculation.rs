@@ -71,9 +71,7 @@ where
         .await?;
     let dropped_contract_cap_penalty = dropped_team_contracts
         .iter()
-        .filter(|contract_model| {
-            CONTRACT_TYPES_COUNTED_TOWARD_CAP.contains(&contract_model.kind)
-        })
+        .filter(|contract_model| CONTRACT_TYPES_COUNTED_TOWARD_CAP.contains(&contract_model.kind))
         .fold(0, |sum, dropped_contract| {
             let penalty_amount_rounded_up = (f32::from(dropped_contract.salary) * 0.2).ceil();
             sum + penalty_amount_rounded_up as i16

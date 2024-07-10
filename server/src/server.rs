@@ -20,7 +20,7 @@ use crate::handlers::{
     login_handlers::{login_page, logout, process_login},
     public_handlers::get_public_page,
     user_registration_handlers::{
-        confirm_registration, get_registration_page, process_registration
+        confirm_registration, get_registration_page, process_registration,
     },
 };
 
@@ -31,10 +31,7 @@ pub struct AppState {
 }
 
 /// Generates the Axum server that allows the user to interact with the application.
-pub async fn generate_server(
-    db: DatabaseConnection,
-    session_secret: String,
-) -> Result<Router> {
+pub async fn generate_server(db: DatabaseConnection, session_secret: String) -> Result<Router> {
     let shared_state = Arc::new(AppState { db });
 
     // sessions
@@ -80,6 +77,5 @@ pub async fn generate_server(
 
         // Layers only apply to routes preceding them. Make sure layers are applied after all routes.
         .layer(session_layer)
-        .layer(CookieManagerLayer::new())
-        )
+        .layer(CookieManagerLayer::new()))
 }

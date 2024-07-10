@@ -1,5 +1,8 @@
 use axum::{
-    extract::State, http::StatusCode, response::{Html, IntoResponse, Response}, Form
+    extract::State,
+    http::StatusCode,
+    response::{Html, IntoResponse, Response},
+    Form,
 };
 use fbkl_auth::verify_password_against_hash;
 use fbkl_entity::user_queries;
@@ -62,17 +65,17 @@ pub async fn process_login(
 
     // TODO: Separate page for login success
 
-//     let html = r#"
-// <!doctype html>
-// <html>
-//     <head>
-//         <title>Login successful</title>
-//     </head>
-//     <body>
-//         OK!
-//     </body>
-// </html>
-//     "#;
+    //     let html = r#"
+    // <!doctype html>
+    // <html>
+    //     <head>
+    //         <title>Login successful</title>
+    //     </head>
+    //     <body>
+    //         OK!
+    //     </body>
+    // </html>
+    //     "#;
 
     Ok(Response::new("ok".to_string()))
 }

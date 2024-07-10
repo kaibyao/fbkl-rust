@@ -5,8 +5,8 @@ use sea_orm::{ActiveModelTrait, ColumnTrait, ConnectionTrait, EntityTrait, Query
 use tracing::instrument;
 
 use crate::{
-    deadline::{self, DeadlineKind as DeadlineKind},
-    transaction::{self, TransactionKind as TransactionKind},
+    deadline::{self, DeadlineKind},
+    transaction::{self, TransactionKind},
 };
 
 #[instrument]

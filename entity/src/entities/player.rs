@@ -53,16 +53,7 @@ impl Model {
 /// * The current ESPN player data contains that player.
 /// * If they were added by a league user and were added to a roster for the current `end_of_season_year`.
 #[derive(
-    Debug,
-    Default,
-    Clone,
-    Copy,
-    Eq,
-    PartialEq,
-    EnumIter,
-    DeriveActiveEnum,
-    Serialize,
-    Deserialize,
+    Debug, Default, Clone, Copy, Eq, PartialEq, EnumIter, DeriveActiveEnum, Serialize, Deserialize,
 )]
 #[sea_orm(rs_type = "String", db_type = "String(None)")]
 pub enum PlayerStatus {

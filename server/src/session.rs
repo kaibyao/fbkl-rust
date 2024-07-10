@@ -14,10 +14,7 @@ pub async fn enforce_logged_in(session: Session) -> Result<i64, StatusCode> {
 }
 
 /// Used within a handler/resolver to get the current user from DB.
-pub async fn get_current_user(
-    session: Session,
-    db: &DatabaseConnection,
-) -> Option<user::Model> {
+pub async fn get_current_user(session: Session, db: &DatabaseConnection) -> Option<user::Model> {
     let user_id: i64 = match session.get("user_id").await {
         Ok(Some(user_id)) => user_id,
         _ => return None,

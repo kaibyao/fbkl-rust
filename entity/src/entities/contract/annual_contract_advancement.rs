@@ -3,7 +3,7 @@ use rust_decimal::{Decimal, RoundingStrategy};
 use rust_decimal_macros::dec;
 use sea_orm::ActiveValue;
 
-use super::{contract_entity, ContractStatus, ContractKind};
+use super::{contract_entity, ContractKind, ContractStatus};
 
 /// Creates the next year's contract from the current contract. This should be used in tandem with contract_queries::advance_contract, as we also need to update the current contract to point to the new one, plus handle various cases around RFAs/UFAs, and salaries.
 pub fn create_advancement_for_contract(
@@ -153,7 +153,7 @@ mod tests {
     use sea_orm::ActiveValue;
 
     use crate::contract::{
-        annual_contract_advancement::create_advancement_for_contract, ContractStatus, ContractKind,
+        annual_contract_advancement::create_advancement_for_contract, ContractKind, ContractStatus,
         Model,
     };
 

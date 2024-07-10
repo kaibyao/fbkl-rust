@@ -133,11 +133,7 @@ async fn setup_transaction(manager: &SchemaManager<'_>) -> Result<(), DbErr> {
                         .big_integer()
                         .not_null(),
                 )
-                .col(
-                    ColumnDef::new(Transaction::Kind)
-                        .string()
-                        .not_null(),
-                )
+                .col(ColumnDef::new(Transaction::Kind).string().not_null())
                 .col(ColumnDef::new(Transaction::AuctionId).big_integer())
                 .col(
                     ColumnDef::new(Transaction::DeadlineId)

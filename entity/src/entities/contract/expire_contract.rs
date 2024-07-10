@@ -2,7 +2,7 @@ use crate::contract;
 use color_eyre::{eyre::bail, Result};
 use sea_orm::ActiveValue;
 
-use super::{ContractStatus, ContractKind};
+use super::{ContractKind, ContractStatus};
 
 /// Creates a new contract from the given one, where the contract is expired.
 pub fn expire_contract(current_contract: &contract::Model) -> Result<contract::ActiveModel> {

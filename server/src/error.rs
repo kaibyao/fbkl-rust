@@ -2,11 +2,11 @@ use axum::{
     http::{Error as AxumError, StatusCode},
     response::{IntoResponse, Response},
 };
-use tower_sessions::session::Error as SessionError;
 use fbkl_auth::{argon2::password_hash::Error as Argon2Error, hex::FromHexError};
 use fbkl_entity::sea_orm::DbErr;
 use std::error::Error;
 use std::fmt::Display;
+use tower_sessions::session::Error as SessionError;
 
 #[derive(Debug)]
 pub enum FbklError {

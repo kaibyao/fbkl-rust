@@ -101,7 +101,7 @@ mod tests {
             get_salary_discounted_by_10_percent, get_salary_discounted_by_20_percent,
             sign_rfa_or_ufa_contract_to_team,
         },
-        ContractStatus, ContractKind, Model,
+        ContractKind, ContractStatus, Model,
     };
 
     static NOW: Lazy<DateTime<FixedOffset>> = Lazy::new(|| {

@@ -150,7 +150,9 @@ where
     });
 
     let ActiveValue::Set(Value::BigInt(maybe_id)) = model.get(Column::Id) else {
-        return Err(DbErr::Custom("Couldn't extract id value from draft pick option ActiveModel".to_string()))
+        return Err(DbErr::Custom(
+            "Couldn't extract id value from draft pick option ActiveModel".to_string(),
+        ));
     };
     let id = maybe_id.ok_or_else(|| {
         DbErr::Custom("Non-inserted draft pick option doesn't have an id?!".to_string())
@@ -164,7 +166,10 @@ where
     })?;
     let current_status = current_saved.status;
     let ActiveValue::Set(new_status) = model.status else {
-        return Err(DbErr::Custom(format!("Couldn't extract status value from draft pick option ActiveModel (id = {})", id)))
+        return Err(DbErr::Custom(format!(
+            "Couldn't extract status value from draft pick option ActiveModel (id = {})",
+            id
+        )));
     };
 
     let valid_new_statuses = VALID_BEFORE_AND_AFTER_STATUSES

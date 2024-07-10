@@ -13,10 +13,10 @@ use tracing::instrument;
 
 use crate::{
     auction,
-    contract::{self, ContractStatus, ContractKind},
-    deadline::{self, DeadlineKind as DeadlineKind},
+    contract::{self, ContractKind, ContractStatus},
+    deadline::{self, DeadlineKind},
     league_player, player,
-    transaction::{self, TransactionKind as TransactionKind},
+    transaction::{self, TransactionKind},
 };
 
 /// Moves a contract to IR and returns the new contract in the contract chain
@@ -284,10 +284,7 @@ where
             contract::Column::TeamId
                 .eq(team_id)
                 .and(contract::Column::EndOfSeasonYear.eq(end_of_season_year))
-                .and(
-                    transaction::Column::Kind
-                        .eq(TransactionKind::TeamUpdateDropContract),
-                )
+                .and(transaction::Column::Kind.eq(TransactionKind::TeamUpdateDropContract))
                 .and(
                     deadline::Column::Kind
                         .is_not_in([DeadlineKind::PreseasonStart, DeadlineKind::PreseasonKeeper]),

@@ -101,9 +101,7 @@ impl Model {
 }
 
 /// Represents the different types of transactions that occur in a league.
-#[derive(
-    Debug, Clone, Copy, Eq, PartialEq, EnumIter, DeriveActiveEnum, Serialize, Deserialize,
-)]
+#[derive(Debug, Clone, Copy, Eq, PartialEq, EnumIter, DeriveActiveEnum, Serialize, Deserialize)]
 #[sea_orm(rs_type = "String", db_type = "String(None)")]
 pub enum TransactionKind {
     /// The transaction is a trade between two teams.

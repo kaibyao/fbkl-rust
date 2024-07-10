@@ -71,21 +71,21 @@ pub async fn process_registration(
     .await?;
 
     // TODO: Separate page for user registration confirmation
-//     let html = format!(
-//         r#"
-// <!doctype html>
-// <html>
-//     <head>
-//         <title>User registration</title>
-//     </head>
-//     <body>
-//         <div>user: {:?}</div>
-//         <div>token: {:?}</div>
-//     </body>
-// </html>
-//     "#,
-//         new_user, new_user_token
-//     );
+    //     let html = format!(
+    //         r#"
+    // <!doctype html>
+    // <html>
+    //     <head>
+    //         <title>User registration</title>
+    //     </head>
+    //     <body>
+    //         <div>user: {:?}</div>
+    //         <div>token: {:?}</div>
+    //     </body>
+    // </html>
+    //     "#,
+    //         new_user, new_user_token
+    //     );
 
     Ok(Response::new("ok".to_string()))
 }

@@ -2,7 +2,7 @@ use crate::contract;
 use color_eyre::{eyre::bail, Result};
 use sea_orm::ActiveValue;
 
-use super::{ContractStatus, ContractKind};
+use super::{ContractKind, ContractStatus};
 
 /// Creates a new contract from the given one, where that contract is dropped from its team for the current season.
 pub fn create_dropped_contract(
@@ -72,7 +72,7 @@ mod tests {
     use sea_orm::ActiveValue;
 
     use crate::contract::{
-        self, drop_contract::create_dropped_contract, ContractStatus, ContractKind,
+        self, drop_contract::create_dropped_contract, ContractKind, ContractStatus,
     };
 
     static NOW: Lazy<DateTime<FixedOffset>> = Lazy::new(|| {

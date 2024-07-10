@@ -1,6 +1,6 @@
 use sea_orm::ActiveValue;
 
-use crate::contract::{self, ContractStatus, ContractKind};
+use crate::contract::{self, ContractKind, ContractStatus};
 
 pub fn new_contract_for_auction(
     league_id: i64,

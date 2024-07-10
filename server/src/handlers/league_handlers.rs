@@ -6,9 +6,9 @@ use axum::{
     response::{IntoResponse, Response},
     Json,
 };
-use tower_sessions::Session;
 use fbkl_entity::league_queries::find_league_by_user;
 use serde_json::Value;
+use tower_sessions::Session;
 
 use crate::{server::AppState, session::get_current_user};
 

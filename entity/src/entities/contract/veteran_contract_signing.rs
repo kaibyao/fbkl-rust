@@ -2,7 +2,7 @@ use crate::contract;
 use color_eyre::{eyre::bail, Result};
 use sea_orm::ActiveValue;
 
-use super::{ContractStatus, ContractKind};
+use super::{ContractKind, ContractStatus};
 
 static APPLICABLE_CONTRACT_TYPES: [ContractKind; 2] =
     [ContractKind::Veteran, ContractKind::FreeAgent];
