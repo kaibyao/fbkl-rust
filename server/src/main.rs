@@ -5,10 +5,17 @@ mod handlers;
 mod server;
 mod session;
 
+use std::time::Duration;
+
 use axum::serve;
 use color_eyre::Result;
 use fbkl_auth::{encode_token, generate_token};
 use fbkl_entity::sea_orm::Database;
+use time::Duration as TimeDuration;
+use tokio::{signal, task::AbortHandle};
+use tower_cookies::{cookie::SameSite, CookieManagerLayer, Key};
+use tower_sessions::{session_store::ExpiredDeletion, Expiry, SessionManagerLayer};
+use tower_sessions_sqlx_store::PostgresStore;
 use tracing::info;
 use tracing_subscriber::EnvFilter;
 
@@ -20,11 +27,38 @@ async fn main() -> Result<()> {
     let database_url = std::env::var("FBKL_DATABASE_URL").expect("FBKL_DATABASE_URL must be set");
     let db_connection = Database::connect(&database_url).await?;
 
+    // Server endpoints
+    let router = server::setup_server_router(db_connection.clone());
+
+    // Sessions
+    let session_store = PostgresStore::new(db_connection.get_postgres_connection_pool().clone());
+    session_store.migrate().await?;
+    let session_deletion_task = tokio::task::spawn(
+        session_store
+            .clone()
+            .continuously_delete_expired(Duration::from_secs(60)),
+    );
     let session_secret = std::env::var("SESSION_SECRET")
         .unwrap_or_else(|_| encode_token(&generate_token().into_iter().collect()));
-    let app = server::generate_server(db_connection, session_secret).await?;
-    let listener = tokio::net::TcpListener::bind("0.0.0.0:9001").await.unwrap();
-    let server = serve(listener, app);
+    let key = Key::from(session_secret.as_bytes());
+    let session_layer = SessionManagerLayer::new(session_store)
+        .with_private(key)
+        .with_secure(true)
+        .with_name("fbkl_id")
+        .with_expiry(Expiry::OnInactivity(TimeDuration::seconds(
+            90 * 24 * 60 * 60,
+        )))
+        .with_same_site(SameSite::None);
+
+    let listener = tokio::net::TcpListener::bind("0.0.0.0:9001").await?;
+    let server = serve(
+        listener,
+        router
+        // Layers only apply to routes preceding them. Make sure layers are applied after all routes.
+        .layer(session_layer)
+        .layer(CookieManagerLayer::new()).into_make_service(),
+    )
+    .with_graceful_shutdown(shutdown_signal(session_deletion_task.abort_handle()));
 
     info!("Starting fbkl/server on port 9001...");
 
@@ -52,10 +86,10 @@ async fn main() -> Result<()> {
     // TODO: advancing contracts should take into account custom players created for a league (merging them w/ nba/espn data if they exist in official datasets)
     // TODO: process for associating a league player with a real player and updating contracts related to league_player.
 
-    match server.await {
-        Ok(_) => Ok(()),
-        Err(e) => panic!("{}", e),
-    }
+    server.await?;
+    session_deletion_task.await??;
+
+    Ok(())
 }
 
 fn setup() -> Result<()> {
@@ -74,4 +108,28 @@ fn setup() -> Result<()> {
     dotenv::dotenv().ok();
 
     Ok(())
+}
+
+async fn shutdown_signal(deletion_task_abort_handle: AbortHandle) {
+    let ctrl_c = async {
+        signal::ctrl_c()
+            .await
+            .expect("failed to install Ctrl+C handler");
+    };
+
+    #[cfg(unix)]
+    let terminate = async {
+        signal::unix::signal(signal::unix::SignalKind::terminate())
+            .expect("failed to install signal handler")
+            .recv()
+            .await;
+    };
+
+    #[cfg(not(unix))]
+    let terminate = std::future::pending::<()>();
+
+    tokio::select! {
+        _ = ctrl_c => { deletion_task_abort_handle.abort() },
+        _ = terminate => { deletion_task_abort_handle.abort() },
+    }
 }
