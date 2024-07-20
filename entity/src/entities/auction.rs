@@ -2,6 +2,7 @@
 
 use std::fmt::Debug;
 
+use async_graphql::Enum;
 use color_eyre::{eyre::eyre, Result};
 use sea_orm::{entity::prelude::*, ConnectionTrait, QueryOrder};
 use serde::{Deserialize, Serialize};
@@ -66,7 +67,17 @@ impl Model {
 
 /// Represents the different types of auctions on which owners can bid & win player contracts.
 #[derive(
-    Debug, Default, Clone, Copy, Eq, PartialEq, EnumIter, DeriveActiveEnum, Serialize, Deserialize,
+    Debug,
+    Default,
+    Clone,
+    Copy,
+    Eq,
+    PartialEq,
+    Enum,
+    EnumIter,
+    DeriveActiveEnum,
+    Serialize,
+    Deserialize,
 )]
 #[sea_orm(rs_type = "String", db_type = "String(None)")]
 pub enum AuctionKind {

@@ -2,6 +2,7 @@
 
 use std::fmt::Debug;
 
+use async_graphql::Enum;
 use color_eyre::eyre::Result;
 use fbkl_constants::league_rules::{
     KEEPER_CONTRACT_TOTAL_SALARY_LIMIT, POST_SEASON_TOTAL_SALARY_LIMIT,
@@ -70,7 +71,9 @@ impl Model {
 }
 
 /// The different types of deadlines that happen in a league. This is a leaky abstraction, in that there is no common way that related models use these deadline types.
-#[derive(Debug, Clone, Copy, Eq, PartialEq, EnumIter, DeriveActiveEnum, Serialize, Deserialize)]
+#[derive(
+    Debug, Clone, Copy, Eq, PartialEq, Enum, EnumIter, DeriveActiveEnum, Serialize, Deserialize,
+)]
 #[sea_orm(rs_type = "String", db_type = "String(None)")]
 pub enum DeadlineKind {
     /// The inauguration of a new season, which starts with the advancement of team contracts from the previous season.

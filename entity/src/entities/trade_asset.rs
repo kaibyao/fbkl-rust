@@ -2,6 +2,7 @@
 
 use std::fmt::Debug;
 
+use async_graphql::Enum;
 use async_trait::async_trait;
 use color_eyre::{
     eyre::{ensure, eyre},
@@ -104,7 +105,17 @@ impl Model {
 
 /// Represents the different types of assets (contracts, draft picks, etc.) that can be traded.
 #[derive(
-    Debug, Default, Clone, Copy, Eq, PartialEq, EnumIter, DeriveActiveEnum, Serialize, Deserialize,
+    Debug,
+    Default,
+    Clone,
+    Copy,
+    Eq,
+    PartialEq,
+    Enum,
+    EnumIter,
+    DeriveActiveEnum,
+    Serialize,
+    Deserialize,
 )]
 #[sea_orm(rs_type = "String", db_type = "String(None)")]
 pub enum TradeAssetType {

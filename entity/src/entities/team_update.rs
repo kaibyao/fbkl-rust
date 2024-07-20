@@ -2,6 +2,7 @@
 
 use crate::team_user;
 use crate::team_user::LeagueRole;
+use async_graphql::Enum;
 use async_trait::async_trait;
 use color_eyre::Result;
 use sea_orm::entity::prelude::*;
@@ -33,7 +34,17 @@ impl Model {
 }
 
 #[derive(
-    Debug, Default, Clone, Copy, Eq, PartialEq, EnumIter, DeriveActiveEnum, Serialize, Deserialize,
+    Debug,
+    Default,
+    Clone,
+    Copy,
+    Eq,
+    PartialEq,
+    Enum,
+    EnumIter,
+    DeriveActiveEnum,
+    Serialize,
+    Deserialize,
 )]
 #[sea_orm(rs_type = "String", db_type = "String(None)")]
 pub enum TeamUpdateStatus {

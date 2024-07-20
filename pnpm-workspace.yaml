@@ -1,0 +1,3 @@
+packages:
+  - "webapp-logged-in"
+  - "webapp-public"

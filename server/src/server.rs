@@ -8,6 +8,7 @@ use fbkl_entity::sea_orm::DatabaseConnection;
 
 use crate::handlers::{
     application_handlers::get_application,
+    graphql_handlers::{graphiql, process_graphql},
     league_handlers::select_league,
     login_handlers::{login_page, logout, process_login},
     public_handlers::get_public_page,
@@ -22,11 +23,10 @@ pub struct AppState {
     pub db: DatabaseConnection,
 }
 
-pub fn setup_server_router(db: DatabaseConnection) -> Router {
-    let shared_state = Arc::new(AppState { db });
-
+pub fn setup_server_router() -> Router<Arc<AppState>> {
     Router::new()
         .route("/", get(get_public_page))
+        .route("/api/gql", get(graphiql).post(process_graphql))
         .route("/api/select_league", post(select_league))
         .route("/app", get(get_application))
         .route("/app/*app_path", get(get_application))
@@ -38,5 +38,4 @@ pub fn setup_server_router(db: DatabaseConnection) -> Router {
             get(get_registration_page).post(process_registration),
         )
         .route("/*public_path", get(get_public_page))
-        .with_state(shared_state)
 }

@@ -2,6 +2,7 @@
 
 use std::fmt::Debug;
 
+use async_graphql::Enum;
 use color_eyre::Result;
 use sea_orm::{entity::prelude::*, ActiveValue};
 use serde::{Deserialize, Serialize};
@@ -39,7 +40,17 @@ impl Model {
 
 /// Represents the different types of actions that can be made by a team involved in a trade.
 #[derive(
-    Debug, Default, Clone, Copy, Eq, PartialEq, EnumIter, DeriveActiveEnum, Serialize, Deserialize,
+    Debug,
+    Default,
+    Clone,
+    Copy,
+    Eq,
+    PartialEq,
+    Enum,
+    EnumIter,
+    DeriveActiveEnum,
+    Serialize,
+    Deserialize,
 )]
 #[sea_orm(rs_type = "String", db_type = "String(None)")]
 pub enum TradeActionType {

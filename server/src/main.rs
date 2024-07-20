@@ -1,16 +1,20 @@
 #![deny(clippy::all)]
 
 mod error;
+mod graphql;
 mod handlers;
 mod server;
 mod session;
 
+use std::sync::Arc;
 use std::time::Duration;
 
-use axum::serve;
+use async_graphql::{EmptySubscription, Schema};
+use axum::{serve, Extension};
 use color_eyre::Result;
 use fbkl_auth::{encode_token, generate_token};
 use fbkl_entity::sea_orm::Database;
+use server::AppState;
 use time::Duration as TimeDuration;
 use tokio::{signal, task::AbortHandle};
 use tower_cookies::{cookie::SameSite, CookieManagerLayer, Key};
@@ -19,6 +23,8 @@ use tower_sessions_sqlx_store::PostgresStore;
 use tracing::info;
 use tracing_subscriber::EnvFilter;
 
+use crate::graphql::{MutationRoot, QueryRoot};
+
 #[tokio::main]
 async fn main() -> Result<()> {
     setup()?;
@@ -26,9 +32,12 @@ async fn main() -> Result<()> {
     // DB connection pool
     let database_url = std::env::var("FBKL_DATABASE_URL").expect("FBKL_DATABASE_URL must be set");
     let db_connection = Database::connect(&database_url).await?;
+    let shared_state = Arc::new(AppState {
+        db: db_connection.clone(),
+    });
 
     // Server endpoints
-    let router = server::setup_server_router(db_connection.clone());
+    let router = server::setup_server_router();
 
     // Sessions
     let session_store = PostgresStore::new(db_connection.get_postgres_connection_pool().clone());
@@ -50,13 +59,25 @@ async fn main() -> Result<()> {
         )))
         .with_same_site(SameSite::None);
 
+    // graphql setup
+    let graphql_schema = Schema::build(
+        QueryRoot::default(),
+        MutationRoot::default(),
+        EmptySubscription,
+    )
+    .data(shared_state.db.clone())
+    .limit_depth(5)
+    .finish();
+
     let listener = tokio::net::TcpListener::bind("0.0.0.0:9001").await?;
     let server = serve(
         listener,
         router
+        .with_state(shared_state)
         // Layers only apply to routes preceding them. Make sure layers are applied after all routes.
         .layer(session_layer)
-        .layer(CookieManagerLayer::new()).into_make_service(),
+        .layer(CookieManagerLayer::new())
+        .layer(Extension(graphql_schema)).into_make_service(),
     )
     .with_graceful_shutdown(shutdown_signal(session_deletion_task.abort_handle()));
 
