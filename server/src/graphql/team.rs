@@ -1,3 +1,6 @@
+mod team_resolvers;
+pub use team_resolvers::*;
+
 mod team_types;
 pub use team_types::*;
 

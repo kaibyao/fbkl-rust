@@ -1,11 +1,11 @@
 use crate::{
     error::FbklError,
     graphql::team::{Team, TeamUser},
-    session::enforce_logged_in,
+    session::{enforce_logged_in, get_current_user},
 };
 
 use super::League;
-use async_graphql::{Context, Object, Result};
+use async_graphql::{Context, Error as GraphQlError, Object, Result};
 use axum::http::StatusCode;
 use fbkl_entity::{
     league_queries::{create_league_with_commissioner, find_league_by_user, find_leagues_by_user},
@@ -83,5 +83,30 @@ impl LeagueMutation {
         league.teams = vec![team];
 
         Ok(league)
+    }
+
+    async fn select_league(&self, ctx: &Context<'_>, league_id: i64) -> Result<League> {
+        let db = ctx.data_unchecked::<DatabaseConnection>();
+        let session = ctx.data_unchecked::<Session>();
+
+        let user_model = match get_current_user(session.clone(), db).await {
+            None => return Err(GraphQlError::from(StatusCode::UNAUTHORIZED)),
+            Some(model) => model,
+        };
+
+        // verify user has access to league
+        match find_league_by_user(&user_model, league_id, db).await {
+            // db error
+            Err(_db_err) => Err(GraphQlError::from(StatusCode::INTERNAL_SERVER_ERROR)),
+            Ok(None) => {
+                // couldn't find league
+                Err(GraphQlError::from(StatusCode::INTERNAL_SERVER_ERROR))
+            }
+            // write league id to session
+            Ok(Some(league_model)) => match session.insert("selected_league_id", league_id).await {
+                Err(_) => Err(GraphQlError::from(StatusCode::INTERNAL_SERVER_ERROR)),
+                Ok(_) => Ok(League::from_model(league_model)),
+            },
+        }
     }
 }
