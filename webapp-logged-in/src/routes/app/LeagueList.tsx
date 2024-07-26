@@ -1,11 +1,8 @@
-import { Grid, Typography } from "@mui/material";
 import { FunctionComponent } from "react";
+import { Grid } from "@mui/material";
 import { LeagueListFragment } from "@logged-in/generated/graphql";
-import { gql } from "@apollo/client";
-import { selectLeague } from "@logged-in/src/api/select-league";
-import { useAsyncRequest } from "@logged-in/src/api/api-hook";
-import { useNavigate } from "react-router-dom";
 import { LeagueListItem } from "@logged-in/src/routes/app/LeagueListItem";
+import { gql } from "@apollo/client";
 
 gql`
   fragment LeagueList on League {

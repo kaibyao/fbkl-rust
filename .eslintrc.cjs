@@ -1,4 +1,3 @@
-// eslint-disable-next-line @typescript-eslint/no-var-requires
 const path = require("path");
 
 module.exports = {
@@ -29,7 +28,6 @@ module.exports = {
   plugins: [
     "react",
     "@typescript-eslint",
-    "graphql",
     "import",
     "sort-imports-es6-autofix",
   ],
@@ -41,6 +39,7 @@ module.exports = {
     //   { env: "apollo", requiredFields: ["id"] },
     // ],
     // "graphql/template-strings": ["error", { env: "apollo" }],
+    "react/prop-types": 0,
     "sort-imports-es6-autofix/sort-imports-es6": [
       "warn",
       {
@@ -65,4 +64,20 @@ module.exports = {
       version: "detect",
     },
   },
+  overrides: [
+    {
+      files: ["*.graphql"],
+      parser: "@graphql-eslint/eslint-plugin",
+      plugins: ["@graphql-eslint"],
+      rules: {
+        "@graphql-eslint/known-type-names": "error",
+      },
+    },
+    {
+      files: ["*.cjs"],
+      rules: {
+        "@typescript-eslint/no-var-requires": 0,
+      },
+    },
+  ],
 };

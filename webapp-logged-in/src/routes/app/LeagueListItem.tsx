@@ -1,8 +1,3 @@
-import { gql } from "@apollo/client";
-import {
-  LeagueListFragment,
-  useSelectLeagueMutation,
-} from "@logged-in/generated/graphql";
 import {
   Box,
   Card,
@@ -10,6 +5,11 @@ import {
   CardContent,
   Typography,
 } from "@mui/material";
+import {
+  LeagueListFragment,
+  useSelectLeagueMutation,
+} from "@logged-in/generated/graphql";
+import { gql } from "@apollo/client";
 import { useNavigate } from "react-router-dom";
 
 gql`
