@@ -1,5 +1,7 @@
-import { Box, Container, Typography } from '@mui/material';
 import { FunctionComponent } from 'react';
+import Box from "@mui/material/Box";
+import Container from "@mui/material/Container";
+import Typography from "@mui/material/Typography";
 
 export const NotFound404: FunctionComponent = () => (
   <Container>

@@ -2,6 +2,10 @@ const path = require('path');
 
 module.exports = {
   ignorePatterns: ['generated/**/*'],
+  plugins: ['mui-path-imports'],
+  rules: {
+    'mui-path-imports/mui-path-imports': 'error',
+  },
   settings: {
     'import/resolver': {
       typescript: {

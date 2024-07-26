@@ -1,4 +1,3 @@
-import { AppBar, Box, Container, Toolbar, Typography } from '@mui/material';
 import { FunctionComponent } from 'react';
 import {
   LEAGUE_MENU_WIDTH,
@@ -7,6 +6,11 @@ import {
 import { Outlet } from 'react-router-dom';
 import { gql } from '@apollo/client';
 import { useGetLeagueQuery } from '@logged-in/generated/graphql';
+import AppBar from "@mui/material/AppBar";
+import Box from "@mui/material/Box";
+import Container from "@mui/material/Container";
+import Toolbar from "@mui/material/Toolbar";
+import Typography from "@mui/material/Typography";
 
 gql`
   query GetLeague {

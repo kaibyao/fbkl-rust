@@ -1,4 +1,3 @@
-import { Container, Typography } from '@mui/material';
 import { FunctionComponent } from 'react';
 import { LeagueList } from '@logged-in/src/routes/app/LeagueList';
 import {
@@ -7,6 +6,8 @@ import {
 } from '@logged-in/generated/graphql';
 import { Link, Outlet } from 'react-router-dom';
 import { gql } from '@apollo/client';
+import Container from "@mui/material/Container";
+import Typography from "@mui/material/Typography";
 
 gql`
   ${LeagueListFragmentDoc}

@@ -1,15 +1,4 @@
 import {
-  Box,
-  Button,
-  CircularProgress,
-  Dialog,
-  DialogActions,
-  DialogContent,
-  DialogTitle,
-  FormHelperText,
-  TextField,
-} from '@mui/material';
-import {
   CreateLeagueTeamFragment,
   GetUserLeaguesDocument,
   useCreateLeagueMutation,
@@ -17,6 +6,15 @@ import {
 import { FunctionComponent } from 'react';
 import { SubmitHandler, useForm } from 'react-hook-form';
 import { gql } from '@apollo/client';
+import Box from "@mui/material/Box";
+import Button from "@mui/material/Button";
+import CircularProgress from "@mui/material/CircularProgress";
+import Dialog from "@mui/material/Dialog";
+import DialogActions from "@mui/material/DialogActions";
+import DialogContent from "@mui/material/DialogContent";
+import DialogTitle from "@mui/material/DialogTitle";
+import FormHelperText from "@mui/material/FormHelperText";
+import TextField from "@mui/material/TextField";
 
 interface CreateLeagueFormFields {
   name: string;
