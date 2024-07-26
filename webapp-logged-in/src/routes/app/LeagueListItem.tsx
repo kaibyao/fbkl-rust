@@ -4,13 +4,13 @@ import {
   CardActionArea,
   CardContent,
   Typography,
-} from "@mui/material";
+} from '@mui/material';
 import {
   LeagueListFragment,
   useSelectLeagueMutation,
-} from "@logged-in/generated/graphql";
-import { gql } from "@apollo/client";
-import { useNavigate } from "react-router-dom";
+} from '@logged-in/generated/graphql';
+import { gql } from '@apollo/client';
+import { useNavigate } from 'react-router-dom';
 
 gql`
   mutation SelectLeague($leagueId: Int!) {
@@ -52,7 +52,7 @@ export const LeagueListItem: React.FC<Props> = ({ league }) => {
           <Typography variant="h4" color="ButtonFace">
             {league.name} - {league.currentTeamUser?.team?.name}
           </Typography>
-          <Box sx={{ display: "flex", alignItems: "flex-end" }}>
+          <Box sx={{ display: 'flex', alignItems: 'flex-end' }}>
             <Typography variant="body1" sx={{ mr: 1 }}>
               {league.currentTeamUser?.nickname}
             </Typography>

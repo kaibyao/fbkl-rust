@@ -1,4 +1,4 @@
-const path = require("path");
+const path = require('path');
 
 module.exports = {
   root: true,
@@ -8,75 +8,75 @@ module.exports = {
     node: true,
   },
   extends: [
-    "eslint:recommended",
-    "plugin:react/recommended",
-    "plugin:react/jsx-runtime",
-    "plugin:react-hooks/recommended",
-    "plugin:@typescript-eslint/recommended",
-    "plugin:import/recommended",
-    "plugin:import/typescript",
-    "prettier",
+    'eslint:recommended',
+    'plugin:react/recommended',
+    'plugin:react/jsx-runtime',
+    'plugin:react-hooks/recommended',
+    'plugin:@typescript-eslint/recommended',
+    'plugin:import/recommended',
+    'plugin:import/typescript',
+    'prettier',
   ],
-  parser: "@typescript-eslint/parser",
+  parser: '@typescript-eslint/parser',
   parserOptions: {
     ecmaFeatures: {
       jsx: true,
     },
     ecmaVersion: 13,
-    sourceType: "module",
+    sourceType: 'module',
   },
   plugins: [
-    "react",
-    "@typescript-eslint",
-    "import",
-    "sort-imports-es6-autofix",
+    'react',
+    '@typescript-eslint',
+    'import',
+    'sort-imports-es6-autofix',
   ],
   rules: {
-    "@typescript-eslint/no-explicit-any": "error",
+    '@typescript-eslint/no-explicit-any': 'error',
     // "graphql/named-operations": ["warn", { env: "apollo" }],
     // "graphql/required-fields": [
     //   "warn",
     //   { env: "apollo", requiredFields: ["id"] },
     // ],
     // "graphql/template-strings": ["error", { env: "apollo" }],
-    "react/prop-types": 0,
-    "sort-imports-es6-autofix/sort-imports-es6": [
-      "warn",
+    'react/prop-types': 0,
+    'sort-imports-es6-autofix/sort-imports-es6': [
+      'warn',
       {
         ignoreCase: false,
         ignoreMemberSort: false,
-        memberSyntaxSortOrder: ["none", "all", "multiple", "single"],
+        memberSyntaxSortOrder: ['none', 'all', 'multiple', 'single'],
       },
     ],
   },
   settings: {
-    "import/extensions": [".js", ".jsx", ".tsx", ".ts"],
-    "import/parsers": {
-      "@typescript-eslint/parser": [".ts", ".tsx"],
+    'import/extensions': ['.js', '.jsx', '.tsx', '.ts'],
+    'import/parsers': {
+      '@typescript-eslint/parser': ['.ts', '.tsx'],
     },
-    "import/resolver": {
+    'import/resolver': {
       typescript: {
         alwaysTryTypes: true, // always try to resolve types under `<root>@types` directory even it doesn't contain any source code, like `@types/unist`
-        project: path.resolve(__dirname, "./tsconfig.json"),
+        project: path.resolve(__dirname, './tsconfig.json'),
       },
     },
     react: {
-      version: "detect",
+      version: 'detect',
     },
   },
   overrides: [
     {
-      files: ["*.graphql"],
-      parser: "@graphql-eslint/eslint-plugin",
-      plugins: ["@graphql-eslint"],
+      files: ['*.graphql'],
+      parser: '@graphql-eslint/eslint-plugin',
+      plugins: ['@graphql-eslint'],
       rules: {
-        "@graphql-eslint/known-type-names": "error",
+        '@graphql-eslint/known-type-names': 'error',
       },
     },
     {
-      files: ["*.cjs"],
+      files: ['*.cjs'],
       rules: {
-        "@typescript-eslint/no-var-requires": 0,
+        '@typescript-eslint/no-var-requires': 0,
       },
     },
   ],

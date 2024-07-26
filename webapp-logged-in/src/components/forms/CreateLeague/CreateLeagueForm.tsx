@@ -8,15 +8,15 @@ import {
   DialogTitle,
   FormHelperText,
   TextField,
-} from "@mui/material";
+} from '@mui/material';
 import {
   CreateLeagueTeamFragment,
   GetUserLeaguesDocument,
   useCreateLeagueMutation,
-} from "@logged-in/generated/graphql";
-import { FunctionComponent } from "react";
-import { SubmitHandler, useForm } from "react-hook-form";
-import { gql } from "@apollo/client";
+} from '@logged-in/generated/graphql';
+import { FunctionComponent } from 'react';
+import { SubmitHandler, useForm } from 'react-hook-form';
+import { gql } from '@apollo/client';
 
 interface CreateLeagueFormFields {
   name: string;
@@ -63,7 +63,7 @@ export const CreateLeagueForm: FunctionComponent<Props> = ({
     formState: { errors: formErrors, isSubmitting },
     handleSubmit,
     register,
-  } = useForm<CreateLeagueFormFields>({ mode: "onBlur" });
+  } = useForm<CreateLeagueFormFields>({ mode: 'onBlur' });
 
   const [createLeagueMutation, { loading, error }] = useCreateLeagueMutation();
 
@@ -91,7 +91,7 @@ export const CreateLeagueForm: FunctionComponent<Props> = ({
               error={!!formErrors.name}
               fullWidth
               label="League name"
-              {...register("name", { required: true })}
+              {...register('name', { required: true })}
               InputLabelProps={{ shrink: true }}
             />
             {formErrors.name && <FormHelperText error>Required</FormHelperText>}
@@ -103,7 +103,7 @@ export const CreateLeagueForm: FunctionComponent<Props> = ({
               error={!!formErrors.teamName}
               fullWidth
               label="Team name"
-              {...register("teamName", { required: true })}
+              {...register('teamName', { required: true })}
               InputLabelProps={{ shrink: true }}
             />
             {formErrors.teamName && (
@@ -117,7 +117,7 @@ export const CreateLeagueForm: FunctionComponent<Props> = ({
               error={!!formErrors.userNickname}
               fullWidth
               label="User nickname"
-              {...register("userNickname", { required: true })}
+              {...register('userNickname', { required: true })}
               InputLabelProps={{ shrink: true }}
             />
             {formErrors.userNickname && (

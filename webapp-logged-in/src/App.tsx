@@ -1,16 +1,16 @@
-import { ApolloClient, ApolloProvider, InMemoryCache } from "@apollo/client";
-import { AppRoutes } from "@logged-in/src/AppRoutes";
-import { FunctionComponent } from "react";
-import { ThemeProvider, createTheme } from "@mui/material/styles";
+import { ApolloClient, ApolloProvider, InMemoryCache } from '@apollo/client';
+import { AppRoutes } from '@logged-in/src/AppRoutes';
+import { FunctionComponent } from 'react';
+import { ThemeProvider, createTheme } from '@mui/material/styles';
 
 const darkTheme = createTheme({
   palette: {
-    mode: "dark",
+    mode: 'dark',
   },
 });
 
 const client = new ApolloClient({
-  uri: "/api/gql",
+  uri: '/api/gql',
   cache: new InMemoryCache(),
 });
 

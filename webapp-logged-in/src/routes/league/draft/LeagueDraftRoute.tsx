@@ -1,5 +1,5 @@
-import { FunctionComponent } from "react";
-import { Outlet } from "react-router-dom";
+import { FunctionComponent } from 'react';
+import { Outlet } from 'react-router-dom';
 
 export const LeagueDraftRoute: FunctionComponent = () => (
   <div>

@@ -28,9 +28,9 @@ This is a bit more complex, in that an option targets 2 draft picks, but is owne
 
 1. Team A owns a 1st round pick that they had traded for from Team B (B-1).
 2. Team A trades pick B-1 to Team C and attaches the following protections around it:
-    1. B-1 is Top 10-protected in `Current Year`.
-    2. If B-1 ends up in the Top-10 in `Current Year`, then the owner of B-1 receives a Top 10-protected 1st round pick in `Current Year + 1` from Team A.
-    3. If A-1 in `Current Year + 1` ends up in the Top-10, then the owner of that draft pick receives Team A's 2nd round draft pick instead (A-2).
+   1. B-1 is Top 10-protected in `Current Year`.
+   2. If B-1 ends up in the Top-10 in `Current Year`, then the owner of B-1 receives a Top 10-protected 1st round pick in `Current Year + 1` from Team A.
+   3. If A-1 in `Current Year + 1` ends up in the Top-10, then the owner of that draft pick receives Team A's 2nd round draft pick instead (A-2).
 3. Lo and behold, Team A gets lucky and B-1 in `Current Year` and A-1 in `Current Year + 1` end up in the first 10 draft picks. Team A acquires B-1 in `Current Year` from Team C, A-1 in `Current Year + 1` from Team C, and trades A-2 in `Current Year + 1` to Team C.
 
 This is probably about as complex as it gets for fantasy purposes. An option is attached to a pick not owned by the team that owns the option but owns the pick, with conditionals attached to it such that options are attached to future draft picks owned by the team that owned the original draft pick.
@@ -42,17 +42,18 @@ This makes me realize that options can get pretty creative, and it would be incr
 That said, my original thought of having a pick always move with its attached draft pick in a trade was too naiive, and would not support the ways in which teams would want to configure draft pick options.
 
 I think the correct thing to do is to implement the following:
+
 1. Allow a draft pick option to target 1 or more draft picks.
 2. Introduce a `Nullified` status (in case a protection is removed) to the Draft Pick option.
 3. Options wouldn't be something traded between teams (after initial creation). Rather, they exist in their own "space" within a League season. Any team that owns a draft pick that's targeted by an option would see that option's description on the draft pick.
 4. Draft picks options would have a string clause that describes the option's effect. It's not really feasible to create a structure around the infinite ways in which teams can protect draft picks.
 5. (Updated: see below.) ~~Introduce a new data structure/schema for `Draft Pick Option Amendment`, which:~~
-    1. ~~Is something that can be traded/accepted in a trade.~~
-    1. ~~Can target a draft pick option that: A) targets any draft pick currently owned by any team involved in the trade, and B) cannot target a draft pick option that targets a draft pick owned by a team that's not involved in the trade.~~
-    1. ~~Has the following Amendment Types:~~
-        * ~~`Nullify` / `Removal` / `Cancel` - Removes the effect of an option.~~
-        * ~~`Amend` - Changes the effect of the targeted option or adds to it.~~
-    1. ~~Also similarly can't be traded after its initial creation and exists in the same space as the draft pick option(s) to which it is attached.~~
+   1. ~~Is something that can be traded/accepted in a trade.~~
+   1. ~~Can target a draft pick option that: A) targets any draft pick currently owned by any team involved in the trade, and B) cannot target a draft pick option that targets a draft pick owned by a team that's not involved in the trade.~~
+   1. ~~Has the following Amendment Types:~~
+      - ~~`Nullify` / `Removal` / `Cancel` - Removes the effect of an option.~~
+      - ~~`Amend` - Changes the effect of the targeted option or adds to it.~~
+   1. ~~Also similarly can't be traded after its initial creation and exists in the same space as the draft pick option(s) to which it is attached.~~
 
 This also means that I cannot continue in fleshing out trade processing until I implement the above.
 

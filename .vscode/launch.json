@@ -112,10 +112,7 @@
           "kind": "bin"
         }
       },
-      "args": [
-        "--data",
-        "real-world"
-      ],
+      "args": ["--data", "real-world"],
       "cwd": "${workspaceFolder}/import-data"
     },
     {

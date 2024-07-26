@@ -11,19 +11,21 @@ Players will ideally choose via UI.
 On the server, I can think of 2 ways to implement:
 
 ### #1: Use team update w/ deadline
+
 Each team would have a team update pointing to a deadline of type PreseasonKeeper (via transaction -> deadline).
 
 Updates to the keeper list would update the team update record.
 
 ### #2: Use a Keeper table
-Each team would save their list of keepers to a table w/ contract ids and actions taken. The more I think about it, the more I think this is the wrong way to do it. If I create a table for Keepers for each team + league, do I have to create a separate table for every kind of roster change that happens in the future? The whole purpose of the deadline table is to help handle cases like these.
 
+Each team would save their list of keepers to a table w/ contract ids and actions taken. The more I think about it, the more I think this is the wrong way to do it. If I create a table for Keepers for each team + league, do I have to create a separate table for every kind of roster change that happens in the future? The whole purpose of the deadline table is to help handle cases like these.
 
 So we're going with Option 1...
 
 So what should the relation between the keeper deadline and team updates and transactions be? Does one transaction contain all the team updates for a keeper deadline, or should each team update have its own transaction that each point to the keeper deadline? I think the latter; mainly because when you're looking at the transaction log, you're expecting to see a different transaction for each team, rather than one large transaction containing every team change. From a systems / coding perspective though, it'd be easier to get all the team updates for a single transaction and then just display them as if they were separate transactions in the UI.
 
 But then that brings philosophical questions to mind:
+
 1. What is the nature of a transaction? Does a transaction involve multiple/all teams, or does it involve just 1 team?
 2. How would we maintain / delineate custom rules that make it so that one kind of transaction only affects 1 team, but another might affect multiple or all teams?
 
@@ -40,6 +42,7 @@ If we were to make every transaction affect 1 team only, you'd have to figure ou
 When we do the yearly contract advancement process that happens before the Keeper period, contracts that were R3, V3, or R5 become free agent contracts, and have an auction period where the highest bidder can retain the player associated with the contract. But in the interim period where they are RFA or UFA, do they belong to a team?
 
 I can think of 2 ways to think about this. Either:
+
 1. The player is not associated with a team and we'd have to look at their previous contract to try to find the team that they are associated with, or
 2. The player IS still associated with the team and we just don't display it as such in the UI.
 

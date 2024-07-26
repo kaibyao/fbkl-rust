@@ -20,8 +20,8 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 */
 
 export function preloadPolyfill() {
-  const relList = document.createElement("link").relList;
-  if (relList && relList.supports && relList.supports("modulepreload")) {
+  const relList = document.createElement('link').relList;
+  if (relList && relList.supports && relList.supports('modulepreload')) {
     return;
   }
 
@@ -32,11 +32,11 @@ export function preloadPolyfill() {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   new MutationObserver((mutations: any) => {
     for (const mutation of mutations) {
-      if (mutation.type !== "childList") {
+      if (mutation.type !== 'childList') {
         continue;
       }
       for (const node of mutation.addedNodes) {
-        if (node.tagName === "LINK" && node.rel === "modulepreload")
+        if (node.tagName === 'LINK' && node.rel === 'modulepreload')
           processPreload(node);
       }
     }
@@ -48,10 +48,10 @@ export function preloadPolyfill() {
     const fetchOpts = {} as any;
     if (script.integrity) fetchOpts.integrity = script.integrity;
     if (script.referrerpolicy) fetchOpts.referrerPolicy = script.referrerpolicy;
-    if (script.crossorigin === "use-credentials")
-      fetchOpts.credentials = "include";
-    else if (script.crossorigin === "anonymous") fetchOpts.credentials = "omit";
-    else fetchOpts.credentials = "same-origin";
+    if (script.crossorigin === 'use-credentials')
+      fetchOpts.credentials = 'include';
+    else if (script.crossorigin === 'anonymous') fetchOpts.credentials = 'omit';
+    else fetchOpts.credentials = 'same-origin';
     return fetchOpts;
   }
 

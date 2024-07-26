@@ -1,5 +1,5 @@
-import { AxiosError, AxiosResponse } from "axios";
-import { useState } from "react";
+import { AxiosError, AxiosResponse } from 'axios';
+import { useState } from 'react';
 
 interface AsyncRequestAttributes<T> {
   data?: T;

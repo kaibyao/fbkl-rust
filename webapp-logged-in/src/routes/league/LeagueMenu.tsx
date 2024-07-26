@@ -8,15 +8,15 @@ import {
   ListItemText,
   Toolbar,
   Typography,
-} from "@mui/material";
-import { FunctionComponent } from "react";
-import AttachMoneyIcon from "@mui/icons-material/AttachMoney";
-import CurrencyExchangeIcon from "@mui/icons-material/CurrencyExchange";
+} from '@mui/material';
+import { FunctionComponent } from 'react';
+import AttachMoneyIcon from '@mui/icons-material/AttachMoney';
+import CurrencyExchangeIcon from '@mui/icons-material/CurrencyExchange';
 // import DashboardIcon from "@mui/icons-material/Dashboard";
-import ListIcon from "@mui/icons-material/List";
-import LocalActivityIcon from "@mui/icons-material/LocalActivity";
-import PersonIcon from "@mui/icons-material/Person";
-import TransferWithinAStationIcon from "@mui/icons-material/TransferWithinAStation";
+import ListIcon from '@mui/icons-material/List';
+import LocalActivityIcon from '@mui/icons-material/LocalActivity';
+import PersonIcon from '@mui/icons-material/Person';
+import TransferWithinAStationIcon from '@mui/icons-material/TransferWithinAStation';
 
 export const LEAGUE_MENU_WIDTH = 240;
 
@@ -29,7 +29,7 @@ export const LeagueMenu: FunctionComponent = () => {
         flexShrink: 0,
         [`& .MuiDrawer-paper`]: {
           width: LEAGUE_MENU_WIDTH,
-          boxSizing: "border-box",
+          boxSizing: 'border-box',
         },
       }}
     >
