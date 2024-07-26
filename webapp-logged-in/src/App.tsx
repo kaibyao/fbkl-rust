@@ -1,7 +1,7 @@
 import { ApolloClient, ApolloProvider, InMemoryCache } from '@apollo/client';
 import { AppRoutes } from '@logged-in/src/AppRoutes';
 import { FunctionComponent } from 'react';
-import { ThemeProvider, createTheme } from '@mui/material/styles';
+import { ThemeProvider, createTheme } from '@mui/material';
 
 const darkTheme = createTheme({
   palette: {
