@@ -30,9 +30,11 @@ module.exports = {
     '@typescript-eslint',
     'import',
     'sort-imports-es6-autofix',
+    'unused-imports',
   ],
   rules: {
     '@typescript-eslint/no-explicit-any': 'error',
+    '@typescript-eslint/no-unused-vars': 'off',
     // "graphql/named-operations": ["warn", { env: "apollo" }],
     // "graphql/required-fields": [
     //   "warn",
@@ -46,6 +48,16 @@ module.exports = {
         ignoreCase: false,
         ignoreMemberSort: false,
         memberSyntaxSortOrder: ['none', 'all', 'multiple', 'single'],
+      },
+    ],
+    'unused-imports/no-unused-imports': 'error',
+    'unused-imports/no-unused-vars': [
+      'warn',
+      {
+        vars: 'all',
+        varsIgnorePattern: '^_',
+        args: 'after-used',
+        argsIgnorePattern: '^_',
       },
     ],
   },
