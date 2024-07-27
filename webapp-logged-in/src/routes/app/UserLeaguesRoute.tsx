@@ -1,9 +1,9 @@
 import { FunctionComponent } from 'react';
-import { LeagueList } from '@logged-in/src/routes/app/LeagueList';
+import { LeagueList } from '@/src/routes/app/LeagueList';
 import {
   LeagueListFragmentDoc,
   useGetUserLeaguesQuery,
-} from '@logged-in/generated/graphql';
+} from '@/generated/graphql';
 import { Link, Outlet } from 'react-router-dom';
 import { gql } from '@apollo/client';
 import Container from "@mui/material/Container";

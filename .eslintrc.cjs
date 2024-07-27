@@ -9,12 +9,7 @@ module.exports = {
   },
   extends: [
     'eslint:recommended',
-    'plugin:react/recommended',
-    'plugin:react/jsx-runtime',
-    'plugin:react-hooks/recommended',
     'plugin:@typescript-eslint/recommended',
-    'plugin:import/recommended',
-    'plugin:import/typescript',
     'prettier',
   ],
   parser: '@typescript-eslint/parser',
@@ -26,7 +21,6 @@ module.exports = {
     sourceType: 'module',
   },
   plugins: [
-    'react',
     '@typescript-eslint',
     'import',
     'sort-imports-es6-autofix',
@@ -41,7 +35,6 @@ module.exports = {
     //   { env: "apollo", requiredFields: ["id"] },
     // ],
     // "graphql/template-strings": ["error", { env: "apollo" }],
-    'react/prop-types': 0,
     'sort-imports-es6-autofix/sort-imports-es6': [
       'warn',
       {

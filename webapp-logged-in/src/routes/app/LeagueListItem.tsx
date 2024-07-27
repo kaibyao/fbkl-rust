@@ -1,7 +1,7 @@
 import {
   LeagueListFragment,
   useSelectLeagueMutation,
-} from '@logged-in/generated/graphql';
+} from '@/generated/graphql';
 import { gql } from '@apollo/client';
 import { useNavigate } from 'react-router-dom';
 import Box from "@mui/material/Box";

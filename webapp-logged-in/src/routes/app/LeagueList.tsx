@@ -1,6 +1,6 @@
 import { FunctionComponent } from 'react';
-import { LeagueListFragment } from '@logged-in/generated/graphql';
-import { LeagueListItem } from '@logged-in/src/routes/app/LeagueListItem';
+import { LeagueListFragment } from '@/generated/graphql';
+import { LeagueListItem } from '@/src/routes/app/LeagueListItem';
 import { gql } from '@apollo/client';
 import Grid from "@mui/material/Grid";
 

@@ -1,6 +1,7 @@
+'use client';
+
 import { ApolloClient, ApolloProvider, InMemoryCache } from '@apollo/client';
-import { AppRoutes } from '@/src/AppRoutes';
-import { FunctionComponent } from 'react';
+import { FunctionComponent, PropsWithChildren } from 'react';
 import { ThemeProvider } from '@mui/material';
 import createTheme from '@mui/material/styles/createTheme';
 
@@ -15,10 +16,10 @@ const client = new ApolloClient({
   cache: new InMemoryCache(),
 });
 
-export const App: FunctionComponent = () => (
+export const AppProviders: FunctionComponent<PropsWithChildren> = ({
+  children,
+}) => (
   <ThemeProvider theme={darkTheme}>
-    <ApolloProvider client={client}>
-      <AppRoutes />
-    </ApolloProvider>
+    <ApolloProvider client={client}>{children}</ApolloProvider>
   </ThemeProvider>
 );

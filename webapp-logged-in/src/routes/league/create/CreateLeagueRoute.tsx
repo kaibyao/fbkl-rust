@@ -1,4 +1,4 @@
-import { CreateLeagueForm } from '@logged-in/src/components/forms/CreateLeague/CreateLeagueForm';
+import { CreateLeagueForm } from '@/src/components/forms/CreateLeague/CreateLeagueForm';
 import { FunctionComponent } from 'react';
 import { useNavigate } from 'react-router-dom';
 

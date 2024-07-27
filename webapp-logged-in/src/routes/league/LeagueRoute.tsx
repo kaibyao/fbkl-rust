@@ -1,11 +1,8 @@
 import { FunctionComponent } from 'react';
-import {
-  LEAGUE_MENU_WIDTH,
-  LeagueMenu,
-} from '@logged-in/src/routes/league/LeagueMenu';
+import { LEAGUE_MENU_WIDTH, LeagueMenu } from '@/src/routes/league/LeagueMenu';
 import { Outlet } from 'react-router-dom';
 import { gql } from '@apollo/client';
-import { useGetLeagueQuery } from '@logged-in/generated/graphql';
+import { useGetLeagueQuery } from '@/generated/graphql';
 import AppBar from "@mui/material/AppBar";
 import Box from "@mui/material/Box";
 import Container from "@mui/material/Container";

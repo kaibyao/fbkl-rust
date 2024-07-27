@@ -2,6 +2,7 @@ const path = require('path');
 
 module.exports = {
   ignorePatterns: ['generated/**/*'],
+  extends: ['plugin:@next/next/recommended'],
   plugins: ['mui-path-imports'],
   rules: {
     'mui-path-imports/mui-path-imports': 'error',

@@ -2,16 +2,16 @@ use axum::{
     extract::State,
     http::StatusCode,
     response::{Html, IntoResponse, Response},
-    Form,
+    Form, Json,
 };
 use fbkl_auth::verify_password_against_hash;
 use fbkl_entity::user_queries;
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 use time::Duration;
 use tower_sessions::{Expiry, Session};
 
-use crate::{error::FbklError, server::AppState};
+use crate::{error::FbklError, server::AppState, session::get_current_user};
 
 #[derive(Debug, Deserialize)]
 pub struct LoginFormData {
@@ -84,4 +84,38 @@ pub async fn logout(session: Session) -> Result<Response, FbklError> {
     session.flush().await?;
 
     Ok(StatusCode::OK.into_response())
+}
+
+#[derive(Serialize)]
+pub struct LoggedInData {
+    id: i64,
+    email: String,
+    selected_league_id: Option<i64>,
+}
+
+#[derive(Serialize)]
+pub struct NotLoggedIn;
+
+#[derive(Serialize)]
+pub enum LoggedInResponse {
+    LoggedIn(LoggedInData),
+    NotLoggedIn(NotLoggedIn),
+}
+
+pub async fn logged_in_data(
+    session: Session,
+    State(state): State<Arc<AppState>>,
+) -> Result<Json<LoggedInResponse>, FbklError> {
+    let user_model = match get_current_user(session.clone(), &state.db).await {
+        None => return Ok(Json(LoggedInResponse::NotLoggedIn(NotLoggedIn))),
+        Some(model) => model,
+    };
+
+    let selected_league_id = session.get::<i64>("selected_league_id").await?;
+
+    Ok(Json(LoggedInResponse::LoggedIn(LoggedInData {
+        id: user_model.id,
+        email: user_model.email,
+        selected_league_id,
+    })))
 }

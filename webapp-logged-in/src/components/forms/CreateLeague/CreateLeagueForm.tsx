@@ -2,7 +2,7 @@ import {
   CreateLeagueTeamFragment,
   GetUserLeaguesDocument,
   useCreateLeagueMutation,
-} from '@logged-in/generated/graphql';
+} from '@/generated/graphql';
 import { FunctionComponent } from 'react';
 import { SubmitHandler, useForm } from 'react-hook-form';
 import { gql } from '@apollo/client';
