@@ -56,7 +56,7 @@ export const LeagueRoute: FunctionComponent = () => {
 
       <LeagueMenu />
 
-      <Box ml={`${LEAGUE_MENU_WIDTH}px`}>
+      <Box marginLeft={`${LEAGUE_MENU_WIDTH}px`} paddingTop={3}>
         <Toolbar />
         <Container>
           <Outlet />

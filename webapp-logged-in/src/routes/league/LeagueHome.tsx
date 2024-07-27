@@ -1,5 +1,22 @@
 import { FunctionComponent } from 'react';
+import { LeagueTeamRoster } from '@logged-in/src/routes/league/_components/LeagueTeamRoster';
+import Grid2 from '@mui/material/Unstable_Grid2/Grid2';
 
 export const LeagueHome: FunctionComponent = () => {
-  return <div>Home placeholder</div>;
+  return (
+    <Grid2 container spacing={2}>
+      <Grid2 md={6} lg={4}>
+        <LeagueTeamRoster />
+      </Grid2>
+      <Grid2 md={6} lg={4}>
+        <LeagueTeamRoster />
+      </Grid2>
+      <Grid2 md={6} lg={4}>
+        <LeagueTeamRoster />
+      </Grid2>
+      <Grid2 md={6} lg={4}>
+        <LeagueTeamRoster />
+      </Grid2>
+    </Grid2>
+  );
 };

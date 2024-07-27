@@ -29,6 +29,7 @@ pub fn setup_server_router() -> Router<Arc<AppState>> {
         .route("/api/gql", get(graphiql).post(process_graphql))
         .route("/api/select_league", post(select_league))
         .route("/app", get(get_application))
+        .route("/app/", get(get_application))
         .route("/app/*app_path", get(get_application))
         .route("/confirm_registration", get(confirm_registration))
         .route("/login", get(login_page).post(process_login))
