@@ -3,7 +3,7 @@
   "version": "0.0.1",
   "type": "module",
   "scripts": {
-    "dev": "next dev -p 9100",
+    "dev": "NODE_OPTIONS='--inspect' next dev -p 9100",
     "build:prod": "next build",
     "start:prod": "next start",
     "lint": "next lint",
@@ -38,7 +38,6 @@
     "eslint-plugin-mui-path-imports": "^0.0.15",
     "graphql-tag": "^2.12.6",
     "prettier": "^3.3.2",
-    "ts-node": "^10.9.2",
-    "typescript": "^5.5.3"
+    "ts-node": "^10.9.2"
   }
 }

@@ -87,19 +87,14 @@ pub async fn logout(session: Session) -> Result<Response, FbklError> {
 }
 
 #[derive(Serialize)]
-pub struct LoggedInData {
-    id: i64,
-    email: String,
-    selected_league_id: Option<i64>,
-}
-
-#[derive(Serialize)]
-pub struct NotLoggedIn;
-
-#[derive(Serialize)]
+#[serde(untagged)]
 pub enum LoggedInResponse {
-    LoggedIn(LoggedInData),
-    NotLoggedIn(NotLoggedIn),
+    LoggedIn {
+        id: i64,
+        email: String,
+        selected_league_id: Option<i64>,
+    },
+    NotLoggedIn {},
 }
 
 pub async fn logged_in_data(
@@ -107,15 +102,15 @@ pub async fn logged_in_data(
     State(state): State<Arc<AppState>>,
 ) -> Result<Json<LoggedInResponse>, FbklError> {
     let user_model = match get_current_user(session.clone(), &state.db).await {
-        None => return Ok(Json(LoggedInResponse::NotLoggedIn(NotLoggedIn))),
+        None => return Ok(Json(LoggedInResponse::NotLoggedIn {})),
         Some(model) => model,
     };
 
     let selected_league_id = session.get::<i64>("selected_league_id").await?;
 
-    Ok(Json(LoggedInResponse::LoggedIn(LoggedInData {
+    Ok(Json(LoggedInResponse::LoggedIn {
         id: user_model.id,
         email: user_model.email,
         selected_league_id,
-    })))
+    }))
 }

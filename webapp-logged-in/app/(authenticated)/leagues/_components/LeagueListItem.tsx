@@ -1,14 +1,16 @@
+'use client';
+
 import {
   LeagueListFragment,
   useSelectLeagueMutation,
 } from '@/generated/graphql';
 import { gql } from '@apollo/client';
-import { useNavigate } from 'react-router-dom';
-import Box from "@mui/material/Box";
-import Card from "@mui/material/Card";
-import CardActionArea from "@mui/material/CardActionArea";
-import CardContent from "@mui/material/CardContent";
-import Typography from "@mui/material/Typography";
+import { useRouter } from 'next/navigation';
+import Box from '@mui/material/Box';
+import Card from '@mui/material/Card';
+import CardActionArea from '@mui/material/CardActionArea';
+import CardContent from '@mui/material/CardContent';
+import Typography from '@mui/material/Typography';
 
 gql`
   mutation SelectLeague($leagueId: Int!) {
@@ -24,7 +26,7 @@ interface Props {
 }
 
 export const LeagueListItem: React.FC<Props> = ({ league }) => {
-  const navigate = useNavigate();
+  const router = useRouter();
   const [selectLeagueMutation, { loading, error }] = useSelectLeagueMutation();
 
   const handleSelectLeague = async () => {
@@ -34,7 +36,7 @@ export const LeagueListItem: React.FC<Props> = ({ league }) => {
           leagueId: league.id,
         },
       });
-      navigate(`/app/league`);
+      router.push(`/league`);
     } catch (e) {
       console.error(e);
       if (error) {

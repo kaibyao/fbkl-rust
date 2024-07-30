@@ -8,7 +8,6 @@ use fbkl_entity::sea_orm::DatabaseConnection;
 
 use crate::handlers::{
     graphql_handlers::{graphiql, process_graphql},
-    league_handlers::select_league,
     login_handlers::{logged_in_data, login_page, logout, process_login},
     public_handlers::get_public_page,
     user_registration_handlers::{
@@ -26,11 +25,10 @@ pub fn setup_server_router() -> Router<Arc<AppState>> {
     Router::new()
         .route("/", get(get_public_page))
         .route("/api/gql", get(graphiql).post(process_graphql))
-        .route("/api/select_league", post(select_league))
         .route("/confirm_registration", get(confirm_registration))
         .route("/login", get(login_page).post(process_login))
         .route("/api/login", post(process_login))
-        .route("/api/logged_in_data", get(logged_in_data))
+        .route("/api/user", get(logged_in_data))
         .route("/logout", get(logout))
         .route(
             "/register",
