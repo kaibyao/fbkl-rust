@@ -1,3 +1,5 @@
+import { LeagueRostersList } from '@/app/(authenticated)/league/_components/LeagueRostersList';
+
 export default function LeaguePage() {
-  return <div>League page placeholder</div>;
+  return <LeagueRostersList />;
 }
