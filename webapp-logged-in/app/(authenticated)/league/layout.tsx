@@ -27,7 +27,9 @@ export default function LeagueLayout({
 
       <Box marginLeft={`${LEAGUE_MENU_WIDTH}px`} paddingTop={2}>
         <Toolbar />
-        <Box paddingLeft={3}>{children}</Box>
+        <Box paddingLeft={3} paddingRight={3}>
+          {children}
+        </Box>
       </Box>
     </>
   );
