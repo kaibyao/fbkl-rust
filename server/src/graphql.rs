@@ -6,6 +6,7 @@ use self::{
 };
 
 mod league;
+mod player;
 mod team;
 mod user;
 

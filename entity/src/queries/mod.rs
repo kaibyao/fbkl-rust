@@ -5,6 +5,7 @@ pub mod draft_pick_queries;
 pub mod league_player_queries;
 pub mod league_queries;
 pub mod player_queries;
+pub mod position_queries;
 pub mod real_team_queries;
 pub mod rookie_draft_selection_queries;
 pub mod team_queries;

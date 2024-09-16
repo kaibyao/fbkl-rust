@@ -83,6 +83,8 @@ async fn main() -> Result<()> {
 
     info!("Starting fbkl/server on port 9001...");
 
+    // TODO: GQL: Add argument for only active team users in GetLeague
+    // TODO: GQL: Add roster players w/ stats to GetLeague's teams
     // TODO: Build Transaction Processor. The idea being there's a job that runs every minute to update contracts, change teams, etc.
     // TODO: Something that automatically creates team updates. This might just be the same thing as the transaction processor.
     // TODO: Need to update players db table with new players from the NBA API.
