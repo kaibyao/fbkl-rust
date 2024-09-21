@@ -1,5 +1,8 @@
 use async_graphql::{Context, Object, Result};
-use fbkl_entity::{player, sea_orm::DatabaseConnection};
+use fbkl_entity::{
+    player, position_queries::find_position_by_id, real_team_queries::find_real_team_by_id,
+    sea_orm::DatabaseConnection,
+};
 
 #[derive(Clone, Default)]
 pub struct Player {
@@ -11,6 +14,7 @@ pub struct Player {
     pub position: String,
     pub real_team_id: i64,
     pub real_team_name: String,
+    // TODO: GQL: Add contract info to player
 }
 
 impl Player {
@@ -53,7 +57,8 @@ impl Player {
     async fn position(&self, ctx: &Context<'_>) -> Result<String> {
         let db = ctx.data_unchecked::<DatabaseConnection>();
 
-        // Get  name of position for that id
+        let position = find_position_by_id(self.position_id, db).await?;
+        Ok(position.name)
     }
 
     async fn real_team_id(&self) -> i64 {
@@ -63,6 +68,7 @@ impl Player {
     async fn real_team_name(&self, ctx: &Context<'_>) -> Result<String> {
         let db = ctx.data_unchecked::<DatabaseConnection>();
 
-        // Get  name of real_team
+        let real_team = find_real_team_by_id(self.real_team_id, db).await?;
+        Ok(real_team.name)
     }
 }
