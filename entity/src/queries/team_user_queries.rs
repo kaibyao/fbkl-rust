@@ -26,7 +26,7 @@ where
             team_user_model.first_end_of_season_year <= end_of_season_year
                 && team_user_model
                     .final_end_of_season_year
-                    .map_or(true, |year| year >= end_of_season_year)
+                    .is_none_or(|year| year >= end_of_season_year)
         })
         .ok_or_else(|| eyre!("Could not find a default team_user for team (team_id = {}) and end-of-season year {}", team_model.id, end_of_season_year))?;
     Ok(default_team_user)

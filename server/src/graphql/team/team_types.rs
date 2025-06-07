@@ -1,7 +1,10 @@
 use async_graphql::{Context, Object, Result};
-use fbkl_entity::{sea_orm::DatabaseConnection, team, team_user_queries::get_team_users_by_team};
+use fbkl_entity::{
+    contract_queries::find_active_contracts_for_team, sea_orm::DatabaseConnection, team,
+    team_user_queries::get_team_users_by_team,
+};
 
-use crate::graphql::{league::League, player::Player};
+use crate::graphql::{contract::Contract, league::League};
 
 use super::TeamUser;
 
@@ -12,7 +15,7 @@ pub struct Team {
     pub league: Option<League>,
     pub league_id: i64,
     pub team_users: Vec<TeamUser>,
-    pub players: Vec<Player>,
+    pub contracts: Vec<Contract>,
     // TODO: Eventually add draft picks
 }
 
@@ -23,7 +26,7 @@ impl Team {
             name: entity.name,
             league_id: entity.league_id,
             league: None,
-            players: vec![],
+            contracts: vec![],
             team_users: vec![],
         }
     }
@@ -47,9 +50,14 @@ impl Team {
         self.league.clone()
     }
 
-    async fn players(&self) -> Result<Vec<Player>> {
-        // TODO: GQL: Add roster players w/ stats to GetLeague's teams
-        Ok(vec![])
+    async fn contracts(&self, ctx: &Context<'_>) -> Result<Vec<Contract>> {
+        let db = ctx.data_unchecked::<DatabaseConnection>();
+        let contract_models = find_active_contracts_for_team(self.id, db).await?;
+
+        Ok(contract_models
+            .into_iter()
+            .map(Contract::from_model)
+            .collect())
     }
 
     async fn team_users(&self, ctx: &Context<'_>) -> Result<Vec<TeamUser>> {

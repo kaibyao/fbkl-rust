@@ -63,9 +63,7 @@ where
         .await?
         .into_iter()
         .find(|contract_model| {
-            contract_model
-                .player_id
-                .map_or(false, |contract_player_id| contract_player_id == player_id)
+            (contract_model.player_id == Some(player_id))
                 && contract_model.kind == ContractKind::FreeAgent
         });
     let player_contract = match maybe_existing_contract {

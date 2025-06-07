@@ -158,6 +158,24 @@ where
     Ok(active_contracts_by_team_id)
 }
 
+/// Finds active contracts that belong to the given team.
+#[instrument]
+pub async fn find_active_contracts_for_team<C>(team_id: i64, db: &C) -> Result<Vec<contract::Model>>
+where
+    C: ConnectionTrait + Debug,
+{
+    let all_contracts = contract::Entity::find()
+        .filter(
+            contract::Column::TeamId
+                .eq(team_id)
+                .and(contract::Column::Status.eq(contract::ContractStatus::Active)),
+        )
+        .all(db)
+        .await?;
+
+    Ok(all_contracts)
+}
+
 #[instrument]
 pub async fn find_active_team_contract_by_player_name<C>(
     team_id: i64,

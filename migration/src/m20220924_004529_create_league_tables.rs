@@ -90,11 +90,6 @@ async fn setup_league_player(manager: &SchemaManager<'_>) -> Result<(), DbErr> {
                 )
                 .col(ColumnDef::new(LeaguePlayer::Name).string().not_null())
                 .col(
-                    ColumnDef::new(LeaguePlayer::EndOfSeasonYear)
-                        .small_integer()
-                        .not_null(),
-                )
-                .col(
                     ColumnDef::new(LeaguePlayer::IsRdiEligible)
                         .boolean()
                         .not_null()
@@ -143,7 +138,6 @@ async fn setup_league_player(manager: &SchemaManager<'_>) -> Result<(), DbErr> {
                 .table(LeaguePlayer::Table)
                 .unique()
                 .col(LeaguePlayer::LeagueId)
-                .col(LeaguePlayer::EndOfSeasonYear)
                 .col(LeaguePlayer::Name)
                 .to_owned(),
         )
@@ -306,7 +300,6 @@ pub enum LeaguePlayer {
     Table,
     Id,
     Name,
-    EndOfSeasonYear,
     IsRdiEligible,
     LeagueId,
     RealPlayerId,

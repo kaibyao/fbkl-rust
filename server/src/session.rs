@@ -20,8 +20,5 @@ pub async fn get_current_user(session: Session, db: &DatabaseConnection) -> Opti
         _ => return None,
     };
 
-    match user::Entity::find_by_id(user_id).one(db).await {
-        Err(_) => None,
-        Ok(maybe_user) => maybe_user,
-    }
+    (user::Entity::find_by_id(user_id).one(db).await).unwrap_or_default()
 }

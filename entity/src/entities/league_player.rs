@@ -14,7 +14,6 @@ pub struct Model {
     /// Whether a Rookie Development contract for the player is eligible to be converted to an International contract.
     pub is_rdi_eligible: bool,
     pub name: String,
-    pub end_of_season_year: i16,
     pub league_id: i64,
     /// This id field gets filled when a custom-created player for a specific league eventually gets added to an official (NBA/ESPN) database. This is used to tie in a player's historical record in a league to before they became an NBA player.
     pub real_player_id: Option<i64>,
