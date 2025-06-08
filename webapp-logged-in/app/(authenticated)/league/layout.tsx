@@ -1,27 +1,35 @@
-'use client';
+'use server';
 
 import {
   LEAGUE_MENU_WIDTH,
   LeagueMenu,
 } from '@/app/(authenticated)/league/_components/LeagueMenu';
 import { LeagueHeader } from '@/app/(authenticated)/league/_components/LeagueHeader';
-import AppBar from '@mui/material/AppBar';
+import { getUserData } from '@/app/(authenticated)/actions';
+import { redirect } from 'next/navigation';
 import Box from '@mui/material/Box';
 import Toolbar from '@mui/material/Toolbar';
 
-export default function LeagueLayout({
+export default async function LeagueLayout({
   children,
 }: {
   children: React.ReactNode;
 }) {
+  const userData = await getUserData();
+
+  if (!userData.isLoggedIn) {
+    console.log('User not logged in, redirecting to login');
+    redirect('/login');
+  }
+
+  if (!userData.selectedLeagueId) {
+    console.log('User has not selected a league, redirecting to leagues');
+    redirect('/leagues');
+  }
+
   return (
     <>
-      <AppBar
-        position="fixed"
-        sx={{ zIndex: (theme) => theme.zIndex.drawer + 1 }}
-      >
-        <LeagueHeader />
-      </AppBar>
+      <LeagueHeader />
 
       <LeagueMenu />
 

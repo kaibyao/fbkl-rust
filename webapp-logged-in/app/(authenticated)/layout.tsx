@@ -13,11 +13,8 @@ export default async function AuthenticatedLayout({
   const userData = await getUserData();
 
   if (!userData.isLoggedIn) {
+    console.log('User not logged in, redirecting to login');
     redirect('/login');
-  }
-
-  if (!userData.selectedLeagueId) {
-    redirect('/leagues');
   }
 
   return (

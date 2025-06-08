@@ -10,6 +10,7 @@ use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 use time::Duration;
 use tower_sessions::{Expiry, Session};
+use tracing::instrument;
 
 use crate::{error::FbklError, server::AppState, session::get_current_user};
 
@@ -39,6 +40,7 @@ pub async fn login_page() -> Html<&'static str> {
     Html(html)
 }
 
+#[instrument(skip_all, fields(email = %form.email))]
 pub async fn process_login(
     State(state): State<Arc<AppState>>,
     session: Session,
