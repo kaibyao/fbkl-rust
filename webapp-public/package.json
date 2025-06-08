@@ -1,10 +1,11 @@
 {
   "name": "@fbkl/webapp-public",
   "version": "0.0.1",
+  "type": "module",
   "scripts": {
     "dev": "vite",
     "build": "tsc && vite build",
-    "lint": "eslint --ext .js,.ts,.tsx . --max-warnings 0 --fix",
+    "lint": "eslint . --max-warnings 0 --fix",
     "serve": "vite preview",
     "graphql": "graphql-codegen --config graphql-codegen.yml"
   },

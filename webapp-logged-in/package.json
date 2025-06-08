@@ -28,11 +28,7 @@
     "@types/node": "^20.19.0",
     "@types/react": "^19.1.6",
     "@types/react-dom": "^19.1.6",
-    "@typescript-eslint/eslint-plugin": "^8.33.1",
-    "@typescript-eslint/parser": "^8.33.1",
     "eslint": "9.28.0",
-    "eslint-import-resolver-typescript": "^4.4.3",
-    "eslint-plugin-import": "^2.31.0",
     "eslint-plugin-mui-path-imports": "^0.0.15",
     "graphql-tag": "^2.12.6",
     "prettier": "^3.5.3"
