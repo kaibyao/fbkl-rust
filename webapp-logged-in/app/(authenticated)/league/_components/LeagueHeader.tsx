@@ -1,12 +1,16 @@
 'use client';
 
-import { useGetLeagueQuery } from '@/generated/graphql';
+import { getLeagueQuery } from '@/app/(authenticated)/league/_api/get-league';
+import { GetLeagueQuery } from '@/generated/graphql';
 import AppBar from '@mui/material/AppBar';
 import Toolbar from '@mui/material/Toolbar';
 import Typography from '@mui/material/Typography';
+import { useQuery } from 'urql';
 
 export const LeagueHeader: React.FC = () => {
-  const { data, error, loading } = useGetLeagueQuery();
+  const [{ data, error, fetching }] = useQuery<GetLeagueQuery>({
+    query: getLeagueQuery,
+  });
   return (
     <AppBar
       position="fixed"
@@ -16,7 +20,7 @@ export const LeagueHeader: React.FC = () => {
     >
       <Toolbar>
         <Typography variant="h6" noWrap component="div">
-          {loading
+          {fetching
             ? 'Loading league...'
             : error
               ? 'Error occurred'

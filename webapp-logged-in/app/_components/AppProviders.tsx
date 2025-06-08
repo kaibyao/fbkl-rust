@@ -1,9 +1,14 @@
 'use client';
 
-import { ApolloClient, ApolloProvider, InMemoryCache } from '@apollo/client';
 import { FunctionComponent, PropsWithChildren } from 'react';
+import {
+  Client,
+  cacheExchange,
+  fetchExchange,
+  Provider as GraphQlProvider,
+} from 'urql';
 import { ThemeProvider } from '@mui/material';
-import createTheme from '@mui/material/styles/createTheme';
+import { createTheme } from '@mui/material/styles';
 
 const darkTheme = createTheme({
   palette: {
@@ -11,15 +16,15 @@ const darkTheme = createTheme({
   },
 });
 
-const client = new ApolloClient({
-  uri: '/api/gql',
-  cache: new InMemoryCache(),
+const client = new Client({
+  url: '/api/gql',
+  exchanges: [cacheExchange, fetchExchange],
 });
 
 export const AppProviders: FunctionComponent<PropsWithChildren> = ({
   children,
 }) => (
   <ThemeProvider theme={darkTheme}>
-    <ApolloProvider client={client}>{children}</ApolloProvider>
+    <GraphQlProvider value={client}>{children}</GraphQlProvider>
   </ThemeProvider>
 );

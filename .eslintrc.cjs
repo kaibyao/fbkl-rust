@@ -10,6 +10,7 @@ module.exports = {
   extends: [
     'eslint:recommended',
     'plugin:@typescript-eslint/recommended',
+    'plugin:import/recommended',
     'prettier',
   ],
   parser: '@typescript-eslint/parser',
@@ -20,29 +21,10 @@ module.exports = {
     ecmaVersion: 13,
     sourceType: 'module',
   },
-  plugins: [
-    '@typescript-eslint',
-    'import',
-    'sort-imports-es6-autofix',
-    'unused-imports',
-  ],
+  plugins: ['@typescript-eslint', 'unused-imports'],
   rules: {
     '@typescript-eslint/no-explicit-any': 'error',
     '@typescript-eslint/no-unused-vars': 'off',
-    // "graphql/named-operations": ["warn", { env: "apollo" }],
-    // "graphql/required-fields": [
-    //   "warn",
-    //   { env: "apollo", requiredFields: ["id"] },
-    // ],
-    // "graphql/template-strings": ["error", { env: "apollo" }],
-    'sort-imports-es6-autofix/sort-imports-es6': [
-      'warn',
-      {
-        ignoreCase: false,
-        ignoreMemberSort: false,
-        memberSyntaxSortOrder: ['none', 'all', 'multiple', 'single'],
-      },
-    ],
     'unused-imports/no-unused-imports': 'error',
     'unused-imports/no-unused-vars': [
       'warn',

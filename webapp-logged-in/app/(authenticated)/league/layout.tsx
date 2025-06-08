@@ -20,11 +20,13 @@ export default async function LeagueLayout({
   if (!userData.isLoggedIn) {
     console.log('User not logged in, redirecting to login');
     redirect('/login');
+    return null;
   }
 
   if (!userData.selectedLeagueId) {
     console.log('User has not selected a league, redirecting to leagues');
     redirect('/leagues');
+    return null;
   }
 
   return (

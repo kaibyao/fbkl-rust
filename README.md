@@ -30,9 +30,9 @@ This monorepo contains multiple applications and libraries that work together to
 
 ### Frontend Applications
 
-- **`webapp-logged-in/`** - Next.js React app for authenticated users (league members). Uses Material-UI and Apollo GraphQL client
+- **`webapp-logged-in/`** - Next.js React app for authenticated users (league members). Uses Material-UI and urql GraphQL client
 
-- **`webapp-public/`** - Vite React app for public/unauthenticated users. Also uses Material-UI and Apollo GraphQL client
+- **`webapp-public/`** - Vite React app for public/unauthenticated users. Also uses Material-UI and urql GraphQL client
 
 ### Documentation & Configuration
 
