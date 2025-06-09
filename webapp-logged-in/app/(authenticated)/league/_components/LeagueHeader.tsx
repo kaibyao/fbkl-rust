@@ -1,16 +1,26 @@
 'use client';
 
-import { getLeagueQuery } from '@/app/(authenticated)/league/_api/get-league';
-import { GetLeagueQuery } from '@/generated/graphql';
+import { graphql } from '@/generated';
+import { GetLeagueForHeaderQuery } from '@/generated/graphql';
 import AppBar from '@mui/material/AppBar';
 import Toolbar from '@mui/material/Toolbar';
 import Typography from '@mui/material/Typography';
 import { useQuery } from 'urql';
 
+export const getLeagueForHeaderQuery = graphql(`
+  query GetLeagueForHeader {
+    league {
+      id
+      name
+    }
+  }
+`);
+
 export const LeagueHeader: React.FC = () => {
-  const [{ data, error, fetching }] = useQuery<GetLeagueQuery>({
-    query: getLeagueQuery,
+  const [{ data, error, fetching }] = useQuery<GetLeagueForHeaderQuery>({
+    query: getLeagueForHeaderQuery,
   });
+
   return (
     <AppBar
       position="fixed"

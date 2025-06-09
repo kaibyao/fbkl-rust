@@ -66,7 +66,8 @@ async fn main() -> Result<()> {
         EmptySubscription,
     )
     .data(shared_state.db.clone())
-    .limit_depth(5)
+    .limit_complexity(30)
+    .limit_depth(10)
     .finish();
 
     let listener = tokio::net::TcpListener::bind("0.0.0.0:9001").await?;
