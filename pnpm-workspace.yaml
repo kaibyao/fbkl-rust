@@ -1,3 +1,7 @@
 packages:
-  - 'webapp-logged-in'
-  - 'webapp-public'
+  - webapp-logged-in
+  - webapp-public
+onlyBuiltDependencies:
+  - '@evilmartians/lefthook'
+  - esbuild
+  - sharp

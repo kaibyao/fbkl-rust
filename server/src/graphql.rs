@@ -5,7 +5,9 @@ use self::{
     user::UserQuery,
 };
 
+mod contract;
 mod league;
+mod player;
 mod team;
 mod user;
 

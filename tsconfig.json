@@ -1,4 +1,13 @@
 {
+  "files": [],
+  "references": [
+    {
+      "path": "./webapp-logged-in/tsconfig.json"
+    },
+    {
+      "path": "./webapp-public/tsconfig.json"
+    }
+  ],
   "compilerOptions": {
     "allowJs": false,
     "allowSyntheticDefaultImports": true,
@@ -11,9 +20,14 @@
     "moduleResolution": "Node",
     "noEmit": true,
     "resolveJsonModule": true,
-    "skipLibCheck": false,
+    "skipLibCheck": true,
     "strict": true,
     "target": "ESNext",
     "useDefineForClassFields": true
-  }
+  },
+  "exclude": [
+    "node_modules",
+    "webapp-public/node_modules",
+    "webapp-logged-in/node_modules"
+  ]
 }

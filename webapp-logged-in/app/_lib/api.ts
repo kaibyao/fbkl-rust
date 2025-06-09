@@ -7,7 +7,7 @@ export default async function authFetch(
   input: string | Request | URL,
   init?: RequestInit,
 ): Promise<Response> {
-  const token = cookies().get(ACCESS_TOKEN_NAME)?.value;
+  const token = (await cookies()).get(ACCESS_TOKEN_NAME)?.value;
   if (!token) throw new Error('No token found');
 
   if (!init) {

@@ -1,6 +1,6 @@
 use std::{collections::HashMap, fmt::Debug};
 
-use color_eyre::Result;
+use color_eyre::{eyre::eyre, Result};
 use sea_orm::{
     ActiveModelTrait, ActiveValue, ColumnTrait, ConnectionTrait, EntityTrait, QueryFilter,
 };
@@ -27,10 +27,18 @@ where
 }
 
 #[instrument]
+pub async fn find_league_player_by_id<C>(id: i64, db: &C) -> Result<league_player::Model>
+where
+    C: ConnectionTrait + Debug,
+{
+    let league_player = league_player::Entity::find_by_id(id).one(db).await?;
+    league_player.ok_or_else(|| eyre!("League player not found"))
+}
+
+#[instrument]
 pub async fn insert_league_player_with_name<C>(
     name: String,
     league_id: i64,
-    end_of_season_year: i16,
     db: &C,
 ) -> Result<league_player::Model>
 where
@@ -39,7 +47,6 @@ where
     let league_player_to_insert = league_player::ActiveModel {
         name: ActiveValue::Set(name),
         league_id: ActiveValue::Set(league_id),
-        end_of_season_year: ActiveValue::Set(end_of_season_year),
         is_rdi_eligible: ActiveValue::Set(true),
         ..Default::default()
     };

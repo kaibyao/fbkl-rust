@@ -1,12 +1,7 @@
 'use client';
 
-import {
-  CreateLeagueTeamFragment,
-  GetUserLeaguesDocument,
-  useCreateLeagueMutation,
-} from '@/generated/graphql';
 import { SubmitHandler, useForm } from 'react-hook-form';
-import { gql } from '@apollo/client';
+import { graphql } from '@/generated';
 import { useRouter } from 'next/navigation';
 import Button from '@mui/material/Button';
 import CircularProgress from '@mui/material/CircularProgress';
@@ -14,8 +9,9 @@ import FormHelperText from '@mui/material/FormHelperText';
 import Stack from '@mui/material/Stack';
 import TextField from '@mui/material/TextField';
 import Typography from '@mui/material/Typography';
+import { useMutation } from 'urql';
 
-gql`
+const createLeagueMutation = graphql(`
   mutation CreateLeague(
     $name: String!
     $teamName: String!
@@ -39,7 +35,7 @@ gql`
       name
     }
   }
-`;
+`);
 
 interface CreateLeagueFormFields {
   name: string;
@@ -54,16 +50,15 @@ export default function CreateLeaguePage() {
     handleSubmit,
     register,
   } = useForm<CreateLeagueFormFields>({ mode: 'onBlur' });
-  const [createLeagueMutation, { loading, error }] = useCreateLeagueMutation();
+  const [{ fetching, error }, executeCreateLeagueMutation] =
+    useMutation(createLeagueMutation);
 
   const onSubmit: SubmitHandler<CreateLeagueFormFields> = async (data) => {
-    const response = await createLeagueMutation({
-      variables: data,
-      refetchQueries: [GetUserLeaguesDocument],
+    const response = await executeCreateLeagueMutation(data, {
+      additionalTypenames: ['League'],
     });
-    const createdLeague: CreateLeagueTeamFragment | undefined =
-      response.data?.createLeague;
-    // TODO: notification + redirect
+
+    const createdLeague = response.data?.createLeague;
     if (createdLeague) {
       router.push('/league');
     }
@@ -114,10 +109,10 @@ export default function CreateLeaguePage() {
         </div>
         <Button
           type="submit"
-          disabled={isSubmitting || loading}
+          disabled={isSubmitting || fetching}
           variant="contained"
           startIcon={
-            isSubmitting || loading ? (
+            isSubmitting || fetching ? (
               <CircularProgress size="1em" sx={{ mr: 1 }} />
             ) : undefined
           }

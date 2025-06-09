@@ -69,7 +69,7 @@ where
     contract_queries::validate_contract_is_latest_in_chain(contract_model, db).await?;
 
     // Ensure contract is owned by the team referenced by the trade asset entity
-    ensure!(contract_model.team_id.map_or(false, |team_id| team_id == trade_asset_model.from_team_id), "Contract ({}) is not currently owned by the team listed as the owning team in this trade ({}). Contract's owning team = {:?}. Trade's listed owning team = {}.", contract_model.id, trade_id, contract_model.team_id, trade_asset_model.from_team_id);
+    ensure!((contract_model.team_id == Some(trade_asset_model.from_team_id)), "Contract ({}) is not currently owned by the team listed as the owning team in this trade ({}). Contract's owning team = {:?}. Trade's listed owning team = {}.", contract_model.id, trade_id, contract_model.team_id, trade_asset_model.from_team_id);
 
     Ok(())
 }

@@ -94,11 +94,7 @@ where
     let maybe_existing_contract = contract_queries::find_active_contracts_in_league(league_id, db)
         .await?
         .into_iter()
-        .find(|contract_model| {
-            contract_model
-                .player_id
-                .map_or(false, |contract_player_id| contract_player_id == player_id)
-        });
+        .find(|contract_model| contract_model.player_id == Some(player_id));
     let player_contract = match maybe_existing_contract {
         None => {
             // Create new contract
