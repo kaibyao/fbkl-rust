@@ -1,10 +1,9 @@
 'use client';
 
 import { FunctionComponent } from 'react';
-import { graphql, useFragment } from '@/generated';
+import { graphql } from '@/generated';
 import Grid from '@mui/material/Grid';
 import { useQuery } from 'urql';
-import { TeamForRosterListFragmentDoc } from '@/generated/graphql';
 import { LeagueTeamRoster } from '@/app/(authenticated)/league/_components/LeagueTeamRoster';
 
 const getLeagueRosterListQuery = graphql(`
@@ -77,8 +76,7 @@ export const LeagueRostersList: FunctionComponent = () => {
 
   return (
     <Grid container spacing={2}>
-      {teams.map((teamFragment) => {
-        const team = useFragment(TeamForRosterListFragmentDoc, teamFragment);
+      {teams.map((team) => {
         return (
           <Grid size={{ xs: 12, md: 6, lg: 4 }} key={team.id}>
             <LeagueTeamRoster team={team} />
