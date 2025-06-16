@@ -10,6 +10,8 @@ import {
   ContractForRosterListFragment,
 } from '@/generated/graphql';
 import { isContractActiveOnTeam } from '@/app/_lib/contract.utils';
+import List from '@mui/material/List';
+import { LeagueRosterListPlayer } from '@/app/(authenticated)/league/_components/LeagueRosterListPlayer';
 
 interface Props {
   team: TeamForRosterListFragment;
@@ -49,37 +51,28 @@ export const LeagueTeamRoster: FunctionComponent<Props> = ({ team }) => {
             Active ({activeContracts.length})
           </Typography>
 
-          <Stack spacing={2}>
+          <List dense style={{ marginTop: 0 }}>
             {activeContracts.map((contract) => (
-              <Typography key={contract.id}>
-                {contract.leagueOrRealPlayer.name}
-              </Typography>
+              <LeagueRosterListPlayer key={contract.id} contract={contract} />
             ))}
-          </Stack>
-
-          <Typography variant="h5">
-            Active (IR) ({activeButIrContracts.length})
-          </Typography>
-
-          <Stack spacing={2}>
             {activeButIrContracts.map((contract) => (
-              <Typography key={contract.id}>
-                {contract.leagueOrRealPlayer.name}
-              </Typography>
+              <LeagueRosterListPlayer
+                key={contract.id}
+                contract={contract}
+                isIr
+              />
             ))}
-          </Stack>
+          </List>
 
           <Typography variant="h5">
             Rookie Development ({rookieDevelopmentContracts.length})
           </Typography>
 
-          <Stack spacing={2}>
+          <List dense style={{ marginTop: 0 }}>
             {rookieDevelopmentContracts.map((contract) => (
-              <Typography key={contract.id}>
-                {contract.leagueOrRealPlayer.name}
-              </Typography>
+              <LeagueRosterListPlayer key={contract.id} contract={contract} />
             ))}
-          </Stack>
+          </List>
         </Stack>
       </Stack>
     </Card>

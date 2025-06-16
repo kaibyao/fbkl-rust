@@ -53,6 +53,8 @@ const getLeagueRosterListQuery = graphql(`
     id
     name
     position
+    photoUrl
+    realTeamName
   }
 `);
 
