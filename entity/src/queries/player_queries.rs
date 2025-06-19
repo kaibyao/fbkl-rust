@@ -1,7 +1,8 @@
 use std::collections::HashSet;
 
 use color_eyre::{eyre::eyre, Result};
-use sea_orm::{ColumnTrait, ConnectionTrait, EntityTrait, QueryFilter};
+use sea_orm::sea_query::Expr;
+use sea_orm::{ConnectionTrait, EntityTrait, QueryFilter};
 
 use crate::player;
 
@@ -20,9 +21,9 @@ pub async fn find_players_by_name<C>(
 where
     C: ConnectionTrait,
 {
-    let player_models = player::Entity::find()
-        .filter(player::Column::Name.is_in(player_names))
-        .all(db)
-        .await?;
+    let player_names_vec: Vec<String> = player_names.iter().map(|s| s.to_string()).collect();
+    let condition = Expr::cust_with_values("unaccent(name) = ANY($1)", [player_names_vec]);
+
+    let player_models = player::Entity::find().filter(condition).all(db).await?;
     Ok(player_models)
 }

@@ -321,7 +321,7 @@ pub enum ContractKind {
 )]
 #[sea_orm(rs_type = "String", db_type = "String(None)")]
 pub enum ContractStatus {
-    /// Represents an active player on a team or in free agency. An active contract’s $-value takes up a team’s cap space.
+    /// Represents a player currently on a team or in free agency.
     #[default]
     #[sea_orm(string_value = "Active")]
     Active,

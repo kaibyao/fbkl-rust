@@ -27,6 +27,17 @@ impl MigrationTrait for Migration {
         transaction
             .execute(Statement::from_string(
                 DatabaseBackend::Postgres,
+                // lets us use the unaccent function to search for players with accents in their names (Like "Luka Dončić")
+                r#"
+                CREATE EXTENSION IF NOT EXISTS unaccent;
+                "#
+                .to_string(),
+            ))
+            .await?;
+
+        transaction
+            .execute(Statement::from_string(
+                DatabaseBackend::Postgres,
                 r#"
 CREATE OR REPLACE FUNCTION set_auto_updated_at_on_table(_tbl regclass) RETURNS VOID AS $$
 BEGIN

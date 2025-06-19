@@ -13,8 +13,6 @@ use crate::graphql::{
 pub struct League {
     pub id: i64,
     pub name: String,
-    pub teams: Vec<Team>,
-    pub current_team_user: Option<Box<TeamUser>>,
 }
 
 impl League {
@@ -22,8 +20,6 @@ impl League {
         Self {
             id: league_model.id,
             name: league_model.name,
-            teams: vec![],
-            ..Default::default()
         }
     }
 }
@@ -44,17 +40,7 @@ impl League {
         let league_team_models = find_teams_in_league(self.id, db).await?;
         let league_teams = league_team_models
             .into_iter()
-            .map(|team_model| {
-                let mut team = Team::from_model(team_model);
-                team.league = Some(League {
-                    id: self.id,
-                    name: self.name.clone(),
-                    teams: vec![],
-                    current_team_user: None,
-                });
-
-                team
-            })
+            .map(Team::from_model)
             .collect();
 
         Ok(league_teams)
