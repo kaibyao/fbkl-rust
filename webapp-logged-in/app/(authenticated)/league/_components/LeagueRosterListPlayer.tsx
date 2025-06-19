@@ -26,11 +26,11 @@ export const LeagueRosterListPlayer: FunctionComponent<Props> = ({
   let realTeamName = undefined;
 
   if (contract.leagueOrRealPlayer.__typename === 'LeaguePlayer') {
-    photoUrl = contract.leagueOrRealPlayer.realPlayer?.photoUrl;
+    photoUrl = contract.leagueOrRealPlayer.realPlayer?.thumbnailUrl;
     position = contract.leagueOrRealPlayer.realPlayer?.position;
     realTeamName = contract.leagueOrRealPlayer.realPlayer?.realTeamName;
   } else if (contract.leagueOrRealPlayer.__typename === 'RealPlayer') {
-    photoUrl = contract.leagueOrRealPlayer.photoUrl;
+    photoUrl = contract.leagueOrRealPlayer.thumbnailUrl;
     position = contract.leagueOrRealPlayer.position;
     realTeamName = contract.leagueOrRealPlayer.realTeamName;
   }

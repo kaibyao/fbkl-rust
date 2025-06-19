@@ -40,7 +40,7 @@ export const LeagueTeamRoster: FunctionComponent<Props> = ({ team }) => {
             {activeContracts.reduce((acc, contract) => {
               return acc + contract.salary;
             }, 0)}
-            /$210
+            /${team.salaryCap.salaryCap}
           </Typography>
         </Stack>
 
@@ -110,8 +110,31 @@ function partitionContracts(contracts: ContractForRosterListFragment[]): {
   });
 
   return {
-    activeContracts,
+    activeContracts: activeContracts.sort(
+      (
+        a,
+        b, // contract value
+      ) =>
+        b.salary - a.salary ||
+        // year number
+        b.yearNumber - a.yearNumber ||
+        // name
+        a.leagueOrRealPlayer.name.localeCompare(b.leagueOrRealPlayer.name),
+    ),
     activeButIrContracts,
-    rookieDevelopmentContracts,
+    rookieDevelopmentContracts: rookieDevelopmentContracts.sort((a, b) => {
+      // International players are at the end
+      if (a.kind === ContractKind.RookieDevelopmentInternational) {
+        return 1;
+      }
+      if (b.kind === ContractKind.RookieDevelopmentInternational) {
+        return -1;
+      }
+      return (
+        // Sort by year number, then by name
+        b.yearNumber - a.yearNumber ||
+        a.leagueOrRealPlayer.name.localeCompare(b.leagueOrRealPlayer.name)
+      );
+    }),
   };
 }

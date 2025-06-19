@@ -66,7 +66,7 @@ async fn main() -> Result<()> {
         EmptySubscription,
     )
     .data(shared_state.db.clone())
-    .limit_complexity(30)
+    .limit_complexity(50)
     .limit_depth(10)
     .finish();
 

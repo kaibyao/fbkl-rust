@@ -47,6 +47,10 @@ pub static NBA_ASB_DATE_RANGES_BY_END_OF_SEASON_YEAR: Lazy<HashMap<i16, NaiveDat
                 2024,
                 NaiveDateRange::from_date_strings("2024-02-16", "2024-02-21").unwrap(),
             ),
+            (
+                2025,
+                NaiveDateRange::from_date_strings("2025-02-14", "2025-02-16").unwrap(),
+            ),
         ]
         .into_iter()
         .collect()

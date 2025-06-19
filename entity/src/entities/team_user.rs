@@ -31,6 +31,7 @@ pub struct Model {
     Clone,
     Copy,
     Eq,
+    Hash,
     PartialEq,
     Enum,
     EnumIter,

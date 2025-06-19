@@ -1,13 +1,13 @@
 'use client';
 
-import { FunctionComponent } from 'react';
+import { FunctionComponent, useMemo } from 'react';
 import { graphql } from '@/generated';
 import Grid from '@mui/material/Grid';
 import { useQuery } from 'urql';
 import { LeagueTeamRoster } from '@/app/(authenticated)/league/_components/LeagueTeamRoster';
 
 const getLeagueRosterListQuery = graphql(`
-  query GetLeagueRosterList {
+  query GetLeagueRosterList($datetimeStr: String!) {
     league {
       teams {
         ...TeamForRosterList
@@ -20,6 +20,10 @@ const getLeagueRosterListQuery = graphql(`
     name
     contracts {
       ...ContractForRosterList
+    }
+    salaryCap(datetimeStr: $datetimeStr) {
+      salaryCap
+      salaryUsed
     }
   }
 
@@ -53,14 +57,18 @@ const getLeagueRosterListQuery = graphql(`
     id
     name
     position
-    photoUrl
+    thumbnailUrl
     realTeamName
   }
 `);
 
 export const LeagueRostersList: FunctionComponent = () => {
+  const datetimeStr = useMemo(() => new Date().toISOString(), []);
   const [{ data, error, fetching }] = useQuery({
     query: getLeagueRosterListQuery,
+    variables: {
+      datetimeStr,
+    },
   });
 
   if (fetching) {
@@ -78,13 +86,15 @@ export const LeagueRostersList: FunctionComponent = () => {
 
   return (
     <Grid container spacing={2}>
-      {teams.map((team) => {
-        return (
-          <Grid size={{ xs: 12, md: 6, lg: 4 }} key={team.id}>
-            <LeagueTeamRoster team={team} />
-          </Grid>
-        );
-      })}
+      {teams
+        .sort((a, b) => a.name.localeCompare(b.name))
+        .map((team) => {
+          return (
+            <Grid size={{ xs: 12, md: 6, lg: 4 }} key={team.id}>
+              <LeagueTeamRoster team={team} />
+            </Grid>
+          );
+        })}
     </Grid>
   );
 };
