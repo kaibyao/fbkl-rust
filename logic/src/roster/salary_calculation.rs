@@ -1,10 +1,12 @@
 use std::fmt::Debug;
 
+use chrono::{DateTime, FixedOffset};
 use color_eyre::eyre::Result;
 use fbkl_entity::{
     contract::{self, ContractKind},
-    contract_queries,
+    contract_queries::{self, find_active_contracts_for_team},
     deadline::{self, DeadlineKind},
+    deadline_queries::find_most_recent_deadline_by_datetime,
     sea_orm::ConnectionTrait,
     team,
 };
@@ -32,6 +34,25 @@ where
     let team_active_contracts = team_model.get_active_contracts(db).await?;
 
     calculate_team_contract_salary(team_model.id, &team_active_contracts, deadline_model, db).await
+}
+
+/// Returns a tuple containing the team's current total salary and salary cap.
+#[instrument]
+pub async fn calculate_team_contract_salary_at_datetime<C>(
+    league_id: i64,
+    team_id: i64,
+    datetime: DateTime<FixedOffset>,
+    db: &C,
+) -> Result<(i16, i16)>
+where
+    C: ConnectionTrait + Debug,
+{
+    let deadline = find_most_recent_deadline_by_datetime(league_id, datetime, db).await?;
+    let contract_models = find_active_contracts_for_team(team_id, db).await?;
+    let (total_contract_amount, max_salary_cap_for_deadline) =
+        calculate_team_contract_salary(team_id, &contract_models, &deadline, db).await?;
+
+    Ok((total_contract_amount, max_salary_cap_for_deadline))
 }
 
 /// Returns a tuple containing the team's current total salary and salary cap.

@@ -1,12 +1,11 @@
 use async_graphql::{Context, Object, Result, SimpleObject};
 use fbkl_entity::{
     contract_queries::find_active_contracts_for_team,
-    deadline_queries::find_most_recent_deadline_by_datetime,
     sea_orm::{prelude::DateTimeWithTimeZone, DatabaseConnection},
     team,
     team_user_queries::get_team_users_by_team,
 };
-use fbkl_logic::roster::calculate_team_contract_salary;
+use fbkl_logic::roster::calculate_team_contract_salary_at_datetime;
 
 use crate::graphql::contract::Contract;
 
@@ -70,10 +69,9 @@ impl Team {
             .parse::<DateTimeWithTimeZone>()
             .map_err(|e| format!("Failed to parse datetime string '{}': {}", datetime_str, e))?;
 
-        let deadline = find_most_recent_deadline_by_datetime(self.league_id, datetime, db).await?;
-        let contract_models = find_active_contracts_for_team(self.id, db).await?;
         let (total_contract_amount, max_salary_cap_for_deadline) =
-            calculate_team_contract_salary(self.id, &contract_models, &deadline, db).await?;
+            calculate_team_contract_salary_at_datetime(self.league_id, self.id, datetime, db)
+                .await?;
 
         let salary_cap = TeamSalaryCap {
             salary_cap: max_salary_cap_for_deadline,

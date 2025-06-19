@@ -66,7 +66,7 @@ async fn main() -> Result<()> {
         EmptySubscription,
     )
     .data(shared_state.db.clone())
-    .limit_complexity(50)
+    .limit_complexity(50) // If this ever gets to 100, we should probably consider loader patterns.
     .limit_depth(10)
     .finish();
 
