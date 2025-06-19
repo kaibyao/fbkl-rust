@@ -6,8 +6,8 @@ use color_eyre::{
 };
 use multimap::MultiMap;
 use sea_orm::{
-    ActiveModelTrait, ActiveValue, ColumnTrait, ConnectionTrait, EntityTrait, JoinType, ModelTrait,
-    QueryFilter, QuerySelect, RelationTrait,
+    prelude::Expr, ActiveModelTrait, ActiveValue, ColumnTrait, ConnectionTrait, EntityTrait,
+    JoinType, ModelTrait, QueryFilter, QuerySelect, RelationTrait,
 };
 use tracing::instrument;
 
@@ -190,11 +190,10 @@ where
         .join(JoinType::LeftJoin, contract::Relation::LeaguePlayer.def())
         .filter(contract::Column::Status.eq(ContractStatus::Active))
         .filter(contract::Column::TeamId.eq(team_id))
-        .filter(
-            player::Column::Name
-                .eq(player_name)
-                .or(league_player::Column::Name.eq(player_name)),
-        )
+        .filter(Expr::cust_with_values(
+            "unaccent(player.name) = $1 OR unaccent(league_player.name) = $1",
+            [player_name],
+        ))
         .all(db)
         .await?;
 
@@ -219,6 +218,7 @@ pub async fn find_active_league_contracts_by_player_names<C>(
 where
     C: ConnectionTrait + Debug,
 {
+    let player_names_vec: Vec<String> = player_names.iter().map(|s| s.to_string()).collect();
     let contracts_and_player_models = contract::Entity::find()
         .join(JoinType::LeftJoin, contract::Relation::Player.def())
         .join(JoinType::LeftJoin, contract::Relation::LeaguePlayer.def())
@@ -226,19 +226,10 @@ where
             contract::Column::LeagueId
                 .eq(league_id)
                 .and(contract::Column::Status.eq(contract::ContractStatus::Active))
-                .and(
-                    player::Column::Name
-                        .is_in(
-                            player_names
-                                .iter()
-                                .map(|player_name| player_name.to_string()),
-                        )
-                        .or(league_player::Column::Name.is_in(
-                            player_names
-                                .iter()
-                                .map(|player_name| player_name.to_string()),
-                        )),
-                ),
+                .and(Expr::cust_with_values(
+                    "unaccent(player.name) = ANY($1) OR unaccent(league_player.name) = ANY($1)",
+                    [player_names_vec],
+                )),
         )
         .all(db)
         .await?;
