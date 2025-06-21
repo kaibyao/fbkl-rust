@@ -50,9 +50,9 @@ export const LeagueTeamRoster: FunctionComponent<Props> = ({ team }) => {
         <Divider />
 
         <Stack spacing={2}>
-          {userData.selectedLeagueOwnerTeamId !== team.id && (
+          {/* {userData.selectedLeagueOwnerTeamId !== team.id && (
             <Button variant="contained">Propose Trade</Button>
-          )}
+          )} */}
           <Typography variant="h5">
             Active ({activeContracts.length})
           </Typography>

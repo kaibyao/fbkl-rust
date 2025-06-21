@@ -1,6 +1,7 @@
 pub mod annual_contract_advancement;
 pub mod auction;
 pub mod deadline_processing;
+pub mod draft_picks;
 pub mod drop_contract;
 pub mod ir;
 pub mod rookie_development_activation;
