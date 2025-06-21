@@ -6,4 +6,5 @@ pub mod ir;
 pub mod rookie_development_activation;
 pub mod rookie_development_international;
 pub mod roster;
+pub mod team_ownership;
 pub mod trade;

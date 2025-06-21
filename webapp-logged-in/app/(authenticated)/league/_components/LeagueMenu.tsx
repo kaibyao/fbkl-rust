@@ -57,7 +57,7 @@ export const LeagueMenu: FunctionComponent = () => {
               />
             </ListItemButton>
           </ListItem>
-          <ListItem disablePadding>
+          {/* <ListItem disablePadding>
             <ListItemButton>
               <ListItemIcon>
                 <AttachMoneyIcon />
@@ -96,7 +96,7 @@ export const LeagueMenu: FunctionComponent = () => {
               </ListItemIcon>
               <ListItemText primary="Transactions" />
             </ListItemButton>
-          </ListItem>
+          </ListItem> */}
         </List>
       </Box>
     </Drawer>
