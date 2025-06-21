@@ -9,6 +9,7 @@ import { getUserData } from '@/app/(authenticated)/actions';
 import { redirect } from 'next/navigation';
 import Box from '@mui/material/Box';
 import Toolbar from '@mui/material/Toolbar';
+import { UserDataProvider } from '@/app/(authenticated)/league/_components/UserDataProvider';
 
 export default async function LeagueLayout({
   children,
@@ -30,7 +31,7 @@ export default async function LeagueLayout({
   }
 
   return (
-    <>
+    <UserDataProvider userData={userData}>
       <LeagueHeader />
 
       <LeagueMenu />
@@ -41,6 +42,6 @@ export default async function LeagueLayout({
           {children}
         </Box>
       </Box>
-    </>
+    </UserDataProvider>
   );
 }

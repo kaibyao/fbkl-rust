@@ -84,18 +84,19 @@ async fn main() -> Result<()> {
 
     info!("Starting fbkl/server on port 9001...");
 
+    // TODO: Configuration for rookie draft + end-of-season standings
+    // TODO: Functionality for draft picks
+    // TODO: Functionality for trades
     // TODO: GQL: Add argument for only active team users in GetLeague
-    // TODO: GQL: Add roster players w/ stats to GetLeague's teams
     // TODO: Build Transaction Processor. The idea being there's a job that runs every minute to update contracts, change teams, etc.
     // TODO: Something that automatically creates team updates. This might just be the same thing as the transaction processor.
     // TODO: Need to update players db table with new players from the NBA API.
+    // TODO: Players change names.
     // TODO: Need some kind of storage for NBA dates (start of season, ASB start and end dates, MLK week early start times)
     // TODO: Maybe ping NBA API for game start times each week?
     // TODO: Reconciling end dates of different transaction types w/ when they go into effect.
-    // TODO: Players change names.
     // TODO: Account for roster legalization (pre-season).
     // TODO: Account for roster legalization (weekly).
-    // TODO: Configuration for rookie draft + end-of-season standings
     // TODO: import data (transactions)
     // TODO: Rest of DB migrations (incl. FK relations)
     // TODO: Auto-drop logic for weekly locks to ensure teams are legal.

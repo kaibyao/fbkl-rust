@@ -7,6 +7,7 @@ interface LoggedInDataRaw {
   id: number;
   email: string;
   selected_league_id: number;
+  selected_league_owner_team_id: number;
 }
 
 type NotLoggedInResponse = { id: never };
@@ -18,6 +19,7 @@ export interface LoggedIn {
   email: string;
   userId: number;
   selectedLeagueId: number;
+  selectedLeagueOwnerTeamId?: number;
 }
 
 interface NotLoggedIn {
@@ -51,5 +53,6 @@ export async function getUserData(): Promise<LoggedInResponse> {
     email: loggedInDataRaw.email,
     userId: loggedInDataRaw.id,
     selectedLeagueId: loggedInDataRaw.selected_league_id,
+    selectedLeagueOwnerTeamId: loggedInDataRaw.selected_league_owner_team_id,
   };
 }

@@ -12,12 +12,15 @@ import {
 import { isContractActiveOnTeam } from '@/app/_lib/contract.utils';
 import List from '@mui/material/List';
 import { LeagueRosterListPlayer } from '@/app/(authenticated)/league/_components/LeagueRosterListPlayer';
+import Button from '@mui/material/Button';
+import { useUserData } from '@/app/(authenticated)/league/_components/UserDataProvider';
 
 interface Props {
   team: TeamForRosterListFragment;
 }
 
 export const LeagueTeamRoster: FunctionComponent<Props> = ({ team }) => {
+  const userData = useUserData();
   const { activeContracts, activeButIrContracts, rookieDevelopmentContracts } =
     partitionContracts(team.contracts);
 
@@ -47,6 +50,9 @@ export const LeagueTeamRoster: FunctionComponent<Props> = ({ team }) => {
         <Divider />
 
         <Stack spacing={2}>
+          {userData.selectedLeagueOwnerTeamId !== team.id && (
+            <Button variant="contained">Propose Trade</Button>
+          )}
           <Typography variant="h5">
             Active ({activeContracts.length})
           </Typography>

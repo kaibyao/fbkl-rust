@@ -73,3 +73,22 @@ where
         .await?;
     Ok(team_users)
 }
+
+#[instrument]
+pub async fn get_all_team_users_by_user_and_league<C>(
+    user_id: &i64,
+    league_id: &i64,
+    db: &C,
+) -> Result<Vec<(team_user::Model, Option<team::Model>)>>
+where
+    C: ConnectionTrait + Debug,
+{
+    let team_users = team_user::Entity::find()
+        .find_also_related(team::Entity)
+        .join(JoinType::LeftJoin, team::Relation::League.def())
+        .filter(team_user::Column::UserId.eq(*user_id))
+        .filter(league::Column::Id.eq(*league_id))
+        .all(db)
+        .await?;
+    Ok(team_users)
+}

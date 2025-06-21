@@ -6,6 +6,7 @@ use axum::{
 };
 use fbkl_auth::verify_password_against_hash;
 use fbkl_entity::user_queries;
+use fbkl_logic::team_ownership::get_team_user_access_for_user_in_league;
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 use time::Duration;
@@ -95,6 +96,8 @@ pub enum LoggedInResponse {
         id: i64,
         email: String,
         selected_league_id: Option<i64>,
+        /// The ID of the team in the selected league of which the user is a current owner.
+        selected_league_owner_team_id: Option<i64>,
     },
     NotLoggedIn {},
 }
@@ -110,9 +113,24 @@ pub async fn logged_in_data(
 
     let selected_league_id = session.get::<i64>("selected_league_id").await?;
 
+    let maybe_user_team_id = match selected_league_id {
+        Some(league_id) => {
+            match get_team_user_access_for_user_in_league(user_model.id, league_id, &state.db).await
+            {
+                Ok(maybe_team) => maybe_team.map(|team| team.id),
+                Err(e) => {
+                    tracing::error!("Error getting team user access for user in league: {}", e);
+                    None
+                }
+            }
+        }
+        None => None,
+    };
+
     Ok(Json(LoggedInResponse::LoggedIn {
         id: user_model.id,
         email: user_model.email,
         selected_league_id,
+        selected_league_owner_team_id: maybe_user_team_id,
     }))
 }
