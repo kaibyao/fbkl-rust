@@ -1,3 +1,7 @@
+/// The number of rounds in the rookie draft.
+pub static DRAFT_PICK_ROUNDS: i16 = 5;
+/// The number of seasons into the future that in which future draft picks can be traded (and therefore generated).
+pub static FUTURE_DRAFT_PICK_SEASONS_LIMIT: i16 = 2;
 /// The max number of non-(RD|RDI|RFA|UFA) contracts that can be retained by a team at the Keeper Deadline.
 pub static KEEPER_CONTRACT_COUNT_LIMIT: usize = 14;
 /// The sum of contract values retained by a team for the Keeper Deadline must be at or below this value.

@@ -22,6 +22,19 @@ where
 }
 
 #[instrument]
+pub async fn insert_draft_picks<C>(draft_picks: Vec<draft_pick::ActiveModel>, db: &C) -> Result<()>
+where
+    C: ConnectionTrait + TransactionTrait + Debug,
+{
+    let transaction = db.begin().await?;
+    draft_pick::Entity::insert_many(draft_picks)
+        .exec(&transaction)
+        .await?;
+    transaction.commit().await?;
+    Ok(())
+}
+
+#[instrument]
 pub async fn get_draft_picks_affected_by_options<C>(
     draft_pick_options: &[draft_pick_option::Model],
     db: &C,
