@@ -24,3 +24,6 @@ node_modules
 # generated assets
 generated
 .eslintcache
+
+# AI-generated files
+.serena/cache
