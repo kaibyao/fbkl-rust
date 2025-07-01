@@ -208,6 +208,7 @@ pub enum Auction {
     SoftEndTimestamp,
     FixedEndTimestamp,
     ContractId,
+    DeadlineId,
     CreatedAt,
     UpdatedAt,
 }

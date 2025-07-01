@@ -71,9 +71,8 @@ The system already has a `deadline` table. We'll enhance it with configuration c
 
 ```sql
 -- Add columns to existing deadline table via migration
+-- Draft, Active, Processed
 ALTER TABLE deadline ADD COLUMN status TEXT DEFAULT 'Processed';
-ALTER TABLE deadline ADD COLUMN is_active BOOLEAN DEFAULT true;
-ALTER TABLE deadline ADD COLUMN source_deadline_config_id BIGINT REFERENCES deadline(id);
 
 -- New table for deadline configuration rules
 CREATE TABLE deadline_config_rules (
@@ -82,11 +81,11 @@ CREATE TABLE deadline_config_rules (
   end_of_season_year SMALLINT NOT NULL,
 
   -- Configuration values for each deadline type
-  preseason_keeper_datetime TIMESTAMPTZ,
-  veteran_auction_days_after_keeper INT,
-  fa_auction_days_duration INT,
-  final_roster_lock_days_after_rookie_draft INT,
-  playoffs_start_week INT DEFAULT 21,
+  preseason_keeper_datetime TIMESTAMPTZ NOT NULL,
+  veteran_auction_days_after_keeper SMALLINT NOT NULL,
+  fa_auction_days_duration SMALLINT NOT NULL,
+  final_roster_lock_days_after_rookie_draft SMALLINT NOT NULL,
+  playoffs_start_week SMALLINT NOT NULL,
 
   created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
   updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -96,8 +95,7 @@ CREATE TABLE deadline_config_rules (
 );
 
 -- Add source attribution to existing tables
-ALTER TABLE transaction ADD COLUMN source_deadline_id BIGINT REFERENCES deadline(id);
-ALTER TABLE auction ADD COLUMN source_deadline_id BIGINT REFERENCES deadline(id);
+ALTER TABLE auction ADD COLUMN deadline_id BIGINT REFERENCES deadline(id);
 ```
 
 ### Phase-Based Implementation Strategy
@@ -109,30 +107,28 @@ ALTER TABLE auction ADD COLUMN source_deadline_id BIGINT REFERENCES deadline(id)
 ### Step 1.1: Database Schema Implementation
 - Create migration to enhance existing `deadline` table:
   - Add `status` column (TEXT DEFAULT 'Processed')
-  - Add `is_active` column (BOOLEAN DEFAULT true)
-  - Add `source_deadline_config_id` column (BIGINT self-referencing FK)
 - Create new `deadline_config_rules` table:
   - id (BIGSERIAL primary key)
   - league_id (BIGINT, references league)
   - end_of_season_year (SMALLINT)
   - Configuration fields:
-    * preseason_keeper_datetime (TIMESTAMPTZ)
-    * veteran_auction_days_after_keeper (INT)
-    * fa_auction_days_duration (INT)
-    * final_roster_lock_days_after_rookie_draft (INT)
-    * playoffs_start_week (INT DEFAULT 21)
+    - preseason_keeper_datetime (TIMESTAMPTZ)
+    - veteran_auction_days_after_keeper (INT)
+    - fa_auction_days_duration (INT)
+    - final_roster_lock_days_after_rookie_draft (INT)
+    - playoffs_start_week (INT DEFAULT 21)
   - Unique constraint on (league_id, end_of_season_year)
 
 ### Step 1.2: Entity Crate Implementation
 - Enhance existing `deadline` entity:
-  - Add new fields: status, is_active, source_deadline_config_id
+  - Add new field: status
   - Add DeadlineStatus enum (Draft, Activated, Processing, Processed, Error, RolledBack)
 - Create new `deadline_config_rules` entity:
   - Define struct with all configuration fields
   - Add relationships to league entity
   - Add query functions:
-    * get_config_rules() - fetch current configuration
-    * upsert_config_rules() - insert or update configuration
+    - get_config_rules() - fetch current configuration
+    - upsert_config_rules() - insert or update configuration
 
 ### Step 1.3: Business Logic Layer (logic/ crate)
 - Create deadline_config module with core business functions:
@@ -171,8 +167,7 @@ ALTER TABLE auction ADD COLUMN source_deadline_id BIGINT REFERENCES deadline(id)
 
 ### Step 2.1: Add Source Attribution to Existing Systems
 - Add source_deadline_id column to core tables:
-  - transaction table (BIGINT FK to deadline.id)
-  - auction table (if exists)
+  - auction table
   - Any other tables that deadlines create
 - Update existing business logic in logic/ crate to accept and propagate source_deadline_id
 - Ensure all transaction creation functions can track their source deadline

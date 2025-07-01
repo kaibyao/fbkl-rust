@@ -280,6 +280,7 @@ pub enum Deadline {
     Name,
     EndOfSeasonYear,
     LeagueId,
+    Status,
     CreatedAt,
     UpdatedAt,
 }
