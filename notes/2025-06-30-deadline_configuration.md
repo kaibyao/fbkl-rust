@@ -122,8 +122,8 @@ ALTER TABLE auction ADD COLUMN deadline_id BIGINT REFERENCES deadline(id);
 ### Step 1.2: Entity Crate Implementation
 - Enhance existing `deadline` entity:
   - Add new field: status
-  - Add DeadlineStatus enum (Draft, Activated, Processing, Processed, Error, RolledBack)
-- Create new `deadline_config_rules` entity:
+  - Add DeadlineStatus enum (Draft, Activated, Processing, Processed, Error)
+- Create new `deadline_config_rule` entity:
   - Define struct with all configuration fields
   - Add relationships to league entity
   - Add query functions:
@@ -211,7 +211,7 @@ ALTER TABLE auction ADD COLUMN deadline_id BIGINT REFERENCES deadline(id);
 - Implement safe rollback functions in logic/ crate:
   - find_deadline_artifacts() - query all entities created by a deadline
   - flag_artifacts_as_rolled_back() - set is_rolled_back flags
-  - rollback_deadline_config() - set deadline status to RolledBack
+  - rollback_deadline_config() - set deadline status to Draft
 - Add extensive logging and audit trail for rollback actions
 - Implement rollback validation (prevent rollback of critical processed items)
 

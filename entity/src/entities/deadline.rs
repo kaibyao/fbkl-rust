@@ -25,6 +25,7 @@ pub struct Model {
     pub name: String,
     pub end_of_season_year: i16,
     pub league_id: i64,
+    pub status: DeadlineStatus,
     pub created_at: DateTimeWithTimeZone,
     pub updated_at: DateTimeWithTimeZone,
 }
@@ -68,6 +69,29 @@ impl Model {
     pub fn is_preseason_keeper_or_before(&self) -> bool {
         [DeadlineKind::PreseasonStart, DeadlineKind::PreseasonKeeper].contains(&self.kind)
     }
+}
+
+/// Status of a deadline indicating its processing state
+#[derive(
+    Debug, Clone, Copy, Eq, PartialEq, Enum, EnumIter, DeriveActiveEnum, Serialize, Deserialize,
+)]
+#[sea_orm(rs_type = "String", db_type = "String(None)")]
+pub enum DeadlineStatus {
+    /// Deadline is in draft state, not yet activated
+    #[sea_orm(string_value = "Draft")]
+    Draft,
+    /// Deadline has been activated and is ready for processing
+    #[sea_orm(string_value = "Activated")]
+    Activated,
+    /// Deadline is currently being processed
+    #[sea_orm(string_value = "Processing")]
+    Processing,
+    /// Deadline has been successfully processed
+    #[sea_orm(string_value = "Processed")]
+    Processed,
+    /// An error occurred while processing the deadline
+    #[sea_orm(string_value = "Error")]
+    Error,
 }
 
 /// The different types of deadlines that happen in a league. This is a leaky abstraction, in that there is no common way that related models use these deadline types.

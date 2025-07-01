@@ -4,6 +4,7 @@ pub mod auction;
 pub mod auction_bid;
 pub mod contract;
 pub mod deadline;
+pub mod deadline_config_rule;
 pub mod draft_pick;
 pub mod draft_pick_draft_pick_option;
 pub mod draft_pick_option;
