@@ -11,6 +11,7 @@ pub struct Migration;
 #[async_trait::async_trait]
 impl MigrationTrait for Migration {
     async fn up(&self, manager: &SchemaManager) -> Result<(), DbErr> {
+        // Add status column to deadline table
         manager
             .alter_table(
                 Table::alter()
@@ -19,7 +20,6 @@ impl MigrationTrait for Migration {
                     .to_owned(),
             )
             .await?;
-
         manager
             .create_index(
                 IndexCreateStatement::new()
