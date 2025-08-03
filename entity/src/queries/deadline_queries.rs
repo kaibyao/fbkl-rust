@@ -7,7 +7,7 @@ use sea_orm::{
 };
 use tracing::instrument;
 
-use crate::deadline::{self, DeadlineKind};
+use crate::deadline::{self, DeadlineKind, DeadlineStatus};
 
 #[instrument]
 pub async fn find_deadlines_by_date_for_league_season<C>(
@@ -107,4 +107,21 @@ where
         })?;
 
     Ok(maybe_deadline_model)
+}
+
+/// Find all deadlines with a specific status
+#[instrument]
+pub async fn find_deadlines_by_status<C>(
+    status: DeadlineStatus,
+    db: &C,
+) -> Result<Vec<deadline::Model>>
+where
+    C: ConnectionTrait + Debug,
+{
+    let deadlines = deadline::Entity::find()
+        .filter(deadline::Column::Status.eq(status))
+        .all(db)
+        .await?;
+
+    Ok(deadlines)
 }
