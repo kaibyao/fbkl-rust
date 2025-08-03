@@ -1,8 +1,8 @@
 use axum::{
+    Form, Json,
     extract::State,
     http::StatusCode,
     response::{Html, IntoResponse, Response},
-    Form, Json,
 };
 use fbkl_auth::verify_password_against_hash;
 use fbkl_entity::user_queries;

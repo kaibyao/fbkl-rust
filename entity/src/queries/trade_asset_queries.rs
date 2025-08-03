@@ -1,8 +1,8 @@
 use std::fmt::Debug;
 
 use color_eyre::{
-    eyre::{bail, eyre},
     Result,
+    eyre::{bail, eyre},
 };
 use sea_orm::{ActiveModelTrait, ConnectionTrait, LoaderTrait, TransactionTrait};
 use tracing::instrument;
@@ -114,7 +114,11 @@ fn validate_contract_trade_asset(
         .team_id
         .ok_or_else(|| eyre!("Contract is missing a team_id (id = {})", contract_model.id))?;
     if contract_team_id != from_team_id {
-        bail!("Contract's owning team and trade asset's sending team do not match. contract.team_id = {}. trade_asset.from_team_id = {}.", contract_team_id, from_team_id);
+        bail!(
+            "Contract's owning team and trade asset's sending team do not match. contract.team_id = {}. trade_asset.from_team_id = {}.",
+            contract_team_id,
+            from_team_id
+        );
     }
 
     Ok(())

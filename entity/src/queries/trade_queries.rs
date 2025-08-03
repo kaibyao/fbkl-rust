@@ -1,6 +1,6 @@
 use std::fmt::Debug;
 
-use color_eyre::{eyre::ensure, Result};
+use color_eyre::{Result, eyre::ensure};
 use sea_orm::{ActiveModelTrait, ActiveValue, ConnectionTrait};
 use tracing::instrument;
 

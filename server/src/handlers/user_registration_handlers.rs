@@ -1,9 +1,9 @@
 use crate::{error::FbklError, server::AppState};
 use axum::{
+    Form,
     extract::{Query, State},
     http::StatusCode,
     response::{Html, Response},
-    Form,
 };
 use fbkl_auth::{decode_token, generate_password_hash, generate_token};
 use fbkl_entity::{

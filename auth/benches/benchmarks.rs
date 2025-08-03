@@ -1,4 +1,4 @@
-use criterion::{criterion_group, criterion_main, Criterion};
+use criterion::{Criterion, criterion_group, criterion_main};
 use fbkl_auth::{generate_password_hash, verify_password_against_hash};
 
 static PASSWORD: &str = "this is a test password";

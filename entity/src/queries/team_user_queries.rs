@@ -1,6 +1,6 @@
 use std::fmt::Debug;
 
-use color_eyre::eyre::{eyre, Result};
+use color_eyre::eyre::{Result, eyre};
 use sea_orm::{
     ColumnTrait, ConnectionTrait, EntityTrait, JoinType, ModelTrait, QueryFilter, QuerySelect,
     RelationTrait,

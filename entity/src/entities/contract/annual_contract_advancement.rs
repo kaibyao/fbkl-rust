@@ -1,9 +1,9 @@
-use color_eyre::{eyre::bail, Result};
+use color_eyre::{Result, eyre::bail};
 use rust_decimal::{Decimal, RoundingStrategy};
 use rust_decimal_macros::dec;
 use sea_orm::ActiveValue;
 
-use super::{contract_entity, ContractKind, ContractStatus};
+use super::{ContractKind, ContractStatus, contract_entity};
 
 /// Creates the next year's contract from the current contract. This should be used in tandem with contract_queries::advance_contract, as we also need to update the current contract to point to the new one, plus handle various cases around RFAs/UFAs, and salaries.
 pub fn create_advancement_for_contract(
@@ -38,70 +38,89 @@ pub fn create_advancement_for_contract(
         ContractKind::RookieDevelopment => match current_contract.year_number {
             1 => {
                 new_contract.year_number = ActiveValue::Set(2);
-            },
+            }
             2 => {
                 new_contract.year_number = ActiveValue::Set(3);
-            },
+            }
             3 => {
                 new_contract.year_number = ActiveValue::Set(2);
                 new_contract.kind = ActiveValue::Set(ContractKind::Rookie);
-            },
+            }
             _ => {
-                bail!("Invalid year for contract type: ({:?}, {})", current_contract.kind, current_contract.year_number);
+                bail!(
+                    "Invalid year for contract type: ({:?}, {})",
+                    current_contract.kind,
+                    current_contract.year_number
+                );
             }
         },
         ContractKind::RookieDevelopmentInternational => {
             new_contract.year_number = ActiveValue::Set(current_contract.year_number + 1);
-        },
+        }
         ContractKind::Rookie => match current_contract.year_number {
-                1 => {
-                    new_contract.year_number = ActiveValue::Set(2);
-                },
-                2 => {
-                    new_contract.year_number = ActiveValue::Set(3);
-                },
-                3 => {
-                    new_contract.kind = ActiveValue::Set(ContractKind::RestrictedFreeAgent);
-                },
-                _ => {
-                    bail!("Invalid year for contract type: ({:?}, {})", current_contract.kind, current_contract.year_number);
-                }
-            },
-        ContractKind::RestrictedFreeAgent => bail!("An RFA contract cannot be advanced; the contract must be either dropped or signed to a team."),
-        ContractKind::RookieExtension =>
-            match current_contract.year_number {
-                4 => {
-                    new_contract.year_number = ActiveValue::Set(5);
-                },
-                5 => {
-                    new_contract.year_number = ActiveValue::Set(1);
-                    new_contract.kind = ActiveValue::Set(ContractKind::UnrestrictedFreeAgentOriginalTeam);
-                },
-                _ => {
-                    bail!("Invalid year for contract type: ({:?}, {})", current_contract.kind, current_contract.year_number);
-                }
+            1 => {
+                new_contract.year_number = ActiveValue::Set(2);
             }
-        ,
-        ContractKind::Veteran => {
-            match current_contract.year_number {
-                1 => {
-                    new_contract.year_number = ActiveValue::Set(2);
-                },
-                2 => {
-                    new_contract.year_number = ActiveValue::Set(3);
-                },
-                3 => {
-                    new_contract.year_number = ActiveValue::Set(1);
-                    new_contract.kind = ActiveValue::Set(ContractKind::UnrestrictedFreeAgentVeteran);
-                },
-                _ => {
-                    bail!("Invalid year for contract type: ({:?}, {})", current_contract.kind, current_contract.year_number);
-                }
+            2 => {
+                new_contract.year_number = ActiveValue::Set(3);
+            }
+            3 => {
+                new_contract.kind = ActiveValue::Set(ContractKind::RestrictedFreeAgent);
+            }
+            _ => {
+                bail!(
+                    "Invalid year for contract type: ({:?}, {})",
+                    current_contract.kind,
+                    current_contract.year_number
+                );
+            }
+        },
+        ContractKind::RestrictedFreeAgent => bail!(
+            "An RFA contract cannot be advanced; the contract must be either dropped or signed to a team."
+        ),
+        ContractKind::RookieExtension => match current_contract.year_number {
+            4 => {
+                new_contract.year_number = ActiveValue::Set(5);
+            }
+            5 => {
+                new_contract.year_number = ActiveValue::Set(1);
+                new_contract.kind =
+                    ActiveValue::Set(ContractKind::UnrestrictedFreeAgentOriginalTeam);
+            }
+            _ => {
+                bail!(
+                    "Invalid year for contract type: ({:?}, {})",
+                    current_contract.kind,
+                    current_contract.year_number
+                );
+            }
+        },
+        ContractKind::Veteran => match current_contract.year_number {
+            1 => {
+                new_contract.year_number = ActiveValue::Set(2);
+            }
+            2 => {
+                new_contract.year_number = ActiveValue::Set(3);
+            }
+            3 => {
+                new_contract.year_number = ActiveValue::Set(1);
+                new_contract.kind = ActiveValue::Set(ContractKind::UnrestrictedFreeAgentVeteran);
+            }
+            _ => {
+                bail!(
+                    "Invalid year for contract type: ({:?}, {})",
+                    current_contract.kind,
+                    current_contract.year_number
+                );
             }
         },
         ContractKind::FreeAgent => bail!("Cannot advance a free agent contract."),
-        ContractKind::UnrestrictedFreeAgentOriginalTeam => bail!("A UFA contract cannot be advanced; the contract must be either dropped or signed to a team."),
-        ContractKind::UnrestrictedFreeAgentVeteran => bail!("A UFA contract cannot be advanced; the contract must be either dropped or signed to a team."),
+        ContractKind::UnrestrictedFreeAgentOriginalTeam => bail!(
+            "A UFA contract cannot be advanced; the contract must be either dropped or signed to a team."
+        ),
+        ContractKind::UnrestrictedFreeAgentVeteran => bail!(
+            "A UFA contract cannot be advanced; the contract must be either dropped or signed to a team."
+        ),
     }
 
     new_contract.salary = ActiveValue::Set(calculate_yearly_salary_increase(current_contract)?);
@@ -153,8 +172,8 @@ mod tests {
     use sea_orm::ActiveValue;
 
     use crate::contract::{
-        annual_contract_advancement::create_advancement_for_contract, ContractKind, ContractStatus,
-        Model,
+        ContractKind, ContractStatus, Model,
+        annual_contract_advancement::create_advancement_for_contract,
     };
 
     static NOW: Lazy<DateTime<FixedOffset>> = Lazy::new(|| {

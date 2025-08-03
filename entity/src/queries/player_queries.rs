@@ -1,6 +1,6 @@
 use std::collections::HashSet;
 
-use color_eyre::{eyre::eyre, Result};
+use color_eyre::{Result, eyre::eyre};
 use sea_orm::sea_query::Expr;
 use sea_orm::{ConnectionTrait, EntityTrait, QueryFilter};
 

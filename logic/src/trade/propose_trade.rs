@@ -1,6 +1,6 @@
 use std::fmt::Debug;
 
-use color_eyre::{eyre::eyre, Result};
+use color_eyre::{Result, eyre::eyre};
 use fbkl_entity::{
     sea_orm::{ActiveModelTrait, ActiveValue, ConnectionTrait, ModelTrait, TransactionTrait},
     team, team_trade, team_user, trade,

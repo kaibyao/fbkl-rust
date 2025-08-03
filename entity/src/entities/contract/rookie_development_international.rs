@@ -1,6 +1,6 @@
 use std::fmt::Debug;
 
-use color_eyre::eyre::{ensure, Result};
+use color_eyre::eyre::{Result, ensure};
 use contract_entity::ContractKind;
 use sea_orm::{ActiveValue, ConnectionTrait};
 
@@ -63,7 +63,12 @@ where
 {
     let related_player = rd_contract.get_player(db).await?;
 
-    ensure!(related_player.get_is_rdi_eligible(), "Related player ({}) for contract (contract_id = {}) must be eligible to be placed on an international contract.", related_player.get_name(), rd_contract.id);
+    ensure!(
+        related_player.get_is_rdi_eligible(),
+        "Related player ({}) for contract (contract_id = {}) must be eligible to be placed on an international contract.",
+        related_player.get_name(),
+        rd_contract.id
+    );
 
     Ok(())
 }

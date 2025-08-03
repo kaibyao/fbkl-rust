@@ -1,5 +1,5 @@
 use crate::contract;
-use color_eyre::{eyre::bail, Result};
+use color_eyre::{Result, eyre::bail};
 use sea_orm::ActiveValue;
 
 use super::{ContractKind, ContractStatus};

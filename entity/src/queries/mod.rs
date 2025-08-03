@@ -1,5 +1,6 @@
 pub mod auction_queries;
 pub mod contract_queries;
+pub mod deadline_config_rule_queries;
 pub mod deadline_queries;
 pub mod draft_pick_queries;
 pub mod league_player_queries;

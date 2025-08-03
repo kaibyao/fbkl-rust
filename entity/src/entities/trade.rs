@@ -4,8 +4,8 @@ use std::fmt::Debug;
 
 use async_graphql::Enum;
 use async_trait::async_trait;
-use color_eyre::{eyre::eyre, Result};
-use sea_orm::{entity::prelude::*, ConnectionTrait};
+use color_eyre::{Result, eyre::eyre};
+use sea_orm::{ConnectionTrait, entity::prelude::*};
 use serde::{Deserialize, Serialize};
 use tracing::instrument;
 
@@ -240,7 +240,11 @@ fn non_original_trade_requires_previous_trade(model: &ActiveModel) -> Result<(),
         && model.original_trade_id.is_set()
         && model.original_trade_id.as_ref().as_ref().unwrap() != model.id.as_ref()
     {
-        Err(DbErr::Custom(format!("This trade (id={}, original_trade_id={:?}) is missing a reference to the previous trade for this player.", model.id.as_ref(), model.original_trade_id.as_ref())))
+        Err(DbErr::Custom(format!(
+            "This trade (id={}, original_trade_id={:?}) is missing a reference to the previous trade for this player.",
+            model.id.as_ref(),
+            model.original_trade_id.as_ref()
+        )))
     } else {
         Ok(())
     }
@@ -251,7 +255,12 @@ fn original_trade_requires_unset_previous_trade(model: &ActiveModel) -> Result<(
         && model.original_trade_id.is_set()
         && model.original_trade_id.as_ref().as_ref().unwrap() == model.id.as_ref()
     {
-        Err(DbErr::Custom(format!("This trade (id={}, original_trade_id={:?}, previous_trade_id={:?}) is supposedly the original (id and original id are matching), yet a previous trade id is referenced.", model.id.as_ref(), model.original_trade_id.as_ref(), model.previous_trade_id.as_ref())))
+        Err(DbErr::Custom(format!(
+            "This trade (id={}, original_trade_id={:?}, previous_trade_id={:?}) is supposedly the original (id and original id are matching), yet a previous trade id is referenced.",
+            model.id.as_ref(),
+            model.original_trade_id.as_ref(),
+            model.previous_trade_id.as_ref()
+        )))
     } else {
         Ok(())
     }

@@ -5,10 +5,10 @@ use std::fmt::Debug;
 use async_graphql::Enum;
 use async_trait::async_trait;
 use color_eyre::{
-    eyre::{bail, eyre, Error},
     Result,
+    eyre::{Error, bail, eyre},
 };
-use sea_orm::{entity::prelude::*, ActiveValue, ConnectionTrait};
+use sea_orm::{ActiveValue, ConnectionTrait, entity::prelude::*};
 use serde::{Deserialize, Serialize};
 use tracing::instrument;
 
@@ -489,7 +489,11 @@ fn non_original_contract_requires_previous_contract(model: &ActiveModel) -> Resu
         && model.original_contract_id.is_set()
         && model.original_contract_id.as_ref().as_ref().unwrap() != model.id.as_ref()
     {
-        Err(DbErr::Custom(format!("This contract (id={}, original_contract_id={:?}) is missing a reference to the previous contract for this player.", model.id.as_ref(), model.original_contract_id.as_ref())))
+        Err(DbErr::Custom(format!(
+            "This contract (id={}, original_contract_id={:?}) is missing a reference to the previous contract for this player.",
+            model.id.as_ref(),
+            model.original_contract_id.as_ref()
+        )))
     } else {
         Ok(())
     }
@@ -497,7 +501,11 @@ fn non_original_contract_requires_previous_contract(model: &ActiveModel) -> Resu
 
 fn non_original_contract_requires_original_contract(model: &ActiveModel) -> Result<(), DbErr> {
     if model.previous_contract_id.is_set() && model.original_contract_id.is_not_set() {
-        Err(DbErr::Custom(format!("This contract (id={}, previous_contract_id={:?}) is missing a reference to the original contract for this player.", model.id.as_ref(), model.previous_contract_id.as_ref())))
+        Err(DbErr::Custom(format!(
+            "This contract (id={}, previous_contract_id={:?}) is missing a reference to the original contract for this player.",
+            model.id.as_ref(),
+            model.previous_contract_id.as_ref()
+        )))
     } else {
         Ok(())
     }
@@ -509,7 +517,12 @@ fn original_contract_requires_unset_previous_contract(model: &ActiveModel) -> Re
         && model.id.is_set()
         && model.original_contract_id.as_ref().as_ref().unwrap() == model.id.as_ref()
     {
-        Err(DbErr::Custom(format!("This contract (id={}, original_contract_id={:?}, previous_contract_id={:?}) is supposedly the original (id and original id are matching), yet a previous contract id is referenced.", model.id.as_ref(), model.original_contract_id.as_ref(), model.previous_contract_id.as_ref())))
+        Err(DbErr::Custom(format!(
+            "This contract (id={}, original_contract_id={:?}, previous_contract_id={:?}) is supposedly the original (id and original id are matching), yet a previous contract id is referenced.",
+            model.id.as_ref(),
+            model.original_contract_id.as_ref(),
+            model.previous_contract_id.as_ref()
+        )))
     } else {
         Ok(())
     }

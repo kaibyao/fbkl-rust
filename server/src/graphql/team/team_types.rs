@@ -1,7 +1,7 @@
 use async_graphql::{Context, Object, Result, SimpleObject};
 use fbkl_entity::{
     contract_queries::find_active_contracts_for_team,
-    sea_orm::{prelude::DateTimeWithTimeZone, DatabaseConnection},
+    sea_orm::{DatabaseConnection, prelude::DateTimeWithTimeZone},
     team,
     team_user_queries::get_team_users_by_team,
 };

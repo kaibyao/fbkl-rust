@@ -1,6 +1,6 @@
 use std::fmt::Debug;
 
-use color_eyre::{eyre::bail, Result};
+use color_eyre::{Result, eyre::bail};
 use fbkl_constants::league_rules::{
     KEEPER_CONTRACT_COUNT_LIMIT, KEEPER_CONTRACT_TOTAL_SALARY_LIMIT,
 };
@@ -87,7 +87,10 @@ fn validate_team_keepers(contracts: &[contract::Model]) -> Result<()> {
         .collect();
 
     if counted_contracts.len() != contracts.len() {
-        bail!("The contracts attempted to be saved as Keepers contained contract types that cannot be kept. Only the following types of contracts can be kept: Rookie Development (International) (1-3), Rookie (1-3), Rookie Extension (4-5), and Veteran (1-3).\n\nGiven contracts:\n{:#?}", contracts);
+        bail!(
+            "The contracts attempted to be saved as Keepers contained contract types that cannot be kept. Only the following types of contracts can be kept: Rookie Development (International) (1-3), Rookie (1-3), Rookie Extension (4-5), and Veteran (1-3).\n\nGiven contracts:\n{:#?}",
+            contracts
+        );
     }
 
     let counted_non_rd_contracts: Vec<&contract::Model> = counted_contracts
@@ -99,7 +102,12 @@ fn validate_team_keepers(contracts: &[contract::Model]) -> Result<()> {
         .collect();
 
     if counted_non_rd_contracts.len() > KEEPER_CONTRACT_COUNT_LIMIT {
-        bail!("The number of contracts attempted ({}) to be saved as Keepers exceeds the league limit of {}.\n\nContracts: {:#?}", counted_non_rd_contracts.len(), KEEPER_CONTRACT_COUNT_LIMIT, counted_non_rd_contracts);
+        bail!(
+            "The number of contracts attempted ({}) to be saved as Keepers exceeds the league limit of {}.\n\nContracts: {:#?}",
+            counted_non_rd_contracts.len(),
+            KEEPER_CONTRACT_COUNT_LIMIT,
+            counted_non_rd_contracts
+        );
     }
 
     let total_counted_contract_value: i16 = counted_non_rd_contracts
