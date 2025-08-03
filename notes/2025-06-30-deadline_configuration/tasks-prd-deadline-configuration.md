@@ -31,12 +31,12 @@ Based on the PRD for Deadline Configuration System, focusing on Phase 1 (Core Co
 
 ## Tasks
 
-- [ ] 1.0 **Implement Core Business Logic Layer**
-  - [ ] 1.1 Create deadline configuration validation logic in `logic/src/deadline_config/validation.rs`
-  - [ ] 1.2 Implement deadline generation from config rules in `logic/src/deadline_config/generation.rs`
-  - [ ] 1.3 Add configuration management functions (upsert, get, activate) in `logic/src/deadline_config/mod.rs`
-  - [ ] 1.4 Create entity queries for deadline config rules in `entity/src/queries/deadline_config_rule_queries.rs`
-  - [ ] 1.5 Add comprehensive error handling with FbklError variants for deadline configuration
+- [x] 1.0 **Implement Core Business Logic Layer**
+  - [x] 1.1 Create deadline configuration validation logic in `logic/src/deadline_config/validation.rs`
+  - [x] 1.2 Implement deadline generation from config rules in `logic/src/deadline_config/generation.rs`
+  - [x] 1.3 Add configuration management functions (upsert, get, activate) in `logic/src/deadline_config/mod.rs`
+  - [x] 1.4 Create entity queries for deadline config rules in `entity/src/queries/deadline_config_rule_queries.rs`
+  - [x] 1.5 Add comprehensive error handling with FbklError variants for deadline configuration
 
 - [ ] 2.0 **Create GraphQL API Layer**
   - [ ] 2.1 Define GraphQL input/output types in `server/src/graphql/deadline_config/types.rs`

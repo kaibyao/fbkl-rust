@@ -270,7 +270,7 @@ mod tests {
         assert_eq!(order[3], DeadlineKind::PreseasonRookieDraftStart);
 
         // Ensure no duplicates - simple check for this test
-        assert!(order.len() > 0);
+        assert!(!order.is_empty());
         // Manual duplicate check for the key deadlines
         let keeper_count = order
             .iter()
