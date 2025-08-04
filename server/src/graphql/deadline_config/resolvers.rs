@@ -1,19 +1,27 @@
 use async_graphql::{Context, Error as GraphQlError, Object, Result};
 use axum::http::StatusCode;
 use fbkl_entity::{
-    deadline, deadline_queries::find_deadlines_by_date_for_league_season,
-    league_queries::find_league_by_user, sea_orm::DatabaseConnection, team_user::LeagueRole,
-    team_user_queries::get_team_user_by_user_and_league, user,
+    deadline,
+    deadline_queries::find_deadlines_by_date_for_league_season,
+    league_queries::find_league_by_user,
+    sea_orm::{DatabaseConnection, EntityTrait},
+    team_user::LeagueRole,
+    team_user_queries::get_team_user_by_user_and_league,
+    user,
 };
+use fbkl_jobs;
 use fbkl_logic::deadline_config::{
     DeadlineConfigInput, activate_deadlines, can_edit_config, configure_deadlines,
     get_deadline_config,
 };
+use fbkl_logic::deadline_processing::process_single_deadline;
 use tower_sessions::Session;
 
 use crate::session::enforce_logged_in;
 
-use super::types::{Deadline, DeadlineConfigRules, DeadlineConfigRulesInput, DeadlineConfigStatus};
+use super::types::{
+    Deadline, DeadlineConfigRules, DeadlineConfigRulesInput, DeadlineConfigStatus, ProcessingReport,
+};
 
 /// GraphQL query resolvers for deadline configuration
 #[derive(Default)]
@@ -260,6 +268,105 @@ impl DeadlineConfigMutation {
             Err(_) => Err(GraphQlError::from(StatusCode::INTERNAL_SERVER_ERROR)),
         }
     }
+
+    /// Manually process a specific deadline (admin only)
+    async fn process_deadline_now(&self, ctx: &Context<'_>, deadline_id: i64) -> Result<bool> {
+        let db = ctx.data_unchecked::<DatabaseConnection>();
+        let session = ctx.data_unchecked::<Session>();
+
+        // Verify user is logged in and is an admin
+        let _user_id = enforce_logged_in(session.clone()).await?;
+
+        if !self.check_admin_access(ctx).await? {
+            return Err(GraphQlError::from(StatusCode::FORBIDDEN));
+        }
+
+        // Find the specific deadline
+        let deadline = match deadline::Entity::find_by_id(deadline_id).one(db).await {
+            Ok(Some(deadline)) => deadline,
+            Ok(None) => return Err(GraphQlError::from(StatusCode::NOT_FOUND)),
+            Err(_) => return Err(GraphQlError::from(StatusCode::INTERNAL_SERVER_ERROR)),
+        };
+
+        // Process the deadline
+        match process_single_deadline(&deadline, db).await {
+            Ok(result) => Ok(result.success),
+            Err(_) => Err(GraphQlError::from(StatusCode::INTERNAL_SERVER_ERROR)),
+        }
+    }
+
+    /// Process all ready deadlines for the system (admin only)
+    async fn process_all_ready_deadlines(&self, ctx: &Context<'_>) -> Result<ProcessingReport> {
+        let db = ctx.data_unchecked::<DatabaseConnection>();
+        let session = ctx.data_unchecked::<Session>();
+
+        // Verify user is logged in and is an admin
+        let _user_id = enforce_logged_in(session.clone()).await?;
+
+        if !self.check_admin_access(ctx).await? {
+            return Err(GraphQlError::from(StatusCode::FORBIDDEN));
+        }
+
+        // Process all deadlines using the jobs crate
+        match fbkl_jobs::process_deadlines(db).await {
+            Ok(report) => Ok(ProcessingReport::from(report)),
+            Err(_) => Err(GraphQlError::from(StatusCode::INTERNAL_SERVER_ERROR)),
+        }
+    }
+
+    /// Process all ready deadlines for a specific league/season (admin only)
+    async fn process_league_deadlines(
+        &self,
+        ctx: &Context<'_>,
+        league_id: i64,
+        end_of_season_year: i16,
+    ) -> Result<ProcessingReport> {
+        let db = ctx.data_unchecked::<DatabaseConnection>();
+        let session = ctx.data_unchecked::<Session>();
+
+        // Verify user is logged in and is an admin
+        let _user_id = enforce_logged_in(session.clone()).await?;
+
+        if !self.check_admin_access(ctx).await? {
+            return Err(GraphQlError::from(StatusCode::FORBIDDEN));
+        }
+
+        // Create a minimal processing report for league-specific processing
+        let mut report = fbkl_jobs::ProcessingReport::new();
+
+        // Get deadlines for this league/season that are ready for processing
+        let deadline_map =
+            match find_deadlines_by_date_for_league_season(league_id, end_of_season_year, db).await
+            {
+                Ok(deadlines) => deadlines,
+                Err(_) => return Err(GraphQlError::from(StatusCode::INTERNAL_SERVER_ERROR)),
+            };
+
+        let ready_deadlines: Vec<deadline::Model> = deadline_map
+            .into_values()
+            .filter(|d| d.status == deadline::DeadlineStatus::Activated)
+            .collect();
+
+        if ready_deadlines.is_empty() {
+            return Ok(ProcessingReport::from(report.complete()));
+        }
+
+        // Process each deadline
+        for deadline in ready_deadlines {
+            match process_single_deadline(&deadline, db).await {
+                Ok(result) => {
+                    report.deadlines_processed.push(result);
+                }
+                Err(e) => {
+                    report
+                        .errors
+                        .push(format!("Failed to process deadline {}: {}", deadline.id, e));
+                }
+            }
+        }
+
+        Ok(ProcessingReport::from(report.complete()))
+    }
 }
 
 impl DeadlineConfigMutation {
@@ -277,5 +384,22 @@ impl DeadlineConfigMutation {
             Ok(None) => Ok(false), // User not in league
             Err(_) => Err(GraphQlError::from(StatusCode::INTERNAL_SERVER_ERROR)),
         }
+    }
+
+    /// Helper method to check if current user is an admin
+    async fn check_admin_access(&self, ctx: &Context<'_>) -> Result<bool> {
+        let session = ctx.data_unchecked::<Session>();
+
+        // Verify user is logged in
+        let _user_id = enforce_logged_in(session.clone()).await?;
+
+        // Get user model from context
+        let user_model = match ctx.data_unchecked::<Option<user::Model>>() {
+            None => return Err(GraphQlError::from(StatusCode::UNAUTHORIZED)),
+            Some(user) => user,
+        };
+
+        // Check if user has admin status
+        Ok(user_model.app_admin_status == user::UserAppAdminStatus::Admin)
     }
 }

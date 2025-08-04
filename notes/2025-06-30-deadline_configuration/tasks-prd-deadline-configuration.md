@@ -45,12 +45,12 @@ Based on the PRD for Deadline Configuration System, focusing on Phase 1 (Core Co
   - [x] 2.4 Add authorization checks for commissioner-only access
   - [x] 2.5 Integrate deadline config module with main GraphQL schema
 
-- [ ] 3.0 **Build Deadline Processing Engine**
+- [x] 3.0 **Build Deadline Processing Engine**
   - [x] 3.1 Implement deadline generation from activated config rules in `logic/src/deadline_processing/mod.rs`
   - [x] 3.2 Create idempotent deadline processing functions with dependency handling
   - [x] 3.3 Add deadline status transition logic (Draft → Activated → Processing → Processed)
   - [x] 3.4 Implement cron job for automatic deadline processing in `jobs/src/deadline_processor.rs`
-  - [ ] 3.5 Add manual processing trigger mutation for administrators
+  - [x] 3.5 Add manual processing trigger mutation for administrators
 
 - [x] 4.0 **Source Attribution System Already Exists**
   - [x] 4.1 Source attribution exists via transaction.deadline_id column (no migration needed)

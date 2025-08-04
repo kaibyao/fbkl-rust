@@ -152,3 +152,55 @@ impl Deadline {
         self.status
     }
 }
+
+/// Result of a single deadline processing operation
+#[derive(Clone, SimpleObject)]
+pub struct ProcessingResult {
+    pub deadline_id: i64,
+    pub deadline_kind: deadline::DeadlineKind,
+    pub success: bool,
+    pub error_message: Option<String>,
+}
+
+impl From<fbkl_logic::deadline_processing::ProcessingResult> for ProcessingResult {
+    fn from(result: fbkl_logic::deadline_processing::ProcessingResult) -> Self {
+        Self {
+            deadline_id: result.deadline_id,
+            deadline_kind: result.deadline_kind,
+            success: result.success,
+            error_message: result.error_message,
+        }
+    }
+}
+
+/// Report summarizing the results of a deadline processing run
+#[derive(Clone, SimpleObject)]
+pub struct ProcessingReport {
+    pub run_started_at: String,
+    pub run_completed_at: String,
+    pub leagues_with_generated_deadlines: i32,
+    pub total_deadlines_generated: i32,
+    pub deadlines_processed: Vec<ProcessingResult>,
+    pub successful_processing_count: i32,
+    pub failed_processing_count: i32,
+    pub errors: Vec<String>,
+}
+
+impl From<fbkl_jobs::ProcessingReport> for ProcessingReport {
+    fn from(report: fbkl_jobs::ProcessingReport) -> Self {
+        Self {
+            run_started_at: report.run_started_at.to_rfc3339(),
+            run_completed_at: report.run_completed_at.to_rfc3339(),
+            leagues_with_generated_deadlines: report.leagues_with_generated_deadlines as i32,
+            total_deadlines_generated: report.total_deadlines_generated as i32,
+            deadlines_processed: report
+                .deadlines_processed
+                .into_iter()
+                .map(|r| r.into())
+                .collect(),
+            successful_processing_count: report.successful_processing_count as i32,
+            failed_processing_count: report.failed_processing_count as i32,
+            errors: report.errors,
+        }
+    }
+}
