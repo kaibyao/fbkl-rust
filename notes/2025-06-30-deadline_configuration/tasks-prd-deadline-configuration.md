@@ -15,7 +15,7 @@ Based on the PRD for Deadline Configuration System, focusing on Phase 1 (Core Co
 - `server/src/graphql/deadline_config/types.rs` - GraphQL input/output types for deadline configuration
 - `server/src/graphql/deadline_config/resolvers.rs` - GraphQL resolvers for mutations and queries
 - `jobs/src/deadline_processor.rs` - Cron job implementation for deadline processing
-- `migration/src/m*_add_deadline_source_attribution.rs` - Migration to add source_deadline_id to auctions/transactions
+- Note: Source attribution already exists via transaction.deadline_id (no additional migration needed)
 - `webapp-logged-in/src/components/DeadlineConfig/DeadlineConfigForm.tsx` - Commissioner deadline configuration form
 - `webapp-logged-in/src/components/DeadlineConfig/DeadlineConfigForm.test.tsx` - Unit tests for deadline config form
 - `webapp-logged-in/src/pages/league/[leagueId]/deadline-config.tsx` - Deadline configuration page
@@ -49,15 +49,14 @@ Based on the PRD for Deadline Configuration System, focusing on Phase 1 (Core Co
   - [x] 3.1 Implement deadline generation from activated config rules in `logic/src/deadline_processing/mod.rs`
   - [x] 3.2 Create idempotent deadline processing functions with dependency handling
   - [x] 3.3 Add deadline status transition logic (Draft → Activated → Processing → Processed)
-  - [ ] 3.4 Implement cron job for automatic deadline processing in `jobs/src/deadline_processor.rs`
+  - [x] 3.4 Implement cron job for automatic deadline processing in `jobs/src/deadline_processor.rs`
   - [ ] 3.5 Add manual processing trigger mutation for administrators
 
-- [ ] 4.0 **Add Source Attribution System**
-  - [ ] 4.1 Create migration to add source_deadline_id to auctions and transactions tables
-  - [ ] 4.2 Update auction creation logic to accept and store source_deadline_id
-  - [ ] 4.3 Update transaction creation logic to accept and store source_deadline_id
-  - [ ] 4.4 Modify existing deadline processing to propagate source attribution
-  - [ ] 4.5 Add queries to trace deadline-created data for future rollback capabilities
+- [x] 4.0 **Source Attribution System Already Exists**
+  - [x] 4.1 Source attribution exists via transaction.deadline_id column (no migration needed)
+  - [x] 4.2 Transaction creation already stores deadline_id for source attribution
+  - [x] 4.3 Existing deadline processing already propagates source attribution via transactions
+  - [x] 4.4 Queries to trace deadline-created data already possible via transaction.deadline_id
 
 - [ ] 5.0 **Implement Frontend Configuration Interface**
   - [ ] 5.1 Create deadline configuration form component with validation
@@ -112,7 +111,7 @@ pub async fn cleanup_outdated_deadlines<C>(league_id: i64, end_of_season_year: i
   - Leverages existing deadline processing logic in `keeper_deadline/` and `roster_lock/`
   - Implements atomic status transitions (Activated → Processing → Processed/Error)
   - Uses database locking for concurrency safety
-- Design functions to accept optional `source_deadline_id` for future attribution
+- Leverage existing transaction.deadline_id for source attribution
 
 **Key Functions to Create**:
 ```rust
@@ -124,7 +123,7 @@ pub async fn check_deadline_prerequisites<C>(deadline: &deadline::Model, db: &C)
 **Integration Points**:
 - `keeper_deadline::process_keeper_deadline()` - existing function
 - `roster_lock::lock_rosters()` - existing function
-- Extend these to accept `source_deadline_id` parameter
+- These already use transaction.deadline_id for source attribution
 
 **Estimated Time**: 4-5 hours
 
@@ -223,7 +222,7 @@ struct ProcessingReport {
 
 #### 4. Concurrency and Safety
 - **Database transactions**: Wrap all processing in transactions
-- **Lock-based coordination**: Use database locks to coordinate between multiple cron instances  
+- **Lock-based coordination**: Use database locks to coordinate between multiple cron instances
 - **Idempotent operations**: Ensure functions can be safely retried
 - **Comprehensive logging**: Track all processing attempts and outcomes
 
@@ -255,9 +254,9 @@ struct ProcessingReport {
 
 ### Future Considerations (Phase 4 Preparation)
 
-This implementation will prepare for Phase 4 (Source Attribution) by:
-- Designing processing functions to accept optional `source_deadline_id` parameters
-- Planning integration points for auction and transaction creation
-- Establishing patterns for data attribution and rollback preparation
+This implementation leverages existing source attribution:
+- Source attribution already exists via transaction.deadline_id column
+- All deadline-created data is properly tracked through transaction relationships
+- Rollback capabilities can be built on existing transaction.deadline_id relationships
 
 **Total Estimated Development Time: 10-15 hours across multiple focused sessions**

@@ -67,7 +67,7 @@ The FBKL fantasy basketball league system currently requires manual deadline man
 
 9. The system must ensure idempotent processing to handle job failures and retries
 
-10. The system must attribute all deadline-created data (auctions, transactions) to source deadlines
+10. The system must utilize existing source attribution (transactions already have deadline_id)
 
 ### Authorization & Access Control
 11. The system must restrict deadline configuration to league commissioners only

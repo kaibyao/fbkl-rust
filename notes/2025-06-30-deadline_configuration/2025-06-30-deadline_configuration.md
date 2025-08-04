@@ -94,8 +94,8 @@ CREATE TABLE deadline_config_rules (
   CONSTRAINT unique_config UNIQUE (league_id, end_of_season_year)
 );
 
--- Add source attribution to existing tables
-ALTER TABLE auction ADD COLUMN deadline_id BIGINT REFERENCES deadline(id);
+-- Source attribution already exists via transaction.deadline_id
+-- (Auctions are linked to deadlines through their associated transactions)
 ```
 
 ### Phase-Based Implementation Strategy
@@ -165,12 +165,9 @@ ALTER TABLE auction ADD COLUMN deadline_id BIGINT REFERENCES deadline(id);
 
 **Objective:** Automatic deadline processing with proper dependency handling
 
-### Step 2.1: Add Source Attribution to Existing Systems
-- Add source_deadline_id column to core tables:
-  - auction table
-  - Any other tables that deadlines create
-- Update existing business logic in logic/ crate to accept and propagate source_deadline_id
-- Ensure all transaction creation functions can track their source deadline
+### Step 2.1: Leverage Existing Source Attribution
+- Source attribution already exists via transaction.deadline_id column
+- All deadline-created entities are properly tracked through transaction relationships
 
 ### Step 2.2: Deadline Processing Engine (jobs/ crate)
 - Create deadline_processor module with:

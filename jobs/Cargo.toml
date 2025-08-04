@@ -6,3 +6,9 @@ edition = "2024"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
+fbkl-logic = { path = "../logic" }
+fbkl-entity = { path = "../entity" }
+color-eyre = "0.6.2"
+chrono = "0.4"
+tracing = "0.1.36"
+tokio = { version = "1.0", features = ["full"] }
