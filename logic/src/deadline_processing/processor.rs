@@ -3,7 +3,10 @@ use color_eyre::Result;
 use fbkl_entity::{
     deadline::{self, DeadlineKind, DeadlineStatus},
     deadline_config_rule, deadline_queries,
-    sea_orm::{ActiveModelTrait, ConnectionTrait, EntityTrait, Set, TransactionTrait},
+    sea_orm::{
+        ActiveModelTrait, ColumnTrait, ConnectionTrait, EntityTrait, QueryFilter, Set,
+        TransactionTrait,
+    },
 };
 use std::{collections::HashMap, fmt::Debug};
 use tracing::{debug, error, info, instrument, warn};
@@ -188,8 +191,12 @@ where
     let mut results = Vec::new();
 
     // Get all activated deadlines that are ready to process (deadline time has passed)
-    let ready_deadlines = deadline_queries::find_deadlines_by_status(DeadlineStatus::Activated, db)
-        .await?
+    let all_activated_deadlines = deadline::Entity::find()
+        .filter(deadline::Column::Status.eq(DeadlineStatus::Activated))
+        .all(db)
+        .await?;
+
+    let ready_deadlines = all_activated_deadlines
         .into_iter()
         .filter(|deadline| deadline.date_time <= now)
         .collect::<Vec<_>>();

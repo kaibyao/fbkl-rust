@@ -1,7 +1,8 @@
 'use server';
 
 import {
-  LEAGUE_MENU_WIDTH,
+  LEAGUE_MENU_WIDTH_PX,
+  LEAGUE_MENU_WIDTH_SX,
   LeagueMenu,
 } from '@/app/(authenticated)/league/_components/LeagueMenu';
 import { LeagueHeader } from '@/app/(authenticated)/league/_components/LeagueHeader';
@@ -36,7 +37,7 @@ export default async function LeagueLayout({
 
       <LeagueMenu />
 
-      <Box marginLeft={`${LEAGUE_MENU_WIDTH}px`} paddingTop={2}>
+      <Box marginLeft={LEAGUE_MENU_WIDTH_SX} paddingTop={2}>
         <Toolbar />
         <Box paddingLeft={3} paddingRight={3}>
           {children}

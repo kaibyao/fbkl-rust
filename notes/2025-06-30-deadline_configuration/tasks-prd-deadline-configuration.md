@@ -58,12 +58,12 @@ Based on the PRD for Deadline Configuration System, focusing on Phase 1 (Core Co
   - [x] 4.3 Existing deadline processing already propagates source attribution via transactions
   - [x] 4.4 Queries to trace deadline-created data already possible via transaction.deadline_id
 
-- [ ] 5.0 **Implement Frontend Configuration Interface**
-  - [ ] 5.1 Create deadline configuration form component with validation
-  - [ ] 5.2 Implement deadline status display and activation controls
-  - [ ] 5.3 Create deadline configuration page integrated with league management
-  - [ ] 5.4 Add GraphQL queries and mutations for frontend consumption
-  - [ ] 5.5 Implement commissioner authorization checks in frontend routing
+- [x] 5.0 **Implement Frontend Configuration Interface**
+  - [x] 5.1 Create deadline configuration form component with validation
+  - [x] 5.2 Implement deadline status display and activation controls
+  - [x] 5.3 Create deadline configuration page integrated with league management
+  - [x] 5.4 Add GraphQL queries and mutations for frontend consumption
+  - [x] 5.5 Implement commissioner authorization checks in frontend routing
 
 ## Phase 3 Implementation Plan: Deadline Processing Engine
 

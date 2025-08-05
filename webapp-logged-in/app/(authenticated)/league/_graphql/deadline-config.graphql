@@ -1,0 +1,36 @@
+# Note: GraphQL schema generation is having issues, so temporarily commenting out
+# We'll implement the frontend using manual GraphQL operations for now
+
+# query GetDeadlineConfigRules($leagueId: Int!, $endOfSeasonYear: Int!) {
+#   deadlineConfigRules(leagueId: $leagueId, endOfSeasonYear: $endOfSeasonYear) {
+#     id
+#     leagueId
+#     endOfSeasonYear
+#     preseasonKeeperDeadline
+#     veteranAuctionDaysAfterKeeperDeadlineDuration
+#     faAuctionDaysDuration
+#     finalRosterLockDeadlineDaysAfterRookieDraft
+#     playoffsStartWeek
+#   }
+# }
+
+# mutation ConfigureSeasonDeadlines(
+#   $leagueId: Int!
+#   $endOfSeasonYear: Int!
+#   $config: DeadlineConfigRulesInput!
+# ) {
+#   configureSeasonDeadlines(
+#     leagueId: $leagueId
+#     endOfSeasonYear: $endOfSeasonYear
+#     config: $config
+#   ) {
+#     id
+#     leagueId
+#     endOfSeasonYear
+#     preseasonKeeperDeadline
+#     veteranAuctionDaysAfterKeeperDeadlineDuration
+#     faAuctionDaysDuration
+#     finalRosterLockDeadlineDaysAfterRookieDraft
+#     playoffsStartWeek
+#   }
+# }

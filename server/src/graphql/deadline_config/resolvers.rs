@@ -120,16 +120,17 @@ impl DeadlineConfigQuery {
 
         let is_activated = activated_count > 0 || processed_count > 0;
 
-        // Check if user can edit (must be commissioner and config must be editable)
-        let can_edit = match self.check_commissioner_access(ctx, league_id).await {
-            Ok(true) => {
-                // User is commissioner, check if configuration is editable
-                can_edit_config(league_id, end_of_season_year, db)
-                    .await
-                    .unwrap_or_default()
-            }
-            _ => false,
-        };
+        // Check if user can edit (must be admin or commissioner and config must be editable)
+        let is_config_editable = can_edit_config(league_id, end_of_season_year, db)
+            .await
+            .unwrap_or_default();
+        let can_edit_admin =
+            user_model.app_admin_status == user::UserAppAdminStatus::Admin && is_config_editable;
+        let can_edit_commissioner = self
+            .check_commissioner_access(ctx, league_id)
+            .await
+            .unwrap_or_default()
+            && is_config_editable;
 
         Ok(DeadlineConfigStatus {
             has_configuration,
@@ -137,7 +138,7 @@ impl DeadlineConfigQuery {
             draft_deadlines_count: draft_count,
             activated_deadlines_count: activated_count,
             processed_deadlines_count: processed_count,
-            can_edit,
+            can_edit: can_edit_admin || can_edit_commissioner,
         })
     }
 
