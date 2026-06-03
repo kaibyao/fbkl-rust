@@ -26,4 +26,9 @@ generated
 .eslintcache
 
 # AI-generated files
-.serena/cache
+.serena/
+
+# Beads / Dolt files (added by bd init)
+.dolt/
+*.db
+.beads-credential-key
