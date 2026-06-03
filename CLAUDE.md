@@ -9,7 +9,7 @@ FBKL is a custom fantasy basketball league system built as a full-stack monorepo
 ## Tech Stack
 
 ### Backend (Rust)
-- **Language**: Rust (Edition 2021)
+- **Language**: Rust (Edition 2024)
 - **Web framework**: Axum
 - **API**: GraphQL via async-graphql
 - **Database ORM**: SeaORM (type-safe queries)
@@ -74,7 +74,7 @@ pnpm install
 # Run logged-in webapp
 pnpm --filter "@fbkl/webapp-logged-in" dev
 
-# Run public webapp  
+# Run public webapp
 pnpm --filter "@fbkl/webapp-public" dev
 
 # Lint frontend

@@ -10,15 +10,15 @@ use std::sync::Arc;
 use std::time::Duration;
 
 use async_graphql::{EmptySubscription, Schema};
-use axum::{serve, Extension};
+use axum::{Extension, serve};
 use color_eyre::Result;
 use fbkl_auth::{encode_token, generate_token};
 use fbkl_entity::sea_orm::Database;
 use server::AppState;
 use time::Duration as TimeDuration;
 use tokio::{signal, task::AbortHandle};
-use tower_cookies::{cookie::SameSite, CookieManagerLayer, Key};
-use tower_sessions::{session_store::ExpiredDeletion, Expiry, SessionManagerLayer};
+use tower_cookies::{CookieManagerLayer, Key, cookie::SameSite};
+use tower_sessions::{Expiry, SessionManagerLayer, session_store::ExpiredDeletion};
 use tower_sessions_sqlx_store::PostgresStore;
 use tracing::info;
 use tracing_subscriber::EnvFilter;
@@ -119,12 +119,14 @@ async fn main() -> Result<()> {
 
 fn setup() -> Result<()> {
     if std::env::var("RUST_LIB_BACKTRACE").is_err() {
-        std::env::set_var("RUST_LIB_BACKTRACE", "1")
+        // SAFETY: called once during single-threaded startup before any threads spawn.
+        unsafe { std::env::set_var("RUST_LIB_BACKTRACE", "1") }
     }
     color_eyre::install()?;
 
     if std::env::var("RUST_LOG").is_err() {
-        std::env::set_var("RUST_LOG", "info")
+        // SAFETY: called once during single-threaded startup before any threads spawn.
+        unsafe { std::env::set_var("RUST_LOG", "info") }
     }
     tracing_subscriber::fmt::fmt()
         .with_env_filter(EnvFilter::from_default_env())
