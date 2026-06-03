@@ -273,7 +273,7 @@ impl RelatedPlayer {
     Serialize,
     Deserialize,
 )]
-#[sea_orm(rs_type = "String", db_type = "String(None)")]
+#[sea_orm(rs_type = "String", db_type = "String(StringLen::None)")]
 pub enum ContractKind {
     /// When a drafted player has not yet been activated, they are considered to be on a RD contract. An RD contract can last up to 3 years, though activating an RD player on their 4th year on a team converts them to their second year as a Rookie (R2 instead of R1).
     #[sea_orm(string_value = "RD")]
@@ -319,7 +319,7 @@ pub enum ContractKind {
     Serialize,
     Deserialize,
 )]
-#[sea_orm(rs_type = "String", db_type = "String(None)")]
+#[sea_orm(rs_type = "String", db_type = "String(StringLen::None)")]
 pub enum ContractStatus {
     /// Represents a player currently on a team or in free agency.
     #[default]

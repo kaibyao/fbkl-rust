@@ -47,7 +47,7 @@ impl Model {
     Serialize,
     Deserialize,
 )]
-#[sea_orm(rs_type = "String", db_type = "String(None)")]
+#[sea_orm(rs_type = "String", db_type = "String(StringLen::None)")]
 pub enum RookieDraftSelectionStatus {
     /// Draft pick has not been used or skipped yet.
     #[default]

@@ -105,7 +105,7 @@ impl Model {
 #[derive(
     Debug, Clone, Copy, Eq, PartialEq, Enum, EnumIter, DeriveActiveEnum, Serialize, Deserialize,
 )]
-#[sea_orm(rs_type = "String", db_type = "String(None)")]
+#[sea_orm(rs_type = "String", db_type = "String(StringLen::None)")]
 pub enum TransactionKind {
     /// The transaction is a trade between two teams.
     #[sea_orm(string_value = "Trade")]

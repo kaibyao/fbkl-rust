@@ -35,7 +35,7 @@ pub struct Model {
     Serialize,
     Deserialize,
 )]
-#[sea_orm(rs_type = "String", db_type = "String(None)")]
+#[sea_orm(rs_type = "String", db_type = "String(StringLen::None)")]
 pub enum DraftPickOptionStatus {
     /// The default status. This means the option has been proposed in a trade, but the trade has not been accepted yet.
     #[default]

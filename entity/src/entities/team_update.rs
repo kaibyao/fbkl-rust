@@ -46,7 +46,7 @@ impl Model {
     Serialize,
     Deserialize,
 )]
-#[sea_orm(rs_type = "String", db_type = "String(None)")]
+#[sea_orm(rs_type = "String", db_type = "String(StringLen::None)")]
 pub enum TeamUpdateStatus {
     /// Has not been processed yet.
     #[default]

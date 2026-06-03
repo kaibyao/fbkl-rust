@@ -57,7 +57,7 @@ async fn generate_positions(db: &SchemaManagerConnection<'_>) -> Result<(), DbEr
         .iter()
         .map(|(espn_id, name)| position::ActiveModel {
             espn_id: ActiveValue::Set(*espn_id),
-            name: ActiveValue::Set(name.to_string()),
+            name: ActiveValue::Set(ToString::to_string(name)),
             ..Default::default()
         })
         .collect();

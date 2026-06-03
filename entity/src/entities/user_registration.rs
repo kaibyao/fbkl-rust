@@ -20,7 +20,7 @@ pub struct Model {
 #[derive(
     Debug, Clone, Default, Eq, PartialEq, EnumIter, DeriveActiveEnum, Serialize, Deserialize,
 )]
-#[sea_orm(rs_type = "String", db_type = "String(None)")]
+#[sea_orm(rs_type = "String", db_type = "String(StringLen::None)")]
 pub enum UserRegistrationStatus {
     /// Initial status, where the token was generated and stored, but was not yet sent to the user.
     #[default]

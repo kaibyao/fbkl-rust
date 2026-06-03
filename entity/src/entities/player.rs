@@ -66,7 +66,7 @@ impl Model {
     Serialize,
     Deserialize,
 )]
-#[sea_orm(rs_type = "String", db_type = "String(None)")]
+#[sea_orm(rs_type = "String", db_type = "String(StringLen::None)")]
 pub enum PlayerStatus {
     /// Player has been flagged as non-rostered + played a final year in the NBA + doesn't exist in ESPN fantasy data.
     #[default]

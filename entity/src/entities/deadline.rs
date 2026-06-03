@@ -74,7 +74,7 @@ impl Model {
 #[derive(
     Debug, Clone, Copy, Eq, PartialEq, Enum, EnumIter, DeriveActiveEnum, Serialize, Deserialize,
 )]
-#[sea_orm(rs_type = "String", db_type = "String(None)")]
+#[sea_orm(rs_type = "String", db_type = "String(StringLen::None)")]
 pub enum DeadlineKind {
     /// The inauguration of a new season, which starts with the advancement of team contracts from the previous season.
     #[sea_orm(string_value = "PreseasonStart")]
