@@ -11,6 +11,17 @@ const config: CodegenConfig = {
         fragmentMasking: false,
       },
     },
+    // The client preset only emits enums as string-literal union types. This
+    // companion output generates the same enums as runtime const objects so
+    // they can be referenced by variant (e.g. `ContractKind.Rookie`). The
+    // union types are identical, so the two are fully interchangeable.
+    './src/generated/enums.ts': {
+      plugins: ['typescript'],
+      config: {
+        onlyEnums: true,
+        enumsAsConst: true,
+      },
+    },
   },
 };
 

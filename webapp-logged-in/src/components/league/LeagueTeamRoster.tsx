@@ -5,6 +5,7 @@ import Stack from '@mui/material/Stack';
 import Typography from '@mui/material/Typography';
 import { FunctionComponent } from 'react';
 import { LeagueRosterListPlayer } from '@/components/league/LeagueRosterListPlayer';
+import { ContractKind, ContractStatus } from '@/generated/enums';
 import {
   ContractForRosterListFragment,
   TeamForRosterListFragment,
@@ -89,14 +90,14 @@ function partitionContracts(contracts: ContractForRosterListFragment[]): {
   contracts.forEach((contract) => {
     // Rookie development contracts (including international)
     if (
-      contract.kind === 'ROOKIE_DEVELOPMENT' ||
-      contract.kind === 'ROOKIE_DEVELOPMENT_INTERNATIONAL'
+      contract.kind === ContractKind.RookieDevelopment ||
+      contract.kind === ContractKind.RookieDevelopmentInternational
     ) {
       rookieDevelopmentContracts.push(contract);
     }
     // Active contracts on team
     else if (
-      contract.status === 'ACTIVE' &&
+      contract.status === ContractStatus.Active &&
       isContractActiveOnTeam(contract.kind)
     ) {
       if (contract.isIr) {
@@ -122,10 +123,10 @@ function partitionContracts(contracts: ContractForRosterListFragment[]): {
     activeButIrContracts,
     rookieDevelopmentContracts: rookieDevelopmentContracts.sort((a, b) => {
       // International players are at the end
-      if (a.kind === 'ROOKIE_DEVELOPMENT_INTERNATIONAL') {
+      if (a.kind === ContractKind.RookieDevelopmentInternational) {
         return 1;
       }
-      if (b.kind === 'ROOKIE_DEVELOPMENT_INTERNATIONAL') {
+      if (b.kind === ContractKind.RookieDevelopmentInternational) {
         return -1;
       }
       return (

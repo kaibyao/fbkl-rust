@@ -7,10 +7,8 @@ import ListItemText from '@mui/material/ListItemText';
 import Tooltip from '@mui/material/Tooltip';
 import Typography from '@mui/material/Typography';
 import { FunctionComponent } from 'react';
-import {
-  ContractForRosterListFragment,
-  ContractKind,
-} from '@/generated/graphql';
+import { ContractKind } from '@/generated/enums';
+import { ContractForRosterListFragment } from '@/generated/graphql';
 
 interface Props {
   contract: ContractForRosterListFragment;
@@ -82,22 +80,22 @@ export const LeagueRosterListPlayer: FunctionComponent<Props> = ({
 
 function abbreviateContractKind(kind: ContractKind): string {
   switch (kind) {
-    case 'FREE_AGENT':
+    case ContractKind.FreeAgent:
       return 'FA';
-    case 'RESTRICTED_FREE_AGENT':
+    case ContractKind.RestrictedFreeAgent:
       return 'RFA';
-    case 'ROOKIE':
-    case 'ROOKIE_EXTENSION':
+    case ContractKind.Rookie:
+    case ContractKind.RookieExtension:
       return 'R';
-    case 'ROOKIE_DEVELOPMENT':
+    case ContractKind.RookieDevelopment:
       return 'RD';
-    case 'ROOKIE_DEVELOPMENT_INTERNATIONAL':
+    case ContractKind.RookieDevelopmentInternational:
       return 'RDI';
-    case 'VETERAN':
+    case ContractKind.Veteran:
       return 'V';
-    case 'UNRESTRICTED_FREE_AGENT_ORIGINAL_TEAM':
+    case ContractKind.UnrestrictedFreeAgentOriginalTeam:
       return 'UFA-20%';
-    case 'UNRESTRICTED_FREE_AGENT_VETERAN':
+    case ContractKind.UnrestrictedFreeAgentVeteran:
       return 'UFA-10%';
     default:
       return 'Unknown';
