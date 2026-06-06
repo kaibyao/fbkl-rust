@@ -3,8 +3,8 @@
 use std::fmt::Debug;
 
 use async_graphql::Enum;
-use color_eyre::{eyre::eyre, Result};
-use sea_orm::{entity::prelude::*, ConnectionTrait, QueryOrder};
+use color_eyre::{Result, eyre::eyre};
+use sea_orm::{ConnectionTrait, QueryOrder, entity::prelude::*};
 use serde::{Deserialize, Serialize};
 use tracing::instrument;
 

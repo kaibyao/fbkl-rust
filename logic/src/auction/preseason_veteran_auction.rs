@@ -1,7 +1,7 @@
 use std::fmt::Debug;
 
 use chrono::NaiveDate;
-use color_eyre::{eyre::bail, Result};
+use color_eyre::{Result, eyre::bail};
 use fbkl_entity::{
     auction_queries,
     contract::{self, ContractKind},

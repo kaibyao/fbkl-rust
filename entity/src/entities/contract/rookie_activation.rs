@@ -1,4 +1,4 @@
-use color_eyre::{eyre::bail, Result};
+use color_eyre::{Result, eyre::bail};
 use sea_orm::ActiveValue;
 
 use crate::contract::{self, ContractKind, ContractStatus};
@@ -53,7 +53,7 @@ mod tests {
     use sea_orm::ActiveValue;
 
     use crate::contract::{
-        self, rookie_activation::create_rookie_contract_from_rd, ContractKind, ContractStatus,
+        self, ContractKind, ContractStatus, rookie_activation::create_rookie_contract_from_rd,
     };
 
     static NOW: Lazy<DateTime<FixedOffset>> = Lazy::new(|| {

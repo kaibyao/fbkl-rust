@@ -1,6 +1,6 @@
 use std::fmt::Debug;
 
-use color_eyre::{eyre::ensure, Result};
+use color_eyre::{Result, eyre::ensure};
 use fbkl_entity::{
     contract, contract_queries, draft_pick,
     draft_pick_option::{self, DraftPickOptionStatus},
@@ -69,7 +69,14 @@ where
     contract_queries::validate_contract_is_latest_in_chain(contract_model, db).await?;
 
     // Ensure contract is owned by the team referenced by the trade asset entity
-    ensure!((contract_model.team_id == Some(trade_asset_model.from_team_id)), "Contract ({}) is not currently owned by the team listed as the owning team in this trade ({}). Contract's owning team = {:?}. Trade's listed owning team = {}.", contract_model.id, trade_id, contract_model.team_id, trade_asset_model.from_team_id);
+    ensure!(
+        (contract_model.team_id == Some(trade_asset_model.from_team_id)),
+        "Contract ({}) is not currently owned by the team listed as the owning team in this trade ({}). Contract's owning team = {:?}. Trade's listed owning team = {}.",
+        contract_model.id,
+        trade_id,
+        contract_model.team_id,
+        trade_asset_model.from_team_id
+    );
 
     Ok(())
 }
@@ -85,7 +92,14 @@ where
     C: ConnectionTrait + Debug,
 {
     // Ensure draft pick is owned by the team referenced in the trade asset entity
-    ensure!(draft_pick_model.current_owner_team_id == trade_asset_model.from_team_id, "Draft pick ({}) is not currently owned by the team listed as the owning team in this trade ({}). Draft pick's owning team = {:?}. Trade's listed owning team = {}.", draft_pick_model.id, trade_id, draft_pick_model.current_owner_team_id, trade_asset_model.from_team_id);
+    ensure!(
+        draft_pick_model.current_owner_team_id == trade_asset_model.from_team_id,
+        "Draft pick ({}) is not currently owned by the team listed as the owning team in this trade ({}). Draft pick's owning team = {:?}. Trade's listed owning team = {}.",
+        draft_pick_model.id,
+        trade_id,
+        draft_pick_model.current_owner_team_id,
+        trade_asset_model.from_team_id
+    );
 
     Ok(())
 }

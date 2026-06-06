@@ -1,12 +1,12 @@
 use std::fmt::Debug;
 
-use color_eyre::{eyre::eyre, Result};
+use color_eyre::{Result, eyre::eyre};
 use fbkl_entity::{
     contract, draft_pick,
     draft_pick_option::{self, DraftPickOptionStatus},
     draft_pick_queries,
     sea_orm::{
-        sea_query::Expr, ColumnTrait, ConnectionTrait, EntityTrait, LoaderTrait, QueryFilter,
+        ColumnTrait, ConnectionTrait, EntityTrait, LoaderTrait, QueryFilter, sea_query::Expr,
     },
     trade::{self, TradeStatus},
     trade_asset::{self, TradeAssetType},

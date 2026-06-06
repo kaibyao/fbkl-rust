@@ -1,6 +1,6 @@
 use std::fmt::Debug;
 
-use color_eyre::eyre::{ensure, eyre, Result};
+use color_eyre::eyre::{Result, ensure, eyre};
 use fbkl_entity::{
     contract, contract_queries, deadline,
     sea_orm::{ActiveValue, ConnectionTrait},

@@ -2,8 +2,8 @@
 
 use std::fmt::Debug;
 
-use color_eyre::{eyre::eyre, Result};
-use sea_orm::{entity::prelude::*, ConnectionTrait};
+use color_eyre::{Result, eyre::eyre};
+use sea_orm::{ConnectionTrait, entity::prelude::*};
 use serde::{Deserialize, Serialize};
 use tracing::instrument;
 

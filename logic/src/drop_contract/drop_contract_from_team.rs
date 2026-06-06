@@ -1,6 +1,6 @@
 use std::fmt::Debug;
 
-use color_eyre::eyre::{ensure, eyre, Result};
+use color_eyre::eyre::{Result, ensure, eyre};
 use fbkl_entity::{
     contract::{self, ContractStatus},
     contract_queries, deadline,

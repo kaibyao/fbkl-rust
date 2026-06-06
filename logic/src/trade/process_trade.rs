@@ -3,11 +3,11 @@ use std::{
     fmt::Debug,
 };
 
-use color_eyre::{eyre::eyre, Result};
+use color_eyre::{Result, eyre::eyre};
 use fbkl_entity::{
     contract, contract_queries, deadline_queries, draft_pick, draft_pick_option,
     sea_orm::{
-        prelude::DateTimeWithTimeZone, ActiveModelTrait, ActiveValue, ConnectionTrait, LoaderTrait,
+        ActiveModelTrait, ActiveValue, ConnectionTrait, LoaderTrait, prelude::DateTimeWithTimeZone,
     },
     trade::{self, TradeStatus},
     trade_asset::{self, TradeAssetType},

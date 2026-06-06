@@ -1,9 +1,9 @@
 use std::{collections::HashMap, fmt::Debug};
 
-use color_eyre::{eyre::eyre, Result};
+use color_eyre::{Result, eyre::eyre};
 use sea_orm::{
-    prelude::DateTimeWithTimeZone, ColumnTrait, ConnectionTrait, EntityTrait, Order, QueryFilter,
-    QueryOrder,
+    ColumnTrait, ConnectionTrait, EntityTrait, Order, QueryFilter, QueryOrder,
+    prelude::DateTimeWithTimeZone,
 };
 use tracing::instrument;
 

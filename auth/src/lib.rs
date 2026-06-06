@@ -2,10 +2,10 @@ pub extern crate argon2;
 pub extern crate hex;
 
 use argon2::{
-    password_hash::{Error as Argon2PasswordHashError, PasswordHash, SaltString},
     Argon2, Error as Argon2Error, Params, ParamsBuilder, PasswordHasher, PasswordVerifier,
+    password_hash::{Error as Argon2PasswordHashError, PasswordHash, SaltString},
 };
-use rand::{rngs::OsRng, RngCore};
+use rand::{RngCore, rngs::OsRng};
 
 /// Converts a token string into bytes.
 pub fn decode_token(token_str: &str) -> Result<Vec<u8>, hex::FromHexError> {

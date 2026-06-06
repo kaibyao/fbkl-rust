@@ -2,8 +2,8 @@
 
 use async_graphql::Enum;
 use async_trait::async_trait;
-use color_eyre::{eyre::eyre, Result};
-use sea_orm::{entity::prelude::*, ActiveValue, ConnectionTrait};
+use color_eyre::{Result, eyre::eyre};
+use sea_orm::{ActiveValue, ConnectionTrait, entity::prelude::*};
 use serde::{Deserialize, Serialize};
 
 use crate::deadline;

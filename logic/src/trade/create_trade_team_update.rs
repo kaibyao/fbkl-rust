@@ -1,8 +1,8 @@
-use color_eyre::{eyre::eyre, Result};
+use color_eyre::{Result, eyre::eyre};
 use fbkl_constants::FREE_AGENCY_TEAM;
 use fbkl_entity::{
     deadline,
-    sea_orm::{prelude::DateTimeWithTimeZone, ActiveValue, ConnectionTrait, EntityTrait},
+    sea_orm::{ActiveValue, ConnectionTrait, EntityTrait, prelude::DateTimeWithTimeZone},
 };
 use multimap::MultiMap;
 use std::{collections::HashMap, fmt::Debug};

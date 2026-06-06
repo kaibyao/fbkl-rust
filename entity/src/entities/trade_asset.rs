@@ -5,10 +5,10 @@ use std::fmt::Debug;
 use async_graphql::Enum;
 use async_trait::async_trait;
 use color_eyre::{
-    eyre::{ensure, eyre},
     Result,
+    eyre::{ensure, eyre},
 };
-use sea_orm::{entity::prelude::*, ActiveValue};
+use sea_orm::{ActiveValue, entity::prelude::*};
 use serde::{Deserialize, Serialize};
 use tracing::instrument;
 
@@ -54,7 +54,12 @@ impl Model {
     where
         C: ConnectionTrait + Debug,
     {
-        ensure!(self.asset_type == TradeAssetType::Contract, "Cannot retrieve a related contract for a trade asset whose type is not `Contract`. (id = {}, asset type = {:?})", self.id, self.asset_type);
+        ensure!(
+            self.asset_type == TradeAssetType::Contract,
+            "Cannot retrieve a related contract for a trade asset whose type is not `Contract`. (id = {}, asset type = {:?})",
+            self.id,
+            self.asset_type
+        );
 
         let maybe_contract = self.find_related(contract::Entity).one(db).await?;
 
@@ -72,7 +77,12 @@ impl Model {
     where
         C: ConnectionTrait + Debug,
     {
-        ensure!(self.asset_type == TradeAssetType::DraftPick, "Cannot retrieve a related draft pick for a trade asset whose type is not `DraftPick`. (id = {}, asset type = {:?})", self.id, self.asset_type);
+        ensure!(
+            self.asset_type == TradeAssetType::DraftPick,
+            "Cannot retrieve a related draft pick for a trade asset whose type is not `DraftPick`. (id = {}, asset type = {:?})",
+            self.id,
+            self.asset_type
+        );
 
         let maybe_draft_pick = self.find_related(draft_pick::Entity).one(db).await?;
 
@@ -90,7 +100,12 @@ impl Model {
     where
         C: ConnectionTrait + Debug,
     {
-        ensure!(self.asset_type == TradeAssetType::DraftPickOption, "Cannot retrieve a related draft pick option for a trade asset whose type is not `DraftPickOption`. (id = {}, asset type = {:?})", self.id, self.asset_type);
+        ensure!(
+            self.asset_type == TradeAssetType::DraftPickOption,
+            "Cannot retrieve a related draft pick option for a trade asset whose type is not `DraftPickOption`. (id = {}, asset type = {:?})",
+            self.id,
+            self.asset_type
+        );
 
         let maybe_draft_pick_option = self.find_related(draft_pick_option::Entity).one(db).await?;
 
@@ -246,7 +261,11 @@ fn validate_trade_asset_for_contract(model: &ActiveModel) -> Result<(), DbErr> {
     }
 
     if model.draft_pick_option_id.is_set() {
-        return Err(DbErr::Custom(format!("A trade asset of type=Contract should not have a draft pick option. Team: {}. Contract id: {:?}", model.from_team_id.as_ref(), model.contract_id.as_ref())));
+        return Err(DbErr::Custom(format!(
+            "A trade asset of type=Contract should not have a draft pick option. Team: {}. Contract id: {:?}",
+            model.from_team_id.as_ref(),
+            model.contract_id.as_ref()
+        )));
     }
 
     if model.contract_id.is_not_set() {
@@ -257,7 +276,11 @@ fn validate_trade_asset_for_contract(model: &ActiveModel) -> Result<(), DbErr> {
     }
 
     if model.draft_pick_id.is_set() {
-        return Err(DbErr::Custom(format!("A trade asset of type=Contract should not have a draft pick. Team: {}. Contract id: {:?}", model.from_team_id.as_ref(), model.contract_id.as_ref())));
+        return Err(DbErr::Custom(format!(
+            "A trade asset of type=Contract should not have a draft pick. Team: {}. Contract id: {:?}",
+            model.from_team_id.as_ref(),
+            model.contract_id.as_ref()
+        )));
     }
 
     Ok(())
@@ -269,11 +292,19 @@ fn validate_trade_asset_for_draft_pick(model: &ActiveModel) -> Result<(), DbErr>
     }
 
     if model.draft_pick_option_id.is_set() {
-        return Err(DbErr::Custom(format!("A trade asset of type=DraftPick should not have a draft pick option. Team: {}. Draft pick id: {:?}", model.from_team_id.as_ref(), model.draft_pick_id.as_ref())));
+        return Err(DbErr::Custom(format!(
+            "A trade asset of type=DraftPick should not have a draft pick option. Team: {}. Draft pick id: {:?}",
+            model.from_team_id.as_ref(),
+            model.draft_pick_id.as_ref()
+        )));
     }
 
     if model.contract_id.is_set() {
-        return Err(DbErr::Custom(format!("A trade asset of type=DraftPick should not have a contract. Team: {}. Draft pick id: {:?}", model.from_team_id.as_ref(), model.draft_pick_id.as_ref())));
+        return Err(DbErr::Custom(format!(
+            "A trade asset of type=DraftPick should not have a contract. Team: {}. Draft pick id: {:?}",
+            model.from_team_id.as_ref(),
+            model.draft_pick_id.as_ref()
+        )));
     }
 
     if model.draft_pick_id.is_not_set() {
@@ -303,11 +334,19 @@ fn validate_trade_asset_for_draft_pick_option(model: &ActiveModel) -> Result<(),
     }
 
     if model.draft_pick_option_id.is_not_set() {
-        return Err(DbErr::Custom(format!("A trade asset of type=DraftPickOption requires a draft pick option to be set. Team: {}. Draft pick id: {:?}", model.from_team_id.as_ref(), model.draft_pick_id.as_ref())));
+        return Err(DbErr::Custom(format!(
+            "A trade asset of type=DraftPickOption requires a draft pick option to be set. Team: {}. Draft pick id: {:?}",
+            model.from_team_id.as_ref(),
+            model.draft_pick_id.as_ref()
+        )));
     }
 
     if model.contract_id.is_set() {
-        return Err(DbErr::Custom(format!("A trade asset of type=DraftPickOption should not have a contract. Team: {}. Draft pick id: {:?}", model.from_team_id.as_ref(), model.draft_pick_id.as_ref())));
+        return Err(DbErr::Custom(format!(
+            "A trade asset of type=DraftPickOption should not have a contract. Team: {}. Draft pick id: {:?}",
+            model.from_team_id.as_ref(),
+            model.draft_pick_id.as_ref()
+        )));
     }
 
     Ok(())

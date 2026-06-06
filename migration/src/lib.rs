@@ -1,8 +1,7 @@
 pub use sea_orm_migration::MigratorTrait;
 use sea_orm_migration::{
-    async_trait,
+    DbErr, MigrationTrait, SchemaManager, async_trait,
     sea_orm::{ConnectionTrait, DatabaseBackend, Statement},
-    DbErr, MigrationTrait, SchemaManager,
 };
 
 mod m20220916_131201_create_auto_updated_at_fn;

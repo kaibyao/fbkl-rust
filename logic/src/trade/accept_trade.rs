@@ -2,7 +2,7 @@ use std::{collections::HashSet, fmt::Debug};
 
 use color_eyre::Result;
 use fbkl_entity::{
-    sea_orm::{prelude::DateTimeWithTimeZone, ConnectionTrait, TransactionTrait},
+    sea_orm::{ConnectionTrait, TransactionTrait, prelude::DateTimeWithTimeZone},
     team_queries, team_user, trade,
     trade_action::TradeActionType,
     trade_action_queries, trade_queries,

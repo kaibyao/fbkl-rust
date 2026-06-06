@@ -1,13 +1,13 @@
 use std::{collections::HashMap, fmt::Debug};
 
 use color_eyre::{
-    eyre::{bail, ensure},
     Result,
+    eyre::{bail, ensure},
 };
 use multimap::MultiMap;
 use sea_orm::{
-    prelude::Expr, ActiveModelTrait, ActiveValue, ColumnTrait, ConnectionTrait, EntityTrait,
-    JoinType, ModelTrait, QueryFilter, QuerySelect, RelationTrait,
+    ActiveModelTrait, ActiveValue, ColumnTrait, ConnectionTrait, EntityTrait, JoinType, ModelTrait,
+    QueryFilter, QuerySelect, RelationTrait, prelude::Expr,
 };
 use tracing::instrument;
 
@@ -362,9 +362,19 @@ where
     let contract_model = auction_model.get_contract(db).await?;
 
     let signed_contract_model_to_insert = match contract_model.kind {
-        ContractKind::RestrictedFreeAgent | ContractKind::UnrestrictedFreeAgentOriginalTeam | ContractKind::UnrestrictedFreeAgentVeteran => contract_model.sign_rfa_or_ufa_contract_to_team(winning_team_id, winning_bid_amount)?,
-        ContractKind::Veteran | ContractKind::FreeAgent => contract_model.sign_veteran_contract_to_team(winning_team_id, winning_bid_amount)?,
-        _ => bail!("Cannot sign a contract won via auction to a team if the contract was not a valid free agent contract type. (auction_id = {}, contract_id = {})", auction_model.id, contract_model.id),
+        ContractKind::RestrictedFreeAgent
+        | ContractKind::UnrestrictedFreeAgentOriginalTeam
+        | ContractKind::UnrestrictedFreeAgentVeteran => {
+            contract_model.sign_rfa_or_ufa_contract_to_team(winning_team_id, winning_bid_amount)?
+        }
+        ContractKind::Veteran | ContractKind::FreeAgent => {
+            contract_model.sign_veteran_contract_to_team(winning_team_id, winning_bid_amount)?
+        }
+        _ => bail!(
+            "Cannot sign a contract won via auction to a team if the contract was not a valid free agent contract type. (auction_id = {}, contract_id = {})",
+            auction_model.id,
+            contract_model.id
+        ),
     };
 
     add_replacement_contract_to_chain(contract_model, signed_contract_model_to_insert, db).await

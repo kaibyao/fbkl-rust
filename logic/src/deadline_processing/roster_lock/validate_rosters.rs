@@ -1,6 +1,6 @@
 use std::fmt::Debug;
 
-use color_eyre::eyre::{bail, ensure, Result};
+use color_eyre::eyre::{Result, bail, ensure};
 use fbkl_constants::league_rules::{
     PRE_SEASON_CONTRACTS_PER_ROSTER_LIMIT,
     REGULAR_SEASON_INTL_ROOKIE_DEVELOPMENT_CONTRACTS_PER_ROSTER_LIMIT,
@@ -30,7 +30,9 @@ where
 {
     if roster_lock_deadline.kind == DeadlineKind::PreseasonKeeper {
         // Reason being that the keeper lock uses rules that are so different from the regular season that it made sense for it to have its own validation functions.
-        bail!("validate_league_rosters should not be used to validate keepers. use 'save_keeper_team_update' instead.");
+        bail!(
+            "validate_league_rosters should not be used to validate keepers. use 'save_keeper_team_update' instead."
+        );
     }
 
     let league_contracts_by_team: MultiMap<i64, contract::Model> =
@@ -67,7 +69,15 @@ where
         calculate_team_contract_salary(team_id, team_contracts, roster_lock_deadline, db).await?;
 
     if total_contract_amount > team_salary_cap {
-        bail!("Roster contracts are invalid for roster lock: contract salaries exceed the team's cap. Deadline: {}, League: {}, End-of-season year: {}, Team: {}. Salary/Cap: {}/{}.", roster_lock_deadline.id, roster_lock_deadline.league_id, roster_lock_deadline.end_of_season_year, team_id, total_contract_amount, team_salary_cap);
+        bail!(
+            "Roster contracts are invalid for roster lock: contract salaries exceed the team's cap. Deadline: {}, League: {}, End-of-season year: {}, Team: {}. Salary/Cap: {}/{}.",
+            roster_lock_deadline.id,
+            roster_lock_deadline.league_id,
+            roster_lock_deadline.end_of_season_year,
+            team_id,
+            total_contract_amount,
+            team_salary_cap
+        );
     }
 
     Ok(())
@@ -134,11 +144,19 @@ fn validate_roster_contract_type_limits_not_exceeded(
 
             if num_rdi_contracts > REGULAR_SEASON_INTL_ROOKIE_DEVELOPMENT_CONTRACTS_PER_ROSTER_LIMIT
             {
-                bail!("Roster cannot have more than {} international rookie development contract. (team = {}).", REGULAR_SEASON_INTL_ROOKIE_DEVELOPMENT_CONTRACTS_PER_ROSTER_LIMIT, team_contracts[0].team_id.unwrap());
+                bail!(
+                    "Roster cannot have more than {} international rookie development contract. (team = {}).",
+                    REGULAR_SEASON_INTL_ROOKIE_DEVELOPMENT_CONTRACTS_PER_ROSTER_LIMIT,
+                    team_contracts[0].team_id.unwrap()
+                );
             }
 
             if num_v_r_contracts > REGULAR_SEASON_VET_OR_ROOKIE_CONTRACTS_PER_ROSTER_LIMIT {
-                bail!("Roster cannot have more than {} veteran or rookie-scale contracts. (team = {}).", REGULAR_SEASON_VET_OR_ROOKIE_CONTRACTS_PER_ROSTER_LIMIT, team_contracts[0].team_id.unwrap());
+                bail!(
+                    "Roster cannot have more than {} veteran or rookie-scale contracts. (team = {}).",
+                    REGULAR_SEASON_VET_OR_ROOKIE_CONTRACTS_PER_ROSTER_LIMIT,
+                    team_contracts[0].team_id.unwrap()
+                );
             }
         }
     };

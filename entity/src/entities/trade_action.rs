@@ -4,7 +4,7 @@ use std::fmt::Debug;
 
 use async_graphql::Enum;
 use color_eyre::Result;
-use sea_orm::{entity::prelude::*, ActiveValue};
+use sea_orm::{ActiveValue, entity::prelude::*};
 use serde::{Deserialize, Serialize};
 
 use crate::team_user;

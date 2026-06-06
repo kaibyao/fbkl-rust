@@ -1,6 +1,6 @@
 use color_eyre::{
-    eyre::{bail, eyre},
     Result,
+    eyre::{bail, eyre},
 };
 use fbkl_entity::{
     contract, contract_queries,
@@ -85,17 +85,31 @@ where
                                 ContractUpdateType::Keeper => (),
                                 ContractUpdateType::Drop => {
                                     let related_league_contract = active_league_contracts_by_id.remove(&contract_update.contract_id).ok_or_else(|| eyre!("Contract referred by keeper deadline team update is not an active contract or wasn't found. contract_id: {}", contract_update.contract_id))?;
-                                    contract_queries::drop_contract(related_league_contract, true, db).await?;
-                                },
-                                x => bail!("Did not expect contract update type while processing keeper deadline: {:#?}", x),
+                                    contract_queries::drop_contract(
+                                        related_league_contract,
+                                        true,
+                                        db,
+                                    )
+                                    .await?;
+                                }
+                                x => bail!(
+                                    "Did not expect contract update type while processing keeper deadline: {:#?}",
+                                    x
+                                ),
                             }
                         }
-                    },
-                    TeamUpdateAsset::DraftPicks(updated_draft_picks) => bail!("Expected Keeper Deadline team update to be a contract update, but got draft pick instead: {:#?}", updated_draft_picks),
+                    }
+                    TeamUpdateAsset::DraftPicks(updated_draft_picks) => bail!(
+                        "Expected Keeper Deadline team update to be a contract update, but got draft pick instead: {:#?}",
+                        updated_draft_picks
+                    ),
                 }
             }
         }
-        TeamUpdateData::Settings(_) => bail!("Expected Keeper Deadline team update to be a contract update, but got settings instead: {:#?}", team_update_data),
+        TeamUpdateData::Settings(_) => bail!(
+            "Expected Keeper Deadline team update to be a contract update, but got settings instead: {:#?}",
+            team_update_data
+        ),
     };
 
     Ok(())

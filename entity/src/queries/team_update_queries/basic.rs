@@ -1,7 +1,7 @@
 use color_eyre::Result;
 use sea_orm::{
-    sea_query::Expr, ActiveModelTrait, ActiveValue, ColumnTrait, ConnectionTrait, EntityTrait,
-    ModelTrait, QueryFilter,
+    ActiveModelTrait, ActiveValue, ColumnTrait, ConnectionTrait, EntityTrait, ModelTrait,
+    QueryFilter, sea_query::Expr,
 };
 use std::fmt::Debug;
 use tracing::instrument;

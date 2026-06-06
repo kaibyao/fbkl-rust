@@ -2,12 +2,12 @@ use std::fmt::Debug;
 
 use chrono::Days;
 use color_eyre::{
-    eyre::{bail, eyre},
     Result,
+    eyre::{bail, eyre},
 };
 use sea_orm::{
-    prelude::DateTimeWithTimeZone, ActiveModelTrait, ActiveValue, ColumnTrait, ConnectionTrait,
-    EntityTrait, QueryFilter,
+    ActiveModelTrait, ActiveValue, ColumnTrait, ConnectionTrait, EntityTrait, QueryFilter,
+    prelude::DateTimeWithTimeZone,
 };
 use tracing::instrument;
 

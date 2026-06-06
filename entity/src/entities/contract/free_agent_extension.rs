@@ -3,7 +3,7 @@
 use std::cmp;
 
 use crate::contract::{self, ContractKind};
-use color_eyre::{eyre::bail, Result};
+use color_eyre::{Result, eyre::bail};
 use sea_orm::ActiveValue;
 
 use super::ContractStatus;
@@ -97,11 +97,11 @@ mod tests {
     use sea_orm::ActiveValue;
 
     use crate::contract::{
+        ContractKind, ContractStatus, Model,
         free_agent_extension::{
             get_salary_discounted_by_10_percent, get_salary_discounted_by_20_percent,
             sign_rfa_or_ufa_contract_to_team,
         },
-        ContractKind, ContractStatus, Model,
     };
 
     static NOW: Lazy<DateTime<FixedOffset>> = Lazy::new(|| {

@@ -5,7 +5,7 @@ use std::collections::HashMap;
 use async_graphql::Enum;
 use async_trait::async_trait;
 use once_cell::sync::Lazy;
-use sea_orm::{entity::prelude::*, ActiveValue};
+use sea_orm::{ActiveValue, entity::prelude::*};
 use serde::{Deserialize, Serialize};
 
 /// A Draft Pick Option is an additional clause that can be applied to a draft pick. They are first created in a trade proposal and become active when a trade is processed.
@@ -186,6 +186,9 @@ where
     if valid_new_statuses.contains(&&new_status) {
         Ok(())
     } else {
-        Err(DbErr::Custom(format!("Not allowed to update a draft pick option whose previous status was {:?} and is now {:?}", current_status, new_status)))
+        Err(DbErr::Custom(format!(
+            "Not allowed to update a draft pick option whose previous status was {:?} and is now {:?}",
+            current_status, new_status
+        )))
     }
 }
