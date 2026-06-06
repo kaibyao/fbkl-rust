@@ -21,6 +21,13 @@ node_modules
 generated
 .eslintcache
 
+# Build output
+dist
+.next
+
+# TanStack Router generated route tree
+routeTree.gen.ts
+
 # AI-generated files
 .serena/
 
