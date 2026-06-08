@@ -1,4 +1,4 @@
-import '@fontsource/open-sans';
+import '@fontsource/open-sans/index.css';
 import '@public/src/preload-polyfill';
 import * as React from 'react';
 import { App } from '@public/src/App';
