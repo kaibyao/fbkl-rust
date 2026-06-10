@@ -1,6 +1,8 @@
 packages:
   - webapp-logged-in
   - webapp-public
+allowBuilds:
+  '@evilmartians/lefthook': true
 onlyBuiltDependencies:
   - '@evilmartians/lefthook'
   - esbuild

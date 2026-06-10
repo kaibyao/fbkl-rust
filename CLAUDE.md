@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-FBKL is a custom fantasy basketball league system built as a full-stack monorepo. The backend uses Rust with GraphQL/SeaORM, and the frontend uses React/Next.js/TypeScript. The system simulates NBA team management with player contracts, trades, auctions, and draft picks.
+FBKL is a custom fantasy basketball league system built as a full-stack monorepo. The backend uses Rust with GraphQL/SeaORM, and the frontend uses React/Vite/TypeScript. The system simulates NBA team management with player contracts, trades, auctions, and draft picks.
 
 ## Tech Stack
 
@@ -17,11 +17,12 @@ FBKL is a custom fantasy basketball league system built as a full-stack monorepo
 - **Package manager**: Cargo (workspace)
 
 ### Frontend (TypeScript/React)
-- **Logged-in app**: Next.js
-- **Public app**: Vite
-- **UI**: Material-UI (MUI) v7
+- **Build tool**: Vite (both apps)
+- **Routing (logged-in app)**: TanStack Router
+- **UI**: shadcn/ui backed by Base UI, styled with Tailwind CSS v4 (preset `bzWLdGMr4`, style `base-lyra`, zinc base, orange accent, Space Grotesk headings, Lucide icons). MUI v7 still present and being phased out.
 - **GraphQL client**: urql
 - **Forms**: react-hook-form
+- **Lint/format**: oxlint + oxfmt
 - **Type generation**: GraphQL Code Generator
 - **Package manager**: pnpm v10.11.1 (workspace)
 
@@ -42,7 +43,7 @@ This is a Rust workspace with multiple crates that work together:
 - **`graphql-generation/`** - Generates GraphQL schema for frontend type generation
 
 ### Frontend (React/TypeScript)
-- **`webapp-logged-in/`** - Next.js app for authenticated users (port 9100)
+- **`webapp-logged-in/`** - Vite app for authenticated users (port 9100). shadcn/ui components live in `src/components/ui` (aliased as `@/components/ui`); theme tokens in `src/global.css`
 - **`webapp-public/`** - Vite app for public users
 
 ## Development Commands
@@ -77,9 +78,13 @@ pnpm --filter "@fbkl/webapp-logged-in" dev
 # Run public webapp
 pnpm --filter "@fbkl/webapp-public" dev
 
-# Lint frontend
+# Lint frontend (oxlint)
 pnpm --filter "@fbkl/webapp-logged-in" lint
 pnpm --filter "@fbkl/webapp-public" lint
+
+# Format frontend (oxfmt)
+pnpm --filter "@fbkl/webapp-logged-in" format
+pnpm --filter "@fbkl/webapp-public" format
 
 # TypeScript checking
 pnpm --filter "@fbkl/webapp-logged-in" exec tsc
@@ -92,7 +97,7 @@ pnpm --filter "@fbkl/webapp-logged-in" graphql
 ### Git Hooks
 Uses Lefthook for pre-commit hooks that automatically run:
 - `cargo clippy` and `cargo fmt` on Rust files
-- ESLint and TypeScript checking on frontend files
+- oxlint, oxfmt, and TypeScript checking on frontend files
 
 ## Key Concepts
 
@@ -122,13 +127,13 @@ Uses SeaORM for type-safe database queries. Entity definitions in `entity/` crat
 - Types `PascalCase`, fields `camelCase`
 
 ### TypeScript/React
-- Prettier with `singleQuote: true`
-- ESLint with TypeScript + Next.js rules; `eslint-plugin-mui-path-imports` enforces MUI tree-shaking imports
+- oxfmt for formatting, oxlint for linting
+- New UI work uses shadcn/ui (Base UI) + Tailwind; avoid adding new MUI usage — it is being phased out
 - Naming: `camelCase` variables/functions, `PascalCase` components/types
 
 ## Task Completion Checklist
 
-Before committing (Lefthook runs clippy/fmt + ESLint/tsc automatically, but run manually to catch early):
+Before committing (Lefthook runs clippy/fmt + oxlint/oxfmt/tsc automatically, but run manually to catch early):
 
 **Rust changes**: `cargo build` → `cargo test` → `cargo clippy` → `cargo fmt`. If schema changed, run migrations.
 
