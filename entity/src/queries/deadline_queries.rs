@@ -7,7 +7,12 @@ use sea_orm::{
 };
 use tracing::instrument;
 
-use crate::deadline::{self, DeadlineKind};
+use sea_orm::sea_query::Query;
+
+use crate::{
+    deadline::{self, DeadlineKind},
+    job_run::{self, JobRunStatus},
+};
 
 #[instrument]
 pub async fn find_deadlines_by_date_for_league_season<C>(
@@ -78,6 +83,36 @@ where
         .await?
         .ok_or_else(|| eyre!("Could not find a deadline for league (id = {}) and end-of-season year ({}) after: {}.", league_id, end_of_season_year, datetime.to_string()))?;
     Ok(maybe_deadline_model)
+}
+
+/// Finds deadlines (across all leagues) that are due at or before `now` and have no
+/// `Succeeded` job run — i.e. work the scheduler still needs to dispatch. Ordered oldest
+/// first so deadlines within a league season process in chronological order.
+#[instrument]
+pub async fn find_due_unprocessed_deadlines<C>(
+    now: DateTimeWithTimeZone,
+    db: &C,
+) -> Result<Vec<deadline::Model>>
+where
+    C: ConnectionTrait + Debug,
+{
+    let deadlines = deadline::Entity::find()
+        .filter(deadline::Column::DateTime.lte(now))
+        .filter(
+            deadline::Column::Id.not_in_subquery(
+                Query::select()
+                    .column(job_run::Column::DeadlineId)
+                    .from(job_run::Entity)
+                    .and_where(job_run::Column::DeadlineId.is_not_null())
+                    .and_where(job_run::Column::Status.eq(JobRunStatus::Succeeded))
+                    .to_owned(),
+            ),
+        )
+        .order_by(deadline::Column::DateTime, Order::Asc)
+        .all(db)
+        .await?;
+
+    Ok(deadlines)
 }
 
 #[instrument]

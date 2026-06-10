@@ -70,6 +70,10 @@ async fn main() -> Result<()> {
     .limit_depth(10)
     .finish();
 
+    // Deadline scheduler: polls for due deadlines across all leagues and dispatches them
+    // to the transaction processor (see notes/implementation-specs/05).
+    let scheduler_task = fbkl_jobs::spawn_scheduler(db_connection.clone());
+
     let listener = tokio::net::TcpListener::bind("0.0.0.0:9001").await?;
     let server = serve(
         listener,
@@ -80,7 +84,10 @@ async fn main() -> Result<()> {
         .layer(CookieManagerLayer::new())
         .layer(Extension(graphql_schema)).into_make_service(),
     )
-    .with_graceful_shutdown(shutdown_signal(session_deletion_task.abort_handle()));
+    .with_graceful_shutdown(shutdown_signal(vec![
+        session_deletion_task.abort_handle(),
+        scheduler_task.abort_handle(),
+    ]));
 
     info!("Starting fbkl/server on port 9001...");
 
@@ -88,8 +95,6 @@ async fn main() -> Result<()> {
     // TODO: Functionality for draft picks
     // TODO: Functionality for trades
     // TODO: GQL: Add argument for only active team users in GetLeague
-    // TODO: Build Transaction Processor. The idea being there's a job that runs every minute to update contracts, change teams, etc.
-    // TODO: Something that automatically creates team updates. This might just be the same thing as the transaction processor.
     // TODO: Need to update players db table with new players from the NBA API.
     // TODO: Players change names.
     // TODO: Need some kind of storage for NBA dates (start of season, ASB start and end dates, MLK week early start times)
@@ -137,7 +142,7 @@ fn setup() -> Result<()> {
     Ok(())
 }
 
-async fn shutdown_signal(deletion_task_abort_handle: AbortHandle) {
+async fn shutdown_signal(background_task_abort_handles: Vec<AbortHandle>) {
     let ctrl_c = async {
         signal::ctrl_c()
             .await
@@ -156,7 +161,11 @@ async fn shutdown_signal(deletion_task_abort_handle: AbortHandle) {
     let terminate = std::future::pending::<()>();
 
     tokio::select! {
-        _ = ctrl_c => { deletion_task_abort_handle.abort() },
-        _ = terminate => { deletion_task_abort_handle.abort() },
+        _ = ctrl_c => {},
+        _ = terminate => {},
+    }
+
+    for abort_handle in background_task_abort_handles {
+        abort_handle.abort();
     }
 }

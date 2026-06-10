@@ -1,6 +1,6 @@
 use std::fmt::Debug;
 
-use color_eyre::eyre::Result;
+use color_eyre::eyre::{Result, WrapErr};
 use fbkl_entity::{
     deadline::{self, DeadlineKind},
     sea_orm::{ConnectionTrait, TransactionTrait},
@@ -33,23 +33,15 @@ where
     .await?;
 
     if deadline_model.kind == DeadlineKind::PreseasonFinalRosterLock {
-        match generate_future_draft_picks(
+        // Propagate failure so the wrapping DB transaction rolls back and the scheduler
+        // records a Failed job_run — swallowing this would silently skip pick generation.
+        generate_future_draft_picks(
             deadline_model.league_id,
             deadline_model.end_of_season_year,
             db,
         )
         .await
-        {
-            Ok(_) => {
-                println!("Future draft picks generated successfully.");
-            }
-            Err(e) => {
-                tracing::error!(
-                    "Error generating future draft picks, skipping draft pick creation: {:?}",
-                    e
-                );
-            }
-        }
+        .wrap_err("Error generating future draft picks during final roster lock")?;
     }
 
     Ok(())

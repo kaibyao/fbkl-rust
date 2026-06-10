@@ -30,8 +30,14 @@ pub struct Model {
 }
 
 impl Model {
+    /// Resolves the salary cap in effect for this deadline (rules §4.2). This is the single
+    /// source of truth for cap-by-period — do not select caps from local literals elsewhere.
+    /// `None` means uncapped: §4.2.4 removes the cap between the end of the playoffs
+    /// (`SeasonEnd`) and the next keeper deadline, which also covers `PreseasonStart`.
+    /// The $210→$230 bump of §8.1/§4.2.3 is applied here implicitly: `FreeAgentAuctionEnd`
+    /// itself and any `InSeasonRosterLock` dated after it resolve to the post-season limit.
     #[instrument]
-    pub async fn get_salary_cap<C>(&self, db: &C) -> Result<i16>
+    pub async fn get_salary_cap<C>(&self, db: &C) -> Result<Option<i16>>
     where
         C: ConnectionTrait + Debug,
     {
@@ -45,20 +51,23 @@ impl Model {
                 )
                 .await?;
                 if self.date_time > fa_auction_end_deadline.date_time {
-                    POST_SEASON_TOTAL_SALARY_LIMIT
+                    Some(POST_SEASON_TOTAL_SALARY_LIMIT)
                 } else {
-                    REGULAR_SEASON_TOTAL_SALARY_LIMIT
+                    Some(REGULAR_SEASON_TOTAL_SALARY_LIMIT)
                 }
             }
-            DeadlineKind::TradeDeadlineAndPlayoffStart => POST_SEASON_TOTAL_SALARY_LIMIT,
-            DeadlineKind::SeasonEnd => POST_SEASON_TOTAL_SALARY_LIMIT,
-            DeadlineKind::PreseasonKeeper => KEEPER_CONTRACT_TOTAL_SALARY_LIMIT,
+            DeadlineKind::FreeAgentAuctionEnd => Some(POST_SEASON_TOTAL_SALARY_LIMIT),
+            DeadlineKind::TradeDeadlineAndPlayoffStart => Some(POST_SEASON_TOTAL_SALARY_LIMIT),
+            DeadlineKind::PreseasonKeeper => Some(KEEPER_CONTRACT_TOTAL_SALARY_LIMIT),
             DeadlineKind::PreseasonVeteranAuctionStart
             | DeadlineKind::PreseasonRookieDraftStart
             | DeadlineKind::PreseasonFaAuctionStart
             | DeadlineKind::PreseasonFaAuctionEnd
-            | DeadlineKind::PreseasonFinalRosterLock => PRE_SEASON_TOTAL_SALARY_LIMIT,
-            _ => REGULAR_SEASON_TOTAL_SALARY_LIMIT,
+            | DeadlineKind::PreseasonFinalRosterLock => Some(PRE_SEASON_TOTAL_SALARY_LIMIT),
+            DeadlineKind::Week1FreeAgentAuctionStart
+            | DeadlineKind::Week1FreeAgentAuctionEnd
+            | DeadlineKind::Week1RosterLock => Some(REGULAR_SEASON_TOTAL_SALARY_LIMIT),
+            DeadlineKind::PreseasonStart | DeadlineKind::SeasonEnd => None,
         };
 
         Ok(salary_cap)

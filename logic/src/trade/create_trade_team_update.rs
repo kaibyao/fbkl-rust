@@ -93,9 +93,12 @@ where
             calculate_team_contract_salary(team_id, team_active_contracts, deadline_model, db)
                 .await?;
         let (previous_salary, previous_salary_cap) =
-            team_salaries_before_trade.get(&team_id).expect(
-                "Team salaries should have been generated using all team_ids involved in trade.",
-            );
+            team_salaries_before_trade.get(&team_id).ok_or_else(|| {
+                eyre!(
+                    "Missing pre-trade salary for team (id = {}); salaries must be computed for every team involved in the trade",
+                    team_id
+                )
+            })?;
 
         let team_update_data = TeamUpdateData::from_assets(
             team_contract_ids,

@@ -2,6 +2,7 @@ pub mod auction_queries;
 pub mod contract_queries;
 pub mod deadline_queries;
 pub mod draft_pick_queries;
+pub mod job_run_queries;
 pub mod league_player_queries;
 pub mod league_queries;
 pub mod player_queries;

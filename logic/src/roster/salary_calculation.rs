@@ -66,7 +66,9 @@ pub async fn calculate_team_contract_salary<C>(
 where
     C: ConnectionTrait + Debug,
 {
-    let max_salary_cap_for_deadline = deadline_model.get_salary_cap(db).await?;
+    // `None` means the §4.2.4 uncapped offseason window (SeasonEnd → next keeper deadline);
+    // represent it as i16::MAX so cap math/comparisons trivially pass.
+    let max_salary_cap_for_deadline = deadline_model.get_salary_cap(db).await?.unwrap_or(i16::MAX);
 
     let contracts_counted_towards_cap: Vec<&contract::Model> = team_active_contracts
         .iter()

@@ -20,14 +20,14 @@
 | `constants` | ~120 | ✅ | League rule values (roster limits, salary caps, draft config). Well documented. |
 | `auth` | ~85 | ✅ | Argon2 password hashing + auth helpers. |
 | `server` | ~1,370 | 🟡 | Axum + GraphQL + session auth. **Only user + league GraphQL is live.** team/player/contract resolvers commented out. |
-| `transaction-processor` | 14 | 🔴 | **STUB.** Only `add(left, right)` placeholder. Despite CLAUDE.md claiming it "Processes league transactions." |
-| `jobs` | 1 | 🔴 | **STUB.** Only empty `process_keepers() {}`. Despite CLAUDE.md claiming "Background job processing." |
+| `transaction-processor` | ~400 | ✅ | Dispatcher: `process_deadline`/`process_event` run `logic` handlers in one DB txn, idempotently (`job_run` claims), and record outcomes (spec 05). |
+| `jobs` | ~100 | 🟡 | Scheduler: `run_scheduler_tick`/`spawn_scheduler` poll due deadlines and dispatch them. Auction/RFA sub-event discovery pending specs 01/03. |
 | `migration` | — | ✅ | 15 SeaORM migrations covering all current tables. |
 | `graphql-generation` | — | ✅ | Emits GraphQL schema for frontend type generation. |
 
-> ⚠️ **Root `CLAUDE.md` overstates two crates.** It describes `transaction-processor` and
-> `jobs` as functional, but both are empty scaffolding. Treat any rules-doc feature that
-> depends on background job processing or a standalone transaction processor as **not built**.
+> The orchestration layer (spec 05) is built: `transaction-processor` dispatches due
+> deadlines/sub-events idempotently and `jobs` polls for them inside `fbkl-server`. Sub-event
+> *discovery* (auction close timers, RFA windows) still depends on specs 01/03.
 
 ---
 
@@ -43,7 +43,7 @@ No `todo!()`/`unimplemented!()`/empty bodies anywhere in `logic/`. Rule values p
 - `validate_trade_assets` (internal) — each contract must be latest-in-chain & owned by `from_team`; each draft pick owned by `from_team`; draft pick options must be `Proposed`. At least one asset required.
 - `process_trade_assets` (internal) — contracts → `trade_contract_to_team` (new contract record); draft picks → reassign `current_owner_team_id`; options → set `Active`.
 - `external_trade_invalidation` — other active trades referencing any just-traded asset (same league + season) set to `InvalidatedByExternalTrade`; affected options invalidated too.
-- **Gaps:** No salary-cap / roster-size validation at trade time (validation is asset-ownership only). `insert_team_updates_from_completed_trade` panics if a team's pre-trade salary is missing.
+- **Gaps:** No salary-cap / roster-size validation at trade time (validation is asset-ownership only). `insert_team_updates_from_completed_trade` returns an error if a team's pre-trade salary is missing.
 
 ### auction ✅ (🟡 minor dead params)
 - `start_new_auction_for_nba_player` — inserts an auction for a player contract, generic over `AuctionKind`. *(unused params: `league_id`, `end_of_season_year`; doc comment says "veteran" but is generic.)*
@@ -59,7 +59,7 @@ No `todo!()`/`unimplemented!()`/empty bodies anywhere in `logic/`. Rule values p
   - Rules: disallow RFA/UFA-OT/UFA-Vet/FreeAgent as keepers. Count limit 14 (`KEEPER_CONTRACT_COUNT_LIMIT`, excludes RD/RDI). Salary limit 100 (`KEEPER_CONTRACT_TOTAL_SALARY_LIMIT`, excludes RD/RDI).
 - **roster_lock:** `lock_rosters` (validate rosters, mark deadline team_updates Done; on PreseasonFinalRosterLock also generate future draft picks), `validate_league_rosters` (IR-slot, type-limit, cap checks).
   - Rules: IR slots 0..=1. Preseason: total RD+RDI+vet/rookie ≤ 32. Regular season: RD ≤ 6, RDI ≤ 1, vet/rookie ≤ 22. Cap: total salary ≤ team cap.
-  - **Note:** future-draft-pick generation failure is logged & swallowed (non-fatal).
+  - **Note:** future-draft-pick generation failure propagates (rolls back the lock + fails the job_run).
 
 ### draft_picks ✅
 - `generate_future_draft_picks` — for each team, rounds 1..=5 (`DRAFT_PICK_ROUNDS`) at `end_of_season_year + 2` (`FUTURE_DRAFT_PICK_SEASONS_LIMIT`); current_owner = original_owner = team.
@@ -133,9 +133,8 @@ Handlers (✅): login (login_page/process_login/logout/logged_in_data), user_reg
 
 ## Known not-built (🔴) — prime suspects for rules-doc gaps
 
-1. **`transaction-processor` crate** — stub. Whatever orchestration/replay it's meant to own does not exist.
-2. **`jobs` crate** — stub. No scheduled/background processing (e.g. auto keeper processing, deadline triggers).
-3. **GraphQL read/write surface for team, player, contract, trade, draft picks** — commented out or absent. The frontend cannot drive most league operations through the API yet.
+1. **Auction/RFA sub-event discovery in `jobs`** — the scheduler processes `deadline` rows; synthesizing auction-close timers (spec 01) and RFA windows (spec 03) is pending those engines.
+2. **GraphQL read/write surface for team, player, contract, trade, draft picks** — commented out or absent. The frontend cannot drive most league operations through the API yet (incl. the spec-05 commissioner ops console).
 4. **Trade-time cap/roster validation** — trades validate ownership only, not legality.
 5. **Email integration, NBA live sync, roster legalization, CSP** — listed as main.rs TODOs.
 
@@ -146,4 +145,4 @@ Handlers (✅): login (login_page/process_login/logout/logged_in_data), user_reg
 1. Read `notes/2025-08-31-rules_document.md` section by section.
 2. For each rule, locate the matching domain above and mark: built ✅ / partial 🟡 / missing 🔴.
 3. Cross-check rule *values* (limits, caps, counts) against `constants/src/league_rules/config_settings.rs` — they may exist in code but disagree with the doc.
-4. Pay special attention to anything requiring **background jobs**, **a transaction processor**, or **GraphQL mutations beyond user/league** — those layers are not built.
+4. Pay special attention to anything requiring **GraphQL mutations beyond user/league** — that layer is not built. Background jobs / transaction processing exist (spec 05) but only for deadline-table events so far.

@@ -1449,6 +1449,14 @@ dependencies = [
 [[package]]
 name = "fbkl-jobs"
 version = "0.1.0"
+dependencies = [
+ "chrono",
+ "color-eyre",
+ "fbkl-entity",
+ "fbkl-transaction-processor",
+ "tokio",
+ "tracing",
+]
 
 [[package]]
 name = "fbkl-logic"
@@ -1484,6 +1492,7 @@ dependencies = [
  "dotenv",
  "fbkl-auth",
  "fbkl-entity",
+ "fbkl-jobs",
  "fbkl-logic",
  "serde",
  "serde_json",
@@ -1499,6 +1508,13 @@ dependencies = [
 [[package]]
 name = "fbkl-transaction-processor"
 version = "0.1.0"
+dependencies = [
+ "chrono",
+ "color-eyre",
+ "fbkl-entity",
+ "fbkl-logic",
+ "tracing",
+]
 
 [[package]]
 name = "find-msvc-tools"
