@@ -15,6 +15,7 @@ use color_eyre::Result;
 use fbkl_auth::{encode_token, generate_token};
 use fbkl_entity::sea_orm::Database;
 use server::AppState;
+use sha2::{Digest, Sha512};
 use time::Duration as TimeDuration;
 use tokio::{signal, task::AbortHandle};
 use tower_cookies::{CookieManagerLayer, Key, cookie::SameSite};
@@ -49,7 +50,10 @@ async fn main() -> Result<()> {
     );
     let session_secret = std::env::var("SESSION_SECRET")
         .unwrap_or_else(|_| encode_token(&generate_token().into_iter().collect()));
-    let key = Key::from(session_secret.as_bytes());
+    // `Key::from` requires >= 64 bytes; derive a fixed 64-byte key from the secret
+    // via SHA-512 so any-length SESSION_SECRET is accepted.
+    let key_bytes = Sha512::digest(session_secret.as_bytes());
+    let key = Key::from(&key_bytes);
     let session_layer = SessionManagerLayer::new(session_store)
         .with_private(key)
         .with_secure(true)
