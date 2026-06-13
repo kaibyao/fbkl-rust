@@ -17,7 +17,7 @@
 
     /* Orange is the brand primary already in the theme. We lean into it. */
     --primary:        oklch(0.553 0.195 38.402);   /* base token */
-    --primary-hot:    oklch(0.70 0.205 41);        /* proposed: hotter accent for "live"/CTA glow */
+    --primary-hot:    oklch(0.70 0.205 41);        /* shipped --primary-hot: hotter accent for "live"/CTA glow */
     --primary-fg:     oklch(0.98 0.016 73.684);
 
     /* Chart ramp ships blue — we keep it for data viz so charts read "cool/analytical"
@@ -28,7 +28,7 @@
     --chart-4: oklch(0.488 0.243 264.376);
     --chart-5: oklch(0.424 0.199 265.638);
 
-    --win:  oklch(0.72 0.17 150);   /* proposed semantic green (up / win / gain) */
+    --win:  oklch(0.72 0.17 150);   /* shipped as --success: green (up / win / gain) */
     --loss: oklch(0.704 0.191 22.216); /* destructive token reused (down / loss) */
 
     --radius: 0.625rem;
@@ -167,16 +167,16 @@
   <p class="muted" style="margin:0 0 22px;max-width:60ch">Brand orange + zinc neutrals ship as-is. We add a <b>hotter orange</b> for live/CTA glow, keep the <b>blue chart ramp</b> for analysis, and propose <b>semantic win/loss</b> greens & reds.</p>
   <div class="swatches">
     <div class="sw"><div class="chip" style="background:var(--primary)"></div><div class="meta"><b>Primary / Brand</b><code>oklch(.553 .195 38.4)</code></div></div>
-    <div class="sw"><div class="chip" style="background:var(--primary-hot)"></div><div class="meta"><b>Primary HOT ✦ new</b><code>oklch(.70 .205 41)</code></div></div>
+    <div class="sw"><div class="chip" style="background:var(--primary-hot)"></div><div class="meta"><b>Primary HOT ✦ shipped</b><code>--primary-hot</code></div></div>
     <div class="sw"><div class="chip" style="background:var(--bg)"></div><div class="meta"><b>Canvas (zinc-950)</b><code>oklch(.141 .005 285.8)</code></div></div>
     <div class="sw"><div class="chip" style="background:var(--card)"></div><div class="meta"><b>Surface (zinc-900)</b><code>oklch(.21 .006 285.9)</code></div></div>
     <div class="sw"><div class="chip" style="background:var(--card-2)"></div><div class="meta"><b>Muted / hover</b><code>oklch(.274 .006 286)</code></div></div>
     <div class="sw"><div class="chip" style="background:var(--chart-1)"></div><div class="meta"><b>Chart 1 (blue)</b><code>oklch(.809 .105 251.8)</code></div></div>
     <div class="sw"><div class="chip" style="background:var(--chart-3)"></div><div class="meta"><b>Chart 3 (blue)</b><code>oklch(.546 .245 262.9)</code></div></div>
-    <div class="sw"><div class="chip" style="background:var(--win)"></div><div class="meta"><b>Win / Up ✦ new</b><code>oklch(.72 .17 150)</code></div></div>
+    <div class="sw"><div class="chip" style="background:var(--win)"></div><div class="meta"><b>Win / Up ✦ shipped</b><code>--success</code></div></div>
     <div class="sw"><div class="chip" style="background:var(--loss)"></div><div class="meta"><b>Loss / Down</b><code>oklch(.704 .191 22.2)</code></div></div>
   </div>
-  <p class="note">✦ = proposed addition, not yet in <code>global.css</code>. Everything else is your existing dark-mode token, verbatim.</p>
+  <p class="note">✦ = shipped to <code>global.css</code> as <code>--primary-hot</code> and <code>--success</code> (loss reuses <code>--destructive</code>); usable as <code>bg-primary-hot</code> / <code>text-success</code>. Everything else is your existing dark-mode token, verbatim.</p>
 </section>
 
 <!-- ============ TYPE ============ -->
