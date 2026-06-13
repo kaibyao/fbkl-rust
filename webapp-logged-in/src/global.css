@@ -1,8 +1,8 @@
-@import "tailwindcss";
-@import "tw-animate-css";
-@import "shadcn/tailwind.css";
-@import "@fontsource-variable/figtree";
-@import "@fontsource-variable/nunito-sans";
+@import 'tailwindcss';
+@import 'tw-animate-css';
+@import 'shadcn/tailwind.css';
+@import '@fontsource-variable/figtree';
+@import '@fontsource-variable/nunito-sans';
 
 @custom-variant dark (&:is(.dark *));
 
@@ -69,7 +69,7 @@ code {
   --popover-foreground: oklch(0.985 0 0);
   --primary: oklch(0.47 0.157 37.304);
   --primary-foreground: oklch(0.98 0.016 73.684);
-  --primary-hot: oklch(0.70 0.205 41);
+  --primary-hot: oklch(0.7 0.205 41);
   --success: oklch(0.72 0.17 150);
   --success-foreground: oklch(0.985 0 0);
   --secondary: oklch(0.274 0.006 286.033);
@@ -153,7 +153,8 @@ code {
   html {
     @apply font-sans;
   }
-  button:not(:disabled), [role="button"]:not(:disabled) {
+  button:not(:disabled),
+  [role='button']:not(:disabled) {
     cursor: pointer;
   }
 }

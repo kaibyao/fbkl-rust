@@ -1,10 +1,7 @@
-import Box from '@mui/material/Box';
-import Card from '@mui/material/Card';
-import CardActionArea from '@mui/material/CardActionArea';
-import CardContent from '@mui/material/CardContent';
-import Typography from '@mui/material/Typography';
 import { useNavigate } from '@tanstack/react-router';
+import { Loader2 } from 'lucide-react';
 import { useMutation } from 'urql';
+import { Card, CardContent } from '@/components/ui/card';
 import { graphql } from '@/generated';
 import { LeagueListFragment } from '@/generated/graphql';
 
@@ -39,27 +36,26 @@ export const LeagueListItem: React.FC<Props> = ({ league }) => {
   };
 
   return (
-    <Card variant="outlined">
-      <CardActionArea onClick={handleSelectLeague}>
-        <CardContent>
-          <Typography variant="h4" color="ButtonFace">
-            {league.name} - {league.currentTeamUser?.team?.name}
-          </Typography>
-          <Box sx={{ display: 'flex', alignItems: 'flex-end' }}>
-            <Typography variant="body1" sx={{ mr: 1 }}>
-              {league.currentTeamUser?.nickname}
-            </Typography>
-            <Typography variant="body2" color="GrayText">
-              ({league.currentTeamUser?.leagueRole})
-            </Typography>
-            {fetching ? (
-              <Typography variant="body2" color="GrayText">
-                Loading...
-              </Typography>
-            ) : null}
-          </Box>
-        </CardContent>
-      </CardActionArea>
+    <Card
+      onClick={handleSelectLeague}
+      className="cursor-pointer transition-all hover:-translate-y-0.5 hover:ring-primary-hot/60"
+    >
+      <CardContent className="flex flex-col gap-1">
+        <h2 className="font-heading text-base font-bold">
+          {league.name}
+          <span className="text-muted-foreground">
+            {' '}
+            — {league.currentTeamUser?.team?.name}
+          </span>
+        </h2>
+        <div className="flex items-end gap-1.5 text-xs text-muted-foreground">
+          <span className="text-foreground">
+            {league.currentTeamUser?.nickname}
+          </span>
+          <span>({league.currentTeamUser?.leagueRole})</span>
+          {fetching ? <Loader2 className="size-3 animate-spin" /> : null}
+        </div>
+      </CardContent>
     </Card>
   );
 };

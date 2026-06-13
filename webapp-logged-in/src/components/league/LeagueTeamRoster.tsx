@@ -1,10 +1,7 @@
-import Card from '@mui/material/Card';
-import Divider from '@mui/material/Divider';
-import List from '@mui/material/List';
-import Stack from '@mui/material/Stack';
-import Typography from '@mui/material/Typography';
 import { FunctionComponent } from 'react';
 import { LeagueRosterListPlayer } from '@/components/league/LeagueRosterListPlayer';
+import { Card, CardContent } from '@/components/ui/card';
+import { Separator } from '@/components/ui/separator';
 import { ContractKind, ContractStatus } from '@/generated/enums';
 import {
   ContractForRosterListFragment,
@@ -20,37 +17,32 @@ export const LeagueTeamRoster: FunctionComponent<Props> = ({ team }) => {
   const { activeContracts, activeButIrContracts, rookieDevelopmentContracts } =
     partitionContracts(team.contracts);
 
+  const activeSalary = activeContracts.reduce(
+    (acc, contract) => acc + contract.salary,
+    0,
+  );
+
   return (
-    <Card
-      sx={{
-        padding: 2,
-      }}
-    >
-      <Stack spacing={2}>
-        <Stack
-          direction="row"
-          spacing={2}
-          alignItems="center"
-          justifyContent="space-between"
-        >
-          <Typography variant="h4">{team.name}</Typography>
-          <Typography variant="h5">
-            $
-            {activeContracts.reduce((acc, contract) => {
-              return acc + contract.salary;
-            }, 0)}
-            /${team.salaryCap.salaryCap}
-          </Typography>
-        </Stack>
+    <Card>
+      <CardContent className="flex flex-col gap-3">
+        <div className="flex items-center justify-between gap-2">
+          <h2 className="font-heading text-base font-bold">{team.name}</h2>
+          <span className="font-heading text-sm font-bold tabular-nums">
+            ${activeSalary}
+            <span className="text-muted-foreground">
+              /${team.salaryCap.salaryCap}
+            </span>
+          </span>
+        </div>
 
-        <Divider />
+        <Separator />
 
-        <Stack spacing={2}>
-          <Typography variant="h5">
+        <div className="flex flex-col gap-2">
+          <h3 className="text-xs font-semibold tracking-wide text-muted-foreground uppercase">
             Active ({activeContracts.length})
-          </Typography>
+          </h3>
 
-          <List dense style={{ marginTop: 0 }}>
+          <ul className="flex flex-col">
             {activeContracts.map((contract) => (
               <LeagueRosterListPlayer key={contract.id} contract={contract} />
             ))}
@@ -61,19 +53,19 @@ export const LeagueTeamRoster: FunctionComponent<Props> = ({ team }) => {
                 isIr
               />
             ))}
-          </List>
+          </ul>
 
-          <Typography variant="h5">
+          <h3 className="text-xs font-semibold tracking-wide text-muted-foreground uppercase">
             Rookie Development ({rookieDevelopmentContracts.length})
-          </Typography>
+          </h3>
 
-          <List dense style={{ marginTop: 0 }}>
+          <ul className="flex flex-col">
             {rookieDevelopmentContracts.map((contract) => (
               <LeagueRosterListPlayer key={contract.id} contract={contract} />
             ))}
-          </List>
-        </Stack>
-      </Stack>
+          </ul>
+        </div>
+      </CardContent>
     </Card>
   );
 };
