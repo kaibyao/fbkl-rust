@@ -35,5 +35,5 @@ pub fn setup_server_router() -> Router<Arc<AppState>> {
             "/register",
             get(get_registration_page).post(process_registration),
         )
-        .route("/*public_path", get(get_public_page))
+        .route("/{*public_path}", get(get_public_page))
 }
