@@ -1,0 +1,352 @@
+<!doctype html>
+<html lang="en" class="dark">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>FBKL · Design & Mood Board</title>
+<style>
+  /* ----- Tokens (sourced from webapp-logged-in/src/global.css, dark mode) ----- */
+  :root{
+    --bg:        oklch(0.141 0.005 285.823);   /* zinc-950 — app canvas */
+    --bg-raise:  #212121;                       /* current body bg */
+    --card:      oklch(0.21 0.006 285.885);     /* zinc-900 surface */
+    --card-2:    oklch(0.274 0.006 286.033);    /* muted / hover surface */
+    --fg:        oklch(0.985 0 0);              /* near-white text */
+    --muted-fg:  oklch(0.705 0.015 286.067);    /* secondary text */
+    --border:    oklch(1 0 0 / 10%);
+
+    /* Orange is the brand primary already in the theme. We lean into it. */
+    --primary:        oklch(0.553 0.195 38.402);   /* base token */
+    --primary-hot:    oklch(0.70 0.205 41);        /* proposed: hotter accent for "live"/CTA glow */
+    --primary-fg:     oklch(0.98 0.016 73.684);
+
+    /* Chart ramp ships blue — we keep it for data viz so charts read "cool/analytical"
+       against the hot-orange brand. Excitement = orange. Analysis = blue. */
+    --chart-1: oklch(0.809 0.105 251.813);
+    --chart-2: oklch(0.623 0.214 259.815);
+    --chart-3: oklch(0.546 0.245 262.881);
+    --chart-4: oklch(0.488 0.243 264.376);
+    --chart-5: oklch(0.424 0.199 265.638);
+
+    --win:  oklch(0.72 0.17 150);   /* proposed semantic green (up / win / gain) */
+    --loss: oklch(0.704 0.191 22.216); /* destructive token reused (down / loss) */
+
+    --radius: 0.625rem;
+    --maxw: 1180px;
+  }
+
+  *{box-sizing:border-box}
+  html{font-family:'Figtree Variable','Figtree',system-ui,sans-serif}
+  body{
+    margin:0;background:
+      radial-gradient(1200px 600px at 80% -10%, color-mix(in oklch, var(--primary) 18%, transparent), transparent 60%),
+      var(--bg);
+    color:var(--fg);line-height:1.5;-webkit-font-smoothing:antialiased
+  }
+  h1,h2,h3{font-family:'Nunito Sans Variable','Nunito Sans',system-ui,sans-serif;line-height:1.05;letter-spacing:-0.02em;margin:0}
+  h1{font-size:clamp(2.4rem,6vw,4.4rem);font-weight:900}
+  h2{font-size:clamp(1.5rem,3vw,2.2rem);font-weight:800}
+  h3{font-size:1.05rem;font-weight:800;letter-spacing:.04em;text-transform:uppercase}
+  a{color:var(--primary-hot)}
+  .wrap{max-width:var(--maxw);margin:0 auto;padding:0 24px}
+  section{padding:72px 0;border-top:1px solid var(--border)}
+  .eyebrow{font-size:.72rem;font-weight:800;letter-spacing:.22em;text-transform:uppercase;color:var(--primary-hot)}
+  .muted{color:var(--muted-fg)}
+  .grid{display:grid;gap:18px}
+  .card{background:var(--card);border:1px solid var(--border);border-radius:var(--radius);overflow:hidden}
+  .pad{padding:20px}
+
+  /* ---------------- HERO ---------------- */
+  .hero{position:relative;min-height:88vh;display:flex;align-items:flex-end;overflow:hidden}
+  .hero-img{position:absolute;inset:0;background:#000;
+    background-image:url('https://cdn.nba.com/manage/2025/12/Kawhi_1920x1080.jpg');
+    background-size:cover;background-position:center 22%;
+    filter:saturate(1.05) contrast(1.05)}
+  /* Signature treatment: dark zinc scrim from bottom + a hot-orange light-leak from one corner */
+  .hero-scrim{position:absolute;inset:0;background:
+    linear-gradient(to top, var(--bg) 4%, color-mix(in oklch,var(--bg) 70%,transparent) 38%, transparent 70%),
+    radial-gradient(900px 500px at 88% 8%, color-mix(in oklch,var(--primary) 42%,transparent), transparent 60%)}
+  .hero .wrap{position:relative;padding-bottom:64px;padding-top:80px;width:100%}
+  .hero h1{max-width:16ch}
+  .hero p{max-width:46ch;font-size:1.15rem;color:var(--fg);opacity:.9}
+  .pill{display:inline-flex;align-items:center;gap:8px;font-size:.7rem;font-weight:800;letter-spacing:.12em;text-transform:uppercase;
+    background:color-mix(in oklch,var(--primary) 22%,transparent);color:var(--primary-fg);
+    border:1px solid color-mix(in oklch,var(--primary) 50%,transparent);padding:6px 12px;border-radius:999px}
+  .live-dot{width:8px;height:8px;border-radius:50%;background:var(--primary-hot);box-shadow:0 0 0 0 var(--primary-hot);animation:pulse 1.8s infinite}
+  @keyframes pulse{0%{box-shadow:0 0 0 0 color-mix(in oklch,var(--primary-hot) 70%,transparent)}70%{box-shadow:0 0 0 10px transparent}100%{box-shadow:0 0 0 0 transparent}}
+
+  /* ---------------- swatches ---------------- */
+  .swatches{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:12px}
+  .sw{border:1px solid var(--border);border-radius:var(--radius);overflow:hidden;background:var(--card)}
+  .sw .chip{height:84px}
+  .sw .meta{padding:10px 12px;font-size:.74rem}
+  .sw .meta b{display:block;font-size:.82rem;letter-spacing:.02em}
+  .sw code{font-family:ui-monospace,Menlo,monospace;color:var(--muted-fg);font-size:.68rem;word-break:break-all}
+
+  /* ---------------- type ---------------- */
+  .type-row{display:flex;flex-wrap:wrap;align-items:baseline;gap:18px;padding:14px 0;border-bottom:1px solid var(--border)}
+  .num-tabular{font-variant-numeric:tabular-nums lining-nums;font-weight:900;font-family:'Nunito Sans Variable',sans-serif}
+
+  /* ---------------- photo treatments ---------------- */
+  .treat{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:18px}
+  .pcard{position:relative;aspect-ratio:3/4;border-radius:var(--radius);overflow:hidden;border:1px solid var(--border);background:#000}
+  .pcard img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;display:block}
+  .pcard .lbl{position:absolute;left:12px;bottom:12px;right:12px;z-index:2;font-size:.78rem}
+  .pcard .lbl b{display:block;font-family:'Nunito Sans Variable',sans-serif;font-weight:900;font-size:.95rem}
+  .pcard::after{content:"";position:absolute;inset:0;z-index:1}
+  /* A: zinc scrim — the workhorse for player cards */
+  .t-scrim::after{background:linear-gradient(to top,var(--bg) 2%,transparent 55%)}
+  /* B: orange duotone — for hype/empty-states/marketing moments */
+  .t-duo img{filter:grayscale(1) contrast(1.1)}
+  .t-duo::after{background:color-mix(in oklch,var(--primary) 55%,transparent);mix-blend-mode:color}
+  .t-duo .over{position:absolute;inset:0;z-index:1;background:linear-gradient(to top,var(--bg) 2%,transparent 60%)}
+  /* C: spotlight — radial focus, dims edges, for "player of the week" */
+  .t-spot::after{background:radial-gradient(120% 80% at 50% 35%,transparent,var(--bg) 105%)}
+  /* D: cool/analytical — desaturated + blue cast, for data-heavy screens */
+  .t-cool img{filter:saturate(.55) brightness(.9)}
+  .t-cool::after{background:linear-gradient(to top,var(--bg) 2%,transparent 55%),color-mix(in oklch,var(--chart-2) 20%,transparent)}
+
+  .strip{display:grid;grid-auto-flow:column;grid-auto-columns:minmax(160px,1fr);gap:10px;overflow-x:auto;padding-bottom:8px}
+  .strip .pcard{aspect-ratio:4/5}
+
+  /* ---------------- UI vignettes ---------------- */
+  .vg{display:grid;grid-template-columns:1fr 1fr;gap:18px}
+  @media(max-width:780px){.vg{grid-template-columns:1fr}}
+  .stat{display:flex;align-items:baseline;gap:10px}
+  .stat .v{font-size:2rem}
+  .up{color:var(--win)} .down{color:var(--loss)}
+  .btn{display:inline-flex;align-items:center;gap:8px;border:none;border-radius:var(--radius);padding:10px 16px;font-weight:800;font-family:inherit;cursor:pointer}
+  .btn-primary{background:var(--primary);color:var(--primary-fg);box-shadow:0 8px 24px -8px color-mix(in oklch,var(--primary) 80%,transparent)}
+  .btn-ghost{background:transparent;color:var(--fg);border:1px solid var(--border)}
+  .row{display:flex;align-items:center;gap:12px}
+  .ava{width:44px;height:44px;border-radius:10px;object-fit:cover;border:1px solid var(--border)}
+  .bar{height:8px;border-radius:99px;background:var(--card-2);overflow:hidden}
+  .bar>i{display:block;height:100%;background:linear-gradient(90deg,var(--chart-3),var(--chart-1))}
+  .tag{font-size:.64rem;font-weight:800;letter-spacing:.1em;text-transform:uppercase;padding:3px 8px;border-radius:6px;background:var(--card-2);color:var(--muted-fg)}
+  .tag.fa{background:color-mix(in oklch,var(--primary) 20%,transparent);color:var(--primary-hot)}
+  .spark{display:flex;align-items:flex-end;gap:3px;height:36px}
+  .spark>i{flex:1;background:var(--chart-2);border-radius:2px 2px 0 0;opacity:.85}
+
+  .principles{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:18px}
+  .principles .card{padding:20px}
+  .principles b{font-family:'Nunito Sans Variable',sans-serif;font-size:1.05rem}
+  footer{padding:40px 0 80px;color:var(--muted-fg);font-size:.8rem}
+  .note{font-size:.78rem;color:var(--muted-fg);margin-top:8px}
+</style>
+</head>
+<body>
+
+<!-- ============ HERO ============ -->
+<header class="hero">
+  <div class="hero-img"></div>
+  <div class="hero-scrim"></div>
+  <div class="wrap">
+    <span class="pill"><span class="live-dot"></span> FBKL · Living Design Direction</span>
+    <h1>Arena energy.<br>Front-office calm.</h1>
+    <p>A fantasy basketball cockpit that hits like a buzzer-beater and reads like a spreadsheet you actually enjoy. Hot orange for the moment. Cool zinc + blue for the decision.</p>
+  </div>
+</header>
+
+<div class="wrap">
+
+<!-- ============ THE FEELING ============ -->
+<section style="border-top:none">
+  <span class="eyebrow">The two feelings, held at once</span>
+  <h2 style="margin:10px 0 18px">Excitement ↔ Refinement</h2>
+  <div class="principles">
+    <div class="card"><b>🔥 Excitement lives in moments</b><p class="muted" style="margin:.5rem 0 0">Real NBA photography, hot-orange glow, a live pulse, big tabular numbers that swing green/red. Reserved for the screens where emotion belongs: your players, a clutch matchup, a trade that just landed.</p></div>
+    <div class="card"><b>🧊 Refinement lives in the chrome</b><p class="muted" style="margin:.5rem 0 0">Dark zinc surfaces, generous whitespace, one accent at a time, quiet borders, blue analytical charts. The frame never competes with the game.</p></div>
+    <div class="card"><b>📐 The rule</b><p class="muted" style="margin:.5rem 0 0">Photos & orange earn their place. If a pixel isn't a player, a moment, or a primary action — it's neutral. Minimalism is what makes the orange hit.</p></div>
+  </div>
+</section>
+
+<!-- ============ PALETTE ============ -->
+<section>
+  <span class="eyebrow">Palette · grounded in your shadcn tokens</span>
+  <h2 style="margin:10px 0 6px">Color</h2>
+  <p class="muted" style="margin:0 0 22px;max-width:60ch">Brand orange + zinc neutrals ship as-is. We add a <b>hotter orange</b> for live/CTA glow, keep the <b>blue chart ramp</b> for analysis, and propose <b>semantic win/loss</b> greens & reds.</p>
+  <div class="swatches">
+    <div class="sw"><div class="chip" style="background:var(--primary)"></div><div class="meta"><b>Primary / Brand</b><code>oklch(.553 .195 38.4)</code></div></div>
+    <div class="sw"><div class="chip" style="background:var(--primary-hot)"></div><div class="meta"><b>Primary HOT ✦ new</b><code>oklch(.70 .205 41)</code></div></div>
+    <div class="sw"><div class="chip" style="background:var(--bg)"></div><div class="meta"><b>Canvas (zinc-950)</b><code>oklch(.141 .005 285.8)</code></div></div>
+    <div class="sw"><div class="chip" style="background:var(--card)"></div><div class="meta"><b>Surface (zinc-900)</b><code>oklch(.21 .006 285.9)</code></div></div>
+    <div class="sw"><div class="chip" style="background:var(--card-2)"></div><div class="meta"><b>Muted / hover</b><code>oklch(.274 .006 286)</code></div></div>
+    <div class="sw"><div class="chip" style="background:var(--chart-1)"></div><div class="meta"><b>Chart 1 (blue)</b><code>oklch(.809 .105 251.8)</code></div></div>
+    <div class="sw"><div class="chip" style="background:var(--chart-3)"></div><div class="meta"><b>Chart 3 (blue)</b><code>oklch(.546 .245 262.9)</code></div></div>
+    <div class="sw"><div class="chip" style="background:var(--win)"></div><div class="meta"><b>Win / Up ✦ new</b><code>oklch(.72 .17 150)</code></div></div>
+    <div class="sw"><div class="chip" style="background:var(--loss)"></div><div class="meta"><b>Loss / Down</b><code>oklch(.704 .191 22.2)</code></div></div>
+  </div>
+  <p class="note">✦ = proposed addition, not yet in <code>global.css</code>. Everything else is your existing dark-mode token, verbatim.</p>
+</section>
+
+<!-- ============ TYPE ============ -->
+<section>
+  <span class="eyebrow">Type · already loaded in the app</span>
+  <h2 style="margin:10px 0 18px">Nunito Sans (display) · Figtree (UI) · tabular numerals</h2>
+  <div class="card pad">
+    <div class="type-row"><h1 style="font-size:3rem">JOKIC TRIPLE-DOUBLE</h1><span class="muted">Nunito Sans · 900 · headlines & player names</span></div>
+    <div class="type-row"><h2>Standings & League Trajectory</h2><span class="muted">Nunito Sans · 800 · section titles</span></div>
+    <div class="type-row"><span style="font-size:1.05rem;font-weight:600">Plan your roster, scout the wire, pull the trigger on a trade.</span><span class="muted">Figtree · 400–600 · body & UI</span></div>
+    <div class="type-row">
+      <span class="num-tabular up" style="font-size:2.4rem">+12.4</span>
+      <span class="num-tabular" style="font-size:2.4rem">31.2</span>
+      <span class="num-tabular down" style="font-size:2.4rem">−4</span>
+      <span class="muted">Tabular lining numerals — stats align in columns, never jitter on update</span>
+    </div>
+  </div>
+</section>
+
+<!-- ============ PHOTO TREATMENTS ============ -->
+<section>
+  <span class="eyebrow">Photography · real moments, controlled</span>
+  <h2 style="margin:10px 0 6px">Four treatments for NBA imagery</h2>
+  <p class="muted" style="margin:0 0 22px;max-width:64ch">Photos are the excitement engine — but raw photos fight the UI. Every image runs through one of four treatments so it always lands on a dark zinc base and the orange stays the loudest thing on screen. (Live photos pulled from NBA.com Top-25 of 2025.)</p>
+  <div class="treat">
+    <div class="pcard t-scrim">
+      <img src="https://cdn.nba.com/manage/2025/12/GettyImages-2219089020-1024x1536.jpg" alt="">
+      <div class="lbl"><b>A · Zinc Scrim</b><span class="muted">Workhorse. Player & roster cards. Text stays legible.</span></div>
+    </div>
+    <div class="pcard t-duo">
+      <img src="https://cdn.nba.com/manage/2025/12/GettyImages-2220888872-1024x1536.jpg" alt="">
+      <div class="over"></div>
+      <div class="lbl"><b>B · Orange Duotone</b><span class="muted">Hype / empty-states / marketing beats.</span></div>
+    </div>
+    <div class="pcard t-spot">
+      <img src="https://cdn.nba.com/manage/2025/12/0GettyImages-2220907031-941x1176.jpg" alt="">
+      <div class="lbl"><b>C · Spotlight</b><span class="muted">"Player of the week" — radial focus, dim edges.</span></div>
+    </div>
+    <div class="pcard t-cool">
+      <img src="https://cdn.nba.com/manage/2025/12/0GettyImages-2182344606-952x1176.jpg" alt="">
+      <div class="lbl"><b>D · Cool / Analytical</b><span class="muted">Data-heavy screens — desaturated, blue cast, recedes.</span></div>
+    </div>
+  </div>
+
+  <h3 style="margin:34px 0 12px;color:var(--muted-fg)">Hero / matchup strip — landscape moments</h3>
+  <div class="strip">
+    <div class="pcard t-scrim"><img src="https://cdn.nba.com/manage/2025/12/jokic3-2.jpg" alt=""></div>
+    <div class="pcard t-scrim"><img src="https://cdn.nba.com/manage/2025/12/13_Photos-of-the-Year-1536x1024.jpg" alt=""></div>
+    <div class="pcard t-scrim"><img src="https://cdn.nba.com/manage/2025/12/77_Photos-of-the-Year-1536x1024.jpg" alt=""></div>
+    <div class="pcard t-scrim"><img src="https://cdn.nba.com/manage/2025/12/95_Photos-of-the-Year-1536x1024.jpg" alt=""></div>
+    <div class="pcard t-scrim"><img src="https://cdn.nba.com/manage/2025/12/wemby-vassell.jpg" alt=""></div>
+    <div class="pcard t-scrim"><img src="https://cdn.nba.com/manage/2025/12/GettyImages-2211632004-1536x1024.jpg" alt=""></div>
+  </div>
+  <p class="note">Production note: serve via your own CDN with team-licensed/Getty-licensed assets + headshot API; these URLs are reference only. Always ship a zinc fallback block so a missing photo degrades gracefully.</p>
+</section>
+
+<!-- ============ UI VIGNETTES — the 5 jobs ============ -->
+<section>
+  <span class="eyebrow">Applied · the five things users log in to do</span>
+  <h2 style="margin:10px 0 22px">Component vibes</h2>
+  <div class="vg">
+
+    <!-- 1. Recognize your players -->
+    <div class="card">
+      <div class="pcard t-scrim" style="aspect-ratio:16/10;border:none;border-radius:0">
+        <img src="https://cdn.nba.com/manage/2025/12/Kawhi_1920x1080.jpg" alt="">
+        <div class="lbl" style="bottom:14px">
+          <span class="tag" style="background:color-mix(in oklch,var(--primary) 25%,transparent);color:var(--primary-hot)">SF · YOUR STARTER</span>
+          <b style="font-size:1.4rem;margin-top:4px">Kawhi Leonard</b>
+        </div>
+      </div>
+      <div class="pad">
+        <h3 style="color:var(--muted-fg);font-size:.8rem">1 · Recognize your players</h3>
+        <div class="row" style="justify-content:space-between;margin-top:10px">
+          <div class="stat"><span class="v num-tabular">26.9</span><span class="muted">PTS</span></div>
+          <div class="stat"><span class="v num-tabular">7.2</span><span class="muted">REB</span></div>
+          <div class="stat"><span class="v num-tabular up">+3.1</span><span class="muted">vs proj</span></div>
+        </div>
+        <p class="muted" style="margin:.6rem 0 0">Face-first cards. You see the human before the stat line. Headshot/action photo + name in display weight = instant recognition.</p>
+      </div>
+    </div>
+
+    <!-- 2. Standing & trajectory -->
+    <div class="card pad">
+      <h3 style="color:var(--muted-fg);font-size:.8rem">2 · Standing & league trajectory</h3>
+      <div class="row" style="justify-content:space-between;margin:12px 0">
+        <div><div class="muted" style="font-size:.75rem">YOUR RANK</div><div class="num-tabular" style="font-size:2.6rem">2<span class="muted" style="font-size:1rem">/12</span></div></div>
+        <div style="text-align:right"><div class="muted" style="font-size:.75rem">PLAYOFF ODDS</div><div class="num-tabular up" style="font-size:2.6rem">91%</div></div>
+      </div>
+      <div class="spark" style="height:60px;margin:8px 0 14px">
+        <i style="height:30%"></i><i style="height:45%"></i><i style="height:40%"></i><i style="height:62%"></i><i style="height:55%"></i><i style="height:78%"></i><i style="height:70%"></i><i style="height:92%;background:var(--primary-hot)"></i>
+      </div>
+      <p class="muted" style="margin:0">Cool blue charts = analysis mode. One orange bar marks "now". Trajectory reads at a glance; detail on hover.</p>
+    </div>
+
+    <!-- 3. Plan rosters weekly -->
+    <div class="card pad">
+      <h3 style="color:var(--muted-fg);font-size:.8rem">3 · Plan your roster, week by week</h3>
+      <div style="margin-top:12px">
+        <div class="row" style="justify-content:space-between;padding:9px 0;border-bottom:1px solid var(--border)">
+          <div class="row"><img class="ava" src="https://cdn.nba.com/manage/2025/12/0GettyImages-2182344606-952x1176.jpg"><div><b>A. Edwards</b><div class="muted" style="font-size:.75rem">SG · 4 games</div></div></div>
+          <span class="tag" style="background:color-mix(in oklch,var(--win) 20%,transparent);color:var(--win)">START</span>
+        </div>
+        <div class="row" style="justify-content:space-between;padding:9px 0;border-bottom:1px solid var(--border)">
+          <div class="row"><img class="ava" src="https://cdn.nba.com/manage/2025/12/wemby-vassell.jpg"><div><b>V. Wembanyama</b><div class="muted" style="font-size:.75rem">C · 3 games · GTD</div></div></div>
+          <span class="tag">BENCH</span>
+        </div>
+      </div>
+      <p class="muted" style="margin:14px 0 0">Quiet rows, tabular game-counts, one decisive colored verb (START / BENCH). Drag-to-set; the layout stays calm under a full bench.</p>
+    </div>
+
+    <!-- 4. Free agents -->
+    <div class="card pad">
+      <h3 style="color:var(--muted-fg);font-size:.8rem">4 · Scout & sign free agents</h3>
+      <div class="row" style="justify-content:space-between;margin-top:12px">
+        <div class="row"><img class="ava" src="https://cdn.nba.com/manage/2025/12/0GettyImages-2220907031-941x1176.jpg"><div><b>Free Agent</b><span class="tag fa" style="margin-left:6px">AVAILABLE</span><div class="muted" style="font-size:.75rem;margin-top:2px">trending ↑ last 7d</div></div></div>
+        <button class="btn btn-primary">+ Sign</button>
+      </div>
+      <div style="margin-top:16px">
+        <div class="row" style="justify-content:space-between;font-size:.78rem"><span class="muted">Value vs roster</span><span class="up num-tabular">+8.2</span></div>
+        <div class="bar" style="margin-top:6px"><i style="width:78%"></i></div>
+      </div>
+      <p class="muted" style="margin:14px 0 0">FA = orange tag + the one orange CTA on screen. Blue bar quantifies the upgrade. Scarcity feels exciting without being loud.</p>
+    </div>
+
+    <!-- 5. Trades -->
+    <div class="card pad" style="grid-column:1/-1">
+      <h3 style="color:var(--muted-fg);font-size:.8rem">5 · Build & analyze trades</h3>
+      <div class="vg" style="margin-top:14px;align-items:center">
+        <div>
+          <div class="muted" style="font-size:.72rem;letter-spacing:.1em">YOU GIVE</div>
+          <div class="row" style="margin-top:8px"><img class="ava" src="https://cdn.nba.com/manage/2025/12/13_Photos-of-the-Year-1536x1024.jpg"><b>Player A</b><span class="muted num-tabular" style="margin-left:auto">24.1 val</span></div>
+          <div class="row" style="margin-top:8px"><img class="ava" src="https://cdn.nba.com/manage/2025/12/95_Photos-of-the-Year-1536x1024.jpg"><b>2027 1st</b><span class="muted num-tabular" style="margin-left:auto">9.0 val</span></div>
+        </div>
+        <div>
+          <div class="muted" style="font-size:.72rem;letter-spacing:.1em">YOU GET</div>
+          <div class="row" style="margin-top:8px"><img class="ava" src="https://cdn.nba.com/manage/2025/12/jokic3-2.jpg"><b>Player B</b><span class="muted num-tabular" style="margin-left:auto">35.4 val</span></div>
+        </div>
+      </div>
+      <div class="row" style="justify-content:space-between;margin-top:18px;padding-top:16px;border-top:1px solid var(--border)">
+        <div class="stat"><span class="muted">Net value</span><span class="v num-tabular up">+2.3</span><span class="tag" style="background:color-mix(in oklch,var(--win) 20%,transparent);color:var(--win)">FAIR · LEANS YOU</span></div>
+        <div class="row"><button class="btn btn-ghost">Counter</button><button class="btn btn-primary">Propose trade</button></div>
+      </div>
+      <p class="muted" style="margin:14px 0 0">The verdict is the loudest element: one big signed number + a plain-language judgment. Analysis is blue/neutral; the commit action is the single orange button.</p>
+    </div>
+
+  </div>
+</section>
+
+<!-- ============ PRINCIPLES ============ -->
+<section>
+  <span class="eyebrow">Cheatsheet</span>
+  <h2 style="margin:10px 0 18px">When to reach for what</h2>
+  <div class="principles">
+    <div class="card"><b>Orange = emotion + action</b><p class="muted" style="margin:.5rem 0 0">Live state, primary CTA, "now" marker, FA availability, your team. One per view, ideally.</p></div>
+    <div class="card"><b>Blue = analysis</b><p class="muted" style="margin:.5rem 0 0">All charts, projections, value bars. Cool by design so it never competes with brand orange.</p></div>
+    <div class="card"><b>Green/Red = outcome</b><p class="muted" style="margin:.5rem 0 0">Up/down, win/loss, gain/loss vs projection. Tabular numerals only.</p></div>
+    <div class="card"><b>Zinc = everything else</b><p class="muted" style="margin:.5rem 0 0">Surfaces, borders, secondary text. Whitespace is a feature. Quiet by default.</p></div>
+    <div class="card"><b>Photos = moments</b><p class="muted" style="margin:.5rem 0 0">Players, matchups, hype. Always treated (A–D). Never raw, never load-bearing for legibility.</p></div>
+    <div class="card"><b>Motion = restraint</b><p class="muted" style="margin:.5rem 0 0">A single pulse on "live". Fast, ≤200ms transitions. Numbers count up on change. No bounce, no confetti.</p></div>
+  </div>
+</section>
+
+<footer>
+  FBKL · design direction draft · tokens sourced from <code>webapp-logged-in/src/global.css</code> (dark mode) ·
+  fonts: Nunito Sans Variable + Figtree Variable (already bundled) ·
+  imagery: NBA.com Top-25 Photos 2025 (reference only — license before shipping).
+  <br>Note: CLAUDE.md lists "Space Grotesk headings"; actual loaded heading font is Nunito Sans Variable. This board follows the code.
+</footer>
+
+</div>
+</body>
+</html>

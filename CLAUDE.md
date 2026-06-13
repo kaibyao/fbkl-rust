@@ -19,7 +19,7 @@ FBKL is a custom fantasy basketball league system built as a full-stack monorepo
 ### Frontend (TypeScript/React)
 - **Build tool**: Vite (both apps)
 - **Routing (logged-in app)**: TanStack Router
-- **UI**: shadcn/ui backed by Base UI, styled with Tailwind CSS v4 (preset `bzWLdGMr4`, style `base-lyra`, zinc base, orange accent, Space Grotesk headings, Lucide icons). MUI v7 still present and being phased out.
+- **UI**: shadcn/ui backed by Base UI, styled with Tailwind CSS v4 (preset `bzWLdGMr4`, style `base-lyra`, zinc base, orange accent, Nunito Sans Variable headings + Figtree Variable body, Lucide icons). MUI v7 still present and being phased out.
 - **GraphQL client**: urql
 - **Forms**: react-hook-form
 - **Lint/format**: oxlint + oxfmt
