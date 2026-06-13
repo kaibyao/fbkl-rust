@@ -1,4 +1,3 @@
-import Grid from '@mui/material/Grid';
 import { FunctionComponent, useMemo } from 'react';
 import { useQuery } from 'urql';
 import { LeagueTeamRoster } from '@/components/league/LeagueTeamRoster';
@@ -84,16 +83,12 @@ export const LeagueRostersList: FunctionComponent = () => {
   }
 
   return (
-    <Grid container spacing={2}>
+    <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
       {teams
         .sort((a, b) => a.name.localeCompare(b.name))
-        .map((team) => {
-          return (
-            <Grid size={{ xs: 12, md: 6, lg: 4 }} key={team.id}>
-              <LeagueTeamRoster team={team} />
-            </Grid>
-          );
-        })}
-    </Grid>
+        .map((team) => (
+          <LeagueTeamRoster key={team.id} team={team} />
+        ))}
+    </div>
   );
 };

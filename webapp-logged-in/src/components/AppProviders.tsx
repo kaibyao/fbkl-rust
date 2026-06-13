@@ -1,5 +1,3 @@
-import { ThemeProvider } from '@mui/material';
-import { createTheme } from '@mui/material/styles';
 import { FunctionComponent, PropsWithChildren } from 'react';
 import {
   cacheExchange,
@@ -7,12 +5,7 @@ import {
   fetchExchange,
   Provider as GraphQlProvider,
 } from 'urql';
-
-const darkTheme = createTheme({
-  palette: {
-    mode: 'dark',
-  },
-});
+import { TooltipProvider } from '@/components/ui/tooltip';
 
 const client = new Client({
   url: '/api/gql',
@@ -25,7 +18,7 @@ const client = new Client({
 export const AppProviders: FunctionComponent<PropsWithChildren> = ({
   children,
 }) => (
-  <ThemeProvider theme={darkTheme}>
-    <GraphQlProvider value={client}>{children}</GraphQlProvider>
-  </ThemeProvider>
+  <GraphQlProvider value={client}>
+    <TooltipProvider>{children}</TooltipProvider>
+  </GraphQlProvider>
 );

@@ -1,4 +1,3 @@
-import '@fontsource/open-sans/index.css';
 import '@/global.css';
 import { createRouter, RouterProvider } from '@tanstack/react-router';
 import { StrictMode } from 'react';

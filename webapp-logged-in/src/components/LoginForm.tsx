@@ -1,11 +1,10 @@
-import Button from '@mui/material/Button';
-import CircularProgress from '@mui/material/CircularProgress';
-import FormHelperText from '@mui/material/FormHelperText';
-import Stack from '@mui/material/Stack';
-import TextField from '@mui/material/TextField';
 import { useNavigate } from '@tanstack/react-router';
+import { Loader2 } from 'lucide-react';
 import { useState } from 'react';
 import { SubmitHandler, useForm } from 'react-hook-form';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
 import { processLogin } from '@/lib/auth';
 
 interface LoginFormFields {
@@ -34,40 +33,40 @@ export const LoginForm: React.FC = () => {
   };
 
   return (
-    <form onSubmit={handleSubmit(onSubmit)}>
-      <Stack spacing={3}>
-        <TextField
+    <form onSubmit={handleSubmit(onSubmit)} className="flex flex-col gap-5">
+      <div className="flex flex-col gap-1.5">
+        <Label htmlFor="email">Email</Label>
+        <Input
+          id="email"
           autoComplete="email"
-          error={!!formErrors.email}
-          fullWidth
-          label="Email"
           type="email"
+          aria-invalid={!!formErrors.email}
           {...register('email', { required: true })}
-          slotProps={{ inputLabel: { shrink: true } }}
         />
-        <TextField
+      </div>
+
+      <div className="flex flex-col gap-1.5">
+        <Label htmlFor="password">Password</Label>
+        <Input
+          id="password"
           autoComplete="current-password"
-          error={!!formErrors.password}
-          fullWidth
-          label="Password"
           type="password"
+          aria-invalid={!!formErrors.password}
           {...register('password', { required: true })}
-          slotProps={{ inputLabel: { shrink: true } }}
         />
-        <Button
-          type="submit"
-          disabled={isSubmitting}
-          variant="contained"
-          startIcon={
-            isSubmitting ? (
-              <CircularProgress size="1em" sx={{ mr: 1 }} />
-            ) : undefined
-          }
-        >
-          Submit
-        </Button>
-        {loginError && <FormHelperText error>{loginError}</FormHelperText>}
-      </Stack>
+      </div>
+
+      <Button
+        type="submit"
+        size="lg"
+        disabled={isSubmitting}
+        className="w-full hover:bg-primary-hot"
+      >
+        {isSubmitting && <Loader2 className="animate-spin" />}
+        Sign in
+      </Button>
+
+      {loginError && <p className="text-xs text-destructive">{loginError}</p>}
     </form>
   );
 };

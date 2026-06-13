@@ -1,12 +1,12 @@
-import PersonIcon from '@mui/icons-material/Person';
-import Avatar from '@mui/material/Avatar';
-import Chip from '@mui/material/Chip';
-import ListItem from '@mui/material/ListItem';
-import ListItemAvatar from '@mui/material/ListItemAvatar';
-import ListItemText from '@mui/material/ListItemText';
-import Tooltip from '@mui/material/Tooltip';
-import Typography from '@mui/material/Typography';
+import { User } from 'lucide-react';
 import { FunctionComponent } from 'react';
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
+import { Badge } from '@/components/ui/badge';
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from '@/components/ui/tooltip';
 import { ContractKind } from '@/generated/enums';
 import { ContractForRosterListFragment } from '@/generated/graphql';
 
@@ -39,42 +39,44 @@ export const LeagueRosterListPlayer: FunctionComponent<Props> = ({
   });
 
   return (
-    <ListItem
-      key={contract.id}
-      disableGutters
-      secondaryAction={
-        isIr ? <Chip label="IR" color="warning" size="small" /> : undefined
-      }
-    >
-      <ListItemAvatar>
-        {photoUrl ? (
-          <Avatar src={photoUrl} />
-        ) : (
-          <Avatar>
-            <PersonIcon />
-          </Avatar>
-        )}
-      </ListItemAvatar>
-      <ListItemText
-        primary={
-          <Typography variant="body2">
-            {contract.leagueOrRealPlayer.name}{' '}
-            {positionTeamNameString ? `(${positionTeamNameString})` : ''}
-          </Typography>
-        }
-        secondary={
-          <Typography variant="body2">
-            ${contract.salary} / {contract.yearNumber} /{' '}
-            <Tooltip
-              arrow
-              title={<Typography variant="body2">{contract.kind}</Typography>}
+    <li className="flex items-center gap-2.5 py-1.5">
+      <Avatar size="sm">
+        {photoUrl ? <AvatarImage src={photoUrl} alt="" /> : null}
+        <AvatarFallback>
+          <User className="size-3.5" />
+        </AvatarFallback>
+      </Avatar>
+
+      <div className="min-w-0 flex-1">
+        <p className="truncate text-xs font-medium">
+          {contract.leagueOrRealPlayer.name}{' '}
+          {positionTeamNameString && (
+            <span className="text-muted-foreground">
+              ({positionTeamNameString})
+            </span>
+          )}
+        </p>
+        <p className="text-xs text-muted-foreground tabular-nums">
+          ${contract.salary} / {contract.yearNumber} /{' '}
+          <Tooltip>
+            <TooltipTrigger
+              render={
+                <span className="cursor-default underline decoration-dotted" />
+              }
             >
-              <span>{abbreviateContractKind(contract.kind)}</span>
-            </Tooltip>
-          </Typography>
-        }
-      />
-    </ListItem>
+              {abbreviateContractKind(contract.kind)}
+            </TooltipTrigger>
+            <TooltipContent>{contract.kind}</TooltipContent>
+          </Tooltip>
+        </p>
+      </div>
+
+      {isIr && (
+        <Badge variant="outline" className="border-amber-500/40 text-amber-500">
+          IR
+        </Badge>
+      )}
+    </li>
   );
 };
 

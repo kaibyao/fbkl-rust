@@ -1,50 +1,37 @@
-import ListIcon from '@mui/icons-material/List';
-import Box from '@mui/material/Box';
-import Drawer from '@mui/material/Drawer';
-import List from '@mui/material/List';
-import ListItem from '@mui/material/ListItem';
-import ListItemButton from '@mui/material/ListItemButton';
-import ListItemIcon from '@mui/material/ListItemIcon';
-import ListItemText from '@mui/material/ListItemText';
-import Toolbar from '@mui/material/Toolbar';
-import Typography from '@mui/material/Typography';
+import { ClipboardList } from 'lucide-react';
 import { FunctionComponent } from 'react';
-
-export const LEAGUE_MENU_WIDTH = 240;
+import {
+  Sidebar,
+  SidebarContent,
+  SidebarGroup,
+  SidebarGroupLabel,
+  SidebarHeader,
+  SidebarMenu,
+  SidebarMenuButton,
+  SidebarMenuItem,
+} from '@/components/ui/sidebar';
 
 export const LeagueMenu: FunctionComponent = () => {
   return (
-    <Drawer
-      variant="permanent"
-      sx={{
-        width: LEAGUE_MENU_WIDTH,
-        flexShrink: 0,
-        [`& .MuiDrawer-paper`]: {
-          width: LEAGUE_MENU_WIDTH,
-          boxSizing: 'border-box',
-        },
-      }}
-    >
-      <Toolbar />
-      <Box>
-        <List disablePadding>
-          <ListItem disablePadding>
-            <ListItemButton>
-              <ListItemIcon>
-                <ListIcon />
-              </ListItemIcon>
-              <ListItemText
-                primary={
-                  <Typography variant="body1" color="yellow">
-                    Rosters
-                  </Typography>
-                }
-                disableTypography
-              />
-            </ListItemButton>
-          </ListItem>
-        </List>
-      </Box>
-    </Drawer>
+    <Sidebar collapsible="icon">
+      <SidebarHeader>
+        <span className="px-2 font-heading text-base font-black tracking-tight text-primary-hot group-data-[collapsible=icon]:hidden">
+          FBKL
+        </span>
+      </SidebarHeader>
+      <SidebarContent>
+        <SidebarGroup>
+          <SidebarGroupLabel>League</SidebarGroupLabel>
+          <SidebarMenu>
+            <SidebarMenuItem>
+              <SidebarMenuButton isActive tooltip="Rosters">
+                <ClipboardList />
+                <span>Rosters</span>
+              </SidebarMenuButton>
+            </SidebarMenuItem>
+          </SidebarMenu>
+        </SidebarGroup>
+      </SidebarContent>
+    </Sidebar>
   );
 };
