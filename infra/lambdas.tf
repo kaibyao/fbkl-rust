@@ -77,20 +77,10 @@ resource "aws_lambda_function" "api" {
 }
 
 # Function URL (HTTPS, free indefinitely vs API Gateway's 12-month free tier).
-# CORS allows exactly the SPA origin WITH credentials so session cookies flow.
+# No CORS: the browser hits the Pages proxy (same-origin), which calls this URL server-side.
 resource "aws_lambda_function_url" "api" {
   function_name      = aws_lambda_function.api.function_name
   authorization_type = "NONE"
-
-  cors {
-    allow_credentials = true
-    # Logged-in SPA origin, sourced directly from its Pages project.
-    allow_origins = ["https://${cloudflare_pages_project.app.subdomain}"]
-    # OPTIONS preflight is auto-handled; listing it is invalid (Lambda caps methods at 6 chars).
-    allow_methods = ["GET", "POST"]
-    allow_headers = ["content-type", "authorization"]
-    max_age       = 86400
-  }
 }
 
 # --- fbkl-scheduler (96e.4) ---------------------------------------------------

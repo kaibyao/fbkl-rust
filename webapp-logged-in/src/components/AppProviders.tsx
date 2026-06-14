@@ -14,6 +14,7 @@ const darkTheme = createTheme({
   },
 });
 
+// Same-origin in both dev (vite proxy) and prod (Pages Function proxies /api/* to the Lambda).
 const client = new Client({
   url: '/api/gql',
   exchanges: [cacheExchange, fetchExchange],
