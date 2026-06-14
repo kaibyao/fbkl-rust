@@ -146,6 +146,15 @@ resource "aws_lambda_permission" "api_url_public" {
   function_url_auth_type = "NONE"
 }
 
+# Since Oct 2025 a NONE URL also needs InvokeFunction (scoped to URL invocations).
+resource "aws_lambda_permission" "api_url_public_invoke" {
+  statement_id             = "AllowPublicFunctionInvoke"
+  action                   = "lambda:InvokeFunction"
+  function_name            = aws_lambda_function.api.function_name
+  principal                = "*"
+  invoked_via_function_url = true
+}
+
 output "api_function_url" {
   value       = aws_lambda_function_url.api.function_url
   description = "HTTPS endpoint for the API Lambda — point the SPA's GraphQL client here."
