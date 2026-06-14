@@ -126,6 +126,9 @@ Uses SeaORM for type-safe database queries. Entity definitions in `entity/` crat
 
 ## Code Style and Conventions
 
+### Comments
+- Keep code comments to a single line. If a comment needs more, simplify the code or link an issue/doc instead.
+
 ### Rust
 - rustfmt with custom config (`rustfmt.toml`): `use_field_init_shorthand = true`, `use_try_shorthand = true`
 - Error handling: custom `FbklError` enum (`server/src/error.rs`) with `From` implementations

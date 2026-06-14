@@ -86,8 +86,7 @@ resource "aws_lambda_function_url" "api" {
     allow_credentials = true
     # Logged-in SPA origin, sourced directly from its Pages project.
     allow_origins = ["https://${cloudflare_pages_project.app.subdomain}"]
-    # OPTIONS preflight is handled automatically by the Function URL; listing it
-    # is invalid (Lambda caps each method at 6 chars).
+    # OPTIONS preflight is auto-handled; listing it is invalid (Lambda caps methods at 6 chars).
     allow_methods = ["GET", "POST"]
     allow_headers = ["content-type", "authorization"]
     max_age       = 86400
