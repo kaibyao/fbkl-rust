@@ -67,12 +67,15 @@ sea-orm migration crate reads `DATABASE_URL` (distinct from the app's
 
 ```bash
 # from repo root, after `tofu apply` has created the Neon project
-DATABASE_URL=$(tofu -chdir=infra output -raw neon_database_url_direct) \
-  cargo run -p fbkl-migration -- up
+export DATABASE_URL=$(tofu -chdir=infra output -raw neon_database_url_direct)
+
+cargo run -p fbkl-migration -- up                       # app schema (sea-orm)
+cargo run -p fbkl-server --bin migrate_sessions         # tower_sessions table
 ```
 
-The tower-sessions table is created by the app's `session_store.migrate()` on the
-local bin; for the serverless DB, run it as part of this one-time migration step.
+`migrate_sessions` runs tower-sessions' `PostgresStore::migrate()` against the
+direct endpoint — the serverless equivalent of what the local dev bin does on
+startup. Both commands read `DATABASE_URL` (the DIRECT endpoint).
 
 ## Files
 
