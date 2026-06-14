@@ -96,3 +96,18 @@ startup. Both commands read `DATABASE_URL` (the DIRECT endpoint).
 
 Secrets (`terraform.tfvars`, `*.tfstate`) are gitignored. The deploy role ARN is
 emitted as the `github_deploy_role_arn` output for the CI workflow.
+
+## CI/CD (`.github/workflows/deploy.yml`, 96e.10)
+
+Push to `main` triggers a path-filtered deploy: gated migrations → Lambda code
+update (OIDC, no stored keys) → Cloudflare Pages deploy (wrangler). Configure in
+the GitHub repo before the first CI run:
+
+| Kind | Name | Value |
+|------|------|-------|
+| Variable | `AWS_DEPLOY_ROLE_ARN` | `tofu -chdir=infra output -raw github_deploy_role_arn` |
+| Variable | `AWS_REGION` | `us-east-1` |
+| Variable | `CLOUDFLARE_ACCOUNT_ID` | your account ID |
+| Secret | `NEON_DATABASE_URL_DIRECT` | `tofu -chdir=infra output -raw neon_database_url_direct` |
+| Secret | `CLOUDFLARE_API_TOKEN` | Pages-edit token |
+| Environment | `production` | add required reviewers → this is the migration approval gate |

@@ -1,0 +1,149 @@
+# Continuous deployment on push to main (epic fbkl-rust-96e.10).
+#
+# Path-filtered: only the changed parts deploy. Schema migrations run first,
+# gated behind the `production` GitHub Environment (configure required reviewers
+# on it for the manual approval gate). Lambdas deploy via OIDC (no stored AWS
+# keys); frontends deploy to Cloudflare Pages via wrangler.
+#
+# Required repo config:
+#   Variables: AWS_DEPLOY_ROLE_ARN (= tofu output github_deploy_role_arn),
+#              AWS_REGION (us-east-1), CLOUDFLARE_ACCOUNT_ID
+#   Secrets:   NEON_DATABASE_URL_DIRECT (direct endpoint), CLOUDFLARE_API_TOKEN
+#   Environment `production` with required reviewers (gates migrations).
+
+name: deploy
+
+on:
+  push:
+    branches: [main]
+
+concurrency:
+  group: deploy-${{ github.ref }}
+  cancel-in-progress: false
+
+permissions:
+  id-token: write
+  contents: read
+
+jobs:
+  changes:
+    runs-on: ubuntu-latest
+    outputs:
+      rust: ${{ steps.filter.outputs.rust }}
+      migrations: ${{ steps.filter.outputs.migrations }}
+      app: ${{ steps.filter.outputs.app }}
+      public: ${{ steps.filter.outputs.public }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dorny/paths-filter@v3
+        id: filter
+        with:
+          filters: |
+            rust:
+              - 'server/**'
+              - 'lambdas/**'
+              - 'logic/**'
+              - 'entity/**'
+              - 'auth/**'
+              - 'constants/**'
+              - 'jobs/**'
+              - 'transaction-processor/**'
+              - 'Cargo.toml'
+              - 'Cargo.lock'
+            migrations:
+              - 'migration/**'
+              - 'entity/**'
+            app:
+              - 'webapp-logged-in/**'
+            public:
+              - 'webapp-public/**'
+
+  migrate:
+    needs: changes
+    if: needs.changes.outputs.migrations == 'true'
+    runs-on: ubuntu-latest
+    environment: production
+    env:
+      DATABASE_URL: ${{ secrets.NEON_DATABASE_URL_DIRECT }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: moonrepo/setup-rust@v1
+      - run: cargo run -p fbkl-migration -- up
+      - run: cargo run -p fbkl-server --bin migrate_sessions
+
+  deploy-lambdas:
+    needs: [changes, migrate]
+    if: |
+      always() &&
+      needs.changes.outputs.rust == 'true' &&
+      (needs.migrate.result == 'success' || needs.migrate.result == 'skipped')
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: moonrepo/setup-rust@v1
+        with:
+          bins: cargo-lambda
+      - uses: mlugg/setup-zig@v1
+        with:
+          version: 0.14.0
+      - run: cargo lambda build --release --arm64 --output-format zip
+      - uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ vars.AWS_DEPLOY_ROLE_ARN }}
+          aws-region: ${{ vars.AWS_REGION }}
+      - name: Update function code
+        run: |
+          for fn in fbkl-api fbkl-scheduler fbkl-session-gc; do
+            aws lambda update-function-code \
+              --function-name "$fn" \
+              --zip-file "fileb://target/lambda/$fn/bootstrap.zip" \
+              --publish
+          done
+
+  deploy-app:
+    needs: changes
+    if: needs.changes.outputs.app == 'true'
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: webapp-logged-in
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+        working-directory: .
+      - run: pnpm --filter "@fbkl/webapp-logged-in" build
+        working-directory: .
+      - name: Deploy to Cloudflare Pages
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}
+        run: npx wrangler@latest pages deploy dist --project-name=fbkl-app --branch=main
+
+  deploy-public:
+    needs: changes
+    if: needs.changes.outputs.public == 'true'
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: webapp-public
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+        working-directory: .
+      - run: pnpm --filter "@fbkl/webapp-public" build
+        working-directory: .
+      - name: Deploy to Cloudflare Pages
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}
+        run: npx wrangler@latest pages deploy dist --project-name=fbkl-public --branch=main
