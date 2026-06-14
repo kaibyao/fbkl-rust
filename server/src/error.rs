@@ -4,94 +4,67 @@ use axum::{
 };
 use fbkl_auth::{argon2::password_hash::Error as Argon2Error, hex::FromHexError};
 use fbkl_entity::sea_orm::DbErr;
-use std::error::Error;
-use std::fmt::Display;
+use thiserror::Error;
 use tower_sessions::session::Error as SessionError;
 
-#[derive(Debug)]
+#[derive(Debug, Error)]
 pub enum FbklError {
-    Axum(AxumError),
-    Db(DbErr),
-    HexStringConversion(FromHexError),
-    PasswordHasher(Argon2Error),
-    Session(SessionError),
-    StatusCode(StatusCode),
-}
-
-impl Display for FbklError {
-    fn fmt(&self, fmt: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            Self::Axum(err) => write!(fmt, "{}", err),
-            Self::Db(err) => write!(fmt, "{}", err),
-            Self::HexStringConversion(err) => write!(fmt, "{}", err),
-            Self::PasswordHasher(err) => write!(fmt, "{}", err),
-            Self::Session(err) => write!(fmt, "{}", err),
-            Self::StatusCode(err) => write!(fmt, "{}", err),
-        }
-    }
-}
-
-impl Error for FbklError {}
-
-impl From<AxumError> for FbklError {
-    fn from(err: AxumError) -> Self {
-        FbklError::Axum(err)
-    }
-}
-
-impl From<DbErr> for FbklError {
-    fn from(err: DbErr) -> Self {
-        FbklError::Db(err)
-    }
-}
-
-impl From<FromHexError> for FbklError {
-    fn from(err: FromHexError) -> Self {
-        FbklError::HexStringConversion(err)
-    }
-}
-
-impl From<Argon2Error> for FbklError {
-    fn from(err: Argon2Error) -> Self {
-        FbklError::PasswordHasher(err)
-    }
-}
-
-impl From<SessionError> for FbklError {
-    fn from(err: SessionError) -> Self {
-        FbklError::Session(err)
-    }
+    #[error("web server error")]
+    Axum(#[from] AxumError),
+    #[error("database error")]
+    Db(#[from] DbErr),
+    #[error("invalid hex string")]
+    HexStringConversion(#[from] FromHexError),
+    #[error("password hashing error")]
+    PasswordHasher(#[from] Argon2Error),
+    #[error("session error")]
+    Session(#[from] SessionError),
+    // Explicit client-facing status code (replaces the old `StatusCode` variant).
+    #[error("request failed: {0}")]
+    Status(StatusCode),
 }
 
 impl From<StatusCode> for FbklError {
-    fn from(err: StatusCode) -> Self {
-        FbklError::StatusCode(err)
+    fn from(code: StatusCode) -> Self {
+        FbklError::Status(code)
+    }
+}
+
+impl FbklError {
+    /// Maps each error variant to the HTTP status the client should see.
+    ///
+    /// Client-caused faults (bad hex tokens, wrong password) are 4xx; everything
+    /// the server is responsible for is 5xx.
+    fn status_code(&self) -> StatusCode {
+        match self {
+            FbklError::HexStringConversion(_) | FbklError::PasswordHasher(_) => {
+                StatusCode::BAD_REQUEST
+            }
+            FbklError::Status(code) => *code,
+            FbklError::Axum(_) | FbklError::Db(_) | FbklError::Session(_) => {
+                StatusCode::INTERNAL_SERVER_ERROR
+            }
+        }
     }
 }
 
 impl IntoResponse for FbklError {
     fn into_response(self) -> Response {
-        let body = match self {
-            Self::Axum(err) => {
-                format!("Web server encountered an error: {:?}", err)
-            }
-            Self::Db(err) => {
-                format!("Database connection encountered an error: {:?}", err)
-            }
-            Self::HexStringConversion(err) => {
-                format!("Tokenization encountered an error: {:?}", err)
-            }
-            Self::PasswordHasher(err) => {
-                format!("Password hasher encountered an error: {:?}", err)
-            }
-            Self::Session(err) => {
-                format!("Couldn't retrieve/store user session: {:?}", err)
-            }
-            Self::StatusCode(err) => {
-                return err.into_response();
-            }
-        };
+        let status = self.status_code();
 
-        (StatusCode::INTERNAL_SERVER_ERROR, body).into_response()
+        // Log full detail server-side; never leak internals to the client.
+        if status.is_server_error() {
+            tracing::error!(error = ?self, "request failed");
+        }
+
+        // A bare status carries its own response; anything else gets a generic,
+        // detail-free body so we don't disclose internal error contents.
+        match self {
+            FbklError::Status(code) => code.into_response(),
+            _ => {
+                let body = status.canonical_reason().unwrap_or("error").to_string();
+                (status, body).into_response()
+            }
+        }
     }
 }
