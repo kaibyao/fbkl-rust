@@ -127,7 +127,8 @@ Uses SeaORM for type-safe database queries. Entity definitions in `entity/` crat
 ## Code Style and Conventions
 
 ### Comments
-- Keep code comments to a single line. If a comment needs more, simplify the code or link an issue/doc instead.
+- Inline/in-body comments: keep concise, ideally one line. If one needs more, simplify the code instead of writing a verbose block.
+- File/module header (doc) comments: detailed multi-line blocks are fine and encouraged for explaining a file's purpose and context.
 
 ### Rust
 - rustfmt with custom config (`rustfmt.toml`): `use_field_init_shorthand = true`, `use_try_shorthand = true`
