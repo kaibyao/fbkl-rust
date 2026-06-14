@@ -33,7 +33,7 @@ variable "cloudflare_account_id" {
 
 variable "alert_email" {
   type        = string
-  default     = "kai@lootlabs.xyz"
+  default     = "ohkaiby@gmail.com"
   description = "Email address that receives CloudWatch alarm notifications via SNS. Must confirm the subscription email."
 }
 
