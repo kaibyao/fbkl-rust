@@ -99,6 +99,17 @@ Uses Lefthook for pre-commit hooks that automatically run:
 - `cargo clippy` and `cargo fmt` on Rust files
 - oxlint, oxfmt, and TypeScript checking on frontend files
 
+### Deployment (serverless)
+Production runs on AWS Lambda (native Rust) + Neon Postgres + Cloudflare Pages,
+provisioned with OpenTofu in `infra/`. The `lambdas/` crate holds the three
+Lambda binaries (`fbkl-api`, `fbkl-scheduler`, `fbkl-session-gc`); `server/`
+exposes reusable builders so the local dev bin and the API Lambda share one code
+path. See `infra/README.md` for the full setup, required tooling, and apply
+order. Required toolchain beyond the dev stack: **OpenTofu** (`tofu`), **AWS CLI
+v2** (SSO profile `fbkl`), and **cargo-lambda** (builds the arm64 Lambda zips).
+Build artifacts with `cargo lambda build --release --arm64 --output-format zip`
+before any `tofu apply` that touches the functions.
+
 ## Key Concepts
 
 ### End-of-Season Year
