@@ -1,46 +1,30 @@
 #![deny(clippy::all)]
 
-mod error;
-mod graphql;
-mod handlers;
-mod server;
-mod session;
-
 use std::sync::Arc;
 use std::time::Duration;
 
-use async_graphql::{EmptySubscription, Schema};
-use axum::{Extension, serve};
+use axum::serve;
 use color_eyre::Result;
-use fbkl_auth::{encode_token, generate_token};
-use fbkl_entity::sea_orm::Database;
-use server::AppState;
-use sha2::{Digest, Sha512};
-use time::Duration as TimeDuration;
-use tokio::{signal, task::AbortHandle};
-use tower_cookies::{CookieManagerLayer, Key, cookie::SameSite};
-use tower_sessions::{Expiry, SessionManagerLayer, session_store::ExpiredDeletion};
+use fbkl_server::{
+    AppState, build_graphql_schema, build_router, build_session_layer, init_db, setup,
+    shutdown_signal,
+};
+use tower_sessions::session_store::ExpiredDeletion;
 use tower_sessions_sqlx_store::PostgresStore;
 use tracing::info;
-use tracing_subscriber::EnvFilter;
-
-use crate::graphql::{MutationRoot, QueryRoot};
 
 #[tokio::main]
 async fn main() -> Result<()> {
     setup()?;
 
     // DB connection pool
-    let database_url = std::env::var("FBKL_DATABASE_URL").expect("FBKL_DATABASE_URL must be set");
-    let db_connection = Database::connect(&database_url).await?;
+    let db_connection = init_db().await?;
     let shared_state = Arc::new(AppState {
         db: db_connection.clone(),
     });
 
-    // Server endpoints
-    let router = server::setup_server_router();
-
-    // Sessions
+    // Session store: migrate schema + spawn the expired-session deletion loop.
+    // On Lambda these move to a one-time deploy step + a dedicated session-gc Lambda.
     let session_store = PostgresStore::new(db_connection.get_postgres_connection_pool().clone());
     session_store.migrate().await?;
     let session_deletion_task = tokio::task::spawn(
@@ -48,50 +32,21 @@ async fn main() -> Result<()> {
             .clone()
             .continuously_delete_expired(Duration::from_secs(60)),
     );
-    let session_secret = std::env::var("SESSION_SECRET")
-        .unwrap_or_else(|_| encode_token(&generate_token().into_iter().collect()));
-    // `Key::from` requires >= 64 bytes; derive a fixed 64-byte key from the secret
-    // via SHA-512 so any-length SESSION_SECRET is accepted.
-    let key_bytes = Sha512::digest(session_secret.as_bytes());
-    let key = Key::from(&key_bytes);
-    let session_layer = SessionManagerLayer::new(session_store)
-        .with_private(key)
-        .with_secure(true)
-        .with_name("fbkl_id")
-        .with_expiry(Expiry::OnInactivity(TimeDuration::seconds(
-            90 * 24 * 60 * 60,
-        )))
-        .with_same_site(SameSite::None);
 
-    // graphql setup
-    let graphql_schema = Schema::build(
-        QueryRoot::default(),
-        MutationRoot::default(),
-        EmptySubscription,
-    )
-    .data(shared_state.db.clone())
-    .limit_complexity(50) // If this ever gets to 100, we should probably consider loader patterns.
-    .limit_depth(10)
-    .finish();
+    let session_layer = build_session_layer(&db_connection);
+    let graphql_schema = build_graphql_schema(db_connection.clone());
+    let router = build_router(shared_state, session_layer, graphql_schema);
 
     // Deadline scheduler: polls for due deadlines across all leagues and dispatches them
     // to the transaction processor (see notes/implementation-specs/05).
     let scheduler_task = fbkl_jobs::spawn_scheduler(db_connection.clone());
 
     let listener = tokio::net::TcpListener::bind("0.0.0.0:9001").await?;
-    let server = serve(
-        listener,
-        router
-        .with_state(shared_state)
-        // Layers only apply to routes preceding them. Make sure layers are applied after all routes.
-        .layer(session_layer)
-        .layer(CookieManagerLayer::new())
-        .layer(Extension(graphql_schema)).into_make_service(),
-    )
-    .with_graceful_shutdown(shutdown_signal(vec![
-        session_deletion_task.abort_handle(),
-        scheduler_task.abort_handle(),
-    ]));
+    let server =
+        serve(listener, router.into_make_service()).with_graceful_shutdown(shutdown_signal(vec![
+            session_deletion_task.abort_handle(),
+            scheduler_task.abort_handle(),
+        ]));
 
     info!("Starting fbkl/server on port 9001...");
 
@@ -124,52 +79,4 @@ async fn main() -> Result<()> {
     session_deletion_task.await??;
 
     Ok(())
-}
-
-fn setup() -> Result<()> {
-    if std::env::var("RUST_LIB_BACKTRACE").is_err() {
-        // SAFETY: called once during single-threaded startup before any threads spawn.
-        unsafe { std::env::set_var("RUST_LIB_BACKTRACE", "1") }
-    }
-    color_eyre::install()?;
-
-    if std::env::var("RUST_LOG").is_err() {
-        // SAFETY: called once during single-threaded startup before any threads spawn.
-        unsafe { std::env::set_var("RUST_LOG", "info") }
-    }
-    tracing_subscriber::fmt::fmt()
-        .with_env_filter(EnvFilter::from_default_env())
-        .init();
-
-    dotenv::dotenv().ok();
-
-    Ok(())
-}
-
-async fn shutdown_signal(background_task_abort_handles: Vec<AbortHandle>) {
-    let ctrl_c = async {
-        signal::ctrl_c()
-            .await
-            .expect("failed to install Ctrl+C handler");
-    };
-
-    #[cfg(unix)]
-    let terminate = async {
-        signal::unix::signal(signal::unix::SignalKind::terminate())
-            .expect("failed to install signal handler")
-            .recv()
-            .await;
-    };
-
-    #[cfg(not(unix))]
-    let terminate = std::future::pending::<()>();
-
-    tokio::select! {
-        _ = ctrl_c => {},
-        _ = terminate => {},
-    }
-
-    for abort_handle in background_task_abort_handles {
-        abort_handle.abort();
-    }
 }
