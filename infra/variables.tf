@@ -31,6 +31,12 @@ variable "cloudflare_account_id" {
   description = "Cloudflare account ID that owns the Pages projects. Not secret; find it in the dashboard sidebar."
 }
 
+variable "alert_email" {
+  type        = string
+  default     = "kai@lootlabs.xyz"
+  description = "Email address that receives CloudWatch alarm notifications via SNS. Must confirm the subscription email."
+}
+
 variable "api_reserved_concurrency" {
   type        = number
   default     = 50

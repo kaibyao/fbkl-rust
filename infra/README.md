@@ -92,7 +92,7 @@ startup. Both commands read `DATABASE_URL` (the DIRECT endpoint).
 | `eventbridge.tf` | scheduler (1-min) + session-gc (5-min) schedules + invoke role | 96e.7 |
 | `neon.tf` | Neon project, pooled + direct endpoints | 96e.6 |
 | `cloudflare.tf` | Pages projects for both Vite apps (*.pages.dev) | 96e.8 |
-| `observability.tf` *(todo)* | CloudWatch alarms | 96e.9 |
+| `observability.tf` | CloudWatch error/throttle alarms + SNS email | 96e.9 |
 
 Secrets (`terraform.tfvars`, `*.tfstate`) are gitignored. The deploy role ARN is
 emitted as the `github_deploy_role_arn` output for the CI workflow.
