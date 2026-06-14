@@ -1485,6 +1485,7 @@ dependencies = [
  "lambda_runtime 0.14.4",
  "serde_json",
  "tokio",
+ "tower-sessions",
  "tracing",
 ]
 

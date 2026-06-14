@@ -48,14 +48,20 @@ pub fn build_graphql_schema(db: DatabaseConnection) -> AppSchema {
     .finish()
 }
 
-/// Build the tower-sessions layer backed by a Postgres store.
+/// Build the Postgres-backed tower-sessions store over the shared connection pool.
 ///
 /// Does NOT run `session_store.migrate()` — that is a one-time deploy/init step,
-/// not a per-request or per-cold-start operation.
+/// not a per-request or per-cold-start operation. Shared by the session layer
+/// and the standalone session-GC Lambda.
+pub fn build_session_store(db: &DatabaseConnection) -> PostgresStore {
+    PostgresStore::new(db.get_postgres_connection_pool().clone())
+}
+
+/// Build the tower-sessions layer backed by a Postgres store.
 pub fn build_session_layer(
     db: &DatabaseConnection,
 ) -> SessionManagerLayer<PostgresStore, PrivateCookie> {
-    let session_store = PostgresStore::new(db.get_postgres_connection_pool().clone());
+    let session_store = build_session_store(db);
     let session_secret = std::env::var("SESSION_SECRET")
         .unwrap_or_else(|_| encode_token(&generate_token().into_iter().collect()));
     // `Key::from` requires >= 64 bytes; derive a fixed 64-byte key from the secret

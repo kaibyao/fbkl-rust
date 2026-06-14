@@ -7,6 +7,18 @@ version = "0.1.0"
 name = "fbkl_lambdas"
 path = "src/lib.rs"
 
+[[bin]]
+name = "fbkl-api"
+path = "src/bin/api.rs"
+
+[[bin]]
+name = "fbkl-scheduler"
+path = "src/bin/scheduler.rs"
+
+[[bin]]
+name = "fbkl-session-gc"
+path = "src/bin/session_gc.rs"
+
 [dependencies]
 fbkl-entity = {path = "../entity"}
 fbkl-jobs = {path = "../jobs"}
@@ -15,4 +27,5 @@ lambda_http = "0.14"
 lambda_runtime = "0.14"
 serde_json = "1.0.150"
 tokio = {version = "1.52.3", features = ["macros", "rt-multi-thread"]}
+tower-sessions = {version = "0.14.0", features = ["private"]}
 tracing = "0.1.44"
