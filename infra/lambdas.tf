@@ -84,10 +84,11 @@ resource "aws_lambda_function_url" "api" {
 
   cors {
     allow_credentials = true
-    allow_origins     = [var.app_origin]
-    allow_methods     = ["GET", "POST", "OPTIONS"]
-    allow_headers     = ["content-type", "authorization"]
-    max_age           = 86400
+    # Logged-in SPA origin, sourced directly from its Pages project.
+    allow_origins = ["https://${cloudflare_pages_project.app.subdomain}"]
+    allow_methods = ["GET", "POST", "OPTIONS"]
+    allow_headers = ["content-type", "authorization"]
+    max_age       = 86400
   }
 }
 

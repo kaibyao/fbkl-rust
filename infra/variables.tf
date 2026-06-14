@@ -26,13 +26,9 @@ variable "github_deploy_ref" {
 # produced inside this config (neon.tf provisions the DB; secrets.tf generates a
 # stable session secret) and wired directly into the Lambda env in lambdas.tf.
 
-variable "app_origin" {
-  type = string
-  # Placeholder so Neon/early applies need no -var. MUST be set to the real
-  # Cloudflare Pages origin (96e.8) before the SPA can call the API — browsers
-  # reject credentialed CORS from any other origin.
-  default     = "https://app.invalid"
-  description = "Exact origin of the logged-in SPA on Cloudflare Pages (e.g. https://app.example.com). Used for the API Function URL CORS allow-list with credentials."
+variable "cloudflare_account_id" {
+  type        = string
+  description = "Cloudflare account ID that owns the Pages projects. Not secret; find it in the dashboard sidebar."
 }
 
 variable "api_reserved_concurrency" {

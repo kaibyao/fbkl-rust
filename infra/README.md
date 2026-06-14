@@ -48,16 +48,18 @@ tofu plan
 tofu apply
 ```
 
-Apply needs these inputs (pass via env, never commit):
+Apply needs these inputs (pass via env, never commit — keep in `infra/secrets.env`):
 
 ```bash
-export NEON_API_KEY='napi_…'                          # provisions Neon (neon.tf)
-export TF_VAR_app_origin='https://app.example.com'    # 96e.8, SPA origin for CORS
+export NEON_API_KEY='napi_…'                       # provisions Neon (neon.tf)
+export CLOUDFLARE_API_TOKEN='…'                    # Account · Cloudflare Pages · Edit
+export TF_VAR_cloudflare_account_id='…'            # not secret; dashboard sidebar
 ```
 
-The DB connection string and session secret are NOT inputs — `neon.tf`
-provisions the database and `secrets.tf` generates a stable session secret;
-both are wired straight into the Lambda env.
+The DB connection string, session secret, and SPA origin are NOT inputs —
+`neon.tf` provisions the database, `secrets.tf` generates a stable session
+secret, and the API CORS origin is sourced from the logged-in app's Pages
+subdomain. All wired straight through; nothing to copy-paste.
 
 ## Run migrations (after Neon exists, before the API serves traffic)
 
@@ -89,8 +91,8 @@ startup. Both commands read `DATABASE_URL` (the DIRECT endpoint).
 | `lambdas.tf` | 3 functions, exec role, Function URL + CORS, concurrency | 96e.3/.4/.5 |
 | `eventbridge.tf` | scheduler (1-min) + session-gc (5-min) schedules + invoke role | 96e.7 |
 | `neon.tf` | Neon project, pooled + direct endpoints | 96e.6 |
+| `cloudflare.tf` | Pages projects for both Vite apps (*.pages.dev) | 96e.8 |
 | `observability.tf` *(todo)* | CloudWatch alarms | 96e.9 |
-| `cloudflare.tf` *(todo)* | Pages projects for both Vite apps | 96e.8 |
 
 Secrets (`terraform.tfvars`, `*.tfstate`) are gitignored. The deploy role ARN is
 emitted as the `github_deploy_role_arn` output for the CI workflow.

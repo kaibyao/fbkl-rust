@@ -14,8 +14,10 @@ terraform {
       source  = "hashicorp/random"
       version = "~> 3.6"
     }
-    # Added when wiring 96e.8:
-    # cloudflare = { source = "cloudflare/cloudflare", version = "~> 5.0" }
+    cloudflare = {
+      source  = "cloudflare/cloudflare"
+      version = "~> 5.0"
+    }
   }
 
   # Remote state in the bucket created by infra/bootstrap.
