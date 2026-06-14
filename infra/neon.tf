@@ -19,6 +19,10 @@ resource "neon_project" "fbkl" {
   region_id  = "aws-us-east-1"
   pg_version = 17
 
+  # Free tier caps point-in-time-restore retention at 6h (21600s); the provider
+  # otherwise defaults to 24h, which the API rejects.
+  history_retention_seconds = 21600
+
   branch {
     name          = "main"
     database_name = "fbkl"
