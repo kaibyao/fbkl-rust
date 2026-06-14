@@ -46,11 +46,11 @@ locals {
 
   # FBKL_DATABASE_URL must be the POOLED Neon endpoint for every Lambda.
   worker_env = {
-    FBKL_DATABASE_URL = var.fbkl_database_url
+    FBKL_DATABASE_URL = neon_project.fbkl.connection_uri_pooler
   }
   api_env = {
-    FBKL_DATABASE_URL = var.fbkl_database_url
-    SESSION_SECRET    = var.session_secret
+    FBKL_DATABASE_URL = neon_project.fbkl.connection_uri_pooler
+    SESSION_SECRET    = random_password.session_secret.result
   }
 }
 

@@ -22,17 +22,9 @@ variable "github_deploy_ref" {
   description = "Git ref permitted to assume the deploy role. Restricts CI deploys to this branch."
 }
 
-variable "fbkl_database_url" {
-  type        = string
-  sensitive   = true
-  description = "Neon POOLED (-pooler / PgBouncer transaction mode) connection string for the Lambdas. Produced by 96e.6; pass via TF_VAR_fbkl_database_url, never commit."
-}
-
-variable "session_secret" {
-  type        = string
-  sensitive   = true
-  description = "Secret used to derive the tower-sessions private-cookie key. Pass via TF_VAR_session_secret; keep stable across deploys so existing sessions survive."
-}
+# NOTE: the Lambda DB URL and session secret are no longer inputs — they are
+# produced inside this config (neon.tf provisions the DB; secrets.tf generates a
+# stable session secret) and wired directly into the Lambda env in lambdas.tf.
 
 variable "app_origin" {
   type        = string

@@ -6,8 +6,15 @@ terraform {
       source  = "hashicorp/aws"
       version = "~> 5.0"
     }
-    # Added when wiring 96e.6 / 96e.8:
-    # neon       = { source = "kislerdm/neon",       version = "~> 0.6" }
+    neon = {
+      source  = "kislerdm/neon"
+      version = "~> 0.9"
+    }
+    random = {
+      source  = "hashicorp/random"
+      version = "~> 3.6"
+    }
+    # Added when wiring 96e.8:
     # cloudflare = { source = "cloudflare/cloudflare", version = "~> 5.0" }
   }
 
