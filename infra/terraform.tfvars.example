@@ -1,0 +1,8 @@
+# Copy to terraform.tfvars (gitignored) and adjust if needed.
+# Defaults in variables.tf already match the fbkl personal account, so this file
+# is usually unnecessary — provided for overrides.
+
+# aws_region        = "us-east-1"
+# aws_profile       = "fbkl"
+# github_repo       = "kaibyao/fbkl-rust"
+# github_deploy_ref = "refs/heads/main"

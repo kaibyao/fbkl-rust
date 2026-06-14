@@ -1,0 +1,13 @@
+# Local state (only the bootstrap step uses local state; main config uses S3)
+*.tfstate
+*.tfstate.*
+.terraform/
+.terraform.lock.hcl.bak
+
+# Secrets / account-specific values — never commit
+terraform.tfvars
+*.auto.tfvars
+
+# Crash logs
+crash.log
+crash.*.log
