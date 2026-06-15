@@ -13,7 +13,7 @@ provider "cloudflare" {
 
 resource "cloudflare_pages_project" "app" {
   account_id        = var.cloudflare_account_id
-  name              = "fbkl-app"
+  name              = "fbkl"
   production_branch = "main"
 
   # API_URL is read by the /api/* proxy Pages Function (functions/api/[[path]].ts).
