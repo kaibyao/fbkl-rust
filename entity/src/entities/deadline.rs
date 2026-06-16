@@ -62,8 +62,14 @@ impl Model {
             DeadlineKind::PreseasonVeteranAuctionStart
             | DeadlineKind::PreseasonRookieDraftStart
             | DeadlineKind::PreseasonFaAuctionStart
-            | DeadlineKind::PreseasonFaAuctionEnd
-            | DeadlineKind::PreseasonFinalRosterLock => Some(PRE_SEASON_TOTAL_SALARY_LIMIT),
+            | DeadlineKind::PreseasonFaAuctionEnd => Some(PRE_SEASON_TOTAL_SALARY_LIMIT),
+            DeadlineKind::PreseasonFinalRosterLock => {
+                if self.end_of_season_year < 2026 {
+                    Some(PRE_SEASON_TOTAL_SALARY_LIMIT)
+                } else {
+                    Some(REGULAR_SEASON_TOTAL_SALARY_LIMIT)
+                }
+            }
             DeadlineKind::Week1FreeAgentAuctionStart
             | DeadlineKind::Week1FreeAgentAuctionEnd
             | DeadlineKind::Week1RosterLock => Some(REGULAR_SEASON_TOTAL_SALARY_LIMIT),

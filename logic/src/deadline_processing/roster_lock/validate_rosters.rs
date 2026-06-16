@@ -69,14 +69,25 @@ where
         calculate_team_contract_salary(team_id, team_contracts, roster_lock_deadline, db).await?;
 
     if total_contract_amount > team_salary_cap {
+        let mut contract_lines = Vec::with_capacity(team_contracts.len());
+        for c in team_contracts {
+            let player = c.get_player(db).await?;
+            let player_name = player.get_name();
+            contract_lines.push(format!(
+                "{} {}/{}/{:?}",
+                player_name, c.salary, c.year_number, c.kind
+            ));
+        }
+        let contracts_str = contract_lines.join("\n");
         bail!(
-            "Roster contracts are invalid for roster lock: contract salaries exceed the team's cap. Deadline: {}, League: {}, End-of-season year: {}, Team: {}. Salary/Cap: {}/{}.",
+            "Roster contracts are invalid for roster lock: contract salaries exceed the team's cap. Deadline: {}, League: {}, End-of-season year: {}, Team: {}. Salary/Cap: {}/{}. Contracts:\n{}",
             roster_lock_deadline.id,
             roster_lock_deadline.league_id,
             roster_lock_deadline.end_of_season_year,
             team_id,
             total_contract_amount,
-            team_salary_cap
+            team_salary_cap,
+            contracts_str
         );
     }
 

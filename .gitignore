@@ -35,3 +35,6 @@ routeTree.gen.ts
 .dolt/
 *.db
 .beads-credential-key
+
+# IntelliJ
+.idea/
