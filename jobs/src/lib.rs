@@ -12,6 +12,8 @@
 //! poller. Before enabling the scheduler against a database containing replayed history, mark
 //! those deadlines' job_runs `Succeeded` (or only seed live-season deadlines).
 
+use std::collections::BTreeMap;
+
 use chrono::Utc;
 use color_eyre::eyre::Result;
 use fbkl_entity::{deadline_queries, sea_orm::DatabaseConnection};
@@ -28,34 +30,64 @@ pub struct TickSummary {
     pub processed: usize,
     pub failed: usize,
     pub skipped: usize,
+    /// Later deadlines in a league left unattempted because an earlier one didn't succeed.
+    pub blocked: usize,
     /// Errors at the orchestration layer itself (claiming/recording), not handler failures.
     pub errors: usize,
 }
 
 /// Runs one scheduler tick: find every due deadline lacking a `Succeeded` job_run and process
 /// each. Callable directly for tests and the commissioner console's manual trigger.
+///
+/// Deadlines are processed per league, strictly oldest-first, and a league's chain stops at the
+/// first deadline that doesn't reach `Succeeded`. Later deadlines build on earlier ones, so a
+/// failed week-2 lock must block week-3 rather than let the scheduler skip ahead into corrupt
+/// state. Leagues are independent, so one stuck league never blocks another.
 #[instrument(skip(db))]
 pub async fn run_scheduler_tick(db: &DatabaseConnection) -> Result<TickSummary> {
     let now = Utc::now().fixed_offset();
     let due_deadlines = deadline_queries::find_due_unprocessed_deadlines(now, db).await?;
 
-    let mut summary = TickSummary::default();
+    // The query is global oldest-first; bucket per league while preserving that order.
+    let mut deadlines_by_league: BTreeMap<i64, Vec<&_>> = BTreeMap::new();
     for deadline_model in &due_deadlines {
-        match process_deadline(db, deadline_model).await {
-            Ok(ProcessOutcome::Processed { .. }) => summary.processed += 1,
-            Ok(ProcessOutcome::Failed { .. }) => summary.failed += 1,
-            Ok(
-                ProcessOutcome::AlreadyProcessed
-                | ProcessOutcome::AlreadyRunning
-                | ProcessOutcome::AttemptsExhausted { .. },
-            ) => summary.skipped += 1,
-            Err(orchestration_error) => {
-                // A claim/record failure for one deadline shouldn't abort the whole tick.
-                summary.errors += 1;
-                error!(
-                    "Scheduler error processing deadline (id = {}): {orchestration_error:?}",
-                    deadline_model.id
-                );
+        deadlines_by_league
+            .entry(deadline_model.league_id)
+            .or_default()
+            .push(deadline_model);
+    }
+
+    let mut summary = TickSummary::default();
+    for league_deadlines in deadlines_by_league.values() {
+        let mut league_blocked = false;
+        for deadline_model in league_deadlines {
+            if league_blocked {
+                summary.blocked += 1;
+                continue;
+            }
+            match process_deadline(db, deadline_model).await {
+                Ok(ProcessOutcome::Processed { .. }) => summary.processed += 1,
+                // Already done elsewhere (race) — satisfied, don't block the chain.
+                Ok(ProcessOutcome::AlreadyProcessed) => summary.skipped += 1,
+                // Not succeeded — block the rest of this league's chain until it does.
+                Ok(ProcessOutcome::Failed { .. }) => {
+                    summary.failed += 1;
+                    league_blocked = true;
+                }
+                Ok(
+                    ProcessOutcome::AlreadyRunning | ProcessOutcome::AttemptsExhausted { .. },
+                ) => {
+                    summary.skipped += 1;
+                    league_blocked = true;
+                }
+                Err(orchestration_error) => {
+                    summary.errors += 1;
+                    league_blocked = true;
+                    error!(
+                        "Scheduler error processing deadline (id = {}): {orchestration_error:?}",
+                        deadline_model.id
+                    );
+                }
             }
         }
     }
@@ -66,8 +98,8 @@ pub async fn run_scheduler_tick(db: &DatabaseConnection) -> Result<TickSummary> 
 
     if summary != TickSummary::default() {
         info!(
-            "Scheduler tick: {} processed, {} failed, {} skipped, {} errors",
-            summary.processed, summary.failed, summary.skipped, summary.errors
+            "Scheduler tick: {} processed, {} failed, {} skipped, {} blocked, {} errors",
+            summary.processed, summary.failed, summary.skipped, summary.blocked, summary.errors
         );
     }
 

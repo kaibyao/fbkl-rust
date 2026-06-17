@@ -101,7 +101,10 @@ pub fn setup() -> Result<()> {
         // SAFETY: called once during single-threaded startup before any threads spawn.
         unsafe { std::env::set_var("RUST_LIB_BACKTRACE", "1") }
     }
-    color_eyre::install()?;
+    // Empty theme: errors are captured into strings (DB, logs), so ANSI codes would be literal noise.
+    color_eyre::config::HookBuilder::default()
+        .theme(color_eyre::config::Theme::new())
+        .install()?;
 
     if std::env::var("RUST_LOG").is_err() {
         // SAFETY: called once during single-threaded startup before any threads spawn.

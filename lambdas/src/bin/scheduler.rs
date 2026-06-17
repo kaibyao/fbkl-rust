@@ -28,6 +28,7 @@ async fn handler(_event: LambdaEvent<Value>) -> Result<(), Error> {
         processed = summary.processed,
         failed = summary.failed,
         skipped = summary.skipped,
+        blocked = summary.blocked,
         errors = summary.errors,
         "scheduler tick complete"
     );

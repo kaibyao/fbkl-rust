@@ -3,7 +3,7 @@ use std::fmt::Debug;
 use chrono::{Duration, Utc};
 use color_eyre::{Result, eyre::eyre};
 use sea_orm::{
-    ActiveEnum, ActiveValue, ColumnTrait, ConnectionTrait, DbErr, EntityTrait, QueryFilter,
+    ActiveValue, ColumnTrait, ConnectionTrait, DbErr, EntityTrait, QueryFilter,
     sea_query::{Expr, OnConflict},
 };
 use tracing::instrument;
@@ -206,7 +206,7 @@ where
     let update_result = job_run::Entity::update_many()
         .col_expr(
             job_run::Column::Status,
-            Expr::value(JobRunStatus::Running.as_enum()),
+            Expr::value(JobRunStatus::Running),
         )
         .col_expr(
             job_run::Column::Attempts,
@@ -255,7 +255,7 @@ where
     job_run::Entity::update_many()
         .col_expr(
             job_run::Column::Status,
-            Expr::value(JobRunStatus::Succeeded.as_enum()),
+            Expr::value(JobRunStatus::Succeeded),
         )
         .col_expr(job_run::Column::TransactionId, Expr::value(transaction_id))
         .col_expr(job_run::Column::Error, Expr::value(Option::<String>::None))
@@ -273,7 +273,7 @@ where
     job_run::Entity::update_many()
         .col_expr(
             job_run::Column::Status,
-            Expr::value(JobRunStatus::Failed.as_enum()),
+            Expr::value(JobRunStatus::Failed),
         )
         .col_expr(job_run::Column::Error, Expr::value(Some(error.to_string())))
         .filter(job_run::Column::Id.eq(job_run_id))
