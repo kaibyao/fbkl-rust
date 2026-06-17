@@ -8,7 +8,10 @@ use sea_orm::{
 };
 use tracing::instrument;
 
-use crate::job_run::{self, JobEventKind, JobRunStatus};
+use crate::{
+    deadline,
+    job_run::{self, JobEventKind, JobRunStatus},
+};
 
 /// Maximum number of times a failed job run is retried before it stays `Failed` and is
 /// surfaced to the commissioner console instead of silently retried forever.
@@ -40,6 +43,61 @@ pub enum ClaimOutcome {
     AlreadyRunning,
     /// The run failed `MAX_ATTEMPTS` times and requires manual intervention.
     AttemptsExhausted(job_run::Model),
+}
+
+/// Stable idempotency key for a deadline row: `(league_id, end_of_season_year, kind, id)`.
+/// Weekly locks share a kind across distinct rows, so the deadline id disambiguates. Single
+/// source of truth shared by the live scheduler (`fbkl-transaction-processor`) and historical
+/// replay (`import-data`) so both compute the same key for a given deadline.
+pub fn deadline_idempotency_key(deadline_model: &deadline::Model) -> String {
+    format!(
+        "{}:{}:{:?}:deadline-{}",
+        deadline_model.league_id,
+        deadline_model.end_of_season_year,
+        deadline_model.kind,
+        deadline_model.id
+    )
+}
+
+/// Records an already-completed deadline as a `Succeeded` job run. Historical replay
+/// (`import-data`) runs `fbkl_logic` handlers directly instead of going through the scheduler;
+/// without this, replayed deadlines look unprocessed and the live scheduler reprocesses them on
+/// every tick. Idempotent: if a job run for this deadline already exists, it is left untouched.
+#[instrument]
+pub async fn record_succeeded_deadline_job_run<C>(
+    deadline_model: &deadline::Model,
+    db: &C,
+) -> Result<()>
+where
+    C: ConnectionTrait + Debug,
+{
+    let insert_result = job_run::Entity::insert(job_run::ActiveModel {
+        id: ActiveValue::NotSet,
+        league_id: ActiveValue::Set(deadline_model.league_id),
+        end_of_season_year: ActiveValue::Set(deadline_model.end_of_season_year),
+        deadline_id: ActiveValue::Set(Some(deadline_model.id)),
+        event_kind: ActiveValue::Set(JobEventKind::Deadline),
+        dispatch_target: ActiveValue::Set(format!("{:?}", deadline_model.kind)),
+        status: ActiveValue::Set(JobRunStatus::Succeeded),
+        attempts: ActiveValue::Set(1),
+        idempotency_key: ActiveValue::Set(deadline_idempotency_key(deadline_model)),
+        transaction_id: ActiveValue::Set(None),
+        error: ActiveValue::Set(None),
+        created_at: ActiveValue::NotSet,
+        updated_at: ActiveValue::NotSet,
+    })
+    .on_conflict(
+        OnConflict::column(job_run::Column::IdempotencyKey)
+            .do_nothing()
+            .to_owned(),
+    )
+    .exec(db)
+    .await;
+
+    match insert_result {
+        Ok(_) | Err(DbErr::RecordNotInserted) => Ok(()),
+        Err(other) => Err(other.into()),
+    }
 }
 
 /// Atomically claims a job run for the given idempotency key. The unique index on

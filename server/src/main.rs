@@ -18,6 +18,7 @@ async fn main() -> Result<()> {
     setup()?;
 
     // DB connection pool
+    info!("Connecting to database...");
     let db_connection = init_db().await?;
     let shared_state = Arc::new(AppState {
         db: db_connection.clone(),
@@ -25,6 +26,7 @@ async fn main() -> Result<()> {
 
     // Session store: migrate schema + spawn the expired-session deletion loop.
     // On Lambda these move to a one-time deploy step + a dedicated session-gc Lambda.
+    info!("Migrating session store + starting session deletion loop...");
     let session_store = PostgresStore::new(db_connection.get_postgres_connection_pool().clone());
     session_store.migrate().await?;
     let session_deletion_task = tokio::task::spawn(
@@ -33,14 +35,17 @@ async fn main() -> Result<()> {
             .continuously_delete_expired(Duration::from_secs(60)),
     );
 
+    info!("Building session layer + graphql schema + router...");
     let session_layer = build_session_layer(&db_connection);
     let graphql_schema = build_graphql_schema(db_connection.clone());
     let router = build_router(shared_state, session_layer, graphql_schema);
 
     // Deadline scheduler: polls for due deadlines across all leagues and dispatches them
     // to the transaction processor (see notes/implementation-specs/05).
+    info!("Starting scheduler...");
     let scheduler_task = fbkl_jobs::spawn_scheduler(db_connection.clone());
 
+    info!("Starting server...");
     let listener = tokio::net::TcpListener::bind("0.0.0.0:9001").await?;
     let server =
         serve(listener, router.into_make_service()).with_graceful_shutdown(shutdown_signal(vec![

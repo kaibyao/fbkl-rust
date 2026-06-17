@@ -22,7 +22,8 @@ use fbkl_entity::{
     deadline_queries,
     job_run::JobEventKind,
     job_run_queries::{
-        ClaimOutcome, NewJobRun, claim_job_run, mark_job_run_failed, mark_job_run_succeeded,
+        ClaimOutcome, NewJobRun, claim_job_run, deadline_idempotency_key, mark_job_run_failed,
+        mark_job_run_succeeded,
     },
     sea_orm::{ConnectionTrait, DatabaseTransaction, TransactionTrait},
 };
@@ -146,18 +147,6 @@ pub enum ProcessOutcome {
     AttemptsExhausted { job_run_id: i64 },
     /// The handler errored; its transaction rolled back and `job_run` is `Failed`.
     Failed { job_run_id: i64, error: String },
-}
-
-/// Stable idempotency key for a deadline row: `(league_id, end_of_season_year, kind, id)`.
-/// Weekly locks share a kind across distinct rows, so the deadline id disambiguates.
-pub fn deadline_idempotency_key(deadline_model: &deadline::Model) -> String {
-    format!(
-        "{}:{}:{:?}:deadline-{}",
-        deadline_model.league_id,
-        deadline_model.end_of_season_year,
-        deadline_model.kind,
-        deadline_model.id
-    )
 }
 
 /// Processes a single due deadline: claim, dispatch the matching `fbkl_logic` handler inside
