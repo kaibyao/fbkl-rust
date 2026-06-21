@@ -1,4 +1,4 @@
-use std::{collections::HashMap, fmt::Debug};
+use std::fmt::Debug;
 
 use color_eyre::{Result, eyre::eyre};
 use sea_orm::{
@@ -14,12 +14,17 @@ use crate::{
     job_run::{self, JobRunStatus},
 };
 
+/// Returns a league season's deadlines ordered by `date_time`, ties broken by `id`. Insertion
+/// order (see `import-data` `import_deadlines`) encodes the intended processing order for
+/// same-instant deadlines (e.g. a roster lock and a same-timestamp auction boundary), and `id`
+/// is assigned in that order, so `(date_time, id)` reproduces it. Returning a `Vec` rather than a
+/// datetime-keyed map is deliberate: a map silently drops one of two deadlines sharing a `date_time`.
 #[instrument]
-pub async fn find_deadlines_by_date_for_league_season<C>(
+pub async fn find_sorted_deadlines_for_league_season<C>(
     league_id: i64,
     end_of_season_year: i16,
     db: &C,
-) -> Result<HashMap<DateTimeWithTimeZone, deadline::Model>>
+) -> Result<Vec<deadline::Model>>
 where
     C: ConnectionTrait + Debug,
 {
@@ -29,13 +34,12 @@ where
                 .eq(league_id)
                 .and(deadline::Column::EndOfSeasonYear.eq(end_of_season_year)),
         )
+        .order_by(deadline::Column::DateTime, Order::Asc)
+        .order_by(deadline::Column::Id, Order::Asc)
         .all(db)
         .await?;
 
-    Ok(deadlines
-        .into_iter()
-        .map(|deadline_model| (deadline_model.date_time, deadline_model))
-        .collect())
+    Ok(deadlines)
 }
 
 #[instrument]

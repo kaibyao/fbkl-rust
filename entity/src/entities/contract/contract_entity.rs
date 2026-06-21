@@ -267,6 +267,8 @@ impl RelatedPlayer {
     Copy,
     Eq,
     PartialEq,
+    Ord,
+    PartialOrd,
     Enum,
     EnumIter,
     DeriveActiveEnum,

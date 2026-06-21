@@ -204,10 +204,7 @@ where
     C: ConnectionTrait + Debug,
 {
     let update_result = job_run::Entity::update_many()
-        .col_expr(
-            job_run::Column::Status,
-            Expr::value(JobRunStatus::Running),
-        )
+        .col_expr(job_run::Column::Status, Expr::value(JobRunStatus::Running))
         .col_expr(
             job_run::Column::Attempts,
             Expr::col(job_run::Column::Attempts).add(1),
@@ -271,10 +268,7 @@ where
     C: ConnectionTrait + Debug,
 {
     job_run::Entity::update_many()
-        .col_expr(
-            job_run::Column::Status,
-            Expr::value(JobRunStatus::Failed),
-        )
+        .col_expr(job_run::Column::Status, Expr::value(JobRunStatus::Failed))
         .col_expr(job_run::Column::Error, Expr::value(Some(error.to_string())))
         .filter(job_run::Column::Id.eq(job_run_id))
         .exec(db)

@@ -1,6 +1,6 @@
 use std::fmt::Debug;
 
-use color_eyre::eyre::{Result, bail, ensure};
+use color_eyre::eyre::{Result, bail};
 use fbkl_constants::league_rules::{
     PRE_SEASON_CONTRACTS_PER_ROSTER_LIMIT,
     REGULAR_SEASON_INTL_ROOKIE_DEVELOPMENT_CONTRACTS_PER_ROSTER_LIMIT,
@@ -47,13 +47,43 @@ where
             .collect();
 
     for (team_id, team_contracts) in league_contracts_by_team.iter_all() {
-        validate_roster_ir_slot_limits(team_contracts)?;
-        validate_roster_contract_type_limits_not_exceeded(team_contracts, roster_lock_deadline)?;
+        validate_roster_ir_slot_limits(team_contracts, db).await?;
+        validate_roster_contract_type_limits_not_exceeded(team_contracts, roster_lock_deadline, db)
+            .await?;
         validate_roster_cap_not_exceeded(*team_id, team_contracts, roster_lock_deadline, db)
             .await?;
     }
 
     Ok(())
+}
+
+/// Formats a list of team contracts into a readable, newline-separated list for
+/// inclusion in error messages. Each line is `{player_name} ${value}/{year}/{kind}`,
+/// sorted by contract kind.
+async fn format_team_contracts<C>(team_contracts: &[contract::Model], db: &C) -> Result<String>
+where
+    C: ConnectionTrait + Debug,
+{
+    let mut contract_lines = Vec::with_capacity(team_contracts.len());
+    for c in team_contracts {
+        let player = c.get_player(db).await?;
+        contract_lines.push((
+            c.kind,
+            format!(
+                "{} ${}/{}/{:?}",
+                player.get_name(),
+                c.salary,
+                c.year_number,
+                c.kind
+            ),
+        ));
+    }
+    contract_lines.sort_by_key(|(kind, _)| *kind);
+    Ok(contract_lines
+        .into_iter()
+        .map(|(_, line)| line)
+        .collect::<Vec<_>>()
+        .join("\n"))
 }
 
 async fn validate_roster_cap_not_exceeded<C>(
@@ -69,16 +99,7 @@ where
         calculate_team_contract_salary(team_id, team_contracts, roster_lock_deadline, db).await?;
 
     if total_contract_amount > team_salary_cap {
-        let mut contract_lines = Vec::with_capacity(team_contracts.len());
-        for c in team_contracts {
-            let player = c.get_player(db).await?;
-            let player_name = player.get_name();
-            contract_lines.push(format!(
-                "{} {}/{}/{:?}",
-                player_name, c.salary, c.year_number, c.kind
-            ));
-        }
-        let contracts_str = contract_lines.join("\n");
+        let contracts_str = format_team_contracts(team_contracts, db).await?;
         bail!(
             "Roster contracts are invalid for roster lock: contract salaries exceed the team's cap. Deadline: {}, League: {}, End-of-season year: {}, Team: {}. Salary/Cap: {}/{}. Contracts:\n{}",
             roster_lock_deadline.id,
@@ -94,10 +115,14 @@ where
     Ok(())
 }
 
-fn validate_roster_contract_type_limits_not_exceeded(
+async fn validate_roster_contract_type_limits_not_exceeded<C>(
     team_contracts: &[contract::Model],
     roster_lock_deadline: &deadline::Model,
-) -> Result<()> {
+    db: &C,
+) -> Result<()>
+where
+    C: ConnectionTrait + Debug,
+{
     let mut num_rd_contracts = 0;
     let mut num_rdi_contracts = 0;
     let mut num_v_r_contracts = 0;
@@ -147,26 +172,29 @@ fn validate_roster_contract_type_limits_not_exceeded(
         | DeadlineKind::SeasonEnd => {
             if num_rd_contracts > REGULAR_SEASON_ROOKIE_DEVELOPMENT_CONTRACTS_PER_ROSTER_LIMIT {
                 bail!(
-                    "Roster cannot exceed {} rookie development contracts. (team = {}).",
+                    "Roster cannot exceed {} rookie development contracts. (team = {}). Contracts:\n{}",
                     REGULAR_SEASON_ROOKIE_DEVELOPMENT_CONTRACTS_PER_ROSTER_LIMIT,
-                    team_contracts[0].team_id.unwrap()
+                    team_contracts[0].team_id.unwrap(),
+                    format_team_contracts(team_contracts, db).await?
                 );
             }
 
             if num_rdi_contracts > REGULAR_SEASON_INTL_ROOKIE_DEVELOPMENT_CONTRACTS_PER_ROSTER_LIMIT
             {
                 bail!(
-                    "Roster cannot have more than {} international rookie development contract. (team = {}).",
+                    "Roster cannot have more than {} international rookie development contract. (team = {}). Contracts:\n{}",
                     REGULAR_SEASON_INTL_ROOKIE_DEVELOPMENT_CONTRACTS_PER_ROSTER_LIMIT,
-                    team_contracts[0].team_id.unwrap()
+                    team_contracts[0].team_id.unwrap(),
+                    format_team_contracts(team_contracts, db).await?
                 );
             }
 
             if num_v_r_contracts > REGULAR_SEASON_VET_OR_ROOKIE_CONTRACTS_PER_ROSTER_LIMIT {
                 bail!(
-                    "Roster cannot have more than {} veteran or rookie-scale contracts. (team = {}).",
+                    "Roster cannot have more than {} veteran or rookie-scale contracts. (team = {}). Contracts:\n{}",
                     REGULAR_SEASON_VET_OR_ROOKIE_CONTRACTS_PER_ROSTER_LIMIT,
-                    team_contracts[0].team_id.unwrap()
+                    team_contracts[0].team_id.unwrap(),
+                    format_team_contracts(team_contracts, db).await?
                 );
             }
         }
@@ -175,17 +203,21 @@ fn validate_roster_contract_type_limits_not_exceeded(
     Ok(())
 }
 
-fn validate_roster_ir_slot_limits(team_contracts: &[contract::Model]) -> Result<()> {
+async fn validate_roster_ir_slot_limits<C>(team_contracts: &[contract::Model], db: &C) -> Result<()>
+where
+    C: ConnectionTrait + Debug,
+{
     let number_ir_contracts = team_contracts
         .iter()
         .filter(|contract_model| contract_model.is_ir)
         .count() as i16;
-    ensure!(
-        number_ir_contracts >= 0
-            && number_ir_contracts <= REGULAR_SEASON_IR_CONTRACTS_PER_ROSTER_LIMIT,
-        "Cannot exceed {} IR contract on roster. (team = {})",
-        REGULAR_SEASON_IR_CONTRACTS_PER_ROSTER_LIMIT,
-        team_contracts[0].team_id.unwrap()
-    );
+    if !(0..=REGULAR_SEASON_IR_CONTRACTS_PER_ROSTER_LIMIT).contains(&number_ir_contracts) {
+        bail!(
+            "Cannot exceed {} IR contract on roster. (team = {}). Contracts:\n{}",
+            REGULAR_SEASON_IR_CONTRACTS_PER_ROSTER_LIMIT,
+            team_contracts[0].team_id.unwrap(),
+            format_team_contracts(team_contracts, db).await?
+        );
+    }
     Ok(())
 }

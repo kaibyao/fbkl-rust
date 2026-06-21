@@ -32,17 +32,17 @@ where
     )
     .await?;
 
-    if deadline_model.kind == DeadlineKind::PreseasonFinalRosterLock {
-        // Propagate failure so the wrapping DB transaction rolls back and the scheduler
-        // records a Failed job_run — swallowing this would silently skip pick generation.
-        generate_future_draft_picks(
-            deadline_model.league_id,
-            deadline_model.end_of_season_year,
-            db,
-        )
-        .await
-        .wrap_err("Error generating future draft picks during final roster lock")?;
-    }
+    // if deadline_model.kind == DeadlineKind::PreseasonFinalRosterLock {
+    //     // Propagate failure so the wrapping DB transaction rolls back and the scheduler
+    //     // records a Failed job_run — swallowing this would silently skip pick generation.
+    //     generate_future_draft_picks(
+    //         deadline_model.league_id,
+    //         deadline_model.end_of_season_year,
+    //         db,
+    //     )
+    //     .await
+    //     .wrap_err("Error generating future draft picks during final roster lock")?;
+    // }
 
     Ok(())
 }
