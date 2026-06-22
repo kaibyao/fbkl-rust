@@ -8,9 +8,5 @@ export default async function authFetch(
   return fetch(input, {
     ...init,
     credentials: 'include',
-    headers: {
-      ...init.headers,
-      'Ghost-App-Type': 'marketplace',
-    },
   });
 }

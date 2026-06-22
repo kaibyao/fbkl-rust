@@ -74,9 +74,9 @@ export async function processLogin({
   const response = await authFetch(LOGIN_API_URL, {
     method: 'POST',
     headers: {
-      'Content-Type': 'application/json',
+      'Content-Type': 'application/x-www-form-urlencoded',
     },
-    body: JSON.stringify({ email, password }),
+    body: new URLSearchParams({ email, password }),
   });
 
   return response.status === 200;

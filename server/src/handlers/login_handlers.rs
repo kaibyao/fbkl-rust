@@ -2,7 +2,7 @@ use axum::{
     Form, Json,
     extract::State,
     http::StatusCode,
-    response::{Html, IntoResponse, Response},
+    response::{IntoResponse, Response},
 };
 use fbkl_auth::verify_password_against_hash;
 use fbkl_entity::user_queries;
@@ -19,26 +19,6 @@ use crate::{error::FbklError, server::AppState, session::get_current_user};
 pub struct LoginFormData {
     email: String,
     password: String,
-}
-
-pub async fn login_page() -> Html<&'static str> {
-    let html = r#"
-<!doctype html>
-<html>
-    <head>
-        <title>User login</title>
-    </head>
-    <body>
-        <form method="POST" action="/login">
-            <input type="email" name="email" placeholder="Email">
-            <input type="password" name="password">
-            <button type="submit">Submit</button>
-        </form>
-    </body>
-</html>
-    "#;
-
-    Html(html)
 }
 
 #[instrument(skip_all, fields(email = %form.email))]
