@@ -116,6 +116,8 @@ jobs:
           cache: pnpm
       - run: pnpm install --frozen-lockfile
         working-directory: .
+      - run: cargo run
+        working-directory: ../graphql-generation
       - run: pnpm --filter "@fbkl/webapp-logged-in" build
         working-directory: .
       - name: Deploy to Cloudflare Pages
