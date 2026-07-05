@@ -2,6 +2,14 @@ import { FunctionComponent } from 'react';
 import { LeagueRosterListPlayer } from '@/components/league/LeagueRosterListPlayer';
 import { Card, CardContent } from '@/components/ui/card';
 import { Separator } from '@/components/ui/separator';
+import {
+  Stack,
+  StackAlign,
+  StackDirection,
+  StackGap,
+  StackJustify,
+} from '@/components/ui/stack';
+import { Typography, TypographyVariant } from '@/components/ui/typography';
 import { ContractKind, ContractStatus } from '@/generated/enums';
 import {
   ContractForRosterListFragment,
@@ -24,47 +32,59 @@ export const LeagueTeamRoster: FunctionComponent<Props> = ({ team }) => {
 
   return (
     <Card>
-      <CardContent className="flex flex-col gap-3">
-        <div className="flex items-center justify-between gap-2">
-          <h2 className="font-heading text-base font-bold">{team.name}</h2>
-          <span className="font-heading text-sm font-bold tabular-nums">
-            ${activeSalary}
-            <span className="text-muted-foreground">
-              /${team.salaryCap.salaryCap}
-            </span>
-          </span>
-        </div>
+      <CardContent>
+        <Stack gap={StackGap.Md}>
+          <Stack
+            direction={StackDirection.Row}
+            align={StackAlign.Center}
+            justify={StackJustify.Between}
+            gap={StackGap.Sm}
+          >
+            <Typography variant={TypographyVariant.Heading2}>
+              {team.name}
+            </Typography>
+            <Typography variant={TypographyVariant.Stat}>
+              ${activeSalary}
+              <Typography
+                variant={TypographyVariant.InlineMuted}
+                render={<span />}
+              >
+                /${team.salaryCap.salaryCap}
+              </Typography>
+            </Typography>
+          </Stack>
 
-        <Separator />
+          <Separator />
 
-        <div className="flex flex-col gap-2">
-          <h3 className="text-xs font-semibold tracking-wide text-muted-foreground uppercase">
-            Active ({activeContracts.length})
-          </h3>
+          <Stack gap={StackGap.Sm}>
+            <Typography variant={TypographyVariant.SectionLabel}>
+              Active ({activeContracts.length})
+            </Typography>
 
-          <ul className="flex flex-col">
-            {activeContracts.map((contract) => (
-              <LeagueRosterListPlayer key={contract.id} contract={contract} />
-            ))}
-            {activeButIrContracts.map((contract) => (
-              <LeagueRosterListPlayer
-                key={contract.id}
-                contract={contract}
-                isIr
-              />
-            ))}
-          </ul>
+            <Stack render={<ul />}>
+              {activeContracts.map((contract) => (
+                <LeagueRosterListPlayer key={contract.id} contract={contract} />
+              ))}
+              {activeButIrContracts.map((contract) => (
+                <LeagueRosterListPlayer
+                  key={contract.id}
+                  contract={contract}
+                  isIr
+                />
+              ))}
+            </Stack>
 
-          <h3 className="text-xs font-semibold tracking-wide text-muted-foreground uppercase">
-            Rookie Development ({rookieDevelopmentContracts.length})
-          </h3>
+            <Typography variant={TypographyVariant.SectionLabel}>
+              Rookie Development ({rookieDevelopmentContracts.length})
+            </Typography>
 
-          <ul className="flex flex-col">
-            {rookieDevelopmentContracts.map((contract) => (
-              <LeagueRosterListPlayer key={contract.id} contract={contract} />
-            ))}
-          </ul>
-        </div>
+            <Stack render={<ul />}>
+              {rookieDevelopmentContracts.map((contract) => (
+                <LeagueRosterListPlayer key={contract.id} contract={contract} />
+              ))}
+            </Stack>
+          </Stack>
+        </Stack>
       </CardContent>
     </Card>
   );

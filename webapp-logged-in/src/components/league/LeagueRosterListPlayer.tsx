@@ -3,10 +3,17 @@ import { FunctionComponent } from 'react';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
 import {
+  Stack,
+  StackAlign,
+  StackDirection,
+  StackGap,
+} from '@/components/ui/stack';
+import {
   Tooltip,
   TooltipContent,
   TooltipTrigger,
 } from '@/components/ui/tooltip';
+import { Typography, TypographyVariant } from '@/components/ui/typography';
 import { ContractKind } from '@/generated/enums';
 import { ContractForRosterListFragment } from '@/generated/graphql';
 
@@ -39,7 +46,13 @@ export const LeagueRosterListPlayer: FunctionComponent<Props> = ({
   });
 
   return (
-    <li className="flex items-center gap-2.5 py-1.5">
+    <Stack
+      render={<li />}
+      direction={StackDirection.Row}
+      align={StackAlign.Center}
+      gap={StackGap.Sm}
+      className="py-1.5"
+    >
       <Avatar size="sm">
         {photoUrl ? <AvatarImage src={photoUrl} alt="" /> : null}
         <AvatarFallback>
@@ -48,15 +61,21 @@ export const LeagueRosterListPlayer: FunctionComponent<Props> = ({
       </Avatar>
 
       <div className="min-w-0 flex-1">
-        <p className="truncate text-xs font-medium">
+        <Typography variant={TypographyVariant.BodyStrong} className="truncate">
           {contract.leagueOrRealPlayer.name}{' '}
           {positionTeamNameString && (
-            <span className="text-muted-foreground">
+            <Typography
+              variant={TypographyVariant.InlineMuted}
+              render={<span />}
+            >
               ({positionTeamNameString})
-            </span>
+            </Typography>
           )}
-        </p>
-        <p className="text-xs text-muted-foreground tabular-nums">
+        </Typography>
+        <Typography
+          variant={TypographyVariant.MutedSm}
+          className="tabular-nums"
+        >
           ${contract.salary} / {contract.yearNumber} /{' '}
           <Tooltip>
             <TooltipTrigger
@@ -68,7 +87,7 @@ export const LeagueRosterListPlayer: FunctionComponent<Props> = ({
             </TooltipTrigger>
             <TooltipContent>{contract.kind}</TooltipContent>
           </Tooltip>
-        </p>
+        </Typography>
       </div>
 
       {isIr && (
@@ -76,7 +95,7 @@ export const LeagueRosterListPlayer: FunctionComponent<Props> = ({
           IR
         </Badge>
       )}
-    </li>
+    </Stack>
   );
 };
 

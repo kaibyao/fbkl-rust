@@ -2,6 +2,13 @@ import { useNavigate } from '@tanstack/react-router';
 import { Loader2 } from 'lucide-react';
 import { useMutation } from 'urql';
 import { Card, CardContent } from '@/components/ui/card';
+import {
+  Stack,
+  StackAlign,
+  StackDirection,
+  StackGap,
+} from '@/components/ui/stack';
+import { Typography, TypographyVariant } from '@/components/ui/typography';
 import { graphql } from '@/generated';
 import { LeagueListFragment } from '@/generated/graphql';
 
@@ -40,21 +47,31 @@ export const LeagueListItem: React.FC<Props> = ({ league }) => {
       onClick={handleSelectLeague}
       className="cursor-pointer transition-all hover:-translate-y-0.5 hover:ring-primary-hot/60"
     >
-      <CardContent className="flex flex-col gap-1">
-        <h2 className="font-heading text-base font-bold">
-          {league.name}
-          <span className="text-muted-foreground">
-            {' '}
-            — {league.currentTeamUser?.team?.name}
-          </span>
-        </h2>
-        <div className="flex items-end gap-1.5 text-xs text-muted-foreground">
-          <span className="text-foreground">
-            {league.currentTeamUser?.nickname}
-          </span>
-          <span>({league.currentTeamUser?.leagueRole})</span>
-          {fetching ? <Loader2 className="size-3 animate-spin" /> : null}
-        </div>
+      <CardContent>
+        <Stack gap={StackGap.Xs}>
+          <Typography variant={TypographyVariant.Heading2}>
+            {league.name}
+            <Typography
+              variant={TypographyVariant.InlineMuted}
+              render={<span />}
+            >
+              {' '}
+              — {league.currentTeamUser?.team?.name}
+            </Typography>
+          </Typography>
+          <Stack
+            direction={StackDirection.Row}
+            align={StackAlign.End}
+            gap={StackGap.Sm}
+            className="text-xs text-muted-foreground"
+          >
+            <span className="text-foreground">
+              {league.currentTeamUser?.nickname}
+            </span>
+            <span>({league.currentTeamUser?.leagueRole})</span>
+            {fetching ? <Loader2 className="size-3 animate-spin" /> : null}
+          </Stack>
+        </Stack>
       </CardContent>
     </Card>
   );

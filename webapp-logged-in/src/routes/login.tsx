@@ -1,5 +1,6 @@
 import { createFileRoute } from '@tanstack/react-router';
 import { LoginForm } from '@/components/LoginForm';
+import { Typography, TypographyVariant } from '@/components/ui/typography';
 
 export const Route = createFileRoute('/login')({
   component: LoginPage,
@@ -28,12 +29,10 @@ function LoginPage() {
       />
 
       <div className="relative w-full max-w-sm">
-        <p className="text-xs font-semibold tracking-[0.22em] text-primary-hot uppercase">
-          FBKL
-        </p>
-        <h1 className="mt-2 mb-6 font-heading text-4xl font-black tracking-tight">
+        <Typography variant={TypographyVariant.Eyebrow}>FBKL</Typography>
+        <Typography variant={TypographyVariant.Display} className="mt-2 mb-6">
           Welcome back.
-        </h1>
+        </Typography>
         <LoginForm />
       </div>
     </div>

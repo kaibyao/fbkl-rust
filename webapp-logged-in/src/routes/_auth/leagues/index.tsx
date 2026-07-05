@@ -2,6 +2,13 @@ import { createFileRoute, Link } from '@tanstack/react-router';
 import { Loader2 } from 'lucide-react';
 import { useQuery } from 'urql';
 import { LeagueListItem } from '@/components/leagues/LeagueListItem';
+import {
+  Stack,
+  StackAlign,
+  StackDirection,
+  StackGap,
+} from '@/components/ui/stack';
+import { Typography, TypographyVariant } from '@/components/ui/typography';
 import { graphql } from '@/generated';
 import { GetUserLeaguesQuery, LeagueListFragment } from '@/generated/graphql';
 
@@ -38,28 +45,33 @@ function LeaguesPage() {
 
   return (
     <div className="mx-auto w-full max-w-6xl px-6 py-10">
-      <h1 className="mb-6 font-heading text-3xl font-black tracking-tight">
+      <Typography variant={TypographyVariant.Heading1} className="mb-6">
         Select a league
-      </h1>
+      </Typography>
 
       {fetching ? (
-        <div className="flex items-center gap-2 text-sm text-muted-foreground">
+        <Stack
+          direction={StackDirection.Row}
+          align={StackAlign.Center}
+          gap={StackGap.Sm}
+          className="text-sm text-muted-foreground"
+        >
           <Loader2 className="size-4 animate-spin" />
           Loading leagues...
-        </div>
+        </Stack>
       ) : error ? (
-        <p className="text-sm text-destructive">
+        <Typography variant={TypographyVariant.Error}>
           An error occurred: {error.message}
-        </p>
+        </Typography>
       ) : data ? (
         data.leagues.length === 0 ? (
-          <p className="text-sm text-muted-foreground">
+          <Typography variant={TypographyVariant.Muted}>
             It looks like you have no leagues.{' '}
             <Link to="/leagues/create" className="text-primary-hot underline">
               Let’s create one
             </Link>
             !
-          </p>
+          </Typography>
         ) : (
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4">
             {data.leagues.map((league) => (
@@ -71,10 +83,10 @@ function LeaguesPage() {
           </div>
         )
       ) : (
-        <p className="text-sm text-destructive">
+        <Typography variant={TypographyVariant.Error}>
           An error occurred... we couldn’t load your leagues. Try again or ask
           Kai to fix this.
-        </p>
+        </Typography>
       )}
     </div>
   );

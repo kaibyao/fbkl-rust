@@ -229,6 +229,118 @@ code {
     @apply text-primary underline-offset-4 hover:underline;
   }
 
+  /* Typography: `variant` prop on <Typography> maps to these bundles (see typography.tsx). */
+  .typography-display {
+    @apply font-heading text-4xl font-black tracking-tight;
+  }
+  .typography-heading1 {
+    @apply font-heading text-3xl font-black tracking-tight;
+  }
+  .typography-heading2 {
+    @apply font-heading text-base font-bold;
+  }
+  .typography-heading3 {
+    @apply font-heading text-sm font-bold;
+  }
+  .typography-heading4 {
+    @apply font-heading text-xs font-bold;
+  }
+  .typography-stat {
+    @apply font-heading text-sm font-bold tabular-nums;
+  }
+  .typography-eyebrow {
+    @apply text-xs font-semibold tracking-[0.22em] text-primary-hot uppercase;
+  }
+  .typography-section-label {
+    @apply text-xs font-semibold tracking-wide text-muted-foreground uppercase;
+  }
+  .typography-body {
+    @apply text-sm;
+  }
+  .typography-body-sm {
+    @apply text-xs;
+  }
+  .typography-body-strong {
+    @apply text-xs font-medium;
+  }
+  .typography-muted {
+    @apply text-sm text-muted-foreground;
+  }
+  .typography-muted-sm {
+    @apply text-xs text-muted-foreground;
+  }
+  .typography-inline-muted {
+    @apply text-muted-foreground;
+  }
+  .typography-error {
+    @apply text-sm text-destructive;
+  }
+  .typography-error-sm {
+    @apply text-xs text-destructive;
+  }
+
+  /* Layout: <Stack> props map to these. Gap scale = spacing tokens 4/8/12/16/24px. */
+  .stack {
+    @apply flex;
+  }
+  .stack--col {
+    @apply flex-col;
+  }
+  .stack--row {
+    @apply flex-row;
+  }
+  .stack--gap-xs {
+    @apply gap-1;
+  }
+  .stack--gap-sm {
+    @apply gap-2;
+  }
+  .stack--gap-md {
+    @apply gap-3;
+  }
+  .stack--gap-lg {
+    @apply gap-4;
+  }
+  .stack--gap-xl {
+    @apply gap-6;
+  }
+  .stack--align-start {
+    @apply items-start;
+  }
+  .stack--align-center {
+    @apply items-center;
+  }
+  .stack--align-end {
+    @apply items-end;
+  }
+  .stack--align-stretch {
+    @apply items-stretch;
+  }
+  .stack--align-baseline {
+    @apply items-baseline;
+  }
+  .stack--justify-start {
+    @apply justify-start;
+  }
+  .stack--justify-center {
+    @apply justify-center;
+  }
+  .stack--justify-end {
+    @apply justify-end;
+  }
+  .stack--justify-between {
+    @apply justify-between;
+  }
+  .stack--justify-around {
+    @apply justify-around;
+  }
+  .stack--justify-evenly {
+    @apply justify-evenly;
+  }
+  .stack--wrap {
+    @apply flex-wrap;
+  }
+
   .input {
     @apply h-8 w-full min-w-0 rounded-none border border-input bg-transparent px-2.5 py-1 text-xs transition-colors outline-none file:inline-flex file:h-6 file:border-0 file:bg-transparent file:text-xs file:font-medium file:text-foreground placeholder:text-muted-foreground focus-visible:border-ring focus-visible:ring-1 focus-visible:ring-ring/50 disabled:pointer-events-none disabled:cursor-not-allowed disabled:bg-input/50 disabled:opacity-50 aria-invalid:border-destructive aria-invalid:ring-1 aria-invalid:ring-destructive/20 md:text-xs dark:bg-input/30 dark:disabled:bg-input/80 dark:aria-invalid:border-destructive/50 dark:aria-invalid:ring-destructive/40;
   }

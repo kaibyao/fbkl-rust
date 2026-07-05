@@ -5,6 +5,8 @@ import { useMutation } from 'urql';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { Stack, StackGap } from '@/components/ui/stack';
+import { Typography, TypographyVariant } from '@/components/ui/typography';
 import { graphql } from '@/generated';
 
 export const Route = createFileRoute('/_auth/leagues/create')({
@@ -66,12 +68,15 @@ function CreateLeaguePage() {
 
   return (
     <div className="mx-auto w-full max-w-md px-6 py-10">
-      <h1 className="mb-6 font-heading text-3xl font-black tracking-tight">
+      <Typography variant={TypographyVariant.Heading1} className="mb-6">
         Create a League
-      </h1>
+      </Typography>
 
-      <form onSubmit={handleSubmit(onSubmit)} className="flex flex-col gap-5">
-        <div className="flex flex-col gap-1.5">
+      <Stack
+        render={<form onSubmit={handleSubmit(onSubmit)} />}
+        gap={StackGap.Lg}
+      >
+        <Stack gap={StackGap.Sm}>
           <Label htmlFor="name">League name</Label>
           <Input
             id="name"
@@ -80,11 +85,13 @@ function CreateLeaguePage() {
             {...register('name', { required: true })}
           />
           {formErrors.name && (
-            <p className="text-xs text-destructive">Required</p>
+            <Typography variant={TypographyVariant.ErrorSm}>
+              Required
+            </Typography>
           )}
-        </div>
+        </Stack>
 
-        <div className="flex flex-col gap-1.5">
+        <Stack gap={StackGap.Sm}>
           <Label htmlFor="teamName">Team name</Label>
           <Input
             id="teamName"
@@ -93,11 +100,13 @@ function CreateLeaguePage() {
             {...register('teamName', { required: true })}
           />
           {formErrors.teamName && (
-            <p className="text-xs text-destructive">Required</p>
+            <Typography variant={TypographyVariant.ErrorSm}>
+              Required
+            </Typography>
           )}
-        </div>
+        </Stack>
 
-        <div className="flex flex-col gap-1.5">
+        <Stack gap={StackGap.Sm}>
           <Label htmlFor="userNickname">User nickname</Label>
           <Input
             id="userNickname"
@@ -106,9 +115,11 @@ function CreateLeaguePage() {
             {...register('userNickname', { required: true })}
           />
           {formErrors.userNickname && (
-            <p className="text-xs text-destructive">Required</p>
+            <Typography variant={TypographyVariant.ErrorSm}>
+              Required
+            </Typography>
           )}
-        </div>
+        </Stack>
 
         <Button
           type="submit"
@@ -121,9 +132,11 @@ function CreateLeaguePage() {
         </Button>
 
         {error?.message && (
-          <p className="text-xs text-destructive">{error.message}</p>
+          <Typography variant={TypographyVariant.ErrorSm}>
+            {error.message}
+          </Typography>
         )}
-      </form>
+      </Stack>
     </div>
   );
 }

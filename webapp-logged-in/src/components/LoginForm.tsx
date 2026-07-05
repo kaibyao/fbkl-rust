@@ -5,6 +5,8 @@ import { SubmitHandler, useForm } from 'react-hook-form';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { Stack, StackGap } from '@/components/ui/stack';
+import { Typography, TypographyVariant } from '@/components/ui/typography';
 import { processLogin } from '@/lib/auth';
 
 interface LoginFormFields {
@@ -33,8 +35,11 @@ export const LoginForm: React.FC = () => {
   };
 
   return (
-    <form onSubmit={handleSubmit(onSubmit)} className="flex flex-col gap-5">
-      <div className="flex flex-col gap-1.5">
+    <Stack
+      render={<form onSubmit={handleSubmit(onSubmit)} />}
+      gap={StackGap.Lg}
+    >
+      <Stack gap={StackGap.Sm}>
         <Label htmlFor="email">Email</Label>
         <Input
           id="email"
@@ -43,9 +48,9 @@ export const LoginForm: React.FC = () => {
           aria-invalid={!!formErrors.email}
           {...register('email', { required: true })}
         />
-      </div>
+      </Stack>
 
-      <div className="flex flex-col gap-1.5">
+      <Stack gap={StackGap.Sm}>
         <Label htmlFor="password">Password</Label>
         <Input
           id="password"
@@ -54,7 +59,7 @@ export const LoginForm: React.FC = () => {
           aria-invalid={!!formErrors.password}
           {...register('password', { required: true })}
         />
-      </div>
+      </Stack>
 
       <Button
         type="submit"
@@ -66,7 +71,11 @@ export const LoginForm: React.FC = () => {
         Sign in
       </Button>
 
-      {loginError && <p className="text-xs text-destructive">{loginError}</p>}
-    </form>
+      {loginError && (
+        <Typography variant={TypographyVariant.ErrorSm}>
+          {loginError}
+        </Typography>
+      )}
+    </Stack>
   );
 };
