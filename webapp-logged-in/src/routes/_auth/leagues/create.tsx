@@ -1,12 +1,12 @@
-import Button from '@mui/material/Button';
-import CircularProgress from '@mui/material/CircularProgress';
-import FormHelperText from '@mui/material/FormHelperText';
-import Stack from '@mui/material/Stack';
-import TextField from '@mui/material/TextField';
-import Typography from '@mui/material/Typography';
 import { createFileRoute, useNavigate } from '@tanstack/react-router';
+import { Loader2 } from 'lucide-react';
 import { SubmitHandler, useForm } from 'react-hook-form';
 import { useMutation } from 'urql';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Stack, StackGap } from '@/components/ui/stack';
+import { Typography, TypographyVariant } from '@/components/ui/typography';
 import { graphql } from '@/generated';
 
 export const Route = createFileRoute('/_auth/leagues/create')({
@@ -67,64 +67,76 @@ function CreateLeaguePage() {
   };
 
   return (
-    <form onSubmit={handleSubmit(onSubmit)}>
-      <Stack spacing={3}>
-        <Typography variant="h1">Create a League</Typography>
-        <div>
-          <TextField
-            autoComplete="off"
-            error={!!formErrors.name}
-            fullWidth
-            label="League name"
-            {...register('name', { required: true })}
-            slotProps={{ inputLabel: { shrink: true } }}
-          />
-          {formErrors.name && <FormHelperText error>Required</FormHelperText>}
-        </div>
+    <div className="mx-auto w-full max-w-md px-6 py-10">
+      <Typography variant={TypographyVariant.Heading1} className="mb-6">
+        Create a League
+      </Typography>
 
-        <div>
-          <TextField
+      <Stack
+        render={<form onSubmit={handleSubmit(onSubmit)} />}
+        gap={StackGap.Lg}
+      >
+        <Stack gap={StackGap.Sm}>
+          <Label htmlFor="name">League name</Label>
+          <Input
+            id="name"
             autoComplete="off"
-            error={!!formErrors.teamName}
-            fullWidth
-            label="Team name"
+            aria-invalid={!!formErrors.name}
+            {...register('name', { required: true })}
+          />
+          {formErrors.name && (
+            <Typography variant={TypographyVariant.ErrorSm}>
+              Required
+            </Typography>
+          )}
+        </Stack>
+
+        <Stack gap={StackGap.Sm}>
+          <Label htmlFor="teamName">Team name</Label>
+          <Input
+            id="teamName"
+            autoComplete="off"
+            aria-invalid={!!formErrors.teamName}
             {...register('teamName', { required: true })}
-            slotProps={{ inputLabel: { shrink: true } }}
           />
           {formErrors.teamName && (
-            <FormHelperText error>Required</FormHelperText>
+            <Typography variant={TypographyVariant.ErrorSm}>
+              Required
+            </Typography>
           )}
-        </div>
+        </Stack>
 
-        <div>
-          <TextField
+        <Stack gap={StackGap.Sm}>
+          <Label htmlFor="userNickname">User nickname</Label>
+          <Input
+            id="userNickname"
             autoComplete="off"
-            error={!!formErrors.userNickname}
-            fullWidth
-            label="User nickname"
+            aria-invalid={!!formErrors.userNickname}
             {...register('userNickname', { required: true })}
-            slotProps={{ inputLabel: { shrink: true } }}
           />
           {formErrors.userNickname && (
-            <FormHelperText error>Required</FormHelperText>
+            <Typography variant={TypographyVariant.ErrorSm}>
+              Required
+            </Typography>
           )}
-        </div>
+        </Stack>
+
         <Button
           type="submit"
+          size="lg"
           disabled={isSubmitting || fetching}
-          variant="contained"
-          startIcon={
-            isSubmitting || fetching ? (
-              <CircularProgress size="1em" sx={{ mr: 1 }} />
-            ) : undefined
-          }
+          className="w-full hover:bg-primary-hot"
         >
+          {(isSubmitting || fetching) && <Loader2 className="animate-spin" />}
           Create league
         </Button>
+
         {error?.message && (
-          <FormHelperText error>{error.message}</FormHelperText>
+          <Typography variant={TypographyVariant.ErrorSm}>
+            {error.message}
+          </Typography>
         )}
       </Stack>
-    </form>
+    </div>
   );
 }

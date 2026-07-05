@@ -1,11 +1,12 @@
-import Button from '@mui/material/Button';
-import CircularProgress from '@mui/material/CircularProgress';
-import FormHelperText from '@mui/material/FormHelperText';
-import Stack from '@mui/material/Stack';
-import TextField from '@mui/material/TextField';
 import { useNavigate } from '@tanstack/react-router';
+import { Loader2 } from 'lucide-react';
 import { useState } from 'react';
 import { SubmitHandler, useForm } from 'react-hook-form';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Stack, StackGap } from '@/components/ui/stack';
+import { Typography, TypographyVariant } from '@/components/ui/typography';
 import { processLogin } from '@/lib/auth';
 
 interface LoginFormFields {
@@ -34,40 +35,47 @@ export const LoginForm: React.FC = () => {
   };
 
   return (
-    <form onSubmit={handleSubmit(onSubmit)}>
-      <Stack spacing={3}>
-        <TextField
+    <Stack
+      render={<form onSubmit={handleSubmit(onSubmit)} />}
+      gap={StackGap.Lg}
+    >
+      <Stack gap={StackGap.Sm}>
+        <Label htmlFor="email">Email</Label>
+        <Input
+          id="email"
           autoComplete="email"
-          error={!!formErrors.email}
-          fullWidth
-          label="Email"
           type="email"
+          aria-invalid={!!formErrors.email}
           {...register('email', { required: true })}
-          slotProps={{ inputLabel: { shrink: true } }}
         />
-        <TextField
-          autoComplete="current-password"
-          error={!!formErrors.password}
-          fullWidth
-          label="Password"
-          type="password"
-          {...register('password', { required: true })}
-          slotProps={{ inputLabel: { shrink: true } }}
-        />
-        <Button
-          type="submit"
-          disabled={isSubmitting}
-          variant="contained"
-          startIcon={
-            isSubmitting ? (
-              <CircularProgress size="1em" sx={{ mr: 1 }} />
-            ) : undefined
-          }
-        >
-          Submit
-        </Button>
-        {loginError && <FormHelperText error>{loginError}</FormHelperText>}
       </Stack>
-    </form>
+
+      <Stack gap={StackGap.Sm}>
+        <Label htmlFor="password">Password</Label>
+        <Input
+          id="password"
+          autoComplete="current-password"
+          type="password"
+          aria-invalid={!!formErrors.password}
+          {...register('password', { required: true })}
+        />
+      </Stack>
+
+      <Button
+        type="submit"
+        size="lg"
+        disabled={isSubmitting}
+        className="w-full hover:bg-primary-hot"
+      >
+        {isSubmitting && <Loader2 className="animate-spin" />}
+        Sign in
+      </Button>
+
+      {loginError && (
+        <Typography variant={TypographyVariant.ErrorSm}>
+          {loginError}
+        </Typography>
+      )}
+    </Stack>
   );
 };

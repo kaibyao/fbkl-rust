@@ -1,10 +1,15 @@
-import Card from '@mui/material/Card';
-import Divider from '@mui/material/Divider';
-import List from '@mui/material/List';
-import Stack from '@mui/material/Stack';
-import Typography from '@mui/material/Typography';
 import { FunctionComponent } from 'react';
 import { LeagueRosterListPlayer } from '@/components/league/LeagueRosterListPlayer';
+import { Card, CardContent } from '@/components/ui/card';
+import { Separator } from '@/components/ui/separator';
+import {
+  Stack,
+  StackAlign,
+  StackDirection,
+  StackGap,
+  StackJustify,
+} from '@/components/ui/stack';
+import { Typography, TypographyVariant } from '@/components/ui/typography';
 import { ContractKind, ContractStatus } from '@/generated/enums';
 import {
   ContractForRosterListFragment,
@@ -20,60 +25,67 @@ export const LeagueTeamRoster: FunctionComponent<Props> = ({ team }) => {
   const { activeContracts, activeButIrContracts, rookieDevelopmentContracts } =
     partitionContracts(team.contracts);
 
+  const activeSalary = activeContracts.reduce(
+    (acc, contract) => acc + contract.salary,
+    0,
+  );
+
   return (
-    <Card
-      sx={{
-        padding: 2,
-      }}
-    >
-      <Stack spacing={2}>
-        <Stack
-          direction="row"
-          spacing={2}
-          alignItems="center"
-          justifyContent="space-between"
-        >
-          <Typography variant="h4">{team.name}</Typography>
-          <Typography variant="h5">
-            $
-            {activeContracts.reduce((acc, contract) => {
-              return acc + contract.salary;
-            }, 0)}
-            /${team.salaryCap.salaryCap}
-          </Typography>
+    <Card>
+      <CardContent>
+        <Stack gap={StackGap.Md}>
+          <Stack
+            direction={StackDirection.Row}
+            align={StackAlign.Center}
+            justify={StackJustify.Between}
+            gap={StackGap.Sm}
+          >
+            <Typography variant={TypographyVariant.Heading2}>
+              {team.name}
+            </Typography>
+            <Typography variant={TypographyVariant.Stat}>
+              ${activeSalary}
+              <Typography
+                variant={TypographyVariant.InlineMuted}
+                render={<span />}
+              >
+                /${team.salaryCap.salaryCap}
+              </Typography>
+            </Typography>
+          </Stack>
+
+          <Separator />
+
+          <Stack gap={StackGap.Sm}>
+            <Typography variant={TypographyVariant.SectionLabel}>
+              Active ({activeContracts.length})
+            </Typography>
+
+            <Stack render={<ul />}>
+              {activeContracts.map((contract) => (
+                <LeagueRosterListPlayer key={contract.id} contract={contract} />
+              ))}
+              {activeButIrContracts.map((contract) => (
+                <LeagueRosterListPlayer
+                  key={contract.id}
+                  contract={contract}
+                  isIr
+                />
+              ))}
+            </Stack>
+
+            <Typography variant={TypographyVariant.SectionLabel}>
+              Rookie Development ({rookieDevelopmentContracts.length})
+            </Typography>
+
+            <Stack render={<ul />}>
+              {rookieDevelopmentContracts.map((contract) => (
+                <LeagueRosterListPlayer key={contract.id} contract={contract} />
+              ))}
+            </Stack>
+          </Stack>
         </Stack>
-
-        <Divider />
-
-        <Stack spacing={2}>
-          <Typography variant="h5">
-            Active ({activeContracts.length})
-          </Typography>
-
-          <List dense style={{ marginTop: 0 }}>
-            {activeContracts.map((contract) => (
-              <LeagueRosterListPlayer key={contract.id} contract={contract} />
-            ))}
-            {activeButIrContracts.map((contract) => (
-              <LeagueRosterListPlayer
-                key={contract.id}
-                contract={contract}
-                isIr
-              />
-            ))}
-          </List>
-
-          <Typography variant="h5">
-            Rookie Development ({rookieDevelopmentContracts.length})
-          </Typography>
-
-          <List dense style={{ marginTop: 0 }}>
-            {rookieDevelopmentContracts.map((contract) => (
-              <LeagueRosterListPlayer key={contract.id} contract={contract} />
-            ))}
-          </List>
-        </Stack>
-      </Stack>
+      </CardContent>
     </Card>
   );
 };
