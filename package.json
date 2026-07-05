@@ -9,7 +9,7 @@
   "devDependencies": {
     "@evilmartians/lefthook": "^2.1.9",
     "oxfmt": "^0.57.0",
-    "oxlint": "^1.68.0",
+    "oxlint": "^1.72.0",
     "typescript": "^6.0.3"
   }
 }
