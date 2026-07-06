@@ -32,8 +32,9 @@ pub struct Model {
 impl Model {
     /// Resolves the salary cap in effect for this deadline (rules §4.2). This is the single
     /// source of truth for cap-by-period — do not select caps from local literals elsewhere.
-    /// `None` means uncapped: §4.2.4 removes the cap between the end of the playoffs
-    /// (`SeasonEnd`) and the next keeper deadline, which also covers `PreseasonStart`.
+    /// `None` means uncapped: §4.2.4 removes the cap between contract advancement
+    /// (`PreseasonStart`) and the next keeper deadline. `SeasonEnd` keeps the post-season
+    /// limit — league state stays frozen at end-of-season values until advancement runs.
     /// The $210→$230 bump of §8.1/§4.2.3 is applied here implicitly: `FreeAgentAuctionEnd`
     /// itself and any `InSeasonRosterLock` dated after it resolve to the post-season limit.
     #[instrument]
@@ -67,7 +68,8 @@ impl Model {
             | DeadlineKind::Week1FreeAgentAuctionStart
             | DeadlineKind::Week1FreeAgentAuctionEnd
             | DeadlineKind::Week1RosterLock => Some(REGULAR_SEASON_TOTAL_SALARY_LIMIT),
-            DeadlineKind::PreseasonStart | DeadlineKind::SeasonEnd => None,
+            DeadlineKind::SeasonEnd => Some(POST_SEASON_TOTAL_SALARY_LIMIT),
+            DeadlineKind::PreseasonStart => None,
         };
 
         Ok(salary_cap)

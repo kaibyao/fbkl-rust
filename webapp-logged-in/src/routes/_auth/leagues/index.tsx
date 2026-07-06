@@ -16,7 +16,7 @@ export const Route = createFileRoute('/_auth/leagues/')({
   component: LeaguesPage,
 });
 
-const getUserLeaguesQuery = graphql(`
+graphql(`
   fragment LeagueList on League {
     id
     name
@@ -29,7 +29,9 @@ const getUserLeaguesQuery = graphql(`
       }
     }
   }
+`);
 
+const getUserLeaguesQuery = graphql(`
   query GetUserLeagues {
     leagues {
       id
