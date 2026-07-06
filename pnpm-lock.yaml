@@ -63,7 +63,7 @@ importers:
         specifier: ^7.79.0
         version: 7.81.0(react@19.2.7)
       shadcn:
-        specifier: ^4.11.0
+        specifier: ^4.13.0
         version: 4.13.0(typescript@6.0.3)
       tailwind-merge:
         specifier: ^3.6.0
