@@ -10,8 +10,9 @@ use std::{
 use async_graphql::{EmptySubscription, Schema};
 use fbkl_server::{MutationRoot, QueryRoot};
 
-static SCHEMA_FILE_PATH_FOLDER: &str = "./generated/";
-static SCHEMA_FILE_PATH: &str = "./generated/fbkl-schema.graphql";
+static SCHEMA_FILE_PATH_FOLDER: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/generated/");
+static SCHEMA_FILE_PATH: &str =
+    concat!(env!("CARGO_MANIFEST_DIR"), "/generated/fbkl-schema.graphql");
 
 fn main() -> io::Result<()> {
     fs::create_dir_all(SCHEMA_FILE_PATH_FOLDER)?;

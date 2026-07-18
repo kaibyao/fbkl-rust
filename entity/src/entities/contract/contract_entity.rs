@@ -141,7 +141,7 @@ impl Model {
             .filter(Column::OriginalContractId.eq(self.original_contract_id))
             .all(db)
             .await?;
-        all_contracts_in_chain.sort_by(|a, b| a.id.cmp(&b.id));
+        all_contracts_in_chain.sort_by_key(|a| a.id);
         all_contracts_in_chain.pop().ok_or_else(|| {
             let contract_ids_in_chain: Vec<String> = all_contracts_in_chain
                 .iter()

@@ -38,7 +38,7 @@ impl ContractUpdatePlayerData {
                 Self {
                     player_name: player_model.name,
                     real_team_abbr: real_team_model.code,
-                    real_team_name: format!("{} {}", &real_team_model.city, &real_team_model.name),
+                    real_team_name: format!("{} {}", real_team_model.city, real_team_model.name),
                 }
             }
         };

@@ -48,9 +48,10 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
-      - uses: moonrepo/setup-rust@v1
+      - uses: dtolnay/rust-toolchain@stable
         with:
           components: clippy, rustfmt
+      - uses: Swatinem/rust-cache@v2
       - run: cargo fmt --all --check
       # clippy compiles the workspace, so it subsumes `cargo check`.
       - run: cargo clippy --workspace --all-targets -- -D warnings
@@ -71,11 +72,11 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
-      - uses: moonrepo/setup-rust@v1
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
       - uses: ./.github/actions/setup-node
       - run: cargo run -p fbkl-graphql-generation
-      - run: pnpm --filter "@fbkl/webapp-logged-in" graphql
-      - run: pnpm --filter "@fbkl/webapp-logged-in" exec tsc
+      - run: pnpm --filter "@fbkl/webapp-logged-in" build
 
   typecheck-public:
     needs: changes

@@ -33,21 +33,21 @@ where
         "Cannot process a trade with no trade assets."
     );
 
-    for (_trade_asset_id, (trade_asset, contract)) in trade_asset_related_models
+    for (trade_asset, contract) in trade_asset_related_models
         .trade_asset_contracts_by_trade_asset_id
-        .iter()
+        .values()
     {
         validate_contract_trade_asset(trade_asset, contract, trade_id, db).await?;
     }
-    for (_trade_asset_id, (trade_asset, draft_pick)) in trade_asset_related_models
+    for (trade_asset, draft_pick) in trade_asset_related_models
         .trade_asset_draft_picks_by_trade_asset_id
-        .iter()
+        .values()
     {
         validate_draft_pick_trade_asset(trade_asset, draft_pick, trade_id, db)?;
     }
-    for (_trade_asset_id, (trade_asset, draft_pick_option)) in trade_asset_related_models
+    for (trade_asset, draft_pick_option) in trade_asset_related_models
         .trade_asset_draft_pick_options_by_trade_asset_id
-        .iter()
+        .values()
     {
         validate_draft_pick_option_trade_asset(trade_asset, draft_pick_option, db)?;
     }

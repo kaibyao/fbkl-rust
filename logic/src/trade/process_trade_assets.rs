@@ -14,8 +14,8 @@ use super::process_trade::TradeAssetRelatedModelCache;
 #[derive(Debug)]
 pub struct UpdatedTradeAssetModelCache {
     pub contracts_by_trade_asset_id: HashMap<i64, contract::Model>,
-    pub draft_picks_by_trade_asset_id: HashMap<i64, draft_pick::Model>,
-    pub draft_pick_options_by_trade_asset_id: HashMap<i64, draft_pick_option::Model>,
+    // pub draft_picks_by_trade_asset_id: HashMap<i64, draft_pick::Model>,
+    // pub draft_pick_options_by_trade_asset_id: HashMap<i64, draft_pick_option::Model>,
 }
 
 #[instrument]
@@ -64,8 +64,8 @@ where
 
     Ok(UpdatedTradeAssetModelCache {
         contracts_by_trade_asset_id: updated_contracts,
-        draft_picks_by_trade_asset_id: updated_draft_picks,
-        draft_pick_options_by_trade_asset_id: updated_draft_pick_options,
+        // draft_picks_by_trade_asset_id: updated_draft_picks,
+        // draft_pick_options_by_trade_asset_id: updated_draft_pick_options,
     })
 }
 
