@@ -16,6 +16,16 @@ name: deploy
 on:
   push:
     branches: [main]
+  workflow_dispatch:
+    inputs:
+      force:
+        description: 'Deploy lambdas + both frontends regardless of changed paths'
+        type: boolean
+        default: true
+      run_migrations:
+        description: 'Also run DB migrations (still gated by production env approval)'
+        type: boolean
+        default: false
 
 concurrency:
   group: deploy-${{ github.ref }}
@@ -60,7 +70,7 @@ jobs:
 
   migrate:
     needs: changes
-    if: needs.changes.outputs.migrations == 'true'
+    if: needs.changes.outputs.migrations == 'true' || github.event.inputs.run_migrations == 'true'
     runs-on: ubuntu-latest
     environment: production
     env:
@@ -78,7 +88,7 @@ jobs:
     needs: [changes, migrate]
     if: |
       always() &&
-      needs.changes.outputs.rust == 'true' &&
+      (needs.changes.outputs.rust == 'true' || github.event.inputs.force == 'true') &&
       (needs.migrate.result == 'success' || needs.migrate.result == 'skipped')
     runs-on: ubuntu-latest
     steps:
@@ -107,7 +117,7 @@ jobs:
 
   deploy-app:
     needs: changes
-    if: needs.changes.outputs.app == 'true'
+    if: needs.changes.outputs.app == 'true' || github.event.inputs.force == 'true'
     runs-on: ubuntu-latest
     defaults:
       run:
@@ -136,7 +146,7 @@ jobs:
 
   deploy-public:
     needs: changes
-    if: needs.changes.outputs.public == 'true'
+    if: needs.changes.outputs.public == 'true' || github.event.inputs.force == 'true'
     runs-on: ubuntu-latest
     defaults:
       run:
