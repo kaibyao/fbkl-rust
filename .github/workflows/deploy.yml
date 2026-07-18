@@ -69,6 +69,8 @@ jobs:
       - uses: actions/checkout@v7
       - uses: dtolnay/rust-toolchain@stable
       - uses: Swatinem/rust-cache@v2
+        with:
+          shared-key: rust-x86-debug
       - run: cargo run -p fbkl-migration -- up
       - run: cargo run -p fbkl-server --bin migrate_sessions
 
@@ -83,6 +85,8 @@ jobs:
       - uses: actions/checkout@v7
       - uses: dtolnay/rust-toolchain@stable
       - uses: Swatinem/rust-cache@v2
+        with:
+          shared-key: rust-lambda-arm64
       - run: pipx install cargo-lambda
       - uses: mlugg/setup-zig@v1
         with:
@@ -117,6 +121,8 @@ jobs:
           cache: pnpm
       - uses: dtolnay/rust-toolchain@stable
       - uses: Swatinem/rust-cache@v2
+        with:
+          shared-key: rust-x86-debug
       - run: pnpm install --frozen-lockfile
         working-directory: .
       - run: cargo run -p fbkl-graphql-generation
