@@ -67,7 +67,8 @@ jobs:
       DATABASE_URL: ${{ secrets.NEON_DATABASE_URL_DIRECT }}
     steps:
       - uses: actions/checkout@v7
-      - uses: moonrepo/setup-rust@v1
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
       - run: cargo run -p fbkl-migration -- up
       - run: cargo run -p fbkl-server --bin migrate_sessions
 
@@ -80,9 +81,9 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
-      - uses: moonrepo/setup-rust@v1
-        with:
-          bins: cargo-lambda
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - run: pipx install cargo-lambda
       - uses: mlugg/setup-zig@v1
         with:
           version: 0.14.0
