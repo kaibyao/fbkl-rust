@@ -74,9 +74,7 @@ pub async fn run_scheduler_tick(db: &DatabaseConnection) -> Result<TickSummary> 
                     summary.failed += 1;
                     league_blocked = true;
                 }
-                Ok(
-                    ProcessOutcome::AlreadyRunning | ProcessOutcome::AttemptsExhausted { .. },
-                ) => {
+                Ok(ProcessOutcome::AlreadyRunning | ProcessOutcome::AttemptsExhausted { .. }) => {
                     summary.skipped += 1;
                     league_blocked = true;
                 }
