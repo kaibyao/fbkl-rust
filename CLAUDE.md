@@ -100,7 +100,7 @@ Uses Lefthook for pre-commit hooks that automatically run:
 - oxlint, oxfmt, and TypeScript checking on frontend files
 
 ### Deployment (serverless)
-Production runs on AWS Lambda (native Rust) + Neon Postgres + Cloudflare Pages,
+Production runs on AWS Lambda (native Rust) + Supabase Postgres + Cloudflare Pages,
 provisioned with OpenTofu in `infra/`. The `lambdas/` crate holds the three
 Lambda binaries (`fbkl-api`, `fbkl-scheduler`, `fbkl-session-gc`); `server/`
 exposes reusable builders so the local dev bin and the API Lambda share one code

@@ -28,8 +28,8 @@ pub type AppSchema = Schema<QueryRoot, MutationRoot, EmptySubscription>;
 
 /// Connect to the SeaORM database pool from `FBKL_DATABASE_URL`.
 ///
-/// Lambdas must point this at Neon's `-pooler` endpoint; the local bin uses a
-/// direct connection.
+/// Lambdas must point this at Supabase's transaction pooler (6543); the local
+/// bin uses a direct connection.
 pub async fn init_db() -> Result<DatabaseConnection, DbErr> {
     let database_url = std::env::var("FBKL_DATABASE_URL").expect("FBKL_DATABASE_URL must be set");
     Database::connect(&database_url).await

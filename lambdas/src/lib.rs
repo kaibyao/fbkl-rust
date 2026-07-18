@@ -16,8 +16,8 @@ static DB: OnceCell<DatabaseConnection> = OnceCell::const_new();
 /// Return the shared SeaORM connection, initializing the pool on first call and
 /// reusing it across warm invocations within the same execution environment.
 ///
-/// `FBKL_DATABASE_URL` MUST point at Neon's `-pooler` (PgBouncer transaction
-/// mode) endpoint at runtime. Bypassing the pooler (direct endpoint) risks
+/// `FBKL_DATABASE_URL` MUST point at Supabase's TRANSACTION pooler (port 6543,
+/// Supavisor) at runtime. Bypassing the pooler (direct endpoint) risks
 /// `FATAL: too many connections` with no queue. The pool is deliberately tiny
 /// (one connection per execution env) so that Lambda reserved concurrency bounds
 /// the worst-case number of client connections to the pooler.

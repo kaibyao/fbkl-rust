@@ -44,12 +44,12 @@ locals {
   lambda_runtime      = "provided.al2023"
   lambda_architecture = "arm64"
 
-  # FBKL_DATABASE_URL must be the POOLED Neon endpoint for every Lambda.
+  # FBKL_DATABASE_URL must be the Supabase TRANSACTION pooler (6543) for every Lambda.
   worker_env = {
-    FBKL_DATABASE_URL = neon_project.fbkl.connection_uri_pooler
+    FBKL_DATABASE_URL = var.supabase_database_url
   }
   api_env = {
-    FBKL_DATABASE_URL = neon_project.fbkl.connection_uri_pooler
+    FBKL_DATABASE_URL = var.supabase_database_url
     SESSION_SECRET    = random_password.session_secret.result
   }
 }
