@@ -69,7 +69,7 @@ impl Model {
             .filter(Column::OriginalTradeId.eq(self.original_trade_id))
             .all(db)
             .await?;
-        all_trades_in_chain.sort_by(|a, b| a.id.cmp(&b.id));
+        all_trades_in_chain.sort_by_key(|a| a.id);
         all_trades_in_chain
             .last()
             .map(|last_trade_in_chain| last_trade_in_chain.id == self.id)
