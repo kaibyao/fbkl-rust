@@ -91,9 +91,7 @@ impl TradeAssetRelatedModelCache {
         related_models: Vec<Option<M>>,
     ) -> Result<HashMap<i64, (trade_asset::Model, M)>> {
         let mut mapped_models = HashMap::new();
-        for (trade_asset, maybe_related_model) in
-            trade_assets.into_iter().zip(related_models.into_iter())
-        {
+        for (trade_asset, maybe_related_model) in trade_assets.into_iter().zip(related_models) {
             let related_model = maybe_related_model.ok_or_else(|| {
                 eyre!(
                     "Missing related model for trade asset (id = {}).",

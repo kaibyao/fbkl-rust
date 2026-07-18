@@ -1,15 +1,13 @@
 use std::fmt::Debug;
 
-use color_eyre::eyre::{Result, WrapErr};
+use color_eyre::eyre::Result;
 use fbkl_entity::{
-    deadline::{self, DeadlineKind},
+    deadline::{self},
     sea_orm::{ConnectionTrait, TransactionTrait},
     team_update::TeamUpdateStatus,
     team_update_queries,
 };
 use tracing::instrument;
-
-use crate::draft_picks::generate_future_draft_picks;
 
 use super::validate_league_rosters;
 
