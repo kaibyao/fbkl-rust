@@ -22,9 +22,18 @@ variable "github_deploy_ref" {
   description = "Git ref permitted to assume the deploy role. Restricts CI deploys to this branch."
 }
 
-# NOTE: the Lambda DB URL and session secret are no longer inputs — they are
-# produced inside this config (neon.tf provisions the DB; secrets.tf generates a
-# stable session secret) and wired directly into the Lambda env in lambdas.tf.
+# Supabase pooled URL for the Lambda runtime. Use the TRANSACTION pooler (port
+# 6543) — it survives Lambda's per-invoke connection churn. Migrations use a
+# separate SESSION pooler URL (advisory locks + DDL), set as the
+# PROD_DATABASE_MIGRATION_URL GitHub secret, not here.
+variable "supabase_database_url" {
+  type        = string
+  sensitive   = true
+  description = "Supabase TRANSACTION pooler connection string (port 6543) for the Lambda runtime FBKL_DATABASE_URL."
+}
+
+# NOTE: the session secret is not an input — secrets.tf generates a stable one,
+# wired directly into the Lambda env in lambdas.tf.
 
 variable "cloudflare_account_id" {
   type        = string
@@ -40,7 +49,7 @@ variable "alert_email" {
 variable "api_reserved_concurrency" {
   type        = number
   default     = 50
-  description = "Reserved concurrency cap on the API Lambda — the backstop that bounds worst-case client connections to the Neon pooler."
+  description = "Reserved concurrency cap on the API Lambda — the backstop that bounds worst-case client connections to the Supabase pooler."
 }
 
 variable "worker_reserved_concurrency" {

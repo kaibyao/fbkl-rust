@@ -1,7 +1,7 @@
 # FBKL infrastructure (OpenTofu)
 
-Provisions the serverless deploy (epic `fbkl-rust-96e`) across AWS, Neon, and
-Cloudflare. Uses **OpenTofu** (`tofu`) — the `.tf` code, state, and lock file are
+Provisions the serverless deploy (epic `fbkl-rust-96e`) across AWS and
+Cloudflare, with Postgres hosted externally on Supabase. Uses **OpenTofu** (`tofu`) — the `.tf` code, state, and lock file are
 Terraform-compatible, so the HashiCorp docs apply; only the CLI name differs.
 State lives in S3 (`fbkl-tfstate-820712214931`), region `us-east-1`, authenticated
 via the **`fbkl`** SSO profile (personal account, never the work default).
@@ -51,33 +51,35 @@ tofu apply
 Apply needs these inputs (pass via env, never commit — keep in `infra/secrets.env`):
 
 ```bash
-export NEON_API_KEY='napi_…'                       # provisions Neon (neon.tf)
+export TF_VAR_supabase_database_url='postgresql://…pooler.supabase.com:6543/postgres'  # Supabase TRANSACTION pooler → Lambda FBKL_DATABASE_URL
 export CLOUDFLARE_API_TOKEN='…'                    # Account · Cloudflare Pages · Edit
 export TF_VAR_cloudflare_account_id='…'            # not secret; dashboard sidebar
 ```
 
-The DB connection string, session secret, and SPA origin are NOT inputs —
-`neon.tf` provisions the database, `secrets.tf` generates a stable session
-secret, and the API CORS origin is sourced from the logged-in app's Pages
-subdomain. All wired straight through; nothing to copy-paste.
+The DB lives on Supabase (created in the Supabase dashboard, not managed here);
+its transaction-pooler URL is passed in via `TF_VAR_supabase_database_url`. The
+session secret and SPA origin are NOT inputs — `secrets.tf` generates a stable
+session secret, and the API CORS origin is sourced from the logged-in app's
+Pages subdomain.
 
-## Run migrations (after Neon exists, before the API serves traffic)
+## Run migrations (after the Supabase project exists, before the API serves traffic)
 
-Migrations use the DIRECT endpoint (the pooler breaks DDL + advisory locks). The
-sea-orm migration crate reads `DATABASE_URL` (distinct from the app's
-`FBKL_DATABASE_URL`):
+Migrations use the SESSION pooler (port 5432); the transaction pooler breaks DDL
++ advisory locks. The sea-orm migration crate reads `DATABASE_URL` (distinct from
+the app's `FBKL_DATABASE_URL`):
 
 ```bash
-# from repo root, after `tofu apply` has created the Neon project
-export DATABASE_URL=$(tofu -chdir=infra output -raw neon_database_url_direct)
+# from repo root — Supabase dashboard → Connect → "Session pooler"
+export DATABASE_URL='postgresql://…pooler.supabase.com:5432/postgres'
 
 cargo run -p fbkl-migration -- up                       # app schema (sea-orm)
 cargo run -p fbkl-server --bin migrate_sessions         # tower_sessions table
 ```
 
 `migrate_sessions` runs tower-sessions' `PostgresStore::migrate()` against the
-direct endpoint — the serverless equivalent of what the local dev bin does on
-startup. Both commands read `DATABASE_URL` (the DIRECT endpoint).
+session pooler — the serverless equivalent of what the local dev bin does on
+startup. Both commands read `DATABASE_URL` (the SESSION pooler). In CI the same
+value comes from the `PROD_DATABASE_MIGRATION_URL` GitHub secret.
 
 ## Files
 
@@ -90,7 +92,6 @@ startup. Both commands read `DATABASE_URL` (the DIRECT endpoint).
 | `github_oidc.tf` | GitHub Actions OIDC provider + deploy role | 96e.10 |
 | `lambdas.tf` | 3 functions, exec role, Function URL + CORS, concurrency | 96e.3/.4/.5 |
 | `eventbridge.tf` | scheduler (1-min) + session-gc (5-min) schedules + invoke role | 96e.7 |
-| `neon.tf` | Neon project, pooled + direct endpoints | 96e.6 |
 | `cloudflare.tf` | Pages projects for both Vite apps (*.pages.dev) | 96e.8 |
 | `observability.tf` | CloudWatch error/throttle alarms + SNS email | 96e.9 |
 
@@ -108,6 +109,6 @@ the GitHub repo before the first CI run:
 | Variable | `AWS_DEPLOY_ROLE_ARN` | `tofu -chdir=infra output -raw github_deploy_role_arn` |
 | Variable | `AWS_REGION` | `us-east-1` |
 | Variable | `CLOUDFLARE_ACCOUNT_ID` | your account ID |
-| Secret | `NEON_DATABASE_URL_DIRECT` | `tofu -chdir=infra output -raw neon_database_url_direct` |
+| Secret | `PROD_DATABASE_MIGRATION_URL` | Supabase SESSION pooler URL (port 5432) |
 | Secret | `CLOUDFLARE_API_TOKEN` | Pages-edit token |
 | Environment | `production` | add required reviewers → this is the migration approval gate |

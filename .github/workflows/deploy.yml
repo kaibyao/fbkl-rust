@@ -8,7 +8,7 @@
 # Required repo config:
 #   Variables: AWS_DEPLOY_ROLE_ARN (= tofu output github_deploy_role_arn),
 #              AWS_REGION (us-east-1), CLOUDFLARE_ACCOUNT_ID
-#   Secrets:   NEON_DATABASE_URL_DIRECT (direct endpoint), CLOUDFLARE_API_TOKEN
+#   Secrets:   PROD_DATABASE_MIGRATION_URL (Supabase session pooler — DDL-safe + IPv4), CLOUDFLARE_API_TOKEN
 #   Environment `production` with required reviewers (gates migrations).
 
 name: deploy
@@ -64,7 +64,7 @@ jobs:
     runs-on: ubuntu-latest
     environment: production
     env:
-      DATABASE_URL: ${{ secrets.NEON_DATABASE_URL_DIRECT }}
+      DATABASE_URL: ${{ secrets.PROD_DATABASE_MIGRATION_URL }}
     steps:
       - uses: actions/checkout@v7
       - uses: dtolnay/rust-toolchain@stable

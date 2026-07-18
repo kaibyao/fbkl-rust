@@ -5,10 +5,11 @@
 //! bin runs that on startup; serverless has no such startup, so this bin runs it
 //! as part of the deploy/migration step (alongside `fbkl-migration -- up`).
 //!
-//! Reads `DATABASE_URL` (the DIRECT Neon endpoint — the pooler breaks DDL), the
-//! same variable the sea-orm migration step uses.
+//! Reads `DATABASE_URL` (Supabase SESSION pooler, port 5432 — the transaction
+//! pooler breaks DDL + advisory locks), the same variable the sea-orm migration
+//! step uses.
 //!
-//!   DATABASE_URL=<direct> cargo run -p fbkl-server --bin migrate_sessions
+//!   DATABASE_URL=<session-pooler> cargo run -p fbkl-server --bin migrate_sessions
 
 use fbkl_entity::sea_orm::Database;
 use fbkl_server::build_session_store;
@@ -16,7 +17,7 @@ use fbkl_server::build_session_store;
 #[tokio::main]
 async fn main() -> color_eyre::Result<()> {
     let url =
-        std::env::var("DATABASE_URL").expect("DATABASE_URL must be set (the DIRECT Neon endpoint)");
+        std::env::var("DATABASE_URL").expect("DATABASE_URL must be set (Supabase SESSION pooler)");
     let db = Database::connect(&url).await?;
     build_session_store(&db).migrate().await?;
     println!("tower_sessions schema migrated");
