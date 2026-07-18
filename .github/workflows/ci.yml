@@ -76,8 +76,7 @@ jobs:
       - uses: Swatinem/rust-cache@v2
       - uses: ./.github/actions/setup-node
       - run: cargo run -p fbkl-graphql-generation
-      - run: pnpm --filter "@fbkl/webapp-logged-in" graphql
-      - run: pnpm --filter "@fbkl/webapp-logged-in" exec tsc
+      - run: pnpm --filter "@fbkl/webapp-logged-in" build
 
   typecheck-public:
     needs: changes

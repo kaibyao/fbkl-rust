@@ -4,11 +4,12 @@
   "type": "module",
   "scripts": {
     "dev": "vite --port 9100",
-    "build": "pnpm graphql && vite build && tsc",
+    "build": "pnpm graphql && vite build && pnpm typecheck",
     "serve": "vite preview",
     "lint": "oxlint",
     "format": "oxfmt src",
-    "graphql": "graphql-codegen --config graphql-codegen.ts"
+    "graphql": "graphql-codegen --config graphql-codegen.ts",
+    "typecheck": "tsc --noEmit"
   },
   "dependencies": {
     "@base-ui/react": "^1.6.0",
