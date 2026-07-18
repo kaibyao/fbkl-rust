@@ -5,7 +5,15 @@
 # logged-in app's subdomain is wired straight into the API Function URL CORS, so
 # there's no placeholder origin to keep in sync.
 #
-# Authenticated via CLOUDFLARE_API_TOKEN (Account · Cloudflare Pages · Edit).
+# Authenticated via CLOUDFLARE_API_TOKEN (Pages · Edit; created manually in the
+# dashboard, not TF-managed — it's the credential this provider authenticates
+# with, so TF can't mint it itself).
+#
+# The separate CI deploy token (also Pages · Edit) is likewise created manually
+# and stored as the GitHub repo secret CLOUDFLARE_API_TOKEN, consumed by
+# .github/workflows/deploy.yml. Not TF-managed: nothing here consumes it, and
+# doing so would only leak the token value into state without auto-syncing to
+# GitHub. Rotate = new token in dashboard → update the GitHub secret.
 
 provider "cloudflare" {
   # api_token read from CLOUDFLARE_API_TOKEN
