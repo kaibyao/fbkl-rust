@@ -11,7 +11,7 @@
     "graphql": "graphql-codegen --config graphql-codegen.ts"
   },
   "dependencies": {
-    "@base-ui/react": "^1.5.0",
+    "@base-ui/react": "^1.6.0",
     "@fontsource-variable/figtree": "^5.2.10",
     "@fontsource-variable/nunito-sans": "^5.2.7",
     "@graphql-codegen/cli": "^7.1.2",
