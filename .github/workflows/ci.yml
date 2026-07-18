@@ -1,0 +1,87 @@
+# Path-filtered PR checks; logged-in typecheck runs the Rust schema generator before tsc (generated GraphQL types).
+name: ci
+
+on:
+  pull_request:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  changes:
+    runs-on: ubuntu-latest
+    outputs:
+      rust: ${{ steps.filter.outputs.rust }}
+      frontend: ${{ steps.filter.outputs.frontend }}
+    steps:
+      - uses: actions/checkout@v7
+      - uses: dorny/paths-filter@v4
+        id: filter
+        with:
+          filters: |
+            rust:
+              - 'auth/**'
+              - 'constants/**'
+              - 'entity/**'
+              - 'graphql-generation/**'
+              - 'jobs/**'
+              - 'lambdas/**'
+              - 'logic/**'
+              - 'migration/**'
+              - 'server/**'
+              - 'transaction-processor/**'
+              - 'Cargo.toml'
+              - 'Cargo.lock'
+            frontend:
+              - 'webapp-logged-in/**'
+              - 'webapp-public/**'
+              - 'package.json'
+              - 'pnpm-lock.yaml'
+              # Schema-affecting Rust changes can break generated frontend types.
+              - 'graphql-generation/**'
+              - 'server/**'
+
+  rust:
+    needs: changes
+    if: needs.changes.outputs.rust == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: moonrepo/setup-rust@v1
+        with:
+          components: clippy, rustfmt
+      - run: cargo fmt --all --check
+      # clippy compiles the workspace, so it subsumes `cargo check`.
+      - run: cargo clippy --workspace --all-targets -- -D warnings
+      - run: cargo test --workspace
+
+  lint:
+    needs: changes
+    if: needs.changes.outputs.frontend == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: ./.github/actions/setup-node
+      - run: pnpm lint
+
+  typecheck-logged-in:
+    needs: changes
+    if: needs.changes.outputs.frontend == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: moonrepo/setup-rust@v1
+      - uses: ./.github/actions/setup-node
+      - run: cargo run -p fbkl-graphql-generation
+      - run: pnpm --filter "@fbkl/webapp-logged-in" graphql
+      - run: pnpm --filter "@fbkl/webapp-logged-in" exec tsc
+
+  typecheck-public:
+    needs: changes
+    if: needs.changes.outputs.frontend == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: ./.github/actions/setup-node
+      - run: pnpm --filter "@fbkl/webapp-public" exec tsc

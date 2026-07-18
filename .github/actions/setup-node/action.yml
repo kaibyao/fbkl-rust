@@ -1,0 +1,33 @@
+name: Setup Node
+description: Install pnpm + Node and workspace deps (node_modules cached, lockfile-keyed)
+
+inputs:
+  node-version:
+    description: Node.js version, used for both setup-node and the node_modules cache key
+    default: "26"
+
+runs:
+  using: composite
+  steps:
+    - uses: pnpm/action-setup@v6
+
+    - uses: actions/setup-node@v7
+      with:
+        node-version: ${{ inputs.node-version }}
+        cache: pnpm
+
+    # Cache node_modules (lockfile-keyed) so a hit skips the install entirely.
+    - name: Cache node_modules
+      id: node-modules-cache
+      uses: actions/cache@v4
+      with:
+        path: |
+          node_modules
+          webapp-logged-in/node_modules
+          webapp-public/node_modules
+        key: node-modules-${{ runner.os }}-node${{ inputs.node-version }}-${{ hashFiles('pnpm-lock.yaml') }}
+
+    - name: Install dependencies
+      if: steps.node-modules-cache.outputs.cache-hit != 'true'
+      shell: bash
+      run: pnpm install --frozen-lockfile
