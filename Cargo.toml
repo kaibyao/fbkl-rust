@@ -5,7 +5,6 @@ members = [
   "constants",
   "entity",
   "graphql-generation",
-  "import-data",
   "jobs",
   "lambdas",
   "logic",
@@ -13,5 +12,10 @@ members = [
   "server",
   "transaction-processor"
 ]
+
+# Private submodule (git@github.com:kaibyao/fbkl-rust-import-data). Excluded so
+# workspace builds without the submodule checked out (e.g. CI/deploy). No other
+# crate depends on it; build it standalone via `cd import-data && cargo run`.
+exclude = ["import-data"]
 
 resolver = "2"
