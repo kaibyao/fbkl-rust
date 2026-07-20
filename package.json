@@ -10,6 +10,6 @@
     "@evilmartians/lefthook": "^2.1.9",
     "oxfmt": "^0.57.0",
     "oxlint": "^1.72.0",
-    "typescript": "^6.0.3"
+    "typescript": "^7.0.2"
   }
 }
