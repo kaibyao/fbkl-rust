@@ -238,25 +238,32 @@ impl ActiveModelBehavior for ActiveModel {
 }
 
 fn non_original_trade_requires_previous_trade(model: &ActiveModel) -> Result<(), DbErr> {
-    if model.previous_trade_id.is_not_set()
-        && model.original_trade_id.is_set()
-        && model.original_trade_id.as_ref().as_ref().unwrap() != model.id.as_ref()
-    {
+    if !model.previous_trade_id.is_not_set() || !model.original_trade_id.is_set() {
+        return Ok(());
+    }
+    // `is_set()` only proves the ActiveValue is Set; the inner Option can still be None.
+    let Some(original_trade_id) = model.original_trade_id.as_ref() else {
+        return Ok(());
+    };
+    if original_trade_id == model.id.as_ref() {
+        Ok(())
+    } else {
         Err(DbErr::Custom(format!(
             "This trade (id={}, original_trade_id={:?}) is missing a reference to the previous trade for this player.",
             model.id.as_ref(),
             model.original_trade_id.as_ref()
         )))
-    } else {
-        Ok(())
     }
 }
 
 fn original_trade_requires_unset_previous_trade(model: &ActiveModel) -> Result<(), DbErr> {
-    if model.previous_trade_id.is_set()
-        && model.original_trade_id.is_set()
-        && model.original_trade_id.as_ref().as_ref().unwrap() == model.id.as_ref()
-    {
+    if !model.previous_trade_id.is_set() || !model.original_trade_id.is_set() {
+        return Ok(());
+    }
+    let Some(original_trade_id) = model.original_trade_id.as_ref() else {
+        return Ok(());
+    };
+    if original_trade_id == model.id.as_ref() {
         Err(DbErr::Custom(format!(
             "This trade (id={}, original_trade_id={:?}, previous_trade_id={:?}) is supposedly the original (id and original id are matching), yet a previous trade id is referenced.",
             model.id.as_ref(),

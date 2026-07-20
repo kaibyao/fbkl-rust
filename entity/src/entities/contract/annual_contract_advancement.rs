@@ -1,5 +1,8 @@
-use color_eyre::{Result, eyre::bail};
-use rust_decimal::{Decimal, RoundingStrategy};
+use color_eyre::{
+    Result,
+    eyre::{bail, eyre},
+};
+use rust_decimal::{Decimal, RoundingStrategy, prelude::ToPrimitive};
 use rust_decimal_macros::dec;
 use sea_orm::ActiveValue;
 
@@ -132,16 +135,16 @@ fn calculate_yearly_salary_increase(current_contract: &contract_entity::Model) -
         ContractKind::RookieDevelopment | ContractKind::RookieDevelopmentInternational => {
             Ok(current_contract.salary)
         }
-        ContractKind::Rookie => Ok(get_salary_increased_by_20_percent(current_contract.salary)),
+        ContractKind::Rookie => get_salary_increased_by_20_percent(current_contract.salary),
         ContractKind::RestrictedFreeAgent | ContractKind::UnrestrictedFreeAgentOriginalTeam => {
             bail!("Cannot calculate the yearly increase of an RFA contract.")
         }
         ContractKind::RookieExtension => match current_contract.year_number {
-            4 => Ok(get_salary_increased_by_20_percent(current_contract.salary)),
+            4 => get_salary_increased_by_20_percent(current_contract.salary),
             _ => Ok(1), // Needs to later be set during veteran auction salary fetch
         },
         ContractKind::Veteran => match current_contract.year_number {
-            1 | 2 => Ok(get_salary_increased_by_20_percent(current_contract.salary)),
+            1 | 2 => get_salary_increased_by_20_percent(current_contract.salary),
             _ => Ok(1), // Needs to later be set during veteran auction salary fetch
         },
         ContractKind::UnrestrictedFreeAgentVeteran => {
@@ -153,11 +156,13 @@ fn calculate_yearly_salary_increase(current_contract: &contract_entity::Model) -
     }
 }
 
-fn get_salary_increased_by_20_percent(salary: i16) -> i16 {
+fn get_salary_increased_by_20_percent(salary: i16) -> Result<i16> {
     let salary_dec = Decimal::new(i64::from(salary), 0);
     let increased_salary = salary_dec * dec!(1.2);
     let rounded_up = increased_salary.round_dp_with_strategy(0, RoundingStrategy::AwayFromZero);
-    rounded_up.to_string().parse().unwrap()
+    rounded_up
+        .to_i16()
+        .ok_or_else(|| eyre!("salary increase {rounded_up} overflows i16"))
 }
 
 #[cfg(test)]

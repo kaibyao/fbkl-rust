@@ -1,5 +1,5 @@
 use fbkl_entity::{
-    player, position,
+    position,
     sea_orm::{ActiveValue, ColumnTrait, EntityTrait},
 };
 use sea_orm_migration::{prelude::*, sea_orm::QueryFilter};
@@ -39,10 +39,6 @@ impl MigrationTrait for Migration {
             .iter()
             .map(|(id, _)| id.to_owned())
             .collect();
-
-        player::Entity::delete_many()
-            .exec(manager.get_connection())
-            .await?;
 
         position::Entity::delete_many()
             .filter(position::Column::EspnId.is_in(espn_position_ids))

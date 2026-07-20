@@ -1,5 +1,6 @@
 use std::fmt::Debug;
 
+use chrono::NaiveDate;
 use color_eyre::Result;
 use fbkl_entity::{
     auction, auction_bid, contract, contract_queries, deadline,
@@ -20,6 +21,7 @@ pub async fn sign_auction_contract_to_team<C>(
     auction_model: &auction::Model,
     winning_auction_bid_model: &auction_bid::Model,
     deadline_model: &deadline::Model,
+    maybe_override_effective_date: Option<NaiveDate>,
     db: &C,
 ) -> Result<(contract::Model, transaction::Model, team_update::Model)>
 where
@@ -49,6 +51,7 @@ where
         &signed_contract_model,
         previous_salary,
         previous_salary_cap,
+        maybe_override_effective_date,
         db,
     )
     .await?;
@@ -68,6 +71,7 @@ async fn insert_team_update_from_auction_won<C>(
     signed_contract_model: &contract::Model,
     previous_salary: i16,
     previous_salary_cap: i16,
+    maybe_override_effective_date: Option<NaiveDate>,
     db: &C,
 ) -> Result<team_update::Model>
 where
@@ -110,7 +114,9 @@ where
     let new_team_update = team_update::ActiveModel {
         id: ActiveValue::NotSet,
         data: ActiveValue::Set(data.to_json()?),
-        effective_date: ActiveValue::Set(deadline_model.date_time.date_naive()),
+        effective_date: ActiveValue::Set(
+            maybe_override_effective_date.unwrap_or_else(|| deadline_model.date_time.date_naive()),
+        ),
         status: ActiveValue::Set(TeamUpdateStatus::Pending),
         team_id: ActiveValue::Set(team_model.id),
         transaction_id: ActiveValue::Set(Some(auction_transaction_model.id)),

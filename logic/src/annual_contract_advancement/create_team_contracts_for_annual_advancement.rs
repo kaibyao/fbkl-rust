@@ -1,6 +1,6 @@
 use std::fmt::Debug;
 
-use color_eyre::eyre::Result;
+use color_eyre::eyre::{Result, eyre};
 use fbkl_entity::{
     contract, deadline,
     sea_orm::{ActiveValue, ConnectionTrait, EntityTrait},
@@ -25,13 +25,16 @@ where
     let contracts_by_team: MultiMap<i64, &contract::Model> = advanced_team_contracts
         .iter()
         .map(|contract_model| {
-            (
-                contract_model
-                    .team_id
-                    .expect("A contract that was advanced should belong to a team."),
-                contract_model,
-            )
+            let team_id = contract_model.team_id.ok_or_else(|| {
+                eyre!(
+                    "internal error: advanced contract {} does not belong to a team",
+                    contract_model.id
+                )
+            })?;
+            Ok((team_id, contract_model))
         })
+        .collect::<Result<Vec<_>>>()?
+        .into_iter()
         .collect();
 
     // team update data

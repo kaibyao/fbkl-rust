@@ -47,9 +47,14 @@ where
             .collect();
 
     for (team_id, team_contracts) in league_contracts_by_team.iter_all() {
-        validate_roster_ir_slot_limits(team_contracts, db).await?;
-        validate_roster_contract_type_limits_not_exceeded(team_contracts, roster_lock_deadline, db)
-            .await?;
+        validate_roster_ir_slot_limits(*team_id, team_contracts, db).await?;
+        validate_roster_contract_type_limits_not_exceeded(
+            *team_id,
+            team_contracts,
+            roster_lock_deadline,
+            db,
+        )
+        .await?;
         validate_roster_cap_not_exceeded(*team_id, team_contracts, roster_lock_deadline, db)
             .await?;
     }
@@ -116,6 +121,7 @@ where
 }
 
 async fn validate_roster_contract_type_limits_not_exceeded<C>(
+    team_id: i64,
     team_contracts: &[contract::Model],
     roster_lock_deadline: &deadline::Model,
     db: &C,
@@ -174,7 +180,7 @@ where
                 bail!(
                     "Roster cannot exceed {} rookie development contracts. (team = {}). Contracts:\n{}",
                     REGULAR_SEASON_ROOKIE_DEVELOPMENT_CONTRACTS_PER_ROSTER_LIMIT,
-                    team_contracts[0].team_id.unwrap(),
+                    team_id,
                     format_team_contracts(team_contracts, db).await?
                 );
             }
@@ -185,7 +191,7 @@ where
                 bail!(
                     "Roster cannot have more than {} international rookie development contract. (team = {}). Contracts:\n{}",
                     REGULAR_SEASON_INTL_ROOKIE_DEVELOPMENT_CONTRACTS_PER_ROSTER_LIMIT,
-                    team_contracts[0].team_id.unwrap(),
+                    team_id,
                     format_team_contracts(team_contracts, db).await?
                 );
             }
@@ -194,7 +200,7 @@ where
                 bail!(
                     "Roster cannot have more than {} veteran or rookie-scale contracts. (team = {}). Contracts:\n{}",
                     REGULAR_SEASON_VET_OR_ROOKIE_CONTRACTS_PER_ROSTER_LIMIT,
-                    team_contracts[0].team_id.unwrap(),
+                    team_id,
                     format_team_contracts(team_contracts, db).await?
                 );
             }
@@ -204,7 +210,11 @@ where
     Ok(())
 }
 
-async fn validate_roster_ir_slot_limits<C>(team_contracts: &[contract::Model], db: &C) -> Result<()>
+async fn validate_roster_ir_slot_limits<C>(
+    team_id: i64,
+    team_contracts: &[contract::Model],
+    db: &C,
+) -> Result<()>
 where
     C: ConnectionTrait + Debug,
 {
@@ -218,7 +228,7 @@ where
         bail!(
             "Cannot exceed {} IR contract on roster. (team = {}). Contracts:\n{}",
             REGULAR_SEASON_IR_CONTRACTS_PER_ROSTER_LIMIT,
-            team_contracts[0].team_id.unwrap(),
+            team_id,
             format_team_contracts(team_contracts, db).await?
         );
     }
