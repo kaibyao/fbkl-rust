@@ -1,4 +1,5 @@
-use async_graphql::{Context, Error, Object, Result};
+use async_graphql::{Context, Object, Result};
+use color_eyre::eyre::eyre;
 use fbkl_entity::{
     contract::{self, ContractKind, ContractStatus},
     league_player_queries::find_league_player_by_id,
@@ -6,7 +7,10 @@ use fbkl_entity::{
     sea_orm::DatabaseConnection,
 };
 
-use crate::graphql::player::{LeagueOrRealPlayer, LeaguePlayer, RealPlayer};
+use crate::{
+    error::FbklError,
+    graphql::player::{LeagueOrRealPlayer, LeaguePlayer, RealPlayer},
+};
 
 #[derive(Clone, Default)]
 pub struct Contract {
@@ -77,7 +81,10 @@ impl Contract {
         self.player_id
     }
 
-    async fn league_or_real_player(&self, ctx: &Context<'_>) -> Result<LeagueOrRealPlayer> {
+    async fn league_or_real_player(
+        &self,
+        ctx: &Context<'_>,
+    ) -> Result<LeagueOrRealPlayer, FbklError> {
         let db = ctx.data_unchecked::<DatabaseConnection>();
         if let Some(player_id) = self.player_id {
             let player = find_player_by_id(player_id, db).await?;
@@ -90,7 +97,7 @@ impl Contract {
                 league_player,
             )))
         } else {
-            Err(Error::new("No player or league player found"))
+            Err(eyre!("contract {} has no player or league player", self.id).into())
         }
     }
 

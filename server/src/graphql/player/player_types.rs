@@ -5,6 +5,8 @@ use fbkl_entity::{
     sea_orm::DatabaseConnection,
 };
 
+use crate::error::FbklError;
+
 #[derive(Debug, Clone, Eq, PartialEq, Union)]
 pub enum LeagueOrRealPlayer {
     LeaguePlayer(LeaguePlayer),
@@ -50,7 +52,7 @@ impl LeaguePlayer {
         self.real_player_id
     }
 
-    async fn real_player(&self, ctx: &Context<'_>) -> Result<Option<RealPlayer>> {
+    async fn real_player(&self, ctx: &Context<'_>) -> Result<Option<RealPlayer>, FbklError> {
         match self.real_player_id {
             Some(real_player_id) => {
                 let db = ctx.data_unchecked::<DatabaseConnection>();
@@ -117,7 +119,7 @@ impl RealPlayer {
         self.position_id
     }
 
-    async fn position(&self, ctx: &Context<'_>) -> Result<String> {
+    async fn position(&self, ctx: &Context<'_>) -> Result<String, FbklError> {
         let db = ctx.data_unchecked::<DatabaseConnection>();
 
         let position = find_position_by_id(self.position_id, db).await?;
@@ -128,7 +130,7 @@ impl RealPlayer {
         self.real_team_id
     }
 
-    async fn real_team_name(&self, ctx: &Context<'_>) -> Result<String> {
+    async fn real_team_name(&self, ctx: &Context<'_>) -> Result<String, FbklError> {
         let db = ctx.data_unchecked::<DatabaseConnection>();
 
         let real_team = find_real_team_by_id(self.real_team_id, db).await?;

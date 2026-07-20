@@ -2,6 +2,7 @@ use axum::{
     http::{Error as AxumError, StatusCode},
     response::{IntoResponse, Response},
 };
+use color_eyre::Report;
 use fbkl_auth::{argon2::password_hash::Error as Argon2Error, hex::FromHexError};
 use fbkl_entity::sea_orm::DbErr;
 use thiserror::Error;
@@ -19,7 +20,12 @@ pub enum FbklError {
     PasswordHasher(#[from] Argon2Error),
     #[error("session error")]
     Session(#[from] SessionError),
-    // Explicit client-facing status code (replaces the old `StatusCode` variant).
+    // Redacted `color_eyre::Report`; full chain logged at conversion, never sent to client.
+    #[error("internal server error")]
+    Internal(Report),
+    // Client-safe 400 message (a bad input value the client itself sent).
+    #[error("{0}")]
+    BadRequest(String),
     #[error("request failed: {0}")]
     Status(StatusCode),
 }
@@ -30,6 +36,13 @@ impl From<StatusCode> for FbklError {
     }
 }
 
+impl From<Report> for FbklError {
+    fn from(report: Report) -> Self {
+        tracing::error!(error = ?report, "internal error");
+        Self::Internal(report)
+    }
+}
+
 impl FbklError {
     /// Maps each error variant to the HTTP status the client should see.
     ///
@@ -37,9 +50,13 @@ impl FbklError {
     /// the server is responsible for is 5xx.
     const fn status_code(&self) -> StatusCode {
         match self {
-            Self::HexStringConversion(_) | Self::PasswordHasher(_) => StatusCode::BAD_REQUEST,
+            Self::HexStringConversion(_) | Self::PasswordHasher(_) | Self::BadRequest(_) => {
+                StatusCode::BAD_REQUEST
+            }
             Self::Status(code) => *code,
-            Self::Axum(_) | Self::Db(_) | Self::Session(_) => StatusCode::INTERNAL_SERVER_ERROR,
+            Self::Axum(_) | Self::Db(_) | Self::Session(_) | Self::Internal(_) => {
+                StatusCode::INTERNAL_SERVER_ERROR
+            }
         }
     }
 }

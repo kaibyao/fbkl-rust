@@ -19,7 +19,7 @@ pub struct LeagueQuery;
 
 #[Object]
 impl LeagueQuery {
-    async fn leagues(&self, ctx: &Context<'_>) -> Result<Vec<League>> {
+    async fn leagues(&self, ctx: &Context<'_>) -> Result<Vec<League>, FbklError> {
         let Some(user_model) = ctx.data_unchecked::<Option<user::Model>>().to_owned() else {
             return Ok(vec![]);
         };
@@ -62,7 +62,7 @@ impl LeagueMutation {
         league_name: String,
         team_name: String,
         user_nickname: String,
-    ) -> Result<League> {
+    ) -> Result<League, FbklError> {
         let db = ctx.data_unchecked::<DatabaseConnection>();
         let session = ctx.data_unchecked::<Session>();
         let user_id = enforce_logged_in(session.clone()).await?;
@@ -88,7 +88,7 @@ impl LeagueMutation {
         let db = ctx.data_unchecked::<DatabaseConnection>();
         let session = ctx.data_unchecked::<Session>();
 
-        let Some(user_model) = get_current_user(session.clone(), db).await else {
+        let Some(user_model) = get_current_user(session.clone(), db).await? else {
             return Err(GraphQlError::from(StatusCode::UNAUTHORIZED));
         };
 
