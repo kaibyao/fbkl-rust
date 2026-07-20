@@ -11,7 +11,7 @@
     "graphql": "graphql-codegen --config graphql-codegen.yml"
   },
   "dependencies": {
-    "@fontsource/open-sans": "^5.2.7",
+    "@fontsource/open-sans": "^5.3.0",
     "react": "^19.2.7",
     "react-dom": "^19.2.7",
     "react-hook-form": "^7.79.0"

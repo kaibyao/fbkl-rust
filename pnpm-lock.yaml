@@ -112,8 +112,8 @@ importers:
   webapp-public:
     dependencies:
       '@fontsource/open-sans':
-        specifier: ^5.2.7
-        version: 5.2.7
+        specifier: ^5.3.0
+        version: 5.3.0
       react:
         specifier: ^19.2.7
         version: 19.2.7
@@ -379,8 +379,8 @@ packages:
   '@fontsource-variable/nunito-sans@5.3.0':
     resolution: {integrity: sha512-Vk1PSfckNDwgw2yGcsvJP3o/0zEW8Rp6KzbD8Ql/6iRHQshnhhAjt+cSIfAUyp5vQuSlleGHFW2LfYaaex0diw==}
 
-  '@fontsource/open-sans@5.2.7':
-    resolution: {integrity: sha512-8yfgDYjE5O0vmTPdrcjV35y4yMnctsokmi9gN49Gcsr0sjzkMkR97AnKDe6OqZh2SFkYlR28fxOvi21bYEgMSw==}
+  '@fontsource/open-sans@5.3.0':
+    resolution: {integrity: sha512-V1bdMlGNyZrJwzrdusshMOw2YR0aqYDL7kOo9dkxUEKl8dFv66A9HLckOOXl572sG/7ohhDQrCrTFGSn9LZcSw==}
 
   '@graphql-codegen/add@7.1.0':
     resolution: {integrity: sha512-bytJg1kel5zfgK3JSYbGwtpbNe6F9OPZSR6DiMDe9RVxblAgl6w4zEEPd/mM3rhNJ1VmGYLbNnf5e1eUfXQEbg==}
@@ -3565,7 +3565,7 @@ snapshots:
 
   '@fontsource-variable/nunito-sans@5.3.0': {}
 
-  '@fontsource/open-sans@5.2.7': {}
+  '@fontsource/open-sans@5.3.0': {}
 
   '@graphql-codegen/add@7.1.0(graphql@16.14.2)':
     dependencies:
