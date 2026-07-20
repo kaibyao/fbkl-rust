@@ -13,7 +13,7 @@
   "dependencies": {
     "@fontsource/open-sans": "^5.2.7",
     "@mui/icons-material": "^7.3.11",
-    "@mui/material": "^7.3.11",
+    "@mui/material": "^9.2.0",
     "react": "^19.2.7",
     "react-dom": "^19.2.7",
     "react-hook-form": "^7.79.0"
