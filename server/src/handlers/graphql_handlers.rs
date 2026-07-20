@@ -18,7 +18,18 @@ pub async fn process_graphql(
     State(state): State<Arc<AppState>>,
     req: GraphQLRequest,
 ) -> GraphQLResponse {
-    let user_model = get_current_user(session.clone(), &state.db).await;
+    let user_model = match get_current_user(session.clone(), &state.db).await {
+        Ok(user_model) => user_model,
+        // Fail closed: a session/DB outage must not be served as "not logged in".
+        Err(e) => {
+            tracing::error!(error = ?e, "failed to load current user");
+            return async_graphql::Response::from_errors(vec![async_graphql::ServerError::new(
+                "internal server error",
+                None,
+            )])
+            .into();
+        }
+    };
 
     schema
         .execute(

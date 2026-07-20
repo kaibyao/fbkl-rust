@@ -7,7 +7,7 @@ use fbkl_entity::{
 };
 use fbkl_logic::roster::calculate_team_contract_salary_at_datetime;
 
-use crate::graphql::contract::Contract;
+use crate::{error::FbklError, graphql::contract::Contract};
 
 use super::TeamUser;
 
@@ -52,20 +52,25 @@ impl Team {
         self.league_id
     }
 
-    async fn contracts(&self, ctx: &Context<'_>) -> Result<Vec<Contract>> {
+    async fn contracts(&self, ctx: &Context<'_>) -> Result<Vec<Contract>, FbklError> {
         let db = ctx.data_unchecked::<DatabaseConnection>();
         let contract_models = find_active_contracts_for_team(self.id, db).await?;
 
         Ok(contract_models.iter().map(Contract::from_model).collect())
     }
 
-    async fn salary_cap(&self, ctx: &Context<'_>, datetime_str: String) -> Result<TeamSalaryCap> {
+    async fn salary_cap(
+        &self,
+        ctx: &Context<'_>,
+        datetime_str: String,
+    ) -> Result<TeamSalaryCap, FbklError> {
         let db = ctx.data_unchecked::<DatabaseConnection>();
 
-        // Parse ISO datetime string (RFC3339 format)
-        let datetime = datetime_str
-            .parse::<DateTimeWithTimeZone>()
-            .map_err(|e| format!("Failed to parse datetime string '{datetime_str}': {e}"))?;
+        let datetime = datetime_str.parse::<DateTimeWithTimeZone>().map_err(|e| {
+            FbklError::BadRequest(format!(
+                "Failed to parse datetime string '{datetime_str}': {e}"
+            ))
+        })?;
 
         let (total_contract_amount, max_salary_cap_for_deadline) =
             calculate_team_contract_salary_at_datetime(self.league_id, self.id, datetime, db)
@@ -79,7 +84,7 @@ impl Team {
         Ok(salary_cap)
     }
 
-    async fn team_users(&self, ctx: &Context<'_>) -> Result<Vec<TeamUser>> {
+    async fn team_users(&self, ctx: &Context<'_>) -> Result<Vec<TeamUser>, FbklError> {
         let db = ctx.data_unchecked::<DatabaseConnection>();
         let team_user_models = get_team_users_by_team(self.id, db).await?;
 

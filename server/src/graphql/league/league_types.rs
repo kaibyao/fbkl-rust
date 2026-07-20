@@ -4,9 +4,12 @@ use fbkl_entity::{
     team_user_queries::get_team_user_by_user_and_league, user,
 };
 
-use crate::graphql::{
-    team::{Team, TeamUser},
-    user::User,
+use crate::{
+    error::FbklError,
+    graphql::{
+        team::{Team, TeamUser},
+        user::User,
+    },
 };
 
 #[derive(Clone, Default)]
@@ -34,7 +37,7 @@ impl League {
         self.name.clone()
     }
 
-    async fn teams(&self, ctx: &Context<'_>) -> Result<Vec<Team>> {
+    async fn teams(&self, ctx: &Context<'_>) -> Result<Vec<Team>, FbklError> {
         let db = ctx.data_unchecked::<DatabaseConnection>();
 
         let league_team_models = find_teams_in_league(self.id, db).await?;
@@ -46,25 +49,28 @@ impl League {
         Ok(league_teams)
     }
 
-    async fn current_team_user(&self, ctx: &Context<'_>) -> Option<Box<TeamUser>> {
+    async fn current_team_user(
+        &self,
+        ctx: &Context<'_>,
+    ) -> Result<Option<Box<TeamUser>>, FbklError> {
         let Some(current_user) = ctx.data_unchecked::<Option<user::Model>>() else {
-            return None;
+            return Ok(None);
         };
 
         let db = ctx.data_unchecked::<DatabaseConnection>();
         let (team_user_model, team_model) =
-            match get_team_user_by_user_and_league(&current_user.id, &self.id, db).await {
-                Err(_) | Ok(None | Some((_, None))) => return None,
-                Ok(Some((team_user, Some(team)))) => (team_user, team),
+            match get_team_user_by_user_and_league(&current_user.id, &self.id, db).await? {
+                None | Some((_, None)) => return Ok(None),
+                Some((team_user, Some(team))) => (team_user, team),
             };
 
-        Some(Box::new(TeamUser {
+        Ok(Some(Box::new(TeamUser {
             league_role: team_user_model.league_role,
             nickname: team_user_model.nickname,
             team: Some(Team::from_model(team_model)),
             team_id: team_user_model.team_id,
             user: Some(User::from_model(current_user)),
             user_id: current_user.id,
-        }))
+        })))
     }
 }

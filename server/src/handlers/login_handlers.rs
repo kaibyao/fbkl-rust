@@ -83,7 +83,7 @@ pub async fn logged_in_data(
     session: Session,
     State(state): State<Arc<AppState>>,
 ) -> Result<Json<LoggedInResponse>, FbklError> {
-    let Some(user_model) = get_current_user(session.clone(), &state.db).await else {
+    let Some(user_model) = get_current_user(session.clone(), &state.db).await? else {
         return Ok(Json(LoggedInResponse::NotLoggedIn {}));
     };
 
