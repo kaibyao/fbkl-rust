@@ -59,6 +59,7 @@ where
                 &auction_model,
                 &winning_bid_model,
                 &preseason_fa_auction_start_deadline_model,
+                None,
                 &db_txn,
             )
             .await?;

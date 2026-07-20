@@ -159,18 +159,8 @@ async fn setup_team_trade(manager: &SchemaManager<'_>) -> Result<(), DbErr> {
                         .auto_increment()
                         .primary_key(),
                 )
-                .col(
-                    ColumnDef::new(TeamTrade::TeamId)
-                        .big_integer()
-                        .not_null()
-                        .auto_increment(),
-                )
-                .col(
-                    ColumnDef::new(TeamTrade::TradeId)
-                        .big_integer()
-                        .not_null()
-                        .auto_increment(),
-                )
+                .col(ColumnDef::new(TeamTrade::TeamId).big_integer().not_null())
+                .col(ColumnDef::new(TeamTrade::TradeId).big_integer().not_null())
                 .to_owned(),
         )
         .await?;

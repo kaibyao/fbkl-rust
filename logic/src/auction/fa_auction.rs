@@ -39,9 +39,14 @@ where
         })?;
 
     // Find preseason FA auction start deadline model, as that only starts at the end of the veteran auction
-    let (signed_contract_model, _, _team_update_model) =
-        sign_auction_contract_to_team(&auction_model, &winning_bid_model, deadline_model, &db_txn)
-            .await?;
+    let (signed_contract_model, _, _team_update_model) = sign_auction_contract_to_team(
+        &auction_model,
+        &winning_bid_model,
+        deadline_model,
+        maybe_override_effective_date,
+        &db_txn,
+    )
+    .await?;
 
     db_txn.commit().await?;
 
