@@ -44,13 +44,17 @@ pub fn sign_rfa_or_ufa_contract_to_team(
             ContractKind::RestrictedFreeAgent => {
                 new_contract_year = 4;
                 new_contract_type = ContractKind::RookieExtension;
-                new_salary = get_salary_discounted_by_10_percent(winning_bid_amount);
+                // RFA 10% re-sign is uncapped, floored at the standard 4th-year salary the RFA contract already carries (rookie Y3 + 20%).
+                new_salary = cmp::max(
+                    discounted_salary(winning_bid_amount, 0.1, None),
+                    fa_contract.salary,
+                );
             }
             ContractKind::UnrestrictedFreeAgentOriginalTeam => {
-                new_salary = get_salary_discounted_by_20_percent(winning_bid_amount);
+                new_salary = discounted_salary(winning_bid_amount, 0.2, Some(8));
             }
             ContractKind::UnrestrictedFreeAgentVeteran => {
-                new_salary = get_salary_discounted_by_10_percent(winning_bid_amount);
+                new_salary = discounted_salary(winning_bid_amount, 0.1, Some(5));
             }
             _ => bail!("Validation already handled"),
         }
@@ -77,16 +81,13 @@ pub fn sign_rfa_or_ufa_contract_to_team(
     Ok(new_contract)
 }
 
-fn get_salary_discounted_by_10_percent(salary: i16) -> i16 {
-    let discount_amount_rounded_up = (f32::from(salary) * 0.1).ceil();
-    let discounted_salary = salary - (discount_amount_rounded_up as i16);
-    cmp::max(discounted_salary, 1)
-}
-
-fn get_salary_discounted_by_20_percent(salary: i16) -> i16 {
-    let discount_amount_rounded_up = (f32::from(salary) * 0.2).ceil();
-    let discounted_salary = salary - (discount_amount_rounded_up as i16);
-    cmp::max(discounted_salary, 1)
+/// Discount `final_bid` by `rate` (rounded up), optionally capped at `max_discount` dollars, floored at $1.
+fn discounted_salary(final_bid: i16, rate: f32, max_discount: Option<i16>) -> i16 {
+    let mut discount = (f32::from(final_bid) * rate).ceil() as i16;
+    if let Some(cap) = max_discount {
+        discount = discount.min(cap);
+    }
+    cmp::max(final_bid - discount, 1)
 }
 
 #[cfg(test)]
@@ -98,10 +99,7 @@ mod tests {
 
     use crate::contract::{
         ContractKind, ContractStatus, Model,
-        free_agent_extension::{
-            get_salary_discounted_by_10_percent, get_salary_discounted_by_20_percent,
-            sign_rfa_or_ufa_contract_to_team,
-        },
+        free_agent_extension::{discounted_salary, sign_rfa_or_ufa_contract_to_team},
     };
 
     static NOW: Lazy<DateTime<FixedOffset>> = Lazy::new(|| {
@@ -233,48 +231,49 @@ mod tests {
 
     #[test]
     fn discounts_calculate_correctly() {
-        assert_eq!(get_salary_discounted_by_10_percent(1), 1);
-        assert_eq!(get_salary_discounted_by_10_percent(2), 1);
-        assert_eq!(get_salary_discounted_by_10_percent(3), 2);
-        assert_eq!(get_salary_discounted_by_10_percent(4), 3);
-        assert_eq!(get_salary_discounted_by_10_percent(5), 4);
-        assert_eq!(get_salary_discounted_by_10_percent(6), 5);
-        assert_eq!(get_salary_discounted_by_10_percent(7), 6);
-        assert_eq!(get_salary_discounted_by_10_percent(8), 7);
-        assert_eq!(get_salary_discounted_by_10_percent(9), 8);
-        assert_eq!(get_salary_discounted_by_10_percent(10), 9);
-        assert_eq!(get_salary_discounted_by_10_percent(11), 9);
-        assert_eq!(get_salary_discounted_by_10_percent(12), 10);
-        assert_eq!(get_salary_discounted_by_10_percent(15), 13);
-        assert_eq!(get_salary_discounted_by_10_percent(19), 17);
-        assert_eq!(get_salary_discounted_by_10_percent(20), 18);
-        assert_eq!(get_salary_discounted_by_10_percent(21), 18);
-        assert_eq!(get_salary_discounted_by_10_percent(29), 26);
-        assert_eq!(get_salary_discounted_by_10_percent(30), 27);
-        assert_eq!(get_salary_discounted_by_10_percent(31), 27);
+        // 10% uncapped (RFA path)
+        assert_eq!(discounted_salary(1, 0.1, None), 1);
+        assert_eq!(discounted_salary(2, 0.1, None), 1);
+        assert_eq!(discounted_salary(3, 0.1, None), 2);
+        assert_eq!(discounted_salary(10, 0.1, None), 9);
+        assert_eq!(discounted_salary(11, 0.1, None), 9);
+        assert_eq!(discounted_salary(30, 0.1, None), 27);
+        assert_eq!(discounted_salary(31, 0.1, None), 27);
 
-        assert_eq!(get_salary_discounted_by_20_percent(1), 1);
-        assert_eq!(get_salary_discounted_by_20_percent(2), 1);
-        assert_eq!(get_salary_discounted_by_20_percent(3), 2);
-        assert_eq!(get_salary_discounted_by_20_percent(4), 3);
-        assert_eq!(get_salary_discounted_by_20_percent(5), 4);
-        assert_eq!(get_salary_discounted_by_20_percent(6), 4);
-        assert_eq!(get_salary_discounted_by_20_percent(7), 5);
-        assert_eq!(get_salary_discounted_by_20_percent(8), 6);
-        assert_eq!(get_salary_discounted_by_20_percent(9), 7);
-        assert_eq!(get_salary_discounted_by_20_percent(10), 8);
-        assert_eq!(get_salary_discounted_by_20_percent(11), 8);
-        assert_eq!(get_salary_discounted_by_20_percent(12), 9);
-        assert_eq!(get_salary_discounted_by_20_percent(15), 12);
-        assert_eq!(get_salary_discounted_by_20_percent(19), 15);
-        assert_eq!(get_salary_discounted_by_20_percent(20), 16);
-        assert_eq!(get_salary_discounted_by_20_percent(21), 16);
-        assert_eq!(get_salary_discounted_by_20_percent(29), 23);
-        assert_eq!(get_salary_discounted_by_20_percent(30), 24);
-        assert_eq!(get_salary_discounted_by_20_percent(31), 24);
-        assert_eq!(get_salary_discounted_by_20_percent(35), 28);
-        assert_eq!(get_salary_discounted_by_20_percent(36), 28);
-        assert_eq!(get_salary_discounted_by_20_percent(40), 32);
-        assert_eq!(get_salary_discounted_by_20_percent(41), 32);
+        // 20% uncapped
+        assert_eq!(discounted_salary(1, 0.2, None), 1);
+        assert_eq!(discounted_salary(5, 0.2, None), 4);
+        assert_eq!(discounted_salary(10, 0.2, None), 8);
+        assert_eq!(discounted_salary(40, 0.2, None), 32);
+    }
+
+    #[test]
+    fn discount_caps_apply() {
+        // 20% cap at $8: discount stops growing past $8 once bid exceeds $40.
+        assert_eq!(discounted_salary(34, 0.2, Some(8)), 27);
+        assert_eq!(discounted_salary(40, 0.2, Some(8)), 32);
+        assert_eq!(discounted_salary(60, 0.2, Some(8)), 52);
+        assert_eq!(discounted_salary(41, 0.2, Some(8)), 33);
+
+        // 10% cap at $5: discount stops growing past $5 once bid exceeds $50.
+        assert_eq!(discounted_salary(50, 0.1, Some(5)), 45);
+        assert_eq!(discounted_salary(80, 0.1, Some(5)), 75);
+        assert_eq!(discounted_salary(51, 0.1, Some(5)), 46);
+
+        // RFA 10% is uncapped: high bids keep full 10% discount.
+        assert_eq!(discounted_salary(80, 0.1, None), 72);
+    }
+
+    #[test]
+    fn resign_rfa_floors_at_standard_salary() -> Result<()> {
+        let mut test_contract = generate_contract();
+        test_contract.kind = ContractKind::RestrictedFreeAgent;
+        test_contract.salary = 20; // standard 4th-year salary the RFA carries
+
+        // Low winning bid: 10% discount would drop to 9, floored at 20.
+        let advanced_contract = sign_rfa_or_ufa_contract_to_team(&test_contract, 1, 11)?;
+        assert_eq!(advanced_contract.salary, ActiveValue::Set(20));
+
+        Ok(())
     }
 }
