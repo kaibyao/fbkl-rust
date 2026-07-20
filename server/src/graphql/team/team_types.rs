@@ -12,6 +12,7 @@ use crate::graphql::contract::Contract;
 use super::TeamUser;
 
 #[derive(Clone, Default)]
+#[allow(clippy::struct_field_names)] // field names mirror GraphQL schema
 pub struct Team {
     pub id: i64,
     pub name: String,
@@ -55,10 +56,7 @@ impl Team {
         let db = ctx.data_unchecked::<DatabaseConnection>();
         let contract_models = find_active_contracts_for_team(self.id, db).await?;
 
-        Ok(contract_models
-            .into_iter()
-            .map(Contract::from_model)
-            .collect())
+        Ok(contract_models.iter().map(Contract::from_model).collect())
     }
 
     async fn salary_cap(&self, ctx: &Context<'_>, datetime_str: String) -> Result<TeamSalaryCap> {
@@ -67,7 +65,7 @@ impl Team {
         // Parse ISO datetime string (RFC3339 format)
         let datetime = datetime_str
             .parse::<DateTimeWithTimeZone>()
-            .map_err(|e| format!("Failed to parse datetime string '{}': {}", datetime_str, e))?;
+            .map_err(|e| format!("Failed to parse datetime string '{datetime_str}': {e}"))?;
 
         let (total_contract_amount, max_salary_cap_for_deadline) =
             calculate_team_contract_salary_at_datetime(self.league_id, self.id, datetime, db)

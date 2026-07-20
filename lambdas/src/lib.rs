@@ -13,7 +13,7 @@ use tokio::sync::OnceCell;
 /// Process-wide connection, initialized once per Lambda execution environment.
 static DB: OnceCell<DatabaseConnection> = OnceCell::const_new();
 
-/// Return the shared SeaORM connection, initializing the pool on first call and
+/// Return the shared `SeaORM` connection, initializing the pool on first call and
 /// reusing it across warm invocations within the same execution environment.
 ///
 /// `FBKL_DATABASE_URL` MUST point at Supabase's TRANSACTION pooler (port 6543,
@@ -31,8 +31,8 @@ async fn init_db() -> Result<DatabaseConnection, DbErr> {
     opts.max_connections(1)
         .min_connections(0)
         .acquire_timeout(Duration::from_secs(8))
-        .idle_timeout(Duration::from_secs(300))
-        .max_lifetime(Duration::from_secs(600))
+        .idle_timeout(Duration::from_mins(5))
+        .max_lifetime(Duration::from_mins(10))
         .sqlx_logging(false);
     Database::connect(opts).await
 }

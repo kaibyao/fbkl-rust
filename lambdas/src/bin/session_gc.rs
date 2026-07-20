@@ -1,5 +1,5 @@
 //! `fbkl-session-gc` Lambda: deletes expired session rows on a 5-minute
-//! EventBridge schedule.
+//! `EventBridge` schedule.
 //!
 //! Replaces the in-process `continuously_delete_expired(60s)` loop with a
 //! one-shot `PostgresStore::delete_expired()`. Assumes the `tower_sessions`

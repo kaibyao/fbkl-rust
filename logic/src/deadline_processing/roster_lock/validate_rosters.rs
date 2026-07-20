@@ -124,7 +124,7 @@ where
     C: ConnectionTrait + Debug,
 {
     let mut num_rd_contracts = 0;
-    let mut num_rdi_contracts = 0;
+    let mut num_intl_rd_contracts = 0;
     let mut num_v_r_contracts = 0;
 
     for contract_model in team_contracts {
@@ -134,9 +134,9 @@ where
 
         match contract_model.kind {
             ContractKind::RookieDevelopment => num_rd_contracts += 1,
-            ContractKind::RookieDevelopmentInternational => num_rdi_contracts += 1,
+            ContractKind::RookieDevelopmentInternational => num_intl_rd_contracts += 1,
             ContractKind::Rookie | ContractKind::RookieExtension | ContractKind::Veteran => {
-                num_v_r_contracts += 1
+                num_v_r_contracts += 1;
             }
             _ => (),
         }
@@ -153,7 +153,7 @@ where
         | DeadlineKind::PreseasonFaAuctionStart
         | DeadlineKind::PreseasonFaAuctionEnd
         | DeadlineKind::PreseasonRookieDraftStart => {
-            if num_rd_contracts + num_rdi_contracts + num_v_r_contracts
+            if num_rd_contracts + num_intl_rd_contracts + num_v_r_contracts
                 > PRE_SEASON_CONTRACTS_PER_ROSTER_LIMIT
             {
                 bail!(
@@ -179,7 +179,8 @@ where
                 );
             }
 
-            if num_rdi_contracts > REGULAR_SEASON_INTL_ROOKIE_DEVELOPMENT_CONTRACTS_PER_ROSTER_LIMIT
+            if num_intl_rd_contracts
+                > REGULAR_SEASON_INTL_ROOKIE_DEVELOPMENT_CONTRACTS_PER_ROSTER_LIMIT
             {
                 bail!(
                     "Roster cannot have more than {} international rookie development contract. (team = {}). Contracts:\n{}",
@@ -198,7 +199,7 @@ where
                 );
             }
         }
-    };
+    }
 
     Ok(())
 }
@@ -207,6 +208,8 @@ async fn validate_roster_ir_slot_limits<C>(team_contracts: &[contract::Model], d
 where
     C: ConnectionTrait + Debug,
 {
+    // roster IR counts are far below i16::MAX
+    #[allow(clippy::cast_possible_truncation, clippy::cast_possible_wrap)]
     let number_ir_contracts = team_contracts
         .iter()
         .filter(|contract_model| contract_model.is_ir)

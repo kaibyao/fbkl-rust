@@ -2,8 +2,9 @@ use async_graphql::Enum;
 use sea_orm::entity::prelude::*;
 use serde::{Deserialize, Serialize};
 
-/// A JobRun records one attempt (or chain of retried attempts) at processing a time-triggered
-/// league event — either a `deadline` row or a synthesized sub-event (auction close, RFA window
+/// A `JobRun` records one attempt (or chain of retried attempts) at processing a time-triggered league event.
+///
+/// Either a `deadline` row or a synthesized sub-event (auction close, RFA window
 /// expiry). The unique `idempotency_key` is the double-fire guard for the scheduler.
 #[derive(Clone, Debug, PartialEq, DeriveEntityModel, Eq, Serialize, Deserialize)]
 #[sea_orm(table_name = "job_run")]

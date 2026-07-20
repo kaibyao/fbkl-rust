@@ -47,17 +47,14 @@ impl League {
     }
 
     async fn current_team_user(&self, ctx: &Context<'_>) -> Option<Box<TeamUser>> {
-        let current_user = match ctx.data_unchecked::<Option<user::Model>>() {
-            None => return None,
-            Some(user) => user,
+        let Some(current_user) = ctx.data_unchecked::<Option<user::Model>>() else {
+            return None;
         };
 
         let db = ctx.data_unchecked::<DatabaseConnection>();
         let (team_user_model, team_model) =
             match get_team_user_by_user_and_league(&current_user.id, &self.id, db).await {
-                Err(_) => return None,
-                Ok(None) => return None,
-                Ok(Some((_, None))) => return None,
+                Err(_) | Ok(None | Some((_, None))) => return None,
                 Ok(Some((team_user, Some(team)))) => (team_user, team),
             };
 

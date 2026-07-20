@@ -28,8 +28,7 @@ fn main() -> io::Result<()> {
     sdl_file.flush().unwrap();
 
     println!(
-        "Successfully wrote {} bytes to generated schema file at: {}.",
-        size_bytes_written, SCHEMA_FILE_PATH
+        "Successfully wrote {size_bytes_written} bytes to generated schema file at: {SCHEMA_FILE_PATH}."
     );
 
     Ok(())

@@ -3,7 +3,7 @@ pre-commit:
   commands:
     clippy:
       glob: '*.rs'
-      run: cargo clippy && git add {staged_files}
+      run: cargo clippy --workspace --all-targets -- -D warnings && git add {staged_files}
     format:
       glob: '*.rs'
       run: cargo fmt && git add {staged_files}

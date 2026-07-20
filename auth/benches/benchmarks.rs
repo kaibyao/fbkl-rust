@@ -5,12 +5,12 @@ static PASSWORD: &str = "this is a test password";
 
 fn criterion_benchmark(c: &mut Criterion) {
     c.bench_function("password generation", |bencher| {
-        bencher.iter(|| generate_password_hash(PASSWORD))
+        bencher.iter(|| generate_password_hash(PASSWORD));
     });
 
     let hash = generate_password_hash(PASSWORD).unwrap();
     c.bench_function("password verification", |bencher| {
-        bencher.iter(|| verify_password_against_hash(PASSWORD, &hash))
+        bencher.iter(|| verify_password_against_hash(PASSWORD, &hash));
     });
 }
 

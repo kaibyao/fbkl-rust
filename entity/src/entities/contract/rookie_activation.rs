@@ -47,16 +47,17 @@ pub fn create_rookie_contract_from_rd(
 
 #[cfg(test)]
 mod tests {
+    use std::sync::LazyLock;
+
     use chrono::{DateTime, FixedOffset};
     use color_eyre::Result;
-    use once_cell::sync::Lazy;
     use sea_orm::ActiveValue;
 
     use crate::contract::{
         self, ContractKind, ContractStatus, rookie_activation::create_rookie_contract_from_rd,
     };
 
-    static NOW: Lazy<DateTime<FixedOffset>> = Lazy::new(|| {
+    static NOW: LazyLock<DateTime<FixedOffset>> = LazyLock::new(|| {
         DateTime::parse_from_str("2023 Apr 13 12:09:14.274 +0000", "%Y %b %d %H:%M:%S%.3f %z")
             .unwrap()
     });

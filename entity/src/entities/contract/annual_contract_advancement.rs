@@ -5,7 +5,8 @@ use sea_orm::ActiveValue;
 
 use super::{ContractKind, ContractStatus, contract_entity};
 
-/// Creates the next year's contract from the current contract. This should be used in tandem with contract_queries::advance_contract, as we also need to update the current contract to point to the new one, plus handle various cases around RFAs/UFAs, and salaries.
+/// Creates the next year's contract from the current contract. This should be used in tandem with `contract_queries::advance_contract`, as we also need to update the current contract to point to the new one, plus handle various cases around RFAs/UFAs, and salaries.
+#[allow(clippy::too_many_lines)] // domain match over every contract kind's advancement rule, splitting hurts readability
 pub fn create_advancement_for_contract(
     current_contract: &contract_entity::Model,
 ) -> Result<contract_entity::ActiveModel> {
@@ -115,10 +116,8 @@ pub fn create_advancement_for_contract(
             }
         },
         ContractKind::FreeAgent => bail!("Cannot advance a free agent contract."),
-        ContractKind::UnrestrictedFreeAgentOriginalTeam => bail!(
-            "A UFA contract cannot be advanced; the contract must be either dropped or signed to a team."
-        ),
-        ContractKind::UnrestrictedFreeAgentVeteran => bail!(
+        ContractKind::UnrestrictedFreeAgentOriginalTeam
+        | ContractKind::UnrestrictedFreeAgentVeteran => bail!(
             "A UFA contract cannot be advanced; the contract must be either dropped or signed to a team."
         ),
     }
@@ -134,16 +133,13 @@ fn calculate_yearly_salary_increase(current_contract: &contract_entity::Model) -
             Ok(current_contract.salary)
         }
         ContractKind::Rookie => Ok(get_salary_increased_by_20_percent(current_contract.salary)),
-        ContractKind::RestrictedFreeAgent => {
+        ContractKind::RestrictedFreeAgent | ContractKind::UnrestrictedFreeAgentOriginalTeam => {
             bail!("Cannot calculate the yearly increase of an RFA contract.")
         }
         ContractKind::RookieExtension => match current_contract.year_number {
             4 => Ok(get_salary_increased_by_20_percent(current_contract.salary)),
             _ => Ok(1), // Needs to later be set during veteran auction salary fetch
         },
-        ContractKind::UnrestrictedFreeAgentOriginalTeam => {
-            bail!("Cannot calculate the yearly increase of an RFA contract.")
-        }
         ContractKind::Veteran => match current_contract.year_number {
             1 | 2 => Ok(get_salary_increased_by_20_percent(current_contract.salary)),
             _ => Ok(1), // Needs to later be set during veteran auction salary fetch
@@ -158,7 +154,7 @@ fn calculate_yearly_salary_increase(current_contract: &contract_entity::Model) -
 }
 
 fn get_salary_increased_by_20_percent(salary: i16) -> i16 {
-    let salary_dec = Decimal::new(salary as i64, 0);
+    let salary_dec = Decimal::new(i64::from(salary), 0);
     let increased_salary = salary_dec * dec!(1.2);
     let rounded_up = increased_salary.round_dp_with_strategy(0, RoundingStrategy::AwayFromZero);
     rounded_up.to_string().parse().unwrap()
@@ -166,9 +162,10 @@ fn get_salary_increased_by_20_percent(salary: i16) -> i16 {
 
 #[cfg(test)]
 mod tests {
+    use std::sync::LazyLock;
+
     use chrono::{DateTime, FixedOffset};
     use color_eyre::Result;
-    use once_cell::sync::Lazy;
     use sea_orm::ActiveValue;
 
     use crate::contract::{
@@ -176,7 +173,7 @@ mod tests {
         annual_contract_advancement::create_advancement_for_contract,
     };
 
-    static NOW: Lazy<DateTime<FixedOffset>> = Lazy::new(|| {
+    static NOW: LazyLock<DateTime<FixedOffset>> = LazyLock::new(|| {
         DateTime::parse_from_str("2023 Apr 13 12:09:14.274 +0000", "%Y %b %d %H:%M:%S%.3f %z")
             .unwrap()
     });

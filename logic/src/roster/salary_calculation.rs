@@ -10,16 +10,16 @@ use fbkl_entity::{
     sea_orm::ConnectionTrait,
     team,
 };
-use once_cell::sync::Lazy;
 use tracing::instrument;
 
-static CONTRACT_TYPES_COUNTED_TOWARD_CAP: Lazy<&[ContractKind]> = Lazy::new(|| {
-    &[
-        ContractKind::Rookie,
-        ContractKind::RookieExtension,
-        ContractKind::Veteran,
-    ]
-});
+static CONTRACT_TYPES_COUNTED_TOWARD_CAP: std::sync::LazyLock<&[ContractKind]> =
+    std::sync::LazyLock::new(|| {
+        &[
+            ContractKind::Rookie,
+            ContractKind::RookieExtension,
+            ContractKind::Veteran,
+        ]
+    });
 
 /// Returns a tuple containing the team's current total salary and salary cap.
 #[instrument]
@@ -91,6 +91,8 @@ where
             db,
         )
         .await?;
+    // salaries are far below i16::MAX, so the rounded penalty never truncates
+    #[allow(clippy::cast_possible_truncation)]
     let dropped_contract_cap_penalty = dropped_team_contracts
         .iter()
         .filter(|contract_model| CONTRACT_TYPES_COUNTED_TOWARD_CAP.contains(&contract_model.kind))

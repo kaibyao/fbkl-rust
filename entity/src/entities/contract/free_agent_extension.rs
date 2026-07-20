@@ -82,6 +82,8 @@ pub fn sign_rfa_or_ufa_contract_to_team(
 }
 
 /// Discount `final_bid` by `rate` (rounded up), optionally capped at `max_discount` dollars, floored at $1.
+// salaries are far below i16::MAX, so the rounded discount never truncates
+#[allow(clippy::cast_possible_truncation)]
 fn discounted_salary(final_bid: i16, rate: f32, max_discount: Option<i16>) -> i16 {
     let mut discount = (f32::from(final_bid) * rate).ceil() as i16;
     if let Some(cap) = max_discount {
@@ -92,9 +94,10 @@ fn discounted_salary(final_bid: i16, rate: f32, max_discount: Option<i16>) -> i1
 
 #[cfg(test)]
 mod tests {
+    use std::sync::LazyLock;
+
     use chrono::{DateTime, FixedOffset};
     use color_eyre::Result;
-    use once_cell::sync::Lazy;
     use sea_orm::ActiveValue;
 
     use crate::contract::{
@@ -102,7 +105,7 @@ mod tests {
         free_agent_extension::{discounted_salary, sign_rfa_or_ufa_contract_to_team},
     };
 
-    static NOW: Lazy<DateTime<FixedOffset>> = Lazy::new(|| {
+    static NOW: LazyLock<DateTime<FixedOffset>> = LazyLock::new(|| {
         DateTime::parse_from_str("2023 Apr 13 12:09:14.274 +0000", "%Y %b %d %H:%M:%S%.3f %z")
             .unwrap()
     });

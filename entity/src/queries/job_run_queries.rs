@@ -46,6 +46,7 @@ pub enum ClaimOutcome {
 }
 
 /// Stable idempotency key for a deadline row: `(league_id, end_of_season_year, kind, id)`.
+///
 /// Weekly locks share a kind across distinct rows, so the deadline id disambiguates. Single
 /// source of truth shared by the live scheduler (`fbkl-transaction-processor`) and historical
 /// replay (`import-data`) so both compute the same key for a given deadline.
@@ -59,8 +60,9 @@ pub fn deadline_idempotency_key(deadline_model: &deadline::Model) -> String {
     )
 }
 
-/// Records an already-completed deadline as a `Succeeded` job run. Historical replay
-/// (`import-data`) runs `fbkl_logic` handlers directly instead of going through the scheduler;
+/// Records an already-completed deadline as a `Succeeded` job run.
+///
+/// Historical replay (`import-data`) runs `fbkl_logic` handlers directly instead of going through the scheduler;
 /// without this, replayed deadlines look unprocessed and the live scheduler reprocesses them on
 /// every tick. Idempotent: if a job run for this deadline already exists, it is left untouched.
 #[instrument]
@@ -100,8 +102,9 @@ where
     }
 }
 
-/// Atomically claims a job run for the given idempotency key. The unique index on
-/// `idempotency_key` guarantees concurrent ticks cannot both claim the same event; the
+/// Atomically claims a job run for the given idempotency key.
+///
+/// The unique index on `idempotency_key` guarantees concurrent ticks cannot both claim the same event; the
 /// loser of the insert race observes the winner's row and skips.
 #[instrument]
 pub async fn claim_job_run<C>(new_job_run: NewJobRun, db: &C) -> Result<ClaimOutcome>

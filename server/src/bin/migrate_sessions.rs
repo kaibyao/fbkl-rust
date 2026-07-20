@@ -9,7 +9,7 @@
 //! pooler breaks DDL + advisory locks), the same variable the sea-orm migration
 //! step uses.
 //!
-//!   DATABASE_URL=<session-pooler> cargo run -p fbkl-server --bin migrate_sessions
+//!   `DATABASE_URL`=<session-pooler> cargo run -p fbkl-server --bin `migrate_sessions`
 
 use fbkl_entity::sea_orm::Database;
 use fbkl_server::build_session_store;

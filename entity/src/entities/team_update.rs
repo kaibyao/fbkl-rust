@@ -15,7 +15,7 @@ pub struct Model {
     #[serde(skip_deserializing)]
     #[sea_orm(primary_key)]
     pub id: i64,
-    /// Data containing the update made to team settings or roster. Converted to/from TeamUpdateData.
+    /// Data containing the update made to team settings or roster. Converted to/from `TeamUpdateData`.
     pub data: serde_json::Value,
     pub effective_date: Date,
     pub status: TeamUpdateStatus,
@@ -64,7 +64,7 @@ pub enum TeamUpdateStatus {
 }
 
 /// Used for storing the roster or settings updates made to the team.
-#[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
 pub enum TeamUpdateData {
     /// The update to the team involves changes to its owned assets.
     Assets(TeamUpdateAssetSummary),
@@ -74,7 +74,7 @@ pub enum TeamUpdateData {
 
 impl TeamUpdateData {
     /// Generates a new data struct from given assets.
-    pub fn from_assets(
+    pub const fn from_assets(
         all_contract_ids: Vec<i64>,
         changed_assets: Vec<TeamUpdateAsset>,
         new_salary: i16,
@@ -82,7 +82,7 @@ impl TeamUpdateData {
         previous_salary: i16,
         previous_salary_cap: i16,
     ) -> Self {
-        TeamUpdateData::Assets(TeamUpdateAssetSummary {
+        Self::Assets(TeamUpdateAssetSummary {
             all_contract_ids,
             changed_assets,
             new_salary,
@@ -105,7 +105,7 @@ impl TeamUpdateData {
 }
 
 /// Stores asset changes (contracts, draft picks) as well as salary changes to a team roster.
-#[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
 pub struct TeamUpdateAssetSummary {
     /// Contract IDs that map to ALL contracts owned by the team.
     pub all_contract_ids: Vec<i64>,
@@ -117,7 +117,7 @@ pub struct TeamUpdateAssetSummary {
 }
 
 /// Stores information about changes made to a team's assets.
-#[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
 pub enum TeamUpdateAsset {
     /// The update to the team involves a roster change.
     Contracts(Vec<ContractUpdate>),
@@ -185,13 +185,13 @@ pub enum DraftPickUpdateType {
     DraftPickOptionAdded,
 }
 
-#[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
 pub struct TeamSettingsChange {
     pub users: Vec<TeamUpdateSettingUser>,
 }
 
-/// Like `team_user::Model`, but without the created_at/updated_at.
-#[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
+/// Like `team_user::Model`, but without the `created_at/updated_at`.
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
 pub struct TeamUpdateSettingUser {
     pub id: i64,
     pub league_role: LeagueRole,

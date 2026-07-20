@@ -29,6 +29,7 @@ static EMPTY_VEC: &Vec<contract::Model> = &vec![];
 
 /// Stores the trade assets + their related models for a given trade. This exists so that we aren't constantly querying the DB for the same models all the time.
 #[derive(Debug)]
+#[allow(clippy::struct_field_names)] // field names mirror the trade_asset domain concept, not GraphQL/DB schema
 pub struct TradeAssetRelatedModelCache {
     pub trade_asset_contracts_by_trade_asset_id:
         HashMap<i64, (trade_asset::Model, contract::Model)>,
@@ -54,9 +55,9 @@ impl TradeAssetRelatedModelCache {
                 TradeAssetType::Contract => contract_trade_assets.push(traded_asset),
                 TradeAssetType::DraftPick => draft_pick_trade_assets.push(traded_asset),
                 TradeAssetType::DraftPickOption => {
-                    draft_pick_option_trade_assets.push(traded_asset)
+                    draft_pick_option_trade_assets.push(traded_asset);
                 }
-            };
+            }
         }
 
         let traded_contracts = contract_trade_assets.load_one(contract::Entity, db).await?;
@@ -125,7 +126,7 @@ where
     .await?;
     let traded_trade_assets = trade_model.get_trade_assets(db).await?;
     let mut all_team_ids = HashSet::new();
-    for traded_trade_asset in traded_trade_assets.iter() {
+    for traded_trade_asset in &traded_trade_assets {
         all_team_ids.insert(traded_trade_asset.from_team_id);
         all_team_ids.insert(traded_trade_asset.to_team_id);
     }
@@ -139,7 +140,7 @@ where
     )
     .await?;
     let mut team_salaries_before_trade = HashMap::new();
-    for team_id in all_team_ids.iter() {
+    for team_id in &all_team_ids {
         let team_active_contracts = active_contracts_by_team_id
             .get_vec(team_id)
             .unwrap_or(EMPTY_VEC);

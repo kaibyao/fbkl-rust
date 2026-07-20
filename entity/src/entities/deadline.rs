@@ -57,8 +57,9 @@ impl Model {
                     Some(REGULAR_SEASON_TOTAL_SALARY_LIMIT)
                 }
             }
-            DeadlineKind::FreeAgentAuctionEnd => Some(POST_SEASON_TOTAL_SALARY_LIMIT),
-            DeadlineKind::TradeDeadlineAndPlayoffStart => Some(POST_SEASON_TOTAL_SALARY_LIMIT),
+            DeadlineKind::FreeAgentAuctionEnd
+            | DeadlineKind::TradeDeadlineAndPlayoffStart
+            | DeadlineKind::SeasonEnd => Some(POST_SEASON_TOTAL_SALARY_LIMIT),
             DeadlineKind::PreseasonKeeper => Some(KEEPER_CONTRACT_TOTAL_SALARY_LIMIT),
             DeadlineKind::PreseasonVeteranAuctionStart
             | DeadlineKind::PreseasonRookieDraftStart
@@ -68,7 +69,6 @@ impl Model {
             | DeadlineKind::Week1FreeAgentAuctionStart
             | DeadlineKind::Week1FreeAgentAuctionEnd
             | DeadlineKind::Week1RosterLock => Some(REGULAR_SEASON_TOTAL_SALARY_LIMIT),
-            DeadlineKind::SeasonEnd => Some(POST_SEASON_TOTAL_SALARY_LIMIT),
             DeadlineKind::PreseasonStart => None,
         };
 

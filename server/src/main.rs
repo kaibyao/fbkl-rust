@@ -32,7 +32,7 @@ async fn main() -> Result<()> {
     let session_deletion_task = tokio::task::spawn(
         session_store
             .clone()
-            .continuously_delete_expired(Duration::from_secs(60)),
+            .continuously_delete_expired(Duration::from_mins(1)),
     );
 
     info!("Building session layer + graphql schema + router...");

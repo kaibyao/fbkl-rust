@@ -74,15 +74,15 @@ fn validate_team_keepers(contracts: &[contract::Model]) -> Result<()> {
     let counted_contracts: Vec<&contract::Model> = contracts
         .iter()
         .filter(|contract| match contract.kind {
-            ContractKind::RookieDevelopment => true,
-            ContractKind::RookieDevelopmentInternational => true,
-            ContractKind::Rookie => true,
-            ContractKind::RestrictedFreeAgent => false,
-            ContractKind::RookieExtension => true,
-            ContractKind::UnrestrictedFreeAgentOriginalTeam => false,
-            ContractKind::Veteran => true,
-            ContractKind::UnrestrictedFreeAgentVeteran => false,
-            ContractKind::FreeAgent => false,
+            ContractKind::RestrictedFreeAgent
+            | ContractKind::UnrestrictedFreeAgentOriginalTeam
+            | ContractKind::UnrestrictedFreeAgentVeteran
+            | ContractKind::FreeAgent => false,
+            ContractKind::RookieDevelopment
+            | ContractKind::RookieDevelopmentInternational
+            | ContractKind::Rookie
+            | ContractKind::RookieExtension
+            | ContractKind::Veteran => true,
         })
         .collect();
 

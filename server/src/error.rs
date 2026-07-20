@@ -26,7 +26,7 @@ pub enum FbklError {
 
 impl From<StatusCode> for FbklError {
     fn from(code: StatusCode) -> Self {
-        FbklError::Status(code)
+        Self::Status(code)
     }
 }
 
@@ -35,15 +35,11 @@ impl FbklError {
     ///
     /// Client-caused faults (bad hex tokens, wrong password) are 4xx; everything
     /// the server is responsible for is 5xx.
-    fn status_code(&self) -> StatusCode {
+    const fn status_code(&self) -> StatusCode {
         match self {
-            FbklError::HexStringConversion(_) | FbklError::PasswordHasher(_) => {
-                StatusCode::BAD_REQUEST
-            }
-            FbklError::Status(code) => *code,
-            FbklError::Axum(_) | FbklError::Db(_) | FbklError::Session(_) => {
-                StatusCode::INTERNAL_SERVER_ERROR
-            }
+            Self::HexStringConversion(_) | Self::PasswordHasher(_) => StatusCode::BAD_REQUEST,
+            Self::Status(code) => *code,
+            Self::Axum(_) | Self::Db(_) | Self::Session(_) => StatusCode::INTERNAL_SERVER_ERROR,
         }
     }
 }
@@ -59,12 +55,11 @@ impl IntoResponse for FbklError {
 
         // A bare status carries its own response; anything else gets a generic,
         // detail-free body so we don't disclose internal error contents.
-        match self {
-            FbklError::Status(code) => code.into_response(),
-            _ => {
-                let body = status.canonical_reason().unwrap_or("error").to_string();
-                (status, body).into_response()
-            }
+        if let Self::Status(code) = self {
+            code.into_response()
+        } else {
+            let body = status.canonical_reason().unwrap_or("error").to_string();
+            (status, body).into_response()
         }
     }
 }

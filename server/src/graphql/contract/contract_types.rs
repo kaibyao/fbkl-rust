@@ -23,7 +23,7 @@ pub struct Contract {
 }
 
 impl Contract {
-    pub fn from_model(entity: contract::Model) -> Self {
+    pub const fn from_model(entity: &contract::Model) -> Self {
         Self {
             id: entity.id,
             year_number: entity.year_number,

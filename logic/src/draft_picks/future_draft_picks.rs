@@ -24,7 +24,7 @@ where
 
     // generate all draft picks to insert later
     let mut draft_picks_to_insert = Vec::new();
-    for team in all_teams_in_league.iter() {
+    for team in &all_teams_in_league {
         for round in 1..=DRAFT_PICK_ROUNDS {
             draft_picks_to_insert.push(draft_pick::ActiveModel {
                 id: ActiveValue::NotSet,

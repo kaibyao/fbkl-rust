@@ -28,9 +28,9 @@ impl MigrationTrait for Migration {
             .execute(Statement::from_string(
                 DatabaseBackend::Postgres,
                 // lets us use the unaccent function to search for players with accents in their names (Like "Luka Dončić")
-                r#"
+                r"
                 CREATE EXTENSION IF NOT EXISTS unaccent;
-                "#
+                "
                 .to_string(),
             ))
             .await?;
@@ -38,14 +38,14 @@ impl MigrationTrait for Migration {
         transaction
             .execute(Statement::from_string(
                 DatabaseBackend::Postgres,
-                r#"
+                r"
 CREATE OR REPLACE FUNCTION set_auto_updated_at_on_table(_tbl regclass) RETURNS VOID AS $$
 BEGIN
     EXECUTE format('CREATE OR REPLACE TRIGGER set_updated_at BEFORE UPDATE ON %s
                     FOR EACH ROW EXECUTE PROCEDURE on_update_set_updated_at()', _tbl);
 END;
 $$ LANGUAGE plpgsql;
-        "#
+        "
                 .to_string(),
             ))
             .await?;
@@ -53,7 +53,7 @@ $$ LANGUAGE plpgsql;
         transaction
             .execute(Statement::from_string(
                 DatabaseBackend::Postgres,
-                r#"
+                r"
 CREATE OR REPLACE FUNCTION on_update_set_updated_at() RETURNS trigger AS $$
 BEGIN
     IF (
@@ -65,7 +65,7 @@ BEGIN
     RETURN NEW;
 END;
 $$ LANGUAGE plpgsql;
-        "#
+        "
                 .to_string(),
             ))
             .await?;
@@ -78,8 +78,8 @@ $$ LANGUAGE plpgsql;
             .get_connection()
             .execute(Statement::from_string(
                 DatabaseBackend::Postgres,
-                r#"
-DROP FUNCTION IF EXISTS on_update_set_updated_at();"#
+                r"
+DROP FUNCTION IF EXISTS on_update_set_updated_at();"
                     .to_string(),
             ))
             .await?;
@@ -88,8 +88,8 @@ DROP FUNCTION IF EXISTS on_update_set_updated_at();"#
             .get_connection()
             .execute(Statement::from_string(
                 DatabaseBackend::Postgres,
-                r#"
-DROP FUNCTION IF EXISTS set_auto_updated_at_on_table(_tbl regclass);"#
+                r"
+DROP FUNCTION IF EXISTS set_auto_updated_at_on_table(_tbl regclass);"
                     .to_string(),
             ))
             .await?;

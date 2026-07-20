@@ -8,3 +8,6 @@ edition = "2024"
 [dependencies]
 async-graphql = "7.2.1"
 fbkl-server = { path = "../server"}
+
+[lints]
+workspace = true

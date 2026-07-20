@@ -131,6 +131,8 @@ Uses SeaORM for type-safe database queries. Entity definitions in `entity/` crat
 - File/module header (doc) comments: detailed multi-line blocks are fine and encouraged for explaining a file's purpose and context.
 
 ### Rust
+- **Before writing or reviewing non-trivial Rust, read the `idiomatic-rust` skill** (`.claude/skills/idiomatic-rust/SKILL.md`) — judgment-level idiom rules clippy can't check
+- Clippy pedantic+nursery enabled workspace-wide at warn level (`[workspace.lints.clippy]` in root `Cargo.toml`); lefthook blocks commits on any warning (`cargo clippy -- -D warnings`)
 - rustfmt with custom config (`rustfmt.toml`): `use_field_init_shorthand = true`, `use_try_shorthand = true`
 - Error handling: custom `FbklError` enum (`server/src/error.rs`) with `From` implementations
 - Naming: `snake_case` functions/variables, `PascalCase` types

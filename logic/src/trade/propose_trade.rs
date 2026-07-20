@@ -9,7 +9,9 @@ use fbkl_entity::{
 };
 use tracing::instrument;
 
-/// Creates & inserts a new trade proposed by a team to 1 or more teams. Inserts the following entities: The (proposed) trade, the team_trades involved, the trade assets involved, and the proposal trade action
+/// Creates & inserts a new trade proposed by a team to 1 or more teams.
+///
+/// Inserts the following entities: The (proposed) trade, the `team_trades` involved, the trade assets involved, and the proposal trade action.
 /// Trades have to be created w/ this method in order to set the `original_trade_id` after insertion.
 #[instrument]
 pub async fn propose_trade<C>(

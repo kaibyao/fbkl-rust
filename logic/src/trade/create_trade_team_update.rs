@@ -22,7 +22,7 @@ use crate::roster::calculate_team_contract_salary;
 
 static EMPTY_VEC: &Vec<contract::Model> = &vec![];
 
-/// Generates the data needed to create the team updates related to a trade. Returns a MultiMap w/ `team_id`s as its key and Team Update Assets as its values.
+/// Generates the data needed to create the team updates related to a trade. Returns a `MultiMap` w/ `team_id`s as its key and Team Update Assets as its values.
 #[instrument]
 pub async fn generate_team_update_assets_data_for_trade<C>(
     trade_asset_contracts: &[(trade_asset::Model, contract::Model)],
@@ -50,10 +50,10 @@ where
 
     // Create TeamUpdateAssets
     let mut team_update_assets_by_team_id: MultiMap<i64, TeamUpdateAsset> = MultiMap::new();
-    for (team_id, contract_updates) in team_update_contract_assets_by_team_id.into_iter() {
+    for (team_id, contract_updates) in team_update_contract_assets_by_team_id {
         team_update_assets_by_team_id.insert(team_id, TeamUpdateAsset::Contracts(contract_updates));
     }
-    for (team_id, draft_pick_updates) in team_update_draft_pick_assets_by_team_id.into_iter() {
+    for (team_id, draft_pick_updates) in team_update_draft_pick_assets_by_team_id {
         team_update_assets_by_team_id
             .insert(team_id, TeamUpdateAsset::DraftPicks(draft_pick_updates));
     }
@@ -81,7 +81,7 @@ where
 
     // Insert new team updates
     let mut team_update_models_to_insert = vec![];
-    for (team_id, team_update_assets) in team_update_assets_by_team_id.into_iter() {
+    for (team_id, team_update_assets) in team_update_assets_by_team_id {
         let team_active_contracts = active_contracts_by_team_id
             .get_vec(&team_id)
             .unwrap_or(EMPTY_VEC);

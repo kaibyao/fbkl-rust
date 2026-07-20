@@ -11,7 +11,7 @@ use crate::{
     team_update::{self, TeamUpdateStatus},
 };
 
-/// Finds the team_updates related to the given deadline.
+/// Finds the `team_updates` related to the given deadline.
 #[instrument]
 pub async fn find_team_updates_for_deadline<C>(
     deadline_model: &deadline::Model,
@@ -27,7 +27,7 @@ where
     Ok(team_updates)
 }
 
-/// Finds the team_updates related to the given transaction id.
+/// Finds the `team_updates` related to the given transaction id.
 #[instrument]
 pub async fn find_team_updates_by_transaction<C>(
     transaction_id: i64,

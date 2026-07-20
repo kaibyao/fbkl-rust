@@ -4,7 +4,6 @@ use std::collections::HashMap;
 
 use async_graphql::Enum;
 use async_trait::async_trait;
-use once_cell::sync::Lazy;
 use sea_orm::{ActiveValue, entity::prelude::*};
 use serde::{Deserialize, Serialize};
 
@@ -107,12 +106,12 @@ fn require_proposed_status_when_inserting(
         return Ok(());
     }
 
-    if model.status != ActiveValue::Set(DraftPickOptionStatus::Proposed) {
+    if model.status == ActiveValue::Set(DraftPickOptionStatus::Proposed) {
+        Ok(())
+    } else {
         Err(DbErr::Custom(
             "A new draft pick option must be in the `Proposed` status.".to_string(),
         ))
-    } else {
-        Ok(())
     }
 }
 
@@ -124,14 +123,9 @@ async fn validate_update_status<C>(
 where
     C: ConnectionTrait,
 {
-    if is_insert {
-        // handled by require_proposed_status_when_inserting()
-        return Ok(());
-    }
-
-    static VALID_BEFORE_AND_AFTER_STATUSES: Lazy<
+    static VALID_BEFORE_AND_AFTER_STATUSES: std::sync::LazyLock<
         HashMap<&DraftPickOptionStatus, Vec<&DraftPickOptionStatus>>,
-    > = Lazy::new(|| {
+    > = std::sync::LazyLock::new(|| {
         [
             (
                 &DraftPickOptionStatus::Proposed,
@@ -151,6 +145,11 @@ where
         .collect()
     });
 
+    if is_insert {
+        // handled by require_proposed_status_when_inserting()
+        return Ok(());
+    }
+
     let ActiveValue::Set(Value::BigInt(maybe_id)) = model.get(Column::Id) else {
         return Err(DbErr::Custom(
             "Couldn't extract id value from draft pick option ActiveModel".to_string(),
@@ -162,15 +161,13 @@ where
 
     let current_saved = Entity::find_by_id(id).one(db).await?.ok_or_else(|| {
         DbErr::Custom(format!(
-            "Couldn't find currently-persisted model of non-inserted draft pick option (id = {})",
-            id
+            "Couldn't find currently-persisted model of non-inserted draft pick option (id = {id})"
         ))
     })?;
     let current_status = current_saved.status;
     let ActiveValue::Set(new_status) = model.status else {
         return Err(DbErr::Custom(format!(
-            "Couldn't extract status value from draft pick option ActiveModel (id = {})",
-            id
+            "Couldn't extract status value from draft pick option ActiveModel (id = {id})"
         )));
     };
 
@@ -178,8 +175,7 @@ where
         .get(&current_status)
         .unwrap_or_else(|| {
             panic!(
-                "VALID_BEFORE_AND_AFTER_STATUSES should have a value for key: {:?}",
-                current_status
+                "VALID_BEFORE_AND_AFTER_STATUSES should have a value for key: {current_status:?}"
             )
         });
 
@@ -187,8 +183,7 @@ where
         Ok(())
     } else {
         Err(DbErr::Custom(format!(
-            "Not allowed to update a draft pick option whose previous status was {:?} and is now {:?}",
-            current_status, new_status
+            "Not allowed to update a draft pick option whose previous status was {current_status:?} and is now {new_status:?}"
         )))
     }
 }

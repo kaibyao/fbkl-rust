@@ -110,16 +110,16 @@ pub async fn confirm_registration(
     let token_bytes = decode_token(token)?;
 
     let mut found_user_registration: user_registration::ActiveModel =
-        match user_registration_queries::find_user_registration_by_token(token_bytes, &state.db)
-            .await?
+        if let Some(user_registration) =
+            user_registration_queries::find_user_registration_by_token(token_bytes, &state.db)
+                .await?
         {
-            Some(user_registration) => user_registration.into(),
-            None => {
-                let err_response = Response::builder()
-                    .status(StatusCode::NOT_FOUND)
-                    .body("USER_REGISTRATION_NOT_FOUND".to_string())?;
-                return Ok(err_response);
-            }
+            user_registration.into()
+        } else {
+            let err_response = Response::builder()
+                .status(StatusCode::NOT_FOUND)
+                .body("USER_REGISTRATION_NOT_FOUND".to_string())?;
+            return Ok(err_response);
         };
 
     found_user_registration.status = Set(UserRegistrationStatus::Confirmed);

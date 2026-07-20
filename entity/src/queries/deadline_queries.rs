@@ -14,8 +14,9 @@ use crate::{
     job_run::{self, JobRunStatus},
 };
 
-/// Returns a league season's deadlines ordered by `date_time`, ties broken by `id`. Insertion
-/// order (see `import-data` `import_deadlines`) encodes the intended processing order for
+/// Returns a league season's deadlines ordered by `date_time`, ties broken by `id`.
+///
+/// Insertion order (see `import-data` `import_deadlines`) encodes the intended processing order for
 /// same-instant deadlines (e.g. a roster lock and a same-timestamp auction boundary), and `id`
 /// is assigned in that order, so `(date_time, id)` reproduces it. Returning a `Vec` rather than a
 /// datetime-keyed map is deliberate: a map silently drops one of two deadlines sharing a `date_time`.
@@ -89,8 +90,9 @@ where
     Ok(maybe_deadline_model)
 }
 
-/// Finds deadlines (across all leagues) that are due at or before `now` and have no
-/// `Succeeded` job run — i.e. work the scheduler still needs to dispatch. Ordered oldest
+/// Finds deadlines (across all leagues) that are due at or before `now` and have no `Succeeded` job run.
+///
+/// I.e. work the scheduler still needs to dispatch. Ordered oldest
 /// first so deadlines within a league season process in chronological order.
 #[instrument]
 pub async fn find_due_unprocessed_deadlines<C>(

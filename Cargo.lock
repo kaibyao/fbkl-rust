@@ -1365,7 +1365,6 @@ dependencies = [
  "color-eyre",
  "fbkl-constants",
  "multimap 0.10.1",
- "once_cell",
  "rust_decimal",
  "rust_decimal_macros",
  "sea-orm",

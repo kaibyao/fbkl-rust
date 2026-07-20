@@ -11,9 +11,11 @@ use tracing::instrument;
 
 use crate::{team, trade_action, trade_asset};
 
-/// Trades made between 2 or more teams can be proposed, accepted, counteroffered, canceled, or rejected. When a trade is counteroffered, a new trade is created that refers to the previous. In this way, a historical chain of record can be made.
+/// Trades made between 2 or more teams can be proposed, accepted, counteroffered, canceled, or rejected.
 ///
-/// Note: Use trade_model.find_linked(TeamsInvolvedInTrade) and team_model.find_linked(TradesInvolvedByTeam) rather than .find_related(), as we use that many-to-many relationship to allow for multi-team trades to happen.
+/// When a trade is counteroffered, a new trade is created that refers to the previous. In this way, a historical chain of record can be made.
+///
+/// Note: Use `trade_model.find_linked(TeamsInvolvedInTrade)` and `team_model.find_linked(TradesInvolvedByTeam)` rather than .`find_related()`, as we use that many-to-many relationship to allow for multi-team trades to happen.
 #[derive(Clone, Debug, PartialEq, DeriveEntityModel, Eq, Serialize, Deserialize)]
 #[sea_orm(table_name = "trade")]
 pub struct Model {

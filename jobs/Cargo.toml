@@ -10,3 +10,6 @@ fbkl-entity = {path = "../entity"}
 fbkl-transaction-processor = {path = "../transaction-processor"}
 tokio = {version = "1.52.3", features = ["macros", "rt", "time"]}
 tracing = "0.1.36"
+
+[lints]
+workspace = true

@@ -6,7 +6,7 @@ use tracing::instrument;
 
 use crate::team_update::{self, TeamUpdateStatus};
 
-/// Updates the given team_update (generated via veteran auction processing) to be finished, along with an optional effective date (defaults to `now()` otherwise).
+/// Updates the given `team_update` (generated via veteran auction processing) to be finished, along with an optional effective date (defaults to `now()` otherwise).
 #[instrument]
 pub async fn update_team_update_for_preseason_veteran_auction<C>(
     team_update_model: &team_update::Model,

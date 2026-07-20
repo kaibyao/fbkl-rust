@@ -14,6 +14,8 @@ where
     player.ok_or_else(|| eyre!("Player not found"))
 }
 
+// internal query API; generic hasher flexibility not needed
+#[allow(clippy::implicit_hasher)]
 pub async fn find_players_by_name<C>(
     player_names: HashSet<&str>,
     db: &C,
@@ -21,7 +23,10 @@ pub async fn find_players_by_name<C>(
 where
     C: ConnectionTrait,
 {
-    let player_names_vec: Vec<String> = player_names.iter().map(|s| s.to_string()).collect();
+    let player_names_vec: Vec<String> = player_names
+        .iter()
+        .map(std::string::ToString::to_string)
+        .collect();
     let condition = Expr::cust_with_values("unaccent(name) = ANY($1)", [player_names_vec]);
 
     let player_models = player::Entity::find().filter(condition).all(db).await?;

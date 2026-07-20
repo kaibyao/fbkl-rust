@@ -18,7 +18,7 @@ use crate::handlers::{
 /// Application state.
 #[derive(Debug)]
 pub struct AppState {
-    /// SeaORM database connection.
+    /// `SeaORM` database connection.
     pub db: DatabaseConnection,
 }
 

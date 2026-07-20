@@ -1,3 +1,6 @@
+// lint fires inside the MergedObject derive's own expansion below, not our code
+#![allow(clippy::useless_let_if_seq)]
+
 use async_graphql::{EmptySubscription, MergedObject, Schema};
 
 use self::{

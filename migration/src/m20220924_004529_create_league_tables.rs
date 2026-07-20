@@ -285,7 +285,7 @@ async fn setup_team_user(manager: &SchemaManager<'_>) -> Result<(), DbErr> {
         .await
 }
 
-/// Learn more at https://docs.rs/sea-query#iden
+/// Learn more at <https://docs.rs/sea-query#iden>
 #[derive(Iden)]
 pub enum League {
     Table,

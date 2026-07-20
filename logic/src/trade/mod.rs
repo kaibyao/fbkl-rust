@@ -7,7 +7,7 @@ mod propose_trade;
 mod validate_trade_assets;
 
 pub use accept_trade::*;
-use process_trade::*;
-use process_trade_assets::*;
+use process_trade::process_trade;
+use process_trade_assets::process_trade_assets;
 pub use propose_trade::*;
-use validate_trade_assets::*;
+use validate_trade_assets::validate_trade_assets;

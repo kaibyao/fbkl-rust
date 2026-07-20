@@ -9,3 +9,6 @@ color-eyre = "0.6.2"
 fbkl-entity = {path = "../entity"}
 fbkl-logic = {path = "../logic"}
 tracing = "0.1.36"
+
+[lints]
+workspace = true

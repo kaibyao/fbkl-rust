@@ -20,9 +20,8 @@ pub struct LeagueQuery;
 #[Object]
 impl LeagueQuery {
     async fn leagues(&self, ctx: &Context<'_>) -> Result<Vec<League>> {
-        let user_model = match ctx.data_unchecked::<Option<user::Model>>().to_owned() {
-            None => return Ok(vec![]),
-            Some(user) => user,
+        let Some(user_model) = ctx.data_unchecked::<Option<user::Model>>().to_owned() else {
+            return Ok(vec![]);
         };
         let db = ctx.data_unchecked::<DatabaseConnection>();
         let league_models = find_leagues_by_user(&user_model, db).await?;
@@ -38,16 +37,17 @@ impl LeagueQuery {
             Some(id) => id,
         };
 
-        let user_model = match ctx.data_unchecked::<Option<user::Model>>().to_owned() {
-            None => return Err(StatusCode::UNAUTHORIZED.into()),
-            Some(user) => user,
+        let Some(user_model) = ctx.data_unchecked::<Option<user::Model>>().to_owned() else {
+            return Err(StatusCode::UNAUTHORIZED.into());
         };
         let db = ctx.data_unchecked::<DatabaseConnection>();
 
-        match find_league_by_user(&user_model, selected_league_id, db).await? {
-            None => Err(StatusCode::NOT_FOUND.into()),
-            Some(league_model) => Ok(League::from_model(league_model)),
-        }
+        find_league_by_user(&user_model, selected_league_id, db)
+            .await?
+            .map_or_else(
+                || Err(StatusCode::NOT_FOUND.into()),
+                |league_model| Ok(League::from_model(league_model)),
+            )
     }
 }
 
@@ -88,9 +88,8 @@ impl LeagueMutation {
         let db = ctx.data_unchecked::<DatabaseConnection>();
         let session = ctx.data_unchecked::<Session>();
 
-        let user_model = match get_current_user(session.clone(), db).await {
-            None => return Err(GraphQlError::from(StatusCode::UNAUTHORIZED)),
-            Some(model) => model,
+        let Some(user_model) = get_current_user(session.clone(), db).await else {
+            return Err(GraphQlError::from(StatusCode::UNAUTHORIZED));
         };
 
         // verify user has access to league
@@ -104,7 +103,7 @@ impl LeagueMutation {
             // write league id to session
             Ok(Some(league_model)) => match session.insert("selected_league_id", league_id).await {
                 Err(_) => Err(GraphQlError::from(StatusCode::INTERNAL_SERVER_ERROR)),
-                Ok(_) => Ok(League::from_model(league_model)),
+                Ok(()) => Ok(League::from_model(league_model)),
             },
         }
     }

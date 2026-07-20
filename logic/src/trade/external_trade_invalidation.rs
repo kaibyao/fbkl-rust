@@ -139,8 +139,8 @@ where
     for external_trade_asset in external_trade_assets {
         // don't care about contracts and draft picks, as they've already been updated
         if TradeAssetType::DraftPickOption == external_trade_asset.asset_type {
-            external_draft_pick_option_trade_assets.push(external_trade_asset)
-        };
+            external_draft_pick_option_trade_assets.push(external_trade_asset);
+        }
     }
 
     invalidate_external_trade_draft_pick_options(external_draft_pick_option_trade_assets, db).await

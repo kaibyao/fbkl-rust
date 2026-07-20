@@ -34,8 +34,9 @@ use fbkl_logic::{
 };
 use tracing::{error, info, instrument};
 
-/// A time-triggered event that is *not* backed by a row in the `deadline` table. Fire-times
-/// for these derive from `auction` / RFA-state rows; the scheduler synthesizes them and the
+/// A time-triggered event that is *not* backed by a row in the `deadline` table.
+///
+/// Fire-times for these derive from `auction` / RFA-state rows; the scheduler synthesizes them and the
 /// processor dispatches them like deadlines.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ProcessableEvent {
@@ -72,7 +73,7 @@ pub enum ProcessableEvent {
 }
 
 impl ProcessableEvent {
-    pub fn league_id(&self) -> i64 {
+    pub const fn league_id(&self) -> i64 {
         match self {
             Self::FaAuctionClose { league_id, .. }
             | Self::FaExtensionExpiry { league_id, .. }
@@ -82,7 +83,7 @@ impl ProcessableEvent {
         }
     }
 
-    pub fn end_of_season_year(&self) -> i16 {
+    pub const fn end_of_season_year(&self) -> i16 {
         match self {
             Self::FaAuctionClose {
                 end_of_season_year, ..
@@ -102,7 +103,7 @@ impl ProcessableEvent {
         }
     }
 
-    pub fn auction_id(&self) -> i64 {
+    pub const fn auction_id(&self) -> i64 {
         match self {
             Self::FaAuctionClose { auction_id, .. }
             | Self::FaExtensionExpiry { auction_id, .. }
@@ -112,7 +113,7 @@ impl ProcessableEvent {
         }
     }
 
-    pub fn event_kind(&self) -> JobEventKind {
+    pub const fn event_kind(&self) -> JobEventKind {
         match self {
             Self::FaAuctionClose { .. } => JobEventKind::FaAuctionClose,
             Self::FaExtensionExpiry { .. } => JobEventKind::FaExtensionExpiry,
@@ -139,7 +140,7 @@ impl ProcessableEvent {
 pub enum ProcessOutcome {
     /// The handler ran and committed; `job_run` is `Succeeded`.
     Processed { job_run_id: i64 },
-    /// A `Succeeded` job_run already existed — nothing was done.
+    /// A `Succeeded` `job_run` already existed — nothing was done.
     AlreadyProcessed,
     /// Another worker currently holds the `Running` claim — nothing was done.
     AlreadyRunning,

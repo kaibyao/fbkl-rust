@@ -8,7 +8,7 @@ pub struct NaiveDateRange {
 
 impl NaiveDateRange {
     pub fn from_date_strings(start_date_str: &str, end_date_str: &str) -> Result<Self> {
-        Ok(NaiveDateRange {
+        Ok(Self {
             start: NaiveDate::parse_from_str(start_date_str, "%Y-%m-%d")?,
             end: NaiveDate::parse_from_str(end_date_str, "%Y-%m-%d")?,
         })

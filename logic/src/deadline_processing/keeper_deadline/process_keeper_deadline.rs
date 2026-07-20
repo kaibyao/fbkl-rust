@@ -14,7 +14,7 @@ use fbkl_entity::{
 use std::{collections::HashMap, fmt::Debug};
 use tracing::instrument;
 
-/// Processes the team_updates that have been created for the Keeper Deadline and sets the status for them.
+/// Processes the `team_updates` that have been created for the Keeper Deadline and sets the status for them.
 #[instrument]
 pub async fn process_keeper_deadline_transaction<C>(
     league_id: i64,
@@ -64,7 +64,7 @@ where
     Ok(())
 }
 
-/// Processes the team_updates that have been created for the Keeper Deadline. Returns a tuple containing the number of contracts kept and dropped.
+/// Processes the `team_updates` that have been created for the Keeper Deadline. Returns a tuple containing the number of contracts kept and dropped.
 #[instrument]
 async fn process_keeper_deadline_transaction_inner<C>(
     team_update_model: team_update::Model,
@@ -110,7 +110,7 @@ where
             "Expected Keeper Deadline team update to be a contract update, but got settings instead: {:#?}",
             team_update_data
         ),
-    };
+    }
 
     Ok(())
 }

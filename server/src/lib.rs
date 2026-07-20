@@ -26,7 +26,7 @@ use tracing_subscriber::EnvFilter;
 /// The async-graphql schema type shared by every entrypoint (local bin + Lambdas).
 pub type AppSchema = Schema<QueryRoot, MutationRoot, EmptySubscription>;
 
-/// Connect to the SeaORM database pool from `FBKL_DATABASE_URL`.
+/// Connect to the `SeaORM` database pool from `FBKL_DATABASE_URL`.
 ///
 /// Lambdas must point this at Supabase's transaction pooler (6543); the local
 /// bin uses a direct connection.
@@ -140,8 +140,8 @@ pub async fn shutdown_signal(background_task_abort_handles: Vec<AbortHandle>) {
     let terminate = std::future::pending::<()>();
 
     tokio::select! {
-        _ = ctrl_c => {},
-        _ = terminate => {},
+        () = ctrl_c => {},
+        () = terminate => {},
     }
 
     for abort_handle in background_task_abort_handles {

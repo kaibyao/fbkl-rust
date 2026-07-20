@@ -22,7 +22,7 @@ pub struct Model {
 }
 
 impl Model {
-    pub fn new_active_model(
+    pub const fn new_active_model(
         trade_action_type: TradeActionType,
         trade_id: i64,
         team_user_id: i64,

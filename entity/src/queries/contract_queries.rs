@@ -218,7 +218,10 @@ pub async fn find_active_league_contracts_by_player_names<C>(
 where
     C: ConnectionTrait + Debug,
 {
-    let player_names_vec: Vec<String> = player_names.iter().map(|s| s.to_string()).collect();
+    let player_names_vec: Vec<String> = player_names
+        .iter()
+        .map(std::string::ToString::to_string)
+        .collect();
     let contracts_and_player_models = contract::Entity::find()
         .join(JoinType::LeftJoin, contract::Relation::Player.def())
         .join(JoinType::LeftJoin, contract::Relation::LeaguePlayer.def())
@@ -393,7 +396,7 @@ where
     add_replacement_contract_to_chain(contract_model, new_contract, db).await
 }
 
-/// Used to replace an existing contract with a new one. The new one refers to the original as its original_contract_id, and the old one's status is set to `Replaced`.
+/// Used to replace an existing contract with a new one. The new one refers to the original as its `original_contract_id`, and the old one's status is set to `Replaced`.
 /// Returns the new replacement contract.
 #[instrument]
 async fn add_replacement_contract_to_chain<C>(

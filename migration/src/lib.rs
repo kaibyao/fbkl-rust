@@ -1,3 +1,6 @@
+// schema-DSL migration functions are naturally long and run once at startup
+#![allow(clippy::too_many_lines, clippy::large_futures)]
+
 pub use sea_orm_migration::MigratorTrait;
 use sea_orm_migration::{
     DbErr, MigrationTrait, SchemaManager, async_trait,
@@ -53,7 +56,7 @@ pub async fn set_auto_updated_at_on_table(
         .get_connection()
         .execute(Statement::from_string(
             DatabaseBackend::Postgres,
-            format!("SELECT set_auto_updated_at_on_table('{}')", table),
+            format!("SELECT set_auto_updated_at_on_table('{table}')"),
         ))
         .await?;
 

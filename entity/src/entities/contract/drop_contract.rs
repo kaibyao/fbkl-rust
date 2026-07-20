@@ -16,12 +16,16 @@ pub fn create_dropped_contract(
         );
     }
 
-    let mut new_salary_for_active_players_after_drop = current_contract.salary;
-    let mut new_status_for_active_players_after_drop = ContractStatus::Active;
-    if is_before_pre_season_keeper_deadline {
-        new_salary_for_active_players_after_drop = 1;
-        new_status_for_active_players_after_drop = ContractStatus::Expired;
-    }
+    let new_salary_for_active_players_after_drop = if is_before_pre_season_keeper_deadline {
+        1
+    } else {
+        current_contract.salary
+    };
+    let new_status_for_active_players_after_drop = if is_before_pre_season_keeper_deadline {
+        ContractStatus::Expired
+    } else {
+        ContractStatus::Active
+    };
 
     let new_contract = contract::ActiveModel {
         id: ActiveValue::NotSet,
@@ -29,26 +33,26 @@ pub fn create_dropped_contract(
         kind: ActiveValue::Set(ContractKind::FreeAgent),
         is_ir: ActiveValue::Set(current_contract.is_ir),
         salary: ActiveValue::Set(match current_contract.kind {
-            ContractKind::RookieDevelopment => 1,
-            ContractKind::RookieDevelopmentInternational => 1,
-            ContractKind::Rookie => new_salary_for_active_players_after_drop,
-            ContractKind::RestrictedFreeAgent => 1,
-            ContractKind::RookieExtension => new_salary_for_active_players_after_drop,
-            ContractKind::UnrestrictedFreeAgentOriginalTeam => 1,
-            ContractKind::Veteran => new_salary_for_active_players_after_drop,
-            ContractKind::UnrestrictedFreeAgentVeteran => 1,
+            ContractKind::Rookie | ContractKind::RookieExtension | ContractKind::Veteran => {
+                new_salary_for_active_players_after_drop
+            }
+            ContractKind::RookieDevelopment
+            | ContractKind::RookieDevelopmentInternational
+            | ContractKind::RestrictedFreeAgent
+            | ContractKind::UnrestrictedFreeAgentOriginalTeam
+            | ContractKind::UnrestrictedFreeAgentVeteran => 1,
             ContractKind::FreeAgent => bail!("Impossible combination: dropping a free agent."),
         }),
         end_of_season_year: ActiveValue::Set(current_contract.end_of_season_year),
         status: ActiveValue::Set(match current_contract.kind {
-            ContractKind::RookieDevelopment => ContractStatus::Expired,
-            ContractKind::RookieDevelopmentInternational => ContractStatus::Expired,
-            ContractKind::Rookie => new_status_for_active_players_after_drop,
-            ContractKind::RestrictedFreeAgent => ContractStatus::Expired,
-            ContractKind::RookieExtension => new_status_for_active_players_after_drop,
-            ContractKind::UnrestrictedFreeAgentOriginalTeam => ContractStatus::Expired,
-            ContractKind::Veteran => new_status_for_active_players_after_drop,
-            ContractKind::UnrestrictedFreeAgentVeteran => ContractStatus::Expired,
+            ContractKind::Rookie | ContractKind::RookieExtension | ContractKind::Veteran => {
+                new_status_for_active_players_after_drop
+            }
+            ContractKind::RookieDevelopment
+            | ContractKind::RookieDevelopmentInternational
+            | ContractKind::RestrictedFreeAgent
+            | ContractKind::UnrestrictedFreeAgentOriginalTeam
+            | ContractKind::UnrestrictedFreeAgentVeteran => ContractStatus::Expired,
             ContractKind::FreeAgent => bail!("Impossible combination: dropping a free agent."),
         }),
         league_id: ActiveValue::Set(current_contract.league_id),
@@ -66,16 +70,17 @@ pub fn create_dropped_contract(
 
 #[cfg(test)]
 mod tests {
+    use std::sync::LazyLock;
+
     use chrono::{DateTime, FixedOffset};
     use color_eyre::Result;
-    use once_cell::sync::Lazy;
     use sea_orm::ActiveValue;
 
     use crate::contract::{
         self, ContractKind, ContractStatus, drop_contract::create_dropped_contract,
     };
 
-    static NOW: Lazy<DateTime<FixedOffset>> = Lazy::new(|| {
+    static NOW: LazyLock<DateTime<FixedOffset>> = LazyLock::new(|| {
         DateTime::parse_from_str("2023 Apr 13 12:09:14.274 +0000", "%Y %b %d %H:%M:%S%.3f %z")
             .unwrap()
     });

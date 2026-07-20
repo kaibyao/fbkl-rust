@@ -29,14 +29,11 @@ pub async fn process_login(
 ) -> Result<Response<String>, FbklError> {
     let email = form.email;
 
-    let matching_user = match user_queries::find_user_by_email(&email, &state.db).await? {
-        Some(matching_user) => matching_user,
-        None => {
-            let err_response = Response::builder()
-                .status(StatusCode::NOT_FOUND)
-                .body("USER_NOT_FOUND".to_string())?;
-            return Ok(err_response);
-        }
+    let Some(matching_user) = user_queries::find_user_by_email(&email, &state.db).await? else {
+        let err_response = Response::builder()
+            .status(StatusCode::NOT_FOUND)
+            .body("USER_NOT_FOUND".to_string())?;
+        return Ok(err_response);
     };
 
     verify_password_against_hash(&form.password, &matching_user.hashed_password)?;
@@ -86,9 +83,8 @@ pub async fn logged_in_data(
     session: Session,
     State(state): State<Arc<AppState>>,
 ) -> Result<Json<LoggedInResponse>, FbklError> {
-    let user_model = match get_current_user(session.clone(), &state.db).await {
-        None => return Ok(Json(LoggedInResponse::NotLoggedIn {})),
-        Some(model) => model,
+    let Some(user_model) = get_current_user(session.clone(), &state.db).await else {
+        return Ok(Json(LoggedInResponse::NotLoggedIn {}));
     };
 
     let selected_league_id = session.get::<i64>("selected_league_id").await?;

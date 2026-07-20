@@ -2,7 +2,7 @@ use sea_orm::ActiveValue;
 
 use super::{ActiveModel, ContractKind};
 
-pub fn new_contract_from_rookie_draft(
+pub const fn new_contract_from_rookie_draft(
     league_id: i64,
     end_of_season_year: i16,
     team_id: i64,

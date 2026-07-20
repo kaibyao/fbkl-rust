@@ -144,7 +144,7 @@ async fn setup_draft_pick_draft_pick_option(manager: &SchemaManager<'_>) -> Resu
         .await
 }
 
-/// Learn more at https://docs.rs/sea-query#iden
+/// Learn more at <https://docs.rs/sea-query#iden>
 #[derive(Iden)]
 pub enum DraftPickOption {
     Table,

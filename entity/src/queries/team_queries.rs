@@ -38,7 +38,7 @@ where
     Ok(teams_by_name)
 }
 
-/// Finds the teams related to the given trade actions and returns a map of trade_action id to its related team.
+/// Finds the teams related to the given trade actions and returns a map of `trade_action` id to its related team.
 #[instrument]
 pub async fn find_teams_by_trade_actions<C>(
     trade_actions: &[trade_action::Model],

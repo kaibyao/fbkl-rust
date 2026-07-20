@@ -3,14 +3,14 @@
 //! `deadline` rows across **all** leagues and hands them to `fbkl-transaction-processor`,
 //! which owns idempotency (`job_run` claims), transactional dispatch, and outcome recording.
 //!
-//! Retry semantics live in the processor's claim path: a `Failed` job_run is reclaimed on a
+//! Retry semantics live in the processor's claim path: a `Failed` `job_run` is reclaimed on a
 //! later tick until `MAX_ATTEMPTS`, after which it stays `Failed` and must be retried manually
 //! from the commissioner console.
 //!
 //! Note for replay/backfill (`import-data`): historical replay calls `fbkl_logic` handlers
 //! directly and creates no `job_run` rows, so replayed deadlines look unprocessed to this
 //! poller. Before enabling the scheduler against a database containing replayed history, mark
-//! those deadlines' job_runs `Succeeded` (or only seed live-season deadlines).
+//! those deadlines' `job_runs` `Succeeded` (or only seed live-season deadlines).
 
 use std::collections::BTreeMap;
 
@@ -36,7 +36,7 @@ pub struct TickSummary {
     pub errors: usize,
 }
 
-/// Runs one scheduler tick: find every due deadline lacking a `Succeeded` job_run and process
+/// Runs one scheduler tick: find every due deadline lacking a `Succeeded` `job_run` and process
 /// each. Callable directly for tests and the commissioner console's manual trigger.
 ///
 /// Deadlines are processed per league, strictly oldest-first, and a league's chain stops at the

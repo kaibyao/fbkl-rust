@@ -27,9 +27,8 @@ where
     C: ConnectionTrait + Debug,
 {
     let mut updated_contracts: HashMap<i64, contract::Model> = HashMap::new();
-    for (trade_asset_id, (trade_asset_model, contract_model)) in trade_asset_related_models
-        .trade_asset_contracts_by_trade_asset_id
-        .iter()
+    for (trade_asset_id, (trade_asset_model, contract_model)) in
+        &trade_asset_related_models.trade_asset_contracts_by_trade_asset_id
     {
         let updated_contract = contract_queries::trade_contract_to_team(
             contract_model.clone(),
@@ -40,10 +39,11 @@ where
         updated_contracts.insert(*trade_asset_id, updated_contract);
     }
 
+    // unfinished feature: draft_picks_by_trade_asset_id is commented out below pending that field's return
+    #[allow(clippy::collection_is_never_read)]
     let mut updated_draft_picks: HashMap<i64, draft_pick::Model> = HashMap::new();
-    for (trade_asset_id, (trade_asset_model, draft_pick_model)) in trade_asset_related_models
-        .trade_asset_draft_picks_by_trade_asset_id
-        .iter()
+    for (trade_asset_id, (trade_asset_model, draft_pick_model)) in
+        &trade_asset_related_models.trade_asset_draft_picks_by_trade_asset_id
     {
         let updated_draft_pick =
             update_trade_asset_draft_pick(draft_pick_model, trade_asset_model.to_team_id, db)
@@ -51,11 +51,11 @@ where
         updated_draft_picks.insert(*trade_asset_id, updated_draft_pick);
     }
 
+    // unfinished feature: draft_pick_options_by_trade_asset_id is commented out below pending that field's return
+    #[allow(clippy::collection_is_never_read)]
     let mut updated_draft_pick_options: HashMap<i64, draft_pick_option::Model> = HashMap::new();
     for (trade_asset_id, (_trade_asset_model, draft_pick_option_model)) in
-        trade_asset_related_models
-            .trade_asset_draft_pick_options_by_trade_asset_id
-            .iter()
+        &trade_asset_related_models.trade_asset_draft_pick_options_by_trade_asset_id
     {
         let updated_draft_pick_option =
             update_trade_asset_draft_pick_option(draft_pick_option_model, db).await?;

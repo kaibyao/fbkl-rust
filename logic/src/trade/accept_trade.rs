@@ -11,7 +11,8 @@ use tracing::instrument;
 
 use super::process_trade;
 
-/// Accepts a trade by a team_user. Also processes the trade if the other teams involved in the trade have already accepted the trade proposal.
+/// Accepts a trade by a `team_user`. Also processes the trade if the other teams involved in the trade have already accepted the trade proposal.
+///
 /// Returns an option containing the updated trade if it's been processed, and None otherwise.
 #[instrument]
 pub async fn accept_trade<C>(
@@ -53,10 +54,10 @@ where
     C: ConnectionTrait + Debug,
 {
     let all_trade_actions = trade_model.get_trade_actions(db).await?;
-    for trade_action in all_trade_actions.iter() {
+    for trade_action in &all_trade_actions {
         // if there are teams for which their latest trade action was not one of [accept, propose], then the trade has not been accepted by all parties.
         match trade_action.action_type {
-            TradeActionType::Propose | TradeActionType::Accept => continue,
+            TradeActionType::Propose | TradeActionType::Accept => {}
             _ => return Ok(false),
         }
     }
@@ -73,8 +74,8 @@ where
     let all_trade_team_ids: HashSet<i64> = all_trade_teams.iter().map(|team| team.id).collect();
     let did_all_teams_respond = all_trade_team_ids
         .difference(&ids_of_teams_that_responded)
-        .collect::<Vec<&i64>>()
-        .is_empty();
+        .next()
+        .is_none();
     if !did_all_teams_respond {
         return Ok(false);
     }
