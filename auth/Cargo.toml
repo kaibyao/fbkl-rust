@@ -9,6 +9,7 @@ edition = "2024"
 argon2 = {version = "0.4.1", features = ["std"]}
 hex = "0.4.3"
 rand = { version = "0.8.5", features = ["getrandom"] }
+thiserror = "2.0.12"
 
 [dev-dependencies]
 criterion = "0.4"

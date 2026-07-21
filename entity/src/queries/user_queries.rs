@@ -2,8 +2,9 @@ use crate::{
     entities::{user, user_registration},
     league, team, team_user,
 };
+use color_eyre::eyre::Result;
 use sea_orm::{
-    ActiveModelTrait, ColumnTrait, ConnectionTrait, DbErr, EntityTrait, JoinType, QueryFilter,
+    ActiveModelTrait, ColumnTrait, ConnectionTrait, EntityTrait, JoinType, QueryFilter,
     QuerySelect, RelationTrait, Set, TransactionTrait,
 };
 
@@ -12,7 +13,7 @@ pub async fn insert_user<C>(
     user_to_insert: user::ActiveModel,
     token: Vec<u8>,
     conn: &C,
-) -> Result<(user::Model, user_registration::Model), DbErr>
+) -> Result<(user::Model, user_registration::Model)>
 where
     C: ConnectionTrait + TransactionTrait,
 {
@@ -31,25 +32,25 @@ where
     Ok((inserted_user, inserted_user_registration))
 }
 
-pub async fn find_user_by_email<C>(email: &str, conn: &C) -> Result<Option<user::Model>, DbErr>
+pub async fn find_user_by_email<C>(email: &str, conn: &C) -> Result<Option<user::Model>>
 where
     C: ConnectionTrait + TransactionTrait,
 {
-    user::Entity::find()
+    Ok(user::Entity::find()
         .filter(user::Column::Email.eq(email))
         .one(conn)
-        .await
+        .await?)
 }
 
-pub async fn find_users_by_league_id<C>(league_id: i64, conn: &C) -> Result<Vec<user::Model>, DbErr>
+pub async fn find_users_by_league_id<C>(league_id: i64, conn: &C) -> Result<Vec<user::Model>>
 where
     C: ConnectionTrait + TransactionTrait,
 {
-    user::Entity::find()
+    Ok(user::Entity::find()
         .join(JoinType::LeftJoin, user::Relation::TeamUser.def())
         .join(JoinType::LeftJoin, team_user::Relation::Team.def())
         .join(JoinType::LeftJoin, team::Relation::League.def())
         .filter(league::Column::Id.eq(league_id))
         .all(conn)
-        .await
+        .await?)
 }

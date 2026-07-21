@@ -100,7 +100,7 @@ impl ActiveModelBehavior for ActiveModel {
 fn validate_bid_amount_is_positive(model: &ActiveModel) -> Result<(), DbErr> {
     if model.bid_amount.as_ref().is_negative() {
         Err(DbErr::Custom(format!(
-            "Bid amount must be positive. Was: {} for auction: {}.",
+            "bid amount must be positive. Was: {} for auction: {}.",
             model.bid_amount.as_ref(),
             model.auction_id.as_ref()
         )))

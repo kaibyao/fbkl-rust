@@ -249,7 +249,7 @@ fn non_original_trade_requires_previous_trade(model: &ActiveModel) -> Result<(),
         Ok(())
     } else {
         Err(DbErr::Custom(format!(
-            "This trade (id={}, original_trade_id={:?}) is missing a reference to the previous trade for this player.",
+            "this trade (id={}, original_trade_id={:?}) is missing a reference to the previous trade for this player.",
             model.id.as_ref(),
             model.original_trade_id.as_ref()
         )))
@@ -265,7 +265,7 @@ fn original_trade_requires_unset_previous_trade(model: &ActiveModel) -> Result<(
     };
     if original_trade_id == model.id.as_ref() {
         Err(DbErr::Custom(format!(
-            "This trade (id={}, original_trade_id={:?}, previous_trade_id={:?}) is supposedly the original (id and original id are matching), yet a previous trade id is referenced.",
+            "this trade (id={}, original_trade_id={:?}, previous_trade_id={:?}) is supposedly the original (id and original id are matching), yet a previous trade id is referenced.",
             model.id.as_ref(),
             model.original_trade_id.as_ref(),
             model.previous_trade_id.as_ref()
@@ -278,7 +278,7 @@ fn original_trade_requires_unset_previous_trade(model: &ActiveModel) -> Result<(
 fn update_requires_original_trade(model: &ActiveModel) -> Result<(), DbErr> {
     if model.original_trade_id.is_not_set() {
         Err(DbErr::Custom(format!(
-            "This trade (id={}) requires original_trade_id to be set before it can be saved.",
+            "this trade (id={}) requires original_trade_id to be set before it can be saved.",
             model.id.as_ref()
         )))
     } else {

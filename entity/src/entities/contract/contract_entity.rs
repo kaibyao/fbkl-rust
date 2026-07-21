@@ -492,7 +492,7 @@ fn non_original_contract_requires_previous_contract(model: &ActiveModel) -> Resu
         && model.original_contract_id.as_ref().as_ref().unwrap() != model.id.as_ref()
     {
         Err(DbErr::Custom(format!(
-            "This contract (id={}, original_contract_id={:?}) is missing a reference to the previous contract for this player.",
+            "this contract (id={}, original_contract_id={:?}) is missing a reference to the previous contract for this player.",
             model.id.as_ref(),
             model.original_contract_id.as_ref()
         )))
@@ -504,7 +504,7 @@ fn non_original_contract_requires_previous_contract(model: &ActiveModel) -> Resu
 fn non_original_contract_requires_original_contract(model: &ActiveModel) -> Result<(), DbErr> {
     if model.previous_contract_id.is_set() && model.original_contract_id.is_not_set() {
         Err(DbErr::Custom(format!(
-            "This contract (id={}, previous_contract_id={:?}) is missing a reference to the original contract for this player.",
+            "this contract (id={}, previous_contract_id={:?}) is missing a reference to the original contract for this player.",
             model.id.as_ref(),
             model.previous_contract_id.as_ref()
         )))
@@ -520,7 +520,7 @@ fn original_contract_requires_unset_previous_contract(model: &ActiveModel) -> Re
         && model.original_contract_id.as_ref().as_ref().unwrap() == model.id.as_ref()
     {
         Err(DbErr::Custom(format!(
-            "This contract (id={}, original_contract_id={:?}, previous_contract_id={:?}) is supposedly the original (id and original id are matching), yet a previous contract id is referenced.",
+            "this contract (id={}, original_contract_id={:?}, previous_contract_id={:?}) is supposedly the original (id and original id are matching), yet a previous contract id is referenced.",
             model.id.as_ref(),
             model.original_contract_id.as_ref(),
             model.previous_contract_id.as_ref()
@@ -533,7 +533,7 @@ fn original_contract_requires_unset_previous_contract(model: &ActiveModel) -> Re
 fn update_requires_original_contract(model: &ActiveModel) -> Result<(), DbErr> {
     if model.original_contract_id.is_not_set() {
         Err(DbErr::Custom(format!(
-            "This contract (id={}) requires original_contract_id to be set before it can be saved.",
+            "this contract (id={}) requires original_contract_id to be set before it can be saved.",
             model.id.as_ref()
         )))
     } else {
@@ -588,7 +588,7 @@ fn validate_player_or_league_player_id(model: &ActiveModel) -> Result<(), DbErr>
 
     if maybe_player_id.is_none() && maybe_league_player_id.is_none() {
         Err(DbErr::Custom(format!(
-            "At least one of [player_id, league_player_id] must be set. Model:\n{model:#?}"
+            "at least one of [player_id, league_player_id] must be set. Model:\n{model:#?}"
         )))
     } else {
         Ok(())

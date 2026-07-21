@@ -276,7 +276,7 @@ fn roster_change_requires_transaction(model: &ActiveModel) -> Result<(), DbErr> 
 
     if is_assets_update && model.transaction_id.is_not_set() {
         Err(DbErr::Custom(
-            "A team update (roster change) requires a transaction id.".to_string(),
+            "a team update (roster change) requires a transaction id.".to_string(),
         ))
     } else {
         Ok(())
@@ -290,7 +290,7 @@ fn setting_change_requires_no_transaction(model: &ActiveModel) -> Result<(), DbE
 
     if is_settings_update && model.transaction_id.is_set() {
         Err(DbErr::Custom(
-            "A team update (setting change) requires transaction id to be unset.".to_string(),
+            "a team update (setting change) requires transaction id to be unset.".to_string(),
         ))
     } else {
         Ok(())

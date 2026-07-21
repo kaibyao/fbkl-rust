@@ -1,15 +1,25 @@
-pub extern crate argon2;
-pub extern crate hex;
-
 use argon2::{
     Argon2, Error as Argon2Error, Params, ParamsBuilder, PasswordHasher, PasswordVerifier,
     password_hash::{Error as Argon2PasswordHashError, PasswordHash, SaltString},
 };
 use rand::{RngCore, rngs::OsRng};
+use thiserror::Error;
+
+/// Auth failures, wrapping the crate's dependency error types so callers depend
+/// on this one enum instead of `hex`/`argon2` internals.
+#[derive(Debug, Error)]
+pub enum AuthError {
+    #[error("invalid hex string")]
+    HexDecode(#[from] hex::FromHexError),
+    #[error("password hashing error")]
+    PasswordHash(#[from] Argon2PasswordHashError),
+    #[error("argon2 parameter error")]
+    Argon2Params(#[from] Argon2Error),
+}
 
 /// Converts a token string into bytes.
-pub fn decode_token(token_str: &str) -> Result<Vec<u8>, hex::FromHexError> {
-    hex::decode(token_str)
+pub fn decode_token(token_str: &str) -> Result<Vec<u8>, AuthError> {
+    Ok(hex::decode(token_str)?)
 }
 
 /// Converts token byte array (read: vector) into a String.
@@ -26,7 +36,7 @@ pub fn generate_token() -> [u8; 64] {
 }
 
 /// Hashes the given password using Argon2id. See [OWASP Password Storage Cheat Sheet](https://cheatsheetseries.owasp.org/cheatsheets/Password_Storage_Cheat_Sheet.html) for details.
-pub fn generate_password_hash(password: &str) -> Result<String, Argon2PasswordHashError> {
+pub fn generate_password_hash(password: &str) -> Result<String, AuthError> {
     let password_bytes = password.as_bytes();
     let salt = SaltString::generate(&mut OsRng);
 
@@ -42,7 +52,7 @@ pub fn generate_password_hash(password: &str) -> Result<String, Argon2PasswordHa
 pub fn verify_password_against_hash(
     password_to_test: &str,
     hashed_password: &str,
-) -> Result<(), Argon2PasswordHashError> {
+) -> Result<(), AuthError> {
     let password_to_test_bytes = password_to_test.as_bytes();
     let parsed_password_hash = PasswordHash::new(hashed_password)?;
 
