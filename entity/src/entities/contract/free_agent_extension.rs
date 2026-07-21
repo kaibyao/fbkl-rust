@@ -3,16 +3,32 @@
 use std::cmp;
 
 use crate::contract::{self, ContractKind};
-use color_eyre::{Result, eyre::bail};
+use color_eyre::{
+    Result,
+    eyre::{bail, eyre},
+};
 use sea_orm::ActiveValue;
 
 use super::ContractStatus;
 
-static APPLICABLE_CONTRACT_TYPES: [ContractKind; 3] = [
-    ContractKind::RestrictedFreeAgent,
-    ContractKind::UnrestrictedFreeAgentOriginalTeam,
-    ContractKind::UnrestrictedFreeAgentVeteran,
-];
+/// The three contract kinds that can be signed as an extension; narrows the wide `ContractKind`
+/// so the signing match is exhaustive without an unreachable arm.
+enum FreeAgentKind {
+    Restricted,
+    UnrestrictedOriginalTeam,
+    UnrestrictedVeteran,
+}
+
+impl FreeAgentKind {
+    const fn from_contract_kind(kind: ContractKind) -> Option<Self> {
+        match kind {
+            ContractKind::RestrictedFreeAgent => Some(Self::Restricted),
+            ContractKind::UnrestrictedFreeAgentOriginalTeam => Some(Self::UnrestrictedOriginalTeam),
+            ContractKind::UnrestrictedFreeAgentVeteran => Some(Self::UnrestrictedVeteran),
+            _ => None,
+        }
+    }
+}
 
 /// Creates a new Veteran or Rookie Extension contract from the given RFA or UFA contract as a result of a team winning the contract during the Preseason Veteran Auction.
 pub fn sign_rfa_or_ufa_contract_to_team(
@@ -20,12 +36,12 @@ pub fn sign_rfa_or_ufa_contract_to_team(
     signing_team_id: i64,
     winning_bid_amount: i16,
 ) -> Result<contract::ActiveModel> {
-    if !APPLICABLE_CONTRACT_TYPES.contains(&fa_contract.kind) {
-        bail!(
+    let fa_kind = FreeAgentKind::from_contract_kind(fa_contract.kind).ok_or_else(|| {
+        eyre!(
             "Can only sign an RFA or UFA contract (given contract type: {:?}).",
             fa_contract.kind
-        );
-    }
+        )
+    })?;
     if fa_contract.status != ContractStatus::Active {
         bail!(
             "Cannot sign an extension for a replaced or expired contract. Contract:\n{:#?}",
@@ -33,32 +49,30 @@ pub fn sign_rfa_or_ufa_contract_to_team(
         );
     }
 
-    // Defaults for signing to a new team
-    let mut new_contract_year = 1;
-    let mut new_contract_type = ContractKind::Veteran;
-    let mut new_salary = winning_bid_amount;
-
-    // Overwrite defaults if signing to original owning team
-    if fa_contract.team_id == Some(signing_team_id) {
-        match fa_contract.kind {
-            ContractKind::RestrictedFreeAgent => {
-                new_contract_year = 4;
-                new_contract_type = ContractKind::RookieExtension;
-                // RFA 10% re-sign is uncapped, floored at the standard 4th-year salary the RFA contract already carries (rookie Y3 + 20%).
-                new_salary = cmp::max(
-                    discounted_salary(winning_bid_amount, 0.1, None),
-                    fa_contract.salary,
-                );
-            }
-            ContractKind::UnrestrictedFreeAgentOriginalTeam => {
-                new_salary = discounted_salary(winning_bid_amount, 0.2, Some(8));
-            }
-            ContractKind::UnrestrictedFreeAgentVeteran => {
-                new_salary = discounted_salary(winning_bid_amount, 0.1, Some(5));
-            }
-            _ => bail!("Validation already handled"),
-        }
-    }
+    let signing_original_team = fa_contract.team_id == Some(signing_team_id);
+    let (new_contract_year, new_contract_type, new_salary) = match (signing_original_team, fa_kind)
+    {
+        (true, FreeAgentKind::Restricted) => (
+            4,
+            ContractKind::RookieExtension,
+            // RFA 10% re-sign is uncapped, floored at the standard 4th-year salary the RFA contract already carries (rookie Y3 + 20%).
+            cmp::max(
+                discounted_salary(winning_bid_amount, 0.1, None),
+                fa_contract.salary,
+            ),
+        ),
+        (true, FreeAgentKind::UnrestrictedOriginalTeam) => (
+            1,
+            ContractKind::Veteran,
+            discounted_salary(winning_bid_amount, 0.2, Some(8)),
+        ),
+        (true, FreeAgentKind::UnrestrictedVeteran) => (
+            1,
+            ContractKind::Veteran,
+            discounted_salary(winning_bid_amount, 0.1, Some(5)),
+        ),
+        (false, _) => (1, ContractKind::Veteran, winning_bid_amount),
+    };
 
     let new_contract = contract::ActiveModel {
         id: ActiveValue::NotSet,

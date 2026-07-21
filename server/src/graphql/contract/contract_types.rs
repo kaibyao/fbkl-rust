@@ -12,7 +12,15 @@ use crate::{
     graphql::player::{LeagueOrRealPlayer, LeaguePlayer, RealPlayer},
 };
 
-#[derive(Clone, Default)]
+/// Exactly one player reference per contract; stored as an enum so the two-`Option` illegal
+/// state (both set / neither set) can't be constructed. The scalar GraphQL fields derive from it.
+#[derive(Clone, Copy)]
+enum PlayerRef {
+    League(i64),
+    Real(i64),
+}
+
+#[derive(Clone)]
 pub struct Contract {
     pub id: i64,
     pub year_number: i16,
@@ -21,14 +29,21 @@ pub struct Contract {
     pub salary: i16,
     pub end_of_season_year: i16,
     pub status: ContractStatus,
-    pub league_player_id: Option<i64>,
-    pub player_id: Option<i64>,
+    player: PlayerRef,
     pub team_id: Option<i64>,
 }
 
 impl Contract {
-    pub const fn from_model(entity: &contract::Model) -> Self {
-        Self {
+    pub fn from_model(entity: &contract::Model) -> Result<Self, FbklError> {
+        // Real player wins when both are set, matching the prior resolver's precedence.
+        let player = match (entity.player_id, entity.league_player_id) {
+            (Some(id), _) => PlayerRef::Real(id),
+            (None, Some(id)) => PlayerRef::League(id),
+            (None, None) => {
+                return Err(eyre!("contract {} has no player or league player", entity.id).into());
+            }
+        };
+        Ok(Self {
             id: entity.id,
             year_number: entity.year_number,
             kind: entity.kind,
@@ -36,10 +51,9 @@ impl Contract {
             salary: entity.salary,
             end_of_season_year: entity.end_of_season_year,
             status: entity.status,
-            league_player_id: entity.league_player_id,
-            player_id: entity.player_id,
+            player,
             team_id: entity.team_id,
-        }
+        })
     }
 }
 
@@ -74,11 +88,17 @@ impl Contract {
     }
 
     async fn league_player_id(&self) -> Option<i64> {
-        self.league_player_id
+        match self.player {
+            PlayerRef::League(id) => Some(id),
+            PlayerRef::Real(_) => None,
+        }
     }
 
     async fn player_id(&self) -> Option<i64> {
-        self.player_id
+        match self.player {
+            PlayerRef::Real(id) => Some(id),
+            PlayerRef::League(_) => None,
+        }
     }
 
     async fn league_or_real_player(
@@ -86,18 +106,19 @@ impl Contract {
         ctx: &Context<'_>,
     ) -> Result<LeagueOrRealPlayer, FbklError> {
         let db = ctx.data_unchecked::<DatabaseConnection>();
-        if let Some(player_id) = self.player_id {
-            let player = find_player_by_id(player_id, db).await?;
-            Ok(LeagueOrRealPlayer::RealPlayer(RealPlayer::from_model(
-                player,
-            )))
-        } else if let Some(league_player_id) = self.league_player_id {
-            let league_player = find_league_player_by_id(league_player_id, db).await?;
-            Ok(LeagueOrRealPlayer::LeaguePlayer(LeaguePlayer::from_model(
-                league_player,
-            )))
-        } else {
-            Err(eyre!("contract {} has no player or league player", self.id).into())
+        match self.player {
+            PlayerRef::Real(player_id) => {
+                let player = find_player_by_id(player_id, db).await?;
+                Ok(LeagueOrRealPlayer::RealPlayer(RealPlayer::from_model(
+                    player,
+                )))
+            }
+            PlayerRef::League(league_player_id) => {
+                let league_player = find_league_player_by_id(league_player_id, db).await?;
+                Ok(LeagueOrRealPlayer::LeaguePlayer(LeaguePlayer::from_model(
+                    league_player,
+                )))
+            }
         }
     }
 

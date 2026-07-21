@@ -25,7 +25,7 @@ use fbkl_entity::{
         ClaimOutcome, NewJobRun, claim_job_run, deadline_idempotency_key, mark_job_run_failed,
         mark_job_run_succeeded,
     },
-    sea_orm::{ConnectionTrait, DatabaseTransaction, TransactionTrait},
+    sea_orm::{ActiveEnum, ConnectionTrait, DatabaseTransaction, TransactionTrait},
 };
 use fbkl_logic::{
     annual_contract_advancement::advance_league_contracts,
@@ -39,98 +39,54 @@ use tracing::{error, info, instrument};
 /// Fire-times for these derive from `auction` / RFA-state rows; the scheduler synthesizes them and the
 /// processor dispatches them like deadlines.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum ProcessableEvent {
+pub struct ProcessableEvent {
+    pub league_id: i64,
+    pub end_of_season_year: i16,
+    pub auction_id: i64,
+    pub kind: ProcessableEventKind,
+}
+
+/// Which synthesized sub-event fired; all share `{league_id, end_of_season_year, auction_id}`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ProcessableEventKind {
     /// An open FA auction reached 24h with no new bids (§8.3.1).
-    FaAuctionClose {
-        league_id: i64,
-        end_of_season_year: i16,
-        auction_id: i64,
-    },
+    FaAuctionClose,
     /// An FA auction's §8.3.2 30-min all-bid extension chain expired.
-    FaExtensionExpiry {
-        league_id: i64,
-        end_of_season_year: i16,
-        auction_id: i64,
-    },
+    FaExtensionExpiry,
     /// A preseason veteran auction reached 24h with no new bids (§6.4.4).
-    VeteranAuctionClose {
-        league_id: i64,
-        end_of_season_year: i16,
-        auction_id: i64,
-    },
+    VeteranAuctionClose,
     /// An RFA winner's 48h raise window expired (§15.3.2, spec 03).
-    RfaRaiseWindowExpiry {
-        league_id: i64,
-        end_of_season_year: i16,
-        auction_id: i64,
-    },
+    RfaRaiseWindowExpiry,
     /// An RFA owner's 48h match window expired (§15.3.2, spec 03).
-    RfaMatchWindowExpiry {
-        league_id: i64,
-        end_of_season_year: i16,
-        auction_id: i64,
-    },
+    RfaMatchWindowExpiry,
+}
+
+impl ProcessableEventKind {
+    const fn event_kind(self) -> JobEventKind {
+        match self {
+            Self::FaAuctionClose => JobEventKind::FaAuctionClose,
+            Self::FaExtensionExpiry => JobEventKind::FaExtensionExpiry,
+            Self::VeteranAuctionClose => JobEventKind::VeteranAuctionClose,
+            Self::RfaRaiseWindowExpiry => JobEventKind::RfaRaiseWindow,
+            Self::RfaMatchWindowExpiry => JobEventKind::RfaMatchWindow,
+        }
+    }
 }
 
 impl ProcessableEvent {
-    pub const fn league_id(&self) -> i64 {
-        match self {
-            Self::FaAuctionClose { league_id, .. }
-            | Self::FaExtensionExpiry { league_id, .. }
-            | Self::VeteranAuctionClose { league_id, .. }
-            | Self::RfaRaiseWindowExpiry { league_id, .. }
-            | Self::RfaMatchWindowExpiry { league_id, .. } => *league_id,
-        }
-    }
-
-    pub const fn end_of_season_year(&self) -> i16 {
-        match self {
-            Self::FaAuctionClose {
-                end_of_season_year, ..
-            }
-            | Self::FaExtensionExpiry {
-                end_of_season_year, ..
-            }
-            | Self::VeteranAuctionClose {
-                end_of_season_year, ..
-            }
-            | Self::RfaRaiseWindowExpiry {
-                end_of_season_year, ..
-            }
-            | Self::RfaMatchWindowExpiry {
-                end_of_season_year, ..
-            } => *end_of_season_year,
-        }
-    }
-
-    pub const fn auction_id(&self) -> i64 {
-        match self {
-            Self::FaAuctionClose { auction_id, .. }
-            | Self::FaExtensionExpiry { auction_id, .. }
-            | Self::VeteranAuctionClose { auction_id, .. }
-            | Self::RfaRaiseWindowExpiry { auction_id, .. }
-            | Self::RfaMatchWindowExpiry { auction_id, .. } => *auction_id,
-        }
-    }
-
     pub const fn event_kind(&self) -> JobEventKind {
-        match self {
-            Self::FaAuctionClose { .. } => JobEventKind::FaAuctionClose,
-            Self::FaExtensionExpiry { .. } => JobEventKind::FaExtensionExpiry,
-            Self::VeteranAuctionClose { .. } => JobEventKind::VeteranAuctionClose,
-            Self::RfaRaiseWindowExpiry { .. } => JobEventKind::RfaRaiseWindow,
-            Self::RfaMatchWindowExpiry { .. } => JobEventKind::RfaMatchWindow,
-        }
+        self.kind.event_kind()
     }
 
     /// Stable idempotency key: `(league_id, end_of_season_year, kind, auction_id)`.
     pub fn idempotency_key(&self) -> String {
+        // `to_value()` is the persisted string_value contract, unlike Debug which drifts on rename.
         format!(
-            "{}:{}:{:?}:auction-{}",
-            self.league_id(),
-            self.end_of_season_year(),
-            self.event_kind(),
-            self.auction_id()
+            "{}:{}:{}:auction-{}",
+            self.league_id,
+            self.end_of_season_year,
+            self.event_kind().to_value(),
+            self.auction_id
         )
     }
 }
@@ -176,8 +132,8 @@ where
     C: ConnectionTrait + TransactionTrait + Debug,
 {
     let new_job_run = NewJobRun {
-        league_id: event.league_id(),
-        end_of_season_year: event.end_of_season_year(),
+        league_id: event.league_id,
+        end_of_season_year: event.end_of_season_year,
         deadline_id: None,
         event_kind: event.event_kind(),
         dispatch_target: format!("{:?}", event.event_kind()),
@@ -319,17 +275,14 @@ async fn dispatch_deadline(
 
 /// Maps a sub-event to its `fbkl_logic` handler.
 async fn dispatch_event(event: ProcessableEvent, txn: &DatabaseTransaction) -> Result<()> {
-    match event {
-        ProcessableEvent::FaAuctionClose {
-            league_id,
-            auction_id,
-            ..
-        }
-        | ProcessableEvent::FaExtensionExpiry {
-            league_id,
-            auction_id,
-            ..
-        } => {
+    let ProcessableEvent {
+        league_id,
+        auction_id,
+        kind,
+        ..
+    } = event;
+    match kind {
+        ProcessableEventKind::FaAuctionClose | ProcessableEventKind::FaExtensionExpiry => {
             // The deadline supplies the effective date for the signed contract — use the most
             // recently passed deadline at close time.
             let deadline_model = deadline_queries::find_most_recent_deadline_by_datetime(
@@ -341,12 +294,11 @@ async fn dispatch_event(event: ProcessableEvent, txn: &DatabaseTransaction) -> R
             end_fa_auction(&deadline_model, auction_id, None, txn).await?;
             Ok(())
         }
-        ProcessableEvent::VeteranAuctionClose { auction_id, .. } => {
+        ProcessableEventKind::VeteranAuctionClose => {
             end_veteran_auction(auction_id, None, txn).await?;
             Ok(())
         }
-        ProcessableEvent::RfaRaiseWindowExpiry { auction_id, .. }
-        | ProcessableEvent::RfaMatchWindowExpiry { auction_id, .. } => {
+        ProcessableEventKind::RfaRaiseWindowExpiry | ProcessableEventKind::RfaMatchWindowExpiry => {
             // RFA resolution is spec 03 (fbkl-rust-1dk). Bail (terminal failure) rather than
             // silently succeed: these events should not be synthesized until that engine lands.
             bail!(
@@ -395,15 +347,17 @@ mod tests {
 
     #[test]
     fn event_idempotency_key_distinguishes_event_kinds_for_same_auction() {
-        let close = ProcessableEvent::FaAuctionClose {
+        let close = ProcessableEvent {
             league_id: 7,
             end_of_season_year: 2027,
             auction_id: 99,
+            kind: ProcessableEventKind::FaAuctionClose,
         };
-        let extension = ProcessableEvent::FaExtensionExpiry {
+        let extension = ProcessableEvent {
             league_id: 7,
             end_of_season_year: 2027,
             auction_id: 99,
+            kind: ProcessableEventKind::FaExtensionExpiry,
         };
         assert_eq!(close.idempotency_key(), "7:2027:FaAuctionClose:auction-99");
         assert_ne!(close.idempotency_key(), extension.idempotency_key());
