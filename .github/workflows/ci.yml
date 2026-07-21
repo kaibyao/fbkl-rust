@@ -53,7 +53,7 @@ jobs:
           components: clippy, rustfmt
       - uses: Swatinem/rust-cache@v2
         with:
-          shared-key: rust-x86-debug
+          shared-key: rust-clippy-test
       - run: cargo fmt --all --check
       # clippy compiles the workspace, so it subsumes `cargo check`.
       - run: cargo clippy --workspace --all-targets -- -D warnings
@@ -77,7 +77,7 @@ jobs:
       - uses: dtolnay/rust-toolchain@stable
       - uses: Swatinem/rust-cache@v2
         with:
-          shared-key: rust-x86-debug
+          shared-key: rust-graphql-gen
       - uses: ./.github/actions/setup-node
       - run: cargo run -p fbkl-graphql-generation
       - run: pnpm --filter "@fbkl/webapp-logged-in" build
