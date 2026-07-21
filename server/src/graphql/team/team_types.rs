@@ -56,7 +56,10 @@ impl Team {
         let db = ctx.data_unchecked::<DatabaseConnection>();
         let contract_models = find_active_contracts_for_team(self.id, db).await?;
 
-        Ok(contract_models.iter().map(Contract::from_model).collect())
+        contract_models
+            .iter()
+            .map(Contract::from_model)
+            .collect::<Result<Vec<_>, _>>()
     }
 
     async fn salary_cap(
