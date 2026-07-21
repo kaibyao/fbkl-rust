@@ -262,7 +262,7 @@ fn validate_trade_asset_for_contract(model: &ActiveModel) -> Result<(), DbErr> {
 
     if model.draft_pick_option_id.is_set() {
         return Err(DbErr::Custom(format!(
-            "A trade asset of type=Contract should not have a draft pick option. Team: {}. Contract id: {:?}",
+            "a trade asset of type=Contract should not have a draft pick option. Team: {}. Contract id: {:?}",
             model.from_team_id.as_ref(),
             model.contract_id.as_ref()
         )));
@@ -270,14 +270,14 @@ fn validate_trade_asset_for_contract(model: &ActiveModel) -> Result<(), DbErr> {
 
     if model.contract_id.is_not_set() {
         return Err(DbErr::Custom(format!(
-            "A trade asset of type=Contract requires a contract id. Team: {}.",
+            "a trade asset of type=Contract requires a contract id. Team: {}.",
             model.from_team_id.as_ref()
         )));
     }
 
     if model.draft_pick_id.is_set() {
         return Err(DbErr::Custom(format!(
-            "A trade asset of type=Contract should not have a draft pick. Team: {}. Contract id: {:?}",
+            "a trade asset of type=Contract should not have a draft pick. Team: {}. Contract id: {:?}",
             model.from_team_id.as_ref(),
             model.contract_id.as_ref()
         )));
@@ -293,7 +293,7 @@ fn validate_trade_asset_for_draft_pick(model: &ActiveModel) -> Result<(), DbErr>
 
     if model.draft_pick_option_id.is_set() {
         return Err(DbErr::Custom(format!(
-            "A trade asset of type=DraftPick should not have a draft pick option. Team: {}. Draft pick id: {:?}",
+            "a trade asset of type=DraftPick should not have a draft pick option. Team: {}. Draft pick id: {:?}",
             model.from_team_id.as_ref(),
             model.draft_pick_id.as_ref()
         )));
@@ -301,7 +301,7 @@ fn validate_trade_asset_for_draft_pick(model: &ActiveModel) -> Result<(), DbErr>
 
     if model.contract_id.is_set() {
         return Err(DbErr::Custom(format!(
-            "A trade asset of type=DraftPick should not have a contract. Team: {}. Draft pick id: {:?}",
+            "a trade asset of type=DraftPick should not have a contract. Team: {}. Draft pick id: {:?}",
             model.from_team_id.as_ref(),
             model.draft_pick_id.as_ref()
         )));
@@ -309,7 +309,7 @@ fn validate_trade_asset_for_draft_pick(model: &ActiveModel) -> Result<(), DbErr>
 
     if model.draft_pick_id.is_not_set() {
         return Err(DbErr::Custom(format!(
-            "A trade asset of type=DraftPick requires a draft pick id. Team: {}.",
+            "a trade asset of type=DraftPick requires a draft pick id. Team: {}.",
             model.from_team_id.as_ref()
         )));
     }
@@ -328,14 +328,14 @@ fn validate_trade_asset_for_draft_pick_option(model: &ActiveModel) -> Result<(),
 
     if model.draft_pick_id.is_set() {
         return Err(DbErr::Custom(format!(
-            "A trade asset of type=DraftPickOption should not have a draft pick id (redundant with draft_pick_option.draft_pick_id). Team: {}.",
+            "a trade asset of type=DraftPickOption should not have a draft pick id (redundant with draft_pick_option.draft_pick_id). Team: {}.",
             model.from_team_id.as_ref()
         )));
     }
 
     if model.draft_pick_option_id.is_not_set() {
         return Err(DbErr::Custom(format!(
-            "A trade asset of type=DraftPickOption requires a draft pick option to be set. Team: {}. Draft pick id: {:?}",
+            "a trade asset of type=DraftPickOption requires a draft pick option to be set. Team: {}. Draft pick id: {:?}",
             model.from_team_id.as_ref(),
             model.draft_pick_id.as_ref()
         )));
@@ -343,7 +343,7 @@ fn validate_trade_asset_for_draft_pick_option(model: &ActiveModel) -> Result<(),
 
     if model.contract_id.is_set() {
         return Err(DbErr::Custom(format!(
-            "A trade asset of type=DraftPickOption should not have a contract. Team: {}. Draft pick id: {:?}",
+            "a trade asset of type=DraftPickOption should not have a contract. Team: {}. Draft pick id: {:?}",
             model.from_team_id.as_ref(),
             model.draft_pick_id.as_ref()
         )));

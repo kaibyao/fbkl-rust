@@ -241,63 +241,63 @@ fn validate_required_column_values_for_transaction_types(model: &ActiveModel) ->
         TransactionKind::Trade => {
             if model.trade_id.is_not_set() {
                 return Err(DbErr::Custom(format!(
-                    "Transaction of type 'Trade' must have a trade_id. ({model:#?})"
+                    "transaction of type 'Trade' must have a trade_id. ({model:#?})"
                 )));
             }
         }
         TransactionKind::AuctionDone => {
             if model.auction_id.is_not_set() {
                 return Err(DbErr::Custom(format!(
-                    "Transaction of type 'AuctionDone' must have an auction_id. ({model:#?})"
+                    "transaction of type 'AuctionDone' must have an auction_id. ({model:#?})"
                 )));
             }
         }
         TransactionKind::RookieDraftSelection => {
             if model.rookie_draft_selection_id.is_not_set() {
                 return Err(DbErr::Custom(format!(
-                    "Transaction of type 'RookieDraftSelection' must have a rookie_draft_selection_id. ({model:#?})"
+                    "transaction of type 'RookieDraftSelection' must have a rookie_draft_selection_id. ({model:#?})"
                 )));
             }
         }
         TransactionKind::TeamUpdateDropContract => {
             if model.dropped_contract_id.is_not_set() {
                 return Err(DbErr::Custom(format!(
-                    "Transaction of type 'TeamUpdateDropContract' must have a dropped_contract_id. ({model:#?})"
+                    "transaction of type 'TeamUpdateDropContract' must have a dropped_contract_id. ({model:#?})"
                 )));
             }
         }
         TransactionKind::TeamUpdateToIr => {
             if model.ir_contract_id.is_not_set() {
                 return Err(DbErr::Custom(format!(
-                    "Transaction of type 'TeamUpdateToIr' must have a ir_contract_id. ({model:#?})"
+                    "transaction of type 'TeamUpdateToIr' must have a ir_contract_id. ({model:#?})"
                 )));
             }
         }
         TransactionKind::TeamUpdateFromIr => {
             if model.ir_contract_id.is_not_set() {
                 return Err(DbErr::Custom(format!(
-                    "Transaction of type 'TeamUpdateFromIr' must have a ir_contract_id. ({model:#?})"
+                    "transaction of type 'TeamUpdateFromIr' must have a ir_contract_id. ({model:#?})"
                 )));
             }
         }
         TransactionKind::TeamUpdateToRdi => {
             if model.rdi_contract_id.is_not_set() {
                 return Err(DbErr::Custom(format!(
-                    "Transaction of type 'TeamUpdateToRdi' must have a rdi_contract_id. ({model:#?})"
+                    "transaction of type 'TeamUpdateToRdi' must have a rdi_contract_id. ({model:#?})"
                 )));
             }
         }
         TransactionKind::TeamUpdateFromRdi => {
             if model.rdi_contract_id.is_not_set() {
                 return Err(DbErr::Custom(format!(
-                    "Transaction of type 'TeamUpdateFromRdi' must have a rdi_contract_id. ({model:#?})"
+                    "transaction of type 'TeamUpdateFromRdi' must have a rdi_contract_id. ({model:#?})"
                 )));
             }
         }
         TransactionKind::RookieContractActivation => {
             if model.rookie_contract_activation_id.is_not_set() {
                 return Err(DbErr::Custom(format!(
-                    "Transaction of type 'RookieContractActivation' must have a rookie_contract_activation_id. ({model:#?})"
+                    "transaction of type 'RookieContractActivation' must have a rookie_contract_activation_id. ({model:#?})"
                 )));
             }
         }

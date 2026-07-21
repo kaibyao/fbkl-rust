@@ -133,7 +133,7 @@ fn validate_league_role(model: &ActiveModel) -> Result<(), DbErr> {
                 || model.final_end_of_season_year.as_ref().is_none()
             {
                 return Err(DbErr::Custom(
-                    "An inactive team user requires a final season year.".to_string(),
+                    "an inactive team user requires a final season year.".to_string(),
                 ));
             }
         }
@@ -142,7 +142,7 @@ fn validate_league_role(model: &ActiveModel) -> Result<(), DbErr> {
                 && model.final_end_of_season_year.as_ref().is_some()
             {
                 return Err(DbErr::Custom(
-                    "An active team user requires final season year to be unset.".to_string(),
+                    "an active team user requires final season year to be unset.".to_string(),
                 ));
             }
         }

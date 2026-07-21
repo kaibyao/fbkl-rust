@@ -8,10 +8,10 @@ use tower_sessions::Session;
 use crate::error::FbklError;
 
 /// Used within a handler/resolver that checks if a user is currently logged in and if not, return an error.
-pub async fn enforce_logged_in(session: Session) -> Result<i64, StatusCode> {
+pub async fn enforce_logged_in(session: Session) -> Result<i64, FbklError> {
     match session.get("user_id").await {
         Ok(Some(user_id)) => Ok(user_id),
-        _ => Err(StatusCode::UNAUTHORIZED),
+        _ => Err(StatusCode::UNAUTHORIZED.into()),
     }
 }
 

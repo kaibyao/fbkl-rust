@@ -1,5 +1,6 @@
+use color_eyre::eyre::Result;
 use sea_orm::{
-    ActiveModelTrait, ActiveValue, ColumnTrait, ConnectionTrait, DbErr, EntityTrait, ModelTrait,
+    ActiveModelTrait, ActiveValue, ColumnTrait, ConnectionTrait, EntityTrait, ModelTrait,
     QueryFilter, TransactionTrait,
 };
 
@@ -15,7 +16,7 @@ pub async fn create_league_with_commissioner<C>(
     league_owner_user_id: i64,
     user_nickname: String,
     db: &C,
-) -> Result<(league::Model, team::Model, team_user::Model), DbErr>
+) -> Result<(league::Model, team::Model, team_user::Model)>
 where
     C: ConnectionTrait + TransactionTrait,
 {
@@ -53,7 +54,7 @@ where
     Ok((inserted_league, inserted_team, inserted_team_user))
 }
 
-pub async fn find_leagues_by_name<C>(league_name: &str, db: &C) -> Result<Vec<league::Model>, DbErr>
+pub async fn find_leagues_by_name<C>(league_name: &str, db: &C) -> Result<Vec<league::Model>>
 where
     C: ConnectionTrait,
 {
@@ -69,30 +70,28 @@ pub async fn find_league_by_user<C>(
     user: &user::Model,
     league_id: i64,
     db: &C,
-) -> Result<Option<league::Model>, DbErr>
+) -> Result<Option<league::Model>>
 where
     C: ConnectionTrait + TransactionTrait,
 {
-    user.find_linked(team_user::Entity)
+    Ok(user
+        .find_linked(team_user::Entity)
         .filter(league::Column::Id.eq(league_id))
         .one(db)
-        .await
+        .await?)
 }
 
-pub async fn find_leagues_by_user<C>(
-    user: &user::Model,
-    db: &C,
-) -> Result<Vec<league::Model>, DbErr>
+pub async fn find_leagues_by_user<C>(user: &user::Model, db: &C) -> Result<Vec<league::Model>>
 where
     C: ConnectionTrait + TransactionTrait,
 {
-    user.find_linked(team_user::Entity).all(db).await
+    Ok(user.find_linked(team_user::Entity).all(db).await?)
 }
 
 pub async fn insert_league<C>(
     league_to_insert: league::ActiveModel,
     db: &C,
-) -> Result<league::Model, DbErr>
+) -> Result<league::Model>
 where
     C: ConnectionTrait + TransactionTrait,
 {

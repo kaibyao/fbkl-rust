@@ -3,7 +3,7 @@ use axum::{
     response::{IntoResponse, Response},
 };
 use color_eyre::Report;
-use fbkl_auth::{argon2::password_hash::Error as Argon2Error, hex::FromHexError};
+use fbkl_auth::AuthError;
 use fbkl_entity::sea_orm::DbErr;
 use thiserror::Error;
 use tower_sessions::session::Error as SessionError;
@@ -14,10 +14,8 @@ pub enum FbklError {
     Axum(#[from] AxumError),
     #[error("database error")]
     Db(#[from] DbErr),
-    #[error("invalid hex string")]
-    HexStringConversion(#[from] FromHexError),
-    #[error("password hashing error")]
-    PasswordHasher(#[from] Argon2Error),
+    #[error("auth error")]
+    Auth(#[from] AuthError),
     #[error("session error")]
     Session(#[from] SessionError),
     // Redacted `color_eyre::Report`; full chain logged at conversion, never sent to client.
@@ -50,9 +48,7 @@ impl FbklError {
     /// the server is responsible for is 5xx.
     const fn status_code(&self) -> StatusCode {
         match self {
-            Self::HexStringConversion(_) | Self::PasswordHasher(_) | Self::BadRequest(_) => {
-                StatusCode::BAD_REQUEST
-            }
+            Self::Auth(_) | Self::BadRequest(_) => StatusCode::BAD_REQUEST,
             Self::Status(code) => *code,
             Self::Axum(_) | Self::Db(_) | Self::Session(_) | Self::Internal(_) => {
                 StatusCode::INTERNAL_SERVER_ERROR
