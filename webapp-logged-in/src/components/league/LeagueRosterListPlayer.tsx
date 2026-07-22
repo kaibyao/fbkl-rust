@@ -76,7 +76,8 @@ export const LeagueRosterListPlayer: FunctionComponent<Props> = ({
           variant={TypographyVariant.MutedSm}
           className="tabular-nums"
         >
-          ${contract.salary} / {contract.yearNumber} /{' '}
+          {contract.salary == null ? 'TBD' : `$${contract.salary}`} /{' '}
+          {contract.yearNumber} /{' '}
           <Tooltip>
             <TooltipTrigger
               render={

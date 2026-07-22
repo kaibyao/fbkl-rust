@@ -130,6 +130,13 @@ pub fn create_advancement_for_contract(
     Ok(new_contract)
 }
 
+/// Placeholder salary for a freshly-advanced UFA contract, filled in with the real value during the
+/// veteran auction. Intentionally a real i16 value (not nullable): UFA kinds are excluded from every
+/// cap calculation (`CONTRACT_TYPES_COUNTED_TOWARD_CAP`) and always overwritten at auction, so the
+/// placeholder never reaches salary math. The GraphQL layer resolves UFA salary to `null` (TBD) so
+/// clients never render this sentinel as a real dollar figure.
+const TBD_UFA_SALARY: i16 = 1;
+
 fn calculate_yearly_salary_increase(current_contract: &contract_entity::Model) -> Result<i16> {
     match current_contract.kind {
         ContractKind::RookieDevelopment | ContractKind::RookieDevelopmentInternational => {
@@ -141,11 +148,11 @@ fn calculate_yearly_salary_increase(current_contract: &contract_entity::Model) -
         }
         ContractKind::RookieExtension => match current_contract.year_number {
             4 => get_salary_increased_by_20_percent(current_contract.salary),
-            _ => Ok(1), // Needs to later be set during veteran auction salary fetch
+            _ => Ok(TBD_UFA_SALARY),
         },
         ContractKind::Veteran => match current_contract.year_number {
             1 | 2 => get_salary_increased_by_20_percent(current_contract.salary),
-            _ => Ok(1), // Needs to later be set during veteran auction salary fetch
+            _ => Ok(TBD_UFA_SALARY),
         },
         ContractKind::UnrestrictedFreeAgentVeteran => {
             bail!("Cannot calculate the yearly increase of a UFA contract.")

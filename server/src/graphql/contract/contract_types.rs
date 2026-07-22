@@ -75,8 +75,14 @@ impl Contract {
         self.is_ir
     }
 
-    async fn salary(&self) -> i16 {
-        self.salary
+    /// `None` (TBD) for freshly-advanced UFA contracts whose real salary is set at the veteran
+    /// auction; the stored value is a placeholder that clients must not render as a dollar figure.
+    async fn salary(&self) -> Option<i16> {
+        match self.kind {
+            ContractKind::UnrestrictedFreeAgentOriginalTeam
+            | ContractKind::UnrestrictedFreeAgentVeteran => None,
+            _ => Some(self.salary),
+        }
     }
 
     async fn end_of_season_year(&self) -> i16 {
