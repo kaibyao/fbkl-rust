@@ -26,7 +26,7 @@ export const LeagueTeamRoster: FunctionComponent<Props> = ({ team }) => {
     partitionContracts(team.contracts);
 
   const activeSalary = activeContracts.reduce(
-    (acc, contract) => acc + contract.salary,
+    (acc, contract) => acc + (contract.salary ?? 0),
     0,
   );
 
@@ -126,7 +126,7 @@ function partitionContracts(contracts: ContractForRosterListFragment[]): {
         a,
         b, // contract value
       ) =>
-        b.salary - a.salary ||
+        (b.salary ?? 0) - (a.salary ?? 0) ||
         // year number
         b.yearNumber - a.yearNumber ||
         // name
