@@ -10,11 +10,16 @@ use crate::{
     user,
 };
 
+/// New-league request: named fields so the three adjacent strings can't be transposed by callers.
+pub struct NewLeagueWithCommissioner {
+    pub league_name: String,
+    pub team_name: String,
+    pub league_owner_user_id: i64,
+    pub user_nickname: String,
+}
+
 pub async fn create_league_with_commissioner<C>(
-    league_name: String,
-    team_name: String,
-    league_owner_user_id: i64,
-    user_nickname: String,
+    new_league: NewLeagueWithCommissioner,
     db: &C,
 ) -> Result<(league::Model, team::Model, team_user::Model)>
 where
@@ -24,7 +29,7 @@ where
 
     let inserted_league = insert_league(
         league::ActiveModel {
-            name: ActiveValue::Set(league_name),
+            name: ActiveValue::Set(new_league.league_name),
             ..Default::default()
         },
         &transaction,
@@ -32,7 +37,7 @@ where
     .await?;
 
     let inserted_team = team::ActiveModel {
-        name: ActiveValue::Set(team_name),
+        name: ActiveValue::Set(new_league.team_name),
         league_id: ActiveValue::Set(inserted_league.id),
         ..Default::default()
     }
@@ -41,9 +46,9 @@ where
 
     let inserted_team_user = team_user::ActiveModel {
         league_role: ActiveValue::Set(LeagueRole::LeagueCommissioner),
-        nickname: ActiveValue::Set(user_nickname),
+        nickname: ActiveValue::Set(new_league.user_nickname),
         team_id: ActiveValue::Set(inserted_team.id),
-        user_id: ActiveValue::Set(league_owner_user_id),
+        user_id: ActiveValue::Set(new_league.league_owner_user_id),
         ..Default::default()
     }
     .insert(&transaction)

@@ -1,4 +1,4 @@
-use sea_orm_migration::{prelude::*, sea_orm::TransactionTrait};
+use sea_orm_migration::prelude::*;
 
 use crate::set_auto_updated_at_on_table;
 
@@ -8,14 +8,9 @@ pub struct Migration;
 #[async_trait::async_trait]
 impl MigrationTrait for Migration {
     async fn up(&self, manager: &SchemaManager) -> Result<(), DbErr> {
-        let db = manager.get_connection();
-        let transaction = db.begin().await?;
-
         setup_position(manager).await?;
         setup_real_team(manager).await?;
-        setup_player(manager).await?;
-
-        transaction.commit().await
+        setup_player(manager).await
     }
 
     async fn down(&self, manager: &SchemaManager) -> Result<(), DbErr> {

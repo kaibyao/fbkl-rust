@@ -22,22 +22,22 @@ where
         end_of_season_year + FUTURE_DRAFT_PICK_SEASONS_LIMIT;
     let all_teams_in_league = team_queries::find_teams_in_league(league_id, db).await?;
 
-    // generate all draft picks to insert later
-    let mut draft_picks_to_insert = Vec::new();
-    for team in &all_teams_in_league {
-        for round in 1..=DRAFT_PICK_ROUNDS {
-            draft_picks_to_insert.push(draft_pick::ActiveModel {
+    let draft_picks_to_insert: Vec<draft_pick::ActiveModel> = all_teams_in_league
+        .iter()
+        .flat_map(|team| {
+            let team_id = team.id;
+            (1..=DRAFT_PICK_ROUNDS).map(move |round| draft_pick::ActiveModel {
                 id: ActiveValue::NotSet,
                 created_at: ActiveValue::NotSet,
                 updated_at: ActiveValue::NotSet,
                 league_id: ActiveValue::Set(league_id),
                 end_of_season_year: ActiveValue::Set(end_of_season_year_for_future_draft_picks),
                 round: ActiveValue::Set(round),
-                current_owner_team_id: ActiveValue::Set(team.id),
-                original_owner_team_id: ActiveValue::Set(team.id),
-            });
-        }
-    }
+                current_owner_team_id: ActiveValue::Set(team_id),
+                original_owner_team_id: ActiveValue::Set(team_id),
+            })
+        })
+        .collect();
 
     // insert all draft picks
     draft_pick_queries::insert_draft_picks(draft_picks_to_insert, db).await?;

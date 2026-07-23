@@ -43,10 +43,7 @@ where
             )
         })?;
 
-    let mut all_team_ids = vec![];
-    all_team_ids.push(from_team_model.id);
-    all_team_ids.extend(to_team_ids);
-    for team_id in all_team_ids {
+    for team_id in std::iter::once(from_team_model.id).chain(to_team_ids.iter().copied()) {
         let team_trade_to_insert = team_trade::ActiveModel {
             id: ActiveValue::NotSet,
             team_id: ActiveValue::Set(team_id),

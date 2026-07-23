@@ -24,11 +24,14 @@ fn main() -> io::Result<()> {
     )
     .finish();
 
-    let size_bytes_written = sdl_file.write(schema.sdl().trim().as_bytes()).unwrap();
-    sdl_file.flush().unwrap();
+    let sdl = schema.sdl();
+    let sdl = sdl.trim();
+    sdl_file.write_all(sdl.as_bytes())?;
+    sdl_file.flush()?;
 
     println!(
-        "Successfully wrote {size_bytes_written} bytes to generated schema file at: {SCHEMA_FILE_PATH}."
+        "Successfully wrote {} bytes to generated schema file at: {SCHEMA_FILE_PATH}.",
+        sdl.len()
     );
 
     Ok(())

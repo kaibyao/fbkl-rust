@@ -54,31 +54,25 @@ where
     C: ConnectionTrait + Debug,
 {
     let all_trade_actions = trade_model.get_trade_actions(db).await?;
-    for trade_action in &all_trade_actions {
-        // if there are teams for which their latest trade action was not one of [accept, propose], then the trade has not been accepted by all parties.
-        match trade_action.action_type {
-            TradeActionType::Propose | TradeActionType::Accept => {}
-            _ => return Ok(false),
-        }
+    let all_actions_are_accept_or_propose = all_trade_actions.iter().all(|trade_action| {
+        matches!(
+            trade_action.action_type,
+            TradeActionType::Propose | TradeActionType::Accept
+        )
+    });
+    if !all_actions_are_accept_or_propose {
+        return Ok(false);
     }
 
     let teams_by_trade_action_ids =
         team_queries::find_teams_by_trade_actions(&all_trade_actions, db).await?;
     let all_trade_teams = trade_model.get_teams(db).await?;
 
-    // if there are teams for which trade actions are missing, then not every team has accepted the trade.
     let ids_of_teams_that_responded: HashSet<i64> = teams_by_trade_action_ids
         .values()
         .map(|team| team.id)
         .collect();
     let all_trade_team_ids: HashSet<i64> = all_trade_teams.iter().map(|team| team.id).collect();
-    let did_all_teams_respond = all_trade_team_ids
-        .difference(&ids_of_teams_that_responded)
-        .next()
-        .is_none();
-    if !did_all_teams_respond {
-        return Ok(false);
-    }
 
-    Ok(true)
+    Ok(all_trade_team_ids.is_subset(&ids_of_teams_that_responded))
 }

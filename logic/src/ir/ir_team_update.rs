@@ -12,7 +12,7 @@ use fbkl_entity::{
 };
 use tracing::instrument;
 
-use crate::roster::calculate_team_contract_salary;
+use crate::roster::{SalarySnapshot, calculate_team_contract_salary};
 
 #[instrument]
 pub async fn create_ir_team_update<C>(
@@ -30,9 +30,11 @@ where
     let team_active_contracts = team_model.get_active_contracts(db).await?;
     let related_player_data =
         ContractUpdatePlayerData::from_contract_model(ir_contract_model, db).await?;
-    let (new_salary, new_salary_cap) =
-        calculate_team_contract_salary(team_model.id, &team_active_contracts, deadline_model, db)
-            .await?;
+    let SalarySnapshot {
+        salary: new_salary,
+        cap: new_salary_cap,
+    } = calculate_team_contract_salary(team_model.id, &team_active_contracts, deadline_model, db)
+        .await?;
 
     let team_update_data = TeamUpdateData::from_assets(
         team_active_contracts.iter().map(|c| c.id).collect(),
