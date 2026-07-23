@@ -26,6 +26,8 @@ pub struct Model {
     pub league_id: i64,
     pub original_trade_id: Option<i64>,
     pub previous_trade_id: Option<i64>,
+    /// The completed-trade transaction, set once the trade is processed (1:1). NULL while the trade is still proposed/countered.
+    pub transaction_id: Option<i64>,
     pub created_at: DateTimeWithTimeZone,
     pub updated_at: DateTimeWithTimeZone,
 }
@@ -157,7 +159,13 @@ pub enum Relation {
     TradeAction,
     #[sea_orm(has_many = "super::trade_asset::Entity")]
     TradeAsset,
-    #[sea_orm(has_one = "super::transaction::Entity")]
+    #[sea_orm(
+        belongs_to = "super::transaction::Entity",
+        from = "Column::TransactionId",
+        to = "super::transaction::Column::Id",
+        on_update = "Cascade",
+        on_delete = "Cascade"
+    )]
     Transaction,
 }
 

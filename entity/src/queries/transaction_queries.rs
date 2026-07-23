@@ -1,11 +1,15 @@
 use std::fmt::Debug;
 
 use color_eyre::{Result, eyre::eyre};
-use sea_orm::{ActiveModelTrait, ColumnTrait, ConnectionTrait, EntityTrait, QueryFilter};
+use sea_orm::{
+    ActiveModelTrait, ColumnTrait, ConnectionTrait, EntityTrait, QueryFilter, sea_query::Expr,
+};
 use tracing::instrument;
 
 use crate::{
+    auction,
     deadline::{self, DeadlineKind},
+    rookie_draft_selection, trade,
     transaction::{self, TransactionKind},
 };
 
@@ -48,7 +52,7 @@ where
     insert_transaction(transaction_to_insert, db).await
 }
 
-/// Creates & inserts a transaction tied to the end of an auction.
+/// Creates & inserts a transaction tied to the end of an auction, then points the auction's 1:1 `transaction_id` FK back at it.
 #[instrument]
 pub async fn insert_auction_transaction<C>(
     deadline_model: &deadline::Model,
@@ -58,12 +62,23 @@ pub async fn insert_auction_transaction<C>(
 where
     C: ConnectionTrait + Debug,
 {
-    let transaction_to_insert =
-        transaction::Model::new_auction_transaction(deadline_model, auction_id);
-    insert_transaction(transaction_to_insert, db).await
+    let transaction_model = insert_transaction(
+        transaction::Model::new_auction_transaction(deadline_model),
+        db,
+    )
+    .await?;
+    auction::Entity::update_many()
+        .col_expr(
+            auction::Column::TransactionId,
+            Expr::value(transaction_model.id),
+        )
+        .filter(auction::Column::Id.eq(auction_id))
+        .exec(db)
+        .await?;
+    Ok(transaction_model)
 }
 
-/// Creates & inserts a transaction tied to a completed trade.
+/// Creates & inserts a transaction tied to a completed trade, then points the trade's 1:1 `transaction_id` FK back at it.
 #[instrument]
 pub async fn insert_trade_transaction<C>(
     deadline_model: &deadline::Model,
@@ -73,8 +88,46 @@ pub async fn insert_trade_transaction<C>(
 where
     C: ConnectionTrait + Debug,
 {
-    let transaction_to_insert = transaction::Model::new_trade_transaction(deadline_model, trade_id);
-    insert_transaction(transaction_to_insert, db).await
+    let transaction_model = insert_transaction(
+        transaction::Model::new_trade_transaction(deadline_model),
+        db,
+    )
+    .await?;
+    trade::Entity::update_many()
+        .col_expr(
+            trade::Column::TransactionId,
+            Expr::value(transaction_model.id),
+        )
+        .filter(trade::Column::Id.eq(trade_id))
+        .exec(db)
+        .await?;
+    Ok(transaction_model)
+}
+
+/// Creates & inserts a transaction tied to a rookie draft selection, then points the selection's 1:1 `transaction_id` FK back at it.
+#[instrument]
+pub async fn insert_rookie_draft_selection_transaction<C>(
+    deadline_model: &deadline::Model,
+    rookie_draft_selection_id: i64,
+    db: &C,
+) -> Result<transaction::Model>
+where
+    C: ConnectionTrait + Debug,
+{
+    let transaction_model = insert_transaction(
+        transaction::Model::new_rookie_draft_selection_transaction(deadline_model),
+        db,
+    )
+    .await?;
+    rookie_draft_selection::Entity::update_many()
+        .col_expr(
+            rookie_draft_selection::Column::TransactionId,
+            Expr::value(transaction_model.id),
+        )
+        .filter(rookie_draft_selection::Column::Id.eq(rookie_draft_selection_id))
+        .exec(db)
+        .await?;
+    Ok(transaction_model)
 }
 
 #[instrument]

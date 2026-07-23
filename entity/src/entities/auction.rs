@@ -21,6 +21,8 @@ pub struct Model {
     pub soft_end_timestamp: DateTimeWithTimeZone,
     pub fixed_end_timestamp: DateTimeWithTimeZone,
     pub contract_id: i64,
+    /// The auction-completed transaction, set once a winning bid is signed (1:1). NULL while the auction is still open.
+    pub transaction_id: Option<i64>,
     pub created_at: DateTimeWithTimeZone,
     pub updated_at: DateTimeWithTimeZone,
 }
@@ -105,7 +107,13 @@ pub enum Relation {
     Contract,
     #[sea_orm(has_many = "super::auction_bid::Entity")]
     AuctionBid,
-    #[sea_orm(has_one = "super::transaction::Entity")]
+    #[sea_orm(
+        belongs_to = "super::transaction::Entity",
+        from = "Column::TransactionId",
+        to = "super::transaction::Column::Id",
+        on_update = "Cascade",
+        on_delete = "Cascade"
+    )]
     Transaction,
 }
 

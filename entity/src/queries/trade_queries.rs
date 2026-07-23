@@ -22,6 +22,7 @@ where
         league_id: ActiveValue::Set(league_id),
         original_trade_id: ActiveValue::NotSet,
         previous_trade_id: ActiveValue::NotSet,
+        transaction_id: ActiveValue::NotSet,
         created_at: ActiveValue::NotSet,
         updated_at: ActiveValue::NotSet,
     };

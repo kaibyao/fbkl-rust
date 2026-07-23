@@ -43,7 +43,7 @@ where
         kind: ActiveValue::Set(TransactionKind::TeamUpdateToIr),
         league_id: ActiveValue::Set(updated_contract.league_id),
         deadline_id: ActiveValue::Set(deadline_model.id),
-        ir_contract_id: ActiveValue::Set(Some(updated_contract.id)),
+        contract_id: ActiveValue::Set(Some(updated_contract.id)),
         ..Default::default()
     };
     let ir_transaction =
