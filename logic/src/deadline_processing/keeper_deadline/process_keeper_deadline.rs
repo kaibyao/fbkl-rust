@@ -87,7 +87,7 @@ where
                                     let related_league_contract = active_league_contracts_by_id.remove(&contract_update.contract_id).ok_or_else(|| eyre!("Contract referred by keeper deadline team update is not an active contract or wasn't found. contract_id: {}", contract_update.contract_id))?;
                                     contract_queries::drop_contract(
                                         related_league_contract,
-                                        true,
+                                        contract_queries::PreseasonKeeperTiming::Before,
                                         db,
                                     )
                                     .await?;

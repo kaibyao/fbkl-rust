@@ -1,4 +1,4 @@
-use fbkl_entity::sea_orm::{ConnectionTrait, DatabaseBackend, Statement, TransactionTrait};
+use fbkl_entity::sea_orm::{ConnectionTrait, DatabaseBackend, Statement};
 use sea_orm_migration::prelude::*;
 
 use crate::{
@@ -13,11 +13,7 @@ pub struct Migration;
 #[async_trait::async_trait]
 impl MigrationTrait for Migration {
     async fn up(&self, manager: &SchemaManager) -> Result<(), DbErr> {
-        let transaction = manager.get_connection().begin().await?;
-
-        setup_contract(manager).await?;
-
-        transaction.commit().await
+        setup_contract(manager).await
     }
 
     async fn down(&self, manager: &SchemaManager) -> Result<(), DbErr> {

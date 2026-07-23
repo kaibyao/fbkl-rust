@@ -31,8 +31,13 @@ pub type AppSchema = Schema<QueryRoot, MutationRoot, EmptySubscription>;
 /// Lambdas must point this at Supabase's transaction pooler (6543); the local
 /// bin uses a direct connection.
 pub async fn init_db() -> Result<DatabaseConnection, DbErr> {
-    let database_url = std::env::var("FBKL_DATABASE_URL").expect("FBKL_DATABASE_URL must be set");
-    Database::connect(&database_url).await
+    Database::connect(&read_database_url()?).await
+}
+
+/// Read `FBKL_DATABASE_URL`, returning a `DbErr` (not panicking) when it is unset.
+pub fn read_database_url() -> Result<String, DbErr> {
+    std::env::var("FBKL_DATABASE_URL")
+        .map_err(|_| DbErr::Custom("FBKL_DATABASE_URL must be set".to_owned()))
 }
 
 /// Build the async-graphql schema with the configured complexity/depth limits.

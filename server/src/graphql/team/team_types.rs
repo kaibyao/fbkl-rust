@@ -75,13 +75,13 @@ impl Team {
             ))
         })?;
 
-        let (total_contract_amount, max_salary_cap_for_deadline) =
+        let snapshot =
             calculate_team_contract_salary_at_datetime(self.league_id, self.id, datetime, db)
                 .await?;
 
         let salary_cap = TeamSalaryCap {
-            salary_cap: max_salary_cap_for_deadline,
-            salary_used: total_contract_amount,
+            salary_cap: snapshot.cap,
+            salary_used: snapshot.salary,
         };
 
         Ok(salary_cap)

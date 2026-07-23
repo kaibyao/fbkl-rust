@@ -28,13 +28,21 @@ pub struct Model {
     pub trade_id: i64,
 }
 
+/// Sending team of a trade asset. Distinct type from [`ToTeamId`] so the two can't be transposed at a call site (which would silently reverse the trade).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct FromTeamId(pub i64);
+
+/// Receiving team of a trade asset. See [`FromTeamId`].
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct ToTeamId(pub i64);
+
 impl Model {
     /// Creates a not-yet-persisted Trade Asset `ActiveModel`from a player contract.
     pub fn from_contract(
         trade_id: Option<i64>,
         contract_id: i64,
-        from_team_id: i64,
-        to_team_id: i64,
+        from_team_id: FromTeamId,
+        to_team_id: ToTeamId,
     ) -> ActiveModel {
         ActiveModel {
             id: ActiveValue::NotSet,
@@ -42,8 +50,8 @@ impl Model {
             contract_id: ActiveValue::Set(Some(contract_id)),
             draft_pick_id: ActiveValue::NotSet,
             draft_pick_option_id: ActiveValue::NotSet,
-            from_team_id: ActiveValue::Set(from_team_id),
-            to_team_id: ActiveValue::Set(to_team_id),
+            from_team_id: ActiveValue::Set(from_team_id.0),
+            to_team_id: ActiveValue::Set(to_team_id.0),
             trade_id: trade_id.map_or(ActiveValue::NotSet, ActiveValue::Set),
         }
     }

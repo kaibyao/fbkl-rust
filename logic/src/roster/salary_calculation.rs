@@ -12,22 +12,25 @@ use fbkl_entity::{
 };
 use tracing::instrument;
 
-static CONTRACT_TYPES_COUNTED_TOWARD_CAP: std::sync::LazyLock<&[ContractKind]> =
-    std::sync::LazyLock::new(|| {
-        &[
-            ContractKind::Rookie,
-            ContractKind::RookieExtension,
-            ContractKind::Veteran,
-        ]
-    });
+static CONTRACT_TYPES_COUNTED_TOWARD_CAP: [ContractKind; 3] = [
+    ContractKind::Rookie,
+    ContractKind::RookieExtension,
+    ContractKind::Veteran,
+];
 
-/// Returns a tuple containing the team's current total salary and salary cap.
+/// A team's total counted salary and its salary cap at a given deadline.
+#[derive(Debug, Clone, Copy)]
+pub struct SalarySnapshot {
+    pub salary: i16,
+    pub cap: i16,
+}
+
 #[instrument]
 pub async fn calculate_team_contract_salary_with_model<C>(
     team_model: &team::Model,
     deadline_model: &deadline::Model,
     db: &C,
-) -> Result<(i16, i16)>
+) -> Result<SalarySnapshot>
 where
     C: ConnectionTrait + Debug,
 {
@@ -36,33 +39,29 @@ where
     calculate_team_contract_salary(team_model.id, &team_active_contracts, deadline_model, db).await
 }
 
-/// Returns a tuple containing the team's current total salary and salary cap.
 #[instrument]
 pub async fn calculate_team_contract_salary_at_datetime<C>(
     league_id: i64,
     team_id: i64,
     datetime: DateTime<FixedOffset>,
     db: &C,
-) -> Result<(i16, i16)>
+) -> Result<SalarySnapshot>
 where
     C: ConnectionTrait + Debug,
 {
     let deadline = find_most_recent_deadline_by_datetime(league_id, datetime, db).await?;
     let contract_models = find_active_contracts_for_team(team_id, db).await?;
-    let (total_contract_amount, max_salary_cap_for_deadline) =
-        calculate_team_contract_salary(team_id, &contract_models, &deadline, db).await?;
 
-    Ok((total_contract_amount, max_salary_cap_for_deadline))
+    calculate_team_contract_salary(team_id, &contract_models, &deadline, db).await
 }
 
-/// Returns a tuple containing the team's current total salary and salary cap.
 #[instrument]
 pub async fn calculate_team_contract_salary<C>(
     team_id: i64,
     team_active_contracts: &[contract::Model],
     deadline_model: &deadline::Model,
     db: &C,
-) -> Result<(i16, i16)>
+) -> Result<SalarySnapshot>
 where
     C: ConnectionTrait + Debug,
 {
@@ -81,7 +80,10 @@ where
         .fold(0, |sum, contract_model| sum + contract_model.salary);
 
     if deadline_model.kind == DeadlineKind::PreseasonKeeper {
-        return Ok((total_contract_amount, max_salary_cap_for_deadline));
+        return Ok(SalarySnapshot {
+            salary: total_contract_amount,
+            cap: max_salary_cap_for_deadline,
+        });
     }
 
     let dropped_team_contracts =
@@ -102,5 +104,8 @@ where
         });
     let team_salary_cap = max_salary_cap_for_deadline - dropped_contract_cap_penalty;
 
-    Ok((total_contract_amount, team_salary_cap))
+    Ok(SalarySnapshot {
+        salary: total_contract_amount,
+        cap: team_salary_cap,
+    })
 }
