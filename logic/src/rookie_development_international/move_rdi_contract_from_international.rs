@@ -36,7 +36,7 @@ where
         kind: ActiveValue::Set(TransactionKind::TeamUpdateFromRdi),
         league_id: ActiveValue::Set(moved_contract.league_id),
         deadline_id: ActiveValue::Set(deadline_model.id),
-        rdi_contract_id: ActiveValue::Set(Some(moved_contract.id)),
+        contract_id: ActiveValue::Set(Some(moved_contract.id)),
         ..Default::default()
     };
     let inserted_transaction =

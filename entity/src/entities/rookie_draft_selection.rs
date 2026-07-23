@@ -14,6 +14,8 @@ pub struct Model {
     pub contract_id: Option<i64>,
     pub draft_pick_id: i64,
     pub league_id: i64,
+    /// The rookie-draft-selection transaction, set when the pick is recorded (1:1).
+    pub transaction_id: Option<i64>,
 }
 
 impl Model {
@@ -30,6 +32,7 @@ impl Model {
             contract_id: ActiveValue::Set(Some(contract_id)),
             draft_pick_id: ActiveValue::Set(draft_pick_id),
             league_id: ActiveValue::Set(league_id),
+            transaction_id: ActiveValue::NotSet,
         }
     }
 }
@@ -87,7 +90,13 @@ pub enum Relation {
         on_delete = "Cascade"
     )]
     Contract,
-    #[sea_orm(has_one = "super::transaction::Entity")]
+    #[sea_orm(
+        belongs_to = "super::transaction::Entity",
+        from = "Column::TransactionId",
+        to = "super::transaction::Column::Id",
+        on_update = "Cascade",
+        on_delete = "Cascade"
+    )]
     Transaction,
 }
 

@@ -5,14 +5,12 @@ use super::TransactionKind;
 
 pub fn new_rookie_draft_selection_transaction(
     deadline_model: &deadline::Model,
-    rookie_draft_selection_id: i64,
 ) -> transaction::ActiveModel {
     transaction::ActiveModel {
         end_of_season_year: ActiveValue::Set(deadline_model.end_of_season_year),
         kind: ActiveValue::Set(TransactionKind::RookieDraftSelection),
         league_id: ActiveValue::Set(deadline_model.league_id),
         deadline_id: ActiveValue::Set(deadline_model.id),
-        rookie_draft_selection_id: ActiveValue::Set(Some(rookie_draft_selection_id)),
         ..Default::default()
     }
 }

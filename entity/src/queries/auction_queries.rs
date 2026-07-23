@@ -59,6 +59,7 @@ where
         soft_end_timestamp: ActiveValue::Set(soft_end_timestamp),
         fixed_end_timestamp: ActiveValue::Set(fixed_end_timestamp),
         contract_id: ActiveValue::Set(contract_id),
+        transaction_id: ActiveValue::NotSet,
         created_at: ActiveValue::NotSet,
         updated_at: ActiveValue::NotSet,
     };

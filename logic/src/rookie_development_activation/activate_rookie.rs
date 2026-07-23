@@ -40,7 +40,7 @@ where
         kind: ActiveValue::Set(TransactionKind::RookieContractActivation),
         league_id: ActiveValue::Set(activated_contract.league_id),
         deadline_id: ActiveValue::Set(deadline_model.id),
-        rookie_contract_activation_id: ActiveValue::Set(Some(activated_contract.id)),
+        contract_id: ActiveValue::Set(Some(activated_contract.id)),
         ..Default::default()
     };
     let inserted_transaction =
