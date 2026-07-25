@@ -1424,6 +1424,7 @@ dependencies = [
  "fbkl-entity",
  "multimap 0.9.1",
  "once_cell",
+ "rand 0.8.6",
  "thiserror 2.0.18",
  "tracing",
 ]
