@@ -1,6 +1,11 @@
-use async_graphql::{Context, Object, Result, Union, dataloader::DataLoader};
+use async_graphql::{Context, Object, Result, SimpleObject, Union, dataloader::DataLoader};
 use color_eyre::eyre::eyre;
-use fbkl_entity::{league_player, player};
+use fbkl_entity::{
+    contract::RelatedPlayer,
+    league_player,
+    player::{self, EligibilityClassification, NbaRosterSource},
+};
+use fbkl_logic::eligibility::{PlayerEligibilityFacts, classify_player};
 
 use crate::{
     error::FbklError,
@@ -13,23 +18,68 @@ pub enum LeagueOrRealPlayer {
     RealPlayer(RealPlayer),
 }
 
-#[derive(Clone, Debug, Default, Eq, PartialEq)]
+impl LeagueOrRealPlayer {
+    /// Pool builders and contracts both hand back entity's `RelatedPlayer`.
+    pub fn from_related_player(related_player: RelatedPlayer) -> Self {
+        match related_player {
+            RelatedPlayer::LeaguePlayer(model) => {
+                Self::LeaguePlayer(LeaguePlayer::from_model(model))
+            }
+            RelatedPlayer::Player(model) => Self::RealPlayer(RealPlayer::from_model(model)),
+        }
+    }
+}
+
+/// The spec-10 eligibility columns shared by both player types, plus the derived classification.
+#[derive(Clone, Debug, Eq, PartialEq, SimpleObject)]
+pub struct PlayerEligibility {
+    pub classification: EligibilityClassification,
+    pub has_been_on_nba_roster: bool,
+    pub nba_roster_source: NbaRosterSource,
+    pub nba_roster_asof: Option<String>,
+    pub eligibility_override: Option<EligibilityClassification>,
+}
+
+impl PlayerEligibility {
+    fn from_league_player(entity: &league_player::Model) -> Self {
+        Self {
+            classification: classify_player(PlayerEligibilityFacts::from(entity)),
+            has_been_on_nba_roster: entity.has_been_on_nba_roster,
+            nba_roster_source: entity.nba_roster_source,
+            nba_roster_asof: entity.nba_roster_asof.map(|asof| asof.to_rfc3339()),
+            eligibility_override: entity.eligibility_override,
+        }
+    }
+
+    fn from_player(entity: &player::Model) -> Self {
+        Self {
+            classification: classify_player(PlayerEligibilityFacts::from(entity)),
+            has_been_on_nba_roster: entity.has_been_on_nba_roster,
+            nba_roster_source: entity.nba_roster_source,
+            nba_roster_asof: entity.nba_roster_asof.map(|asof| asof.to_rfc3339()),
+            eligibility_override: entity.eligibility_override,
+        }
+    }
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
 pub struct LeaguePlayer {
     pub id: i64,
     pub is_rdi_eligible: bool,
     pub name: String,
     pub real_player_id: Option<i64>,
-    // pub real_player: Option<RealPlayer>,
+    pub eligibility: PlayerEligibility,
 }
 
 impl LeaguePlayer {
     pub fn from_model(entity: league_player::Model) -> Self {
+        let eligibility = PlayerEligibility::from_league_player(&entity);
         Self {
             id: entity.id,
             is_rdi_eligible: entity.is_rdi_eligible,
             name: entity.name,
             real_player_id: entity.real_player_id,
-            // real_player: None,
+            eligibility,
         }
     }
 }
@@ -52,6 +102,10 @@ impl LeaguePlayer {
         self.real_player_id
     }
 
+    async fn eligibility(&self) -> PlayerEligibility {
+        self.eligibility.clone()
+    }
+
     async fn real_player(&self, ctx: &Context<'_>) -> Result<Option<RealPlayer>, FbklError> {
         match self.real_player_id {
             Some(real_player_id) => {
@@ -68,7 +122,7 @@ impl LeaguePlayer {
     }
 }
 
-#[derive(Clone, Debug, Default, Eq, PartialEq)]
+#[derive(Clone, Debug, Eq, PartialEq)]
 pub struct RealPlayer {
     pub id: i64,
     pub is_rdi_eligible: bool,
@@ -78,11 +132,13 @@ pub struct RealPlayer {
     pub position_id: i32,
     // pub position: String,
     pub real_team_id: i64,
+    pub eligibility: PlayerEligibility,
     // pub real_team_name: String,
 }
 
 impl RealPlayer {
     pub fn from_model(entity: player::Model) -> Self {
+        let eligibility = PlayerEligibility::from_player(&entity);
         Self {
             id: entity.id,
             is_rdi_eligible: entity.is_rdi_eligible,
@@ -92,6 +148,7 @@ impl RealPlayer {
             position_id: entity.position_id,
             // position: "".to_string(),
             real_team_id: entity.current_real_team_id,
+            eligibility,
             // real_team_name: "".to_string(),
         }
     }
@@ -135,6 +192,10 @@ impl RealPlayer {
 
     async fn real_team_id(&self) -> i64 {
         self.real_team_id
+    }
+
+    async fn eligibility(&self) -> PlayerEligibility {
+        self.eligibility.clone()
     }
 
     async fn real_team_name(&self, ctx: &Context<'_>) -> Result<String, FbklError> {

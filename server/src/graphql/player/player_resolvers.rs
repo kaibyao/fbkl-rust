@@ -1,15 +1,17 @@
 //! Player reads: name search plus single lookups for real (NBA) and league players.
 //!
 //! League players are scoped to the caller's selected league; real players are global NBA
-//! rows and therefore not league-scoped. `playerEligibility(leaguePlayerId)` from spec 06
-//! lands on fbkl-rust-22o (spec 10), which adds the eligibility guard fns in `logic/`.
+//! rows and therefore not league-scoped. `playerEligibility` answers which acquisition pool a
+//! league player belongs to by calling `fbkl_logic::eligibility`, never by re-deriving it here.
 
 use async_graphql::{Context, Enum, Object, Result};
 use fbkl_entity::{
     league_player_queries::{find_league_player_by_id, search_league_players_by_name},
+    player::EligibilityClassification,
     player_queries::{find_player_by_id, search_players_by_name},
     sea_orm::DatabaseConnection,
 };
+use fbkl_logic::eligibility::{PlayerEligibilityFacts, classify_player};
 
 use super::{LeagueOrRealPlayer, LeaguePlayer, RealPlayer};
 use crate::graphql::{
@@ -102,5 +104,26 @@ impl PlayerQuery {
         }
 
         Ok(LeaguePlayer::from_model(model))
+    }
+
+    /// Which acquisition pool a league player belongs to, override included.
+    #[graphql(guard = "LeagueRoleGuard(RoleRequirement::Member)")]
+    async fn player_eligibility(
+        &self,
+        ctx: &Context<'_>,
+        league_player_id: i64,
+    ) -> Result<EligibilityClassification> {
+        let db = ctx.data_unchecked::<DatabaseConnection>();
+        let (_, caller_team) = require_league_role(ctx, RoleRequirement::Member).await?;
+
+        let model = find_league_player_by_id(league_player_id, db)
+            .await
+            .map_err(|_| code_error(ErrorCode::NotFound))?;
+
+        if model.league_id != caller_team.league_id {
+            return Err(code_error(ErrorCode::NotFound));
+        }
+
+        Ok(classify_player(PlayerEligibilityFacts::from(&model)))
     }
 }
