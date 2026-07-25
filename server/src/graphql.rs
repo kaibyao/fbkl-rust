@@ -7,6 +7,7 @@ use self::{
     contract::ContractQuery,
     league::{LeagueMutation, LeagueQuery},
     player::PlayerQuery,
+    roster::RosterMutation,
     team::TeamQuery,
     trade::{TradeMutation, TradeQuery},
     transaction::TransactionQuery,
@@ -20,6 +21,7 @@ mod contract;
 mod error;
 mod league;
 mod player;
+mod roster;
 mod team;
 mod trade;
 mod transaction;
@@ -39,4 +41,4 @@ pub struct QueryRoot(
 );
 
 #[derive(Default, MergedObject)]
-pub struct MutationRoot(LeagueMutation, TradeMutation);
+pub struct MutationRoot(LeagueMutation, TradeMutation, RosterMutation);
