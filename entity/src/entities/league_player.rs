@@ -3,6 +3,8 @@
 use sea_orm::entity::prelude::*;
 use serde::{Deserialize, Serialize};
 
+use crate::player::{EligibilityClassification, NbaRosterSource};
+
 /// A Basketball player customly created for a league. Reasons for this happening include:
 /// * A basketball player being drafted but not active in the NBA.
 /// * ...that's really about it.
@@ -17,6 +19,18 @@ pub struct Model {
     pub league_id: i64,
     /// This id field gets filled when a custom-created player for a specific league eventually gets added to an official (NBA/ESPN) database. This is used to tie in a player's historical record in a league to before they became an NBA player.
     pub real_player_id: Option<i64>,
+    /// Whether the player has ever been on an active NBA roster (rules §3.1.2). Normally `false`
+    /// here — a custom league player exists because he has no NBA entry yet; flipping to `true` is
+    /// the §11.3.1 trigger to move RDI→RD/1.
+    pub has_been_on_nba_roster: bool,
+    pub nba_roster_source: NbaRosterSource,
+    /// When `has_been_on_nba_roster` was last evaluated.
+    pub nba_roster_asof: Option<DateTimeWithTimeZone>,
+    /// Commissioner override of the derived classification (rules §3.1.2, §11.3.6). Wins when set.
+    pub eligibility_override: Option<EligibilityClassification>,
+    pub eligibility_override_reason: Option<String>,
+    pub eligibility_override_by_team_user_id: Option<i64>,
+    pub eligibility_override_at: Option<DateTimeWithTimeZone>,
     pub created_at: DateTimeWithTimeZone,
     pub updated_at: DateTimeWithTimeZone,
 }

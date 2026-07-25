@@ -27,6 +27,16 @@ pub struct Model {
     pub nba_id: Option<i32>,
     pub position_id: i32,
     pub status: PlayerStatus,
+    /// Whether the player has ever been on an active NBA roster (rules §3.1.2) — the auction-vs-draft pivot.
+    pub has_been_on_nba_roster: bool,
+    pub nba_roster_source: NbaRosterSource,
+    /// When `has_been_on_nba_roster` was last evaluated.
+    pub nba_roster_asof: Option<DateTimeWithTimeZone>,
+    /// Commissioner override of the derived classification (rules §3.1.2, §11.3.6). Wins when set.
+    pub eligibility_override: Option<EligibilityClassification>,
+    pub eligibility_override_reason: Option<String>,
+    pub eligibility_override_by_team_user_id: Option<i64>,
+    pub eligibility_override_at: Option<DateTimeWithTimeZone>,
     pub current_real_team_id: i64,
     pub created_at: DateTimeWithTimeZone,
     pub updated_at: DateTimeWithTimeZone,
@@ -75,6 +85,53 @@ pub enum PlayerStatus {
     /// Player exists as an active player in either ESPN fantasy or the NBA's player data.
     #[sea_orm(string_value = "Active")]
     Active,
+}
+
+/// Which acquisition pool a player belongs to. Always derived (see `logic::eligibility`), never
+/// stored as a column — only `eligibility_override` is persisted.
+#[derive(
+    Debug, Clone, Copy, Eq, PartialEq, Enum, EnumIter, DeriveActiveEnum, Serialize, Deserialize,
+)]
+#[sea_orm(rs_type = "String", db_type = "String(StringLen::None)")]
+pub enum EligibilityClassification {
+    /// Never on an NBA roster and in the rules §7.5.1 eligible set.
+    #[sea_orm(string_value = "RookieDraftEligible")]
+    RookieDraftEligible,
+    /// Has been on an active NBA roster (rules §6.2.1).
+    #[sea_orm(string_value = "VeteranAuctionEligible")]
+    VeteranAuctionEligible,
+    /// Rules §7.5.2 / §8.4.2 — current college/HS, undrafted foreign non-collegian, etc.
+    #[sea_orm(string_value = "Ineligible")]
+    Ineligible,
+}
+
+/// Provenance of `has_been_on_nba_roster`.
+#[derive(
+    Debug,
+    Default,
+    Clone,
+    Copy,
+    Eq,
+    PartialEq,
+    Enum,
+    EnumIter,
+    DeriveActiveEnum,
+    Serialize,
+    Deserialize,
+)]
+#[sea_orm(rs_type = "String", db_type = "String(StringLen::None)")]
+pub enum NbaRosterSource {
+    #[sea_orm(string_value = "BasketballReference")]
+    BasketballReference,
+    #[sea_orm(string_value = "Espn")]
+    Espn,
+    #[sea_orm(string_value = "Nba")]
+    Nba,
+    #[sea_orm(string_value = "CommissionerOverride")]
+    CommissionerOverride,
+    #[default]
+    #[sea_orm(string_value = "Unknown")]
+    Unknown,
 }
 
 #[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]
