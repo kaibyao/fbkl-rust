@@ -41,3 +41,5 @@ routeTree.gen.ts
 
 # Beads / Dolt files (added by bd init)
 .beads/proxieddb/
+# Issue state lives in the local Dolt server, so an exported snapshot only goes stale in git.
+backup.jsonl
