@@ -69,6 +69,41 @@ where
     Ok(selection)
 }
 
+/// A slate row by id, row-locked so two clients cannot resolve the same pick. Only meaningful
+/// inside a db transaction.
+#[instrument]
+pub async fn find_selection_by_id_for_update<C>(
+    selection_id: i64,
+    db: &C,
+) -> Result<rookie_draft_selection::Model>
+where
+    C: ConnectionTrait + Debug,
+{
+    rookie_draft_selection::Entity::find_by_id(selection_id)
+        .lock_exclusive()
+        .one(db)
+        .await?
+        .ok_or_else(|| eyre!("Could not find rookie draft selection ({selection_id})."))
+}
+
+/// Resolves a pre-created slate row to its outcome — the live-draft counterpart of
+/// [`insert_used_rookie_draft_selection`], which the importer needs only because it has no slate.
+#[instrument]
+pub async fn record_selection_result<C>(
+    selection_model: rookie_draft_selection::Model,
+    status: RookieDraftSelectionStatus,
+    maybe_contract_id: Option<i64>,
+    db: &C,
+) -> Result<rookie_draft_selection::Model>
+where
+    C: ConnectionTrait + Debug,
+{
+    let mut selection_to_update: rookie_draft_selection::ActiveModel = selection_model.into();
+    selection_to_update.status = ActiveValue::Set(status);
+    selection_to_update.contract_id = ActiveValue::Set(maybe_contract_id);
+    Ok(selection_to_update.update(db).await?)
+}
+
 /// Pre-creates the season's whole ordered slate as `Unused` rows, so the UI can show who is on the
 /// clock before any pick is made (the importer instead back-fills `order` per imported pick).
 ///
