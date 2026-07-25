@@ -25,6 +25,7 @@ mod m20260609_000001_create_job_run;
 mod m20260722_000001_collapse_transaction_fk_columns;
 mod m20260725_000001_add_player_eligibility_fields;
 mod m20260725_000002_alter_auction_add_status_and_owner;
+mod m20260725_000003_create_auction_schedule_tables;
 
 pub struct Migrator;
 
@@ -50,6 +51,7 @@ impl MigratorTrait for Migrator {
             Box::new(m20260722_000001_collapse_transaction_fk_columns::Migration),
             Box::new(m20260725_000001_add_player_eligibility_fields::Migration),
             Box::new(m20260725_000002_alter_auction_add_status_and_owner::Migration),
+            Box::new(m20260725_000003_create_auction_schedule_tables::Migration),
         ]
     }
 }
