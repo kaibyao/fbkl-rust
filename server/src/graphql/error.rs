@@ -27,6 +27,18 @@ pub enum ErrorCode {
     MissingPreTradeSalary,
     /// Submitted keepers break a league keeper rule (ineligible kind, count limit, salary limit).
     KeeperValidationFailed,
+    /// The auction is not taking bids (wrong status, or its bidding window elapsed).
+    AuctionNotOpen,
+    /// Bid is under the auction's minimum bid.
+    BidBelowMinimum,
+    /// Bid does not clear the current high bid by the required $1 increment.
+    BidBelowIncrement,
+    /// Winning the bid would put the bidding team over its salary cap (rules §6.4.1.1).
+    BidInsufficientCap,
+    /// Winning the bid would leave the bidding team without an open roster spot (rules §6.4.1.2).
+    BidNoRosterSpace,
+    /// The player's previous team may not bid on that player's own auction (rules §6.2.2.3).
+    BidOriginalOwner,
     /// Server-side fault; message is deliberately generic.
     Internal,
 }
@@ -41,6 +53,12 @@ impl ErrorCode {
             Self::NotLatestInChain => "NOT_LATEST_IN_CHAIN",
             Self::MissingPreTradeSalary => "MISSING_PRE_TRADE_SALARY",
             Self::KeeperValidationFailed => "KEEPER_VALIDATION_FAILED",
+            Self::AuctionNotOpen => "AUCTION_NOT_OPEN",
+            Self::BidBelowMinimum => "BID_BELOW_MINIMUM",
+            Self::BidBelowIncrement => "BID_BELOW_INCREMENT",
+            Self::BidInsufficientCap => "BID_INSUFFICIENT_CAP",
+            Self::BidNoRosterSpace => "BID_NO_ROSTER_SPACE",
+            Self::BidOriginalOwner => "BID_ORIGINAL_OWNER",
             Self::Internal => "INTERNAL",
         }
     }
@@ -56,6 +74,12 @@ impl ErrorCode {
                 "a team involved in this trade is missing its pre-trade salary"
             }
             Self::KeeperValidationFailed => "these keepers break a league keeper rule",
+            Self::AuctionNotOpen => "this auction is not taking bids",
+            Self::BidBelowMinimum => "bid is below the auction's minimum bid",
+            Self::BidBelowIncrement => "bid does not clear the current high bid",
+            Self::BidInsufficientCap => "bid would exceed your salary cap",
+            Self::BidNoRosterSpace => "bid would exceed your roster limit",
+            Self::BidOriginalOwner => "you cannot bid on your own former player's auction",
             Self::Internal => "internal server error",
         }
     }

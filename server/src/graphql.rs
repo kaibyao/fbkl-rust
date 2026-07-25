@@ -4,7 +4,7 @@
 use async_graphql::{EmptySubscription, MergedObject, Schema};
 
 use self::{
-    auction::AuctionQuery,
+    auction::{AuctionMutation, AuctionQuery},
     contract::ContractQuery,
     deadline::{DeadlineMutation, DeadlineQuery},
     draft::DraftQuery,
@@ -65,4 +65,5 @@ pub struct MutationRoot(
     KeeperMutation,
     DeadlineMutation,
     EligibilityMutation,
+    AuctionMutation,
 );
