@@ -396,7 +396,6 @@ mod tests {
 
     #[test]
     fn an_auction_still_taking_bids_outlives_its_soft_end() {
-        // Soft end lapsed at 7:30pm but a bid landed 20 minutes ago, so bidding continues.
         assert!(!is_due_for_close(
             at("20:00"),
             at("19:30"),
