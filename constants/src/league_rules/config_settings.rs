@@ -52,3 +52,57 @@ pub static LEAGUE_TIME_ZONE_UTC_OFFSET_SECONDS: i32 = -6 * 3600;
 pub static IN_SEASON_FA_OPENING_BID_DEADLINE_HOUR_MINUTE: (u32, u32) = (23, 59);
 /// Sunday 8pm CT: the weekly all-bid deadline every open in-season FA auction ends at (rules §8.2).
 pub static IN_SEASON_FA_ALL_BID_DEADLINE_HOUR_MINUTE: (u32, u32) = (20, 0);
+/// Fixed Rookie-Development contract salary for a rookie drafted in the given round (rules §7.4.1).
+/// Index 0 = round 1. Rounds 1–5 → $4/$3/$2/$1/$1.
+pub static ROOKIE_DRAFT_ROUND_SALARIES: [i16; 5] = [4, 3, 2, 1, 1];
+/// Lottery balls per non-playoff seed, worst → best (rules §7.2.4). 6 non-playoff seeds.
+pub static ROOKIE_DRAFT_LOTTERY_BALLS: [u32; 6] = [6, 5, 4, 3, 2, 1];
+
+/// Rookie-Development salary for a 1-based rookie draft round (rules §7.4.1).
+///
+/// # Panics
+/// Panics if `round` is outside 1..=[`DRAFT_PICK_ROUNDS`]; a draft round out of range is a
+/// programmer error, not a recoverable condition.
+#[must_use]
+pub fn rookie_draft_salary_for_round(round: i16) -> i16 {
+    round
+        .checked_sub(1)
+        .and_then(|index| usize::try_from(index).ok())
+        .and_then(|index| ROOKIE_DRAFT_ROUND_SALARIES.get(index).copied())
+        .unwrap_or_else(|| {
+            panic!("Rookie draft round ({round}) is outside 1..={DRAFT_PICK_ROUNDS}.")
+        })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{DRAFT_PICK_ROUNDS, ROOKIE_DRAFT_ROUND_SALARIES, rookie_draft_salary_for_round};
+
+    #[test]
+    fn salary_for_each_valid_round() {
+        assert_eq!(
+            (1..=DRAFT_PICK_ROUNDS)
+                .map(rookie_draft_salary_for_round)
+                .collect::<Vec<_>>(),
+            ROOKIE_DRAFT_ROUND_SALARIES.to_vec()
+        );
+    }
+
+    #[test]
+    #[should_panic(expected = "Rookie draft round (0) is outside 1..=5.")]
+    fn round_zero_panics() {
+        let _ = rookie_draft_salary_for_round(0);
+    }
+
+    #[test]
+    #[should_panic(expected = "Rookie draft round (6) is outside 1..=5.")]
+    fn round_past_last_round_panics() {
+        let _ = rookie_draft_salary_for_round(6);
+    }
+
+    #[test]
+    #[should_panic(expected = "Rookie draft round (-1) is outside 1..=5.")]
+    fn negative_round_panics() {
+        let _ = rookie_draft_salary_for_round(-1);
+    }
+}
