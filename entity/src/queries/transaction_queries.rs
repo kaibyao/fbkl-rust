@@ -2,16 +2,64 @@ use std::fmt::Debug;
 
 use color_eyre::{Result, eyre::eyre};
 use sea_orm::{
-    ActiveModelTrait, ColumnTrait, ConnectionTrait, EntityTrait, QueryFilter, sea_query::Expr,
+    ActiveModelTrait, ColumnTrait, ConnectionTrait, EntityTrait, JoinType, QueryFilter, QueryOrder,
+    QuerySelect, RelationTrait, sea_query::Expr,
 };
 use tracing::instrument;
 
 use crate::{
     auction,
     deadline::{self, DeadlineKind},
-    rookie_draft_selection, trade,
+    queries::pagination::{Paged, fetch_page},
+    rookie_draft_selection, team_update, trade,
     transaction::{self, TransactionKind},
 };
+
+#[instrument]
+pub async fn find_transaction_by_id<C>(transaction_id: i64, db: &C) -> Result<transaction::Model>
+where
+    C: ConnectionTrait + Debug,
+{
+    transaction::Entity::find_by_id(transaction_id)
+        .one(db)
+        .await?
+        .ok_or_else(|| eyre!("Could not find transaction with id: {transaction_id}"))
+}
+
+/// One page of a league's transaction audit feed, newest first, optionally narrowed to a single
+/// team or `TransactionKind`. The feed spans the league's whole history, so it is never unbounded.
+///
+/// The team filter joins `team_update` (a transaction carries no `team_id` of its own), which is
+/// why the select is `DISTINCT` — a transaction touching both sides of a trade has two updates.
+#[instrument]
+pub async fn find_transactions_in_league<C>(
+    league_id: i64,
+    maybe_team_id: Option<i64>,
+    maybe_kind: Option<TransactionKind>,
+    page: u64,
+    page_size: u64,
+    db: &C,
+) -> Result<Paged<transaction::Model>>
+where
+    C: ConnectionTrait + Debug,
+{
+    let mut query = transaction::Entity::find()
+        .filter(transaction::Column::LeagueId.eq(league_id))
+        .order_by_desc(transaction::Column::Id);
+
+    if let Some(kind) = maybe_kind {
+        query = query.filter(transaction::Column::Kind.eq(kind));
+    }
+
+    if let Some(team_id) = maybe_team_id {
+        query = query
+            .join(JoinType::InnerJoin, transaction::Relation::TeamUpdate.def())
+            .filter(team_update::Column::TeamId.eq(team_id))
+            .distinct();
+    }
+
+    fetch_page(query, page, page_size, db).await
+}
 
 #[instrument]
 pub async fn get_or_create_keeper_deadline_transaction<C>(
