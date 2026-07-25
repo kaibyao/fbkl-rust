@@ -8,6 +8,7 @@ use self::{
     league::{LeagueMutation, LeagueQuery},
     player::PlayerQuery,
     team::TeamQuery,
+    transaction::TransactionQuery,
     user::UserQuery,
 };
 
@@ -19,6 +20,7 @@ mod error;
 mod league;
 mod player;
 mod team;
+mod transaction;
 mod user;
 
 pub type FbklSchema = Schema<QueryRoot, MutationRoot, EmptySubscription>;
@@ -30,6 +32,7 @@ pub struct QueryRoot(
     TeamQuery,
     PlayerQuery,
     ContractQuery,
+    TransactionQuery,
 );
 
 #[derive(Default, MergedObject)]
