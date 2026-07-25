@@ -1446,6 +1446,7 @@ dependencies = [
  "fbkl-entity",
  "fbkl-jobs",
  "fbkl-logic",
+ "fbkl-transaction-processor",
  "serde",
  "serde_json",
  "sha2",

@@ -5,6 +5,7 @@ use async_graphql::{EmptySubscription, MergedObject, Schema};
 
 use self::{
     contract::ContractQuery,
+    deadline::{DeadlineMutation, DeadlineQuery},
     keeper::{KeeperMutation, KeeperQuery},
     league::{LeagueMutation, LeagueQuery},
     player::PlayerQuery,
@@ -19,6 +20,7 @@ pub use self::{authz::*, error::*};
 
 mod authz;
 mod contract;
+mod deadline;
 mod error;
 mod keeper;
 mod league;
@@ -41,6 +43,7 @@ pub struct QueryRoot(
     TradeQuery,
     TransactionQuery,
     KeeperQuery,
+    DeadlineQuery,
 );
 
 #[derive(Default, MergedObject)]
@@ -49,4 +52,5 @@ pub struct MutationRoot(
     TradeMutation,
     RosterMutation,
     KeeperMutation,
+    DeadlineMutation,
 );
