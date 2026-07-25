@@ -9,7 +9,8 @@ use tracing::instrument;
 
 use crate::{
     contract::{self, ContractStatus},
-    draft_pick, trade, trade_asset,
+    draft_pick, trade,
+    trade_asset::{self, FromTeamId, ToTeamId},
 };
 
 #[instrument]
@@ -68,8 +69,8 @@ where
 #[instrument]
 pub fn new_trade_asset_active_model_from_contract(
     contract_model: &contract::Model,
-    from_team_id: i64,
-    to_team_id: i64,
+    from_team_id: FromTeamId,
+    to_team_id: ToTeamId,
 ) -> Result<trade_asset::ActiveModel> {
     validate_contract_trade_asset(contract_model, from_team_id)?;
 
@@ -84,8 +85,8 @@ pub fn new_trade_asset_active_model_from_contract(
 pub async fn insert_trade_asset_from_contract<C>(
     trade_model: &trade::Model,
     contract_model: &contract::Model,
-    from_team_id: i64,
-    to_team_id: i64,
+    from_team_id: FromTeamId,
+    to_team_id: ToTeamId,
     db: &C,
 ) -> Result<trade_asset::Model>
 where
@@ -101,7 +102,7 @@ where
 
 fn validate_contract_trade_asset(
     contract_model: &contract::Model,
-    from_team_id: i64,
+    from_team_id: FromTeamId,
 ) -> Result<()> {
     if contract_model.status != ContractStatus::Active {
         bail!(
@@ -113,11 +114,11 @@ fn validate_contract_trade_asset(
     let contract_team_id = contract_model
         .team_id
         .ok_or_else(|| eyre!("Contract is missing a team_id (id = {})", contract_model.id))?;
-    if contract_team_id != from_team_id {
+    if contract_team_id != from_team_id.0 {
         bail!(
             "Contract's owning team and trade asset's sending team do not match. contract.team_id = {}. trade_asset.from_team_id = {}.",
             contract_team_id,
-            from_team_id
+            from_team_id.0
         );
     }
 

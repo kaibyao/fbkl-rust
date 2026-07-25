@@ -1,4 +1,3 @@
-use fbkl_entity::sea_orm::TransactionTrait;
 use sea_orm_migration::prelude::*;
 
 use crate::{m20221023_002184_create_draft_pick::DraftPick, set_auto_updated_at_on_table};
@@ -9,12 +8,8 @@ pub struct Migration;
 #[async_trait::async_trait]
 impl MigrationTrait for Migration {
     async fn up(&self, manager: &SchemaManager) -> Result<(), DbErr> {
-        let transaction = manager.get_connection().begin().await?;
-
         setup_draft_pick_option(manager).await?;
-        setup_draft_pick_draft_pick_option(manager).await?;
-
-        transaction.commit().await
+        setup_draft_pick_draft_pick_option(manager).await
     }
 
     async fn down(&self, manager: &SchemaManager) -> Result<(), DbErr> {

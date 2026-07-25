@@ -13,7 +13,9 @@ use fbkl_entity::{
 };
 use tracing::instrument;
 
-use crate::roster::{calculate_team_contract_salary, calculate_team_contract_salary_with_model};
+use crate::roster::{
+    SalarySnapshot, calculate_team_contract_salary, calculate_team_contract_salary_with_model,
+};
 
 /// Signs a contract to the team that submitted the last/winning bid to a preseason veteran auction before it ended. Creates + inserts the contract, transaction, and team update.
 #[instrument]
@@ -29,8 +31,10 @@ where
 {
     // Sign contract to team
     let winning_team_model = winning_auction_bid_model.get_team(db).await?;
-    let (previous_salary, previous_salary_cap) =
-        calculate_team_contract_salary_with_model(&winning_team_model, deadline_model, db).await?;
+    let SalarySnapshot {
+        salary: previous_salary,
+        cap: previous_salary_cap,
+    } = calculate_team_contract_salary_with_model(&winning_team_model, deadline_model, db).await?;
     let signed_contract_model = contract_queries::sign_auction_contract_to_team(
         auction_model,
         winning_auction_bid_model.bid_amount,
@@ -82,7 +86,10 @@ where
     let deadline_model = auction_transaction_model.get_deadline(db).await?;
     let team_model = winning_auction_bid_model.get_team(db).await?;
     let current_active_team_contracts = team_model.get_active_contracts(db).await?;
-    let (new_salary, new_salary_cap) = calculate_team_contract_salary(
+    let SalarySnapshot {
+        salary: new_salary,
+        cap: new_salary_cap,
+    } = calculate_team_contract_salary(
         team_model.id,
         &current_active_team_contracts,
         &deadline_model,

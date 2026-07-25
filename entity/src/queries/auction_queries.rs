@@ -44,12 +44,13 @@ where
 {
     let soft_end_timestamp = start_datetime
         .checked_add_days(Days::new(1))
-        .expect("There's no way we've reached the end of time itself, right?");
-    let fixed_end_timestamp = fixed_end_datetime.unwrap_or_else(|| {
-        start_datetime
+        .ok_or_else(|| eyre!("auction start_datetime + 1 day overflowed: {start_datetime}"))?;
+    let fixed_end_timestamp = match fixed_end_datetime {
+        Some(fixed_end) => fixed_end,
+        None => start_datetime
             .checked_add_days(Days::new(2))
-            .expect("There's no way we've reached the end of time itself, right?")
-    });
+            .ok_or_else(|| eyre!("auction start_datetime + 2 days overflowed: {start_datetime}"))?,
+    };
 
     let auction_model_to_insert = auction::ActiveModel {
         id: ActiveValue::NotSet,

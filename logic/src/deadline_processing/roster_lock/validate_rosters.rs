@@ -17,7 +17,7 @@ use fbkl_entity::{
 use multimap::MultiMap;
 use tracing::instrument;
 
-use crate::roster::calculate_team_contract_salary;
+use crate::roster::{SalarySnapshot, calculate_team_contract_salary};
 
 /// Validate if a roster is ready for a lock.
 #[instrument]
@@ -100,8 +100,10 @@ async fn validate_roster_cap_not_exceeded<C>(
 where
     C: ConnectionTrait + Debug,
 {
-    let (total_contract_amount, team_salary_cap) =
-        calculate_team_contract_salary(team_id, team_contracts, roster_lock_deadline, db).await?;
+    let SalarySnapshot {
+        salary: total_contract_amount,
+        cap: team_salary_cap,
+    } = calculate_team_contract_salary(team_id, team_contracts, roster_lock_deadline, db).await?;
 
     if total_contract_amount > team_salary_cap {
         let contracts_str = format_team_contracts(team_contracts, db).await?;

@@ -43,13 +43,13 @@ where
         .trade_asset_draft_picks_by_trade_asset_id
         .values()
     {
-        validate_draft_pick_trade_asset(trade_asset, draft_pick, trade_id, db)?;
+        validate_draft_pick_trade_asset(trade_asset, draft_pick, trade_id)?;
     }
     for (trade_asset, draft_pick_option) in trade_asset_related_models
         .trade_asset_draft_pick_options_by_trade_asset_id
         .values()
     {
-        validate_draft_pick_option_trade_asset(trade_asset, draft_pick_option, db)?;
+        validate_draft_pick_option_trade_asset(trade_asset, draft_pick_option)?;
     }
 
     Ok(())
@@ -82,15 +82,11 @@ where
 }
 
 #[instrument]
-fn validate_draft_pick_trade_asset<C>(
+fn validate_draft_pick_trade_asset(
     trade_asset_model: &trade_asset::Model,
     draft_pick_model: &draft_pick::Model,
     trade_id: i64,
-    db: &C,
-) -> Result<()>
-where
-    C: ConnectionTrait + Debug,
-{
+) -> Result<()> {
     // Ensure draft pick is owned by the team referenced in the trade asset entity
     ensure!(
         draft_pick_model.current_owner_team_id == trade_asset_model.from_team_id,
@@ -105,14 +101,10 @@ where
 }
 
 #[instrument]
-fn validate_draft_pick_option_trade_asset<C>(
+fn validate_draft_pick_option_trade_asset(
     trade_asset_model: &trade_asset::Model,
     draft_pick_option: &draft_pick_option::Model,
-    db: &C,
-) -> Result<()>
-where
-    C: ConnectionTrait + Debug,
-{
+) -> Result<()> {
     // Ensure that the draft pick option is in a proposed status, as they can't be traded after creation.
     ensure!(
         draft_pick_option.status == DraftPickOptionStatus::Proposed,

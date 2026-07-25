@@ -18,7 +18,7 @@ use fbkl_entity::{
     trade_asset, transaction,
 };
 
-use crate::roster::calculate_team_contract_salary;
+use crate::roster::{SalarySnapshot, calculate_team_contract_salary};
 
 static EMPTY_VEC: &Vec<contract::Model> = &vec![];
 
@@ -68,7 +68,7 @@ pub async fn insert_team_updates_from_completed_trade<C>(
     trade_datetime: &DateTimeWithTimeZone,
     trade_transaction: &transaction::Model,
     deadline_model: &deadline::Model,
-    team_salaries_before_trade: &HashMap<i64, (i16, i16)>,
+    team_salaries_before_trade: &HashMap<i64, SalarySnapshot>,
     team_ids_involved_in_trade: Vec<i64>,
     db: &C,
 ) -> Result<()>
@@ -89,24 +89,23 @@ where
             .iter()
             .map(|contract_model| contract_model.id)
             .collect();
-        let (new_salary, new_salary_cap) =
+        let new_salary =
             calculate_team_contract_salary(team_id, team_active_contracts, deadline_model, db)
                 .await?;
-        let (previous_salary, previous_salary_cap) =
-            team_salaries_before_trade.get(&team_id).ok_or_else(|| {
-                eyre!(
-                    "Missing pre-trade salary for team (id = {}); salaries must be computed for every team involved in the trade",
-                    team_id
-                )
-            })?;
+        let previous_salary = team_salaries_before_trade.get(&team_id).ok_or_else(|| {
+            eyre!(
+                "Missing pre-trade salary for team (id = {}); salaries must be computed for every team involved in the trade",
+                team_id
+            )
+        })?;
 
         let team_update_data = TeamUpdateData::from_assets(
             team_contract_ids,
             team_update_assets,
-            new_salary,
-            new_salary_cap,
-            *previous_salary,
-            *previous_salary_cap,
+            new_salary.salary,
+            new_salary.cap,
+            previous_salary.salary,
+            previous_salary.cap,
         );
         let new_team_update = team_update::ActiveModel {
             id: ActiveValue::NotSet,
@@ -145,8 +144,8 @@ where
         let (player_name, team_abbr, team_name) = match contract_model.get_player(db).await? {
             RelatedPlayer::LeaguePlayer(league_player_model) => (
                 league_player_model.name,
-                FREE_AGENCY_TEAM.2.to_string(),
-                format!("{} {}", FREE_AGENCY_TEAM.0, FREE_AGENCY_TEAM.1),
+                FREE_AGENCY_TEAM.abbr.to_string(),
+                format!("{} {}", FREE_AGENCY_TEAM.city, FREE_AGENCY_TEAM.name),
             ),
             RelatedPlayer::Player(player_model) => {
                 let real_team_model = player_model.get_real_team(db).await?;

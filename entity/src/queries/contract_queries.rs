@@ -2,7 +2,7 @@ use std::{collections::HashMap, fmt::Debug};
 
 use color_eyre::{
     Result,
-    eyre::{bail, ensure},
+    eyre::{bail, ensure, eyre},
 };
 use multimap::MultiMap;
 use sea_orm::{
@@ -82,17 +82,24 @@ where
     Ok(updated_contract)
 }
 
+/// When a contract is dropped relative to the preseason keeper deadline — decides which dropped-contract record (and cap penalty) is created.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum PreseasonKeeperTiming {
+    Before,
+    OnOrAfter,
+}
+
 /// Inserts the "Dropped" contract as the next contract in the contract chain.
 #[instrument]
 pub async fn drop_contract<C>(
     current_contract_model: contract::Model,
-    is_before_pre_season_keeper_deadline: bool,
+    keeper_timing: PreseasonKeeperTiming,
     db: &C,
 ) -> Result<contract::Model>
 where
     C: ConnectionTrait + Debug,
 {
-    let contract_to_drop = if is_before_pre_season_keeper_deadline {
+    let contract_to_drop = if keeper_timing == PreseasonKeeperTiming::Before {
         current_contract_model.create_dropped_contract_before_preseason_keeper_deadline()?
     } else {
         current_contract_model.create_dropped_contract_after_preseason_keeper_deadline()?
@@ -152,7 +159,13 @@ where
 
     let mut active_contracts_by_team_id = MultiMap::new();
     for active_contract in all_contracts {
-        active_contracts_by_team_id.insert(active_contract.team_id.expect("A contract model retrieved by filtering on team_id should have a non-empty team_id value."), active_contract);
+        let team_id = active_contract.team_id.ok_or_else(|| {
+            eyre!(
+                "Contract (id = {}) retrieved by team_id filter unexpectedly has no team_id",
+                active_contract.id
+            )
+        })?;
+        active_contracts_by_team_id.insert(team_id, active_contract);
     }
 
     Ok(active_contracts_by_team_id)

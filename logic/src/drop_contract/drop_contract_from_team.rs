@@ -10,7 +10,7 @@ use fbkl_entity::{
 };
 use tracing::instrument;
 
-use crate::roster::calculate_team_contract_salary_with_model;
+use crate::roster::{SalarySnapshot, calculate_team_contract_salary_with_model};
 
 use super::drop_contract_team_update::create_drop_contract_team_update;
 
@@ -31,18 +31,21 @@ where
             contract_model.id
         )
     })?;
-    let (original_salary, original_salary_cap) =
-        calculate_team_contract_salary_with_model(&team_model, deadline_model, db).await?;
+    let SalarySnapshot {
+        salary: original_salary,
+        cap: original_salary_cap,
+    } = calculate_team_contract_salary_with_model(&team_model, deadline_model, db).await?;
 
     // Saving the contract id for the transaction's contract_id, because the dropped one does not have a team_id and it becomes hard to calculate salary cap penalties without it.
     let contract_id = contract_model.id;
 
-    let dropped_contract = contract_queries::drop_contract(
-        contract_model,
-        deadline_model.is_preseason_keeper_or_before(),
-        db,
-    )
-    .await?;
+    let keeper_timing = if deadline_model.is_preseason_keeper_or_before() {
+        contract_queries::PreseasonKeeperTiming::Before
+    } else {
+        contract_queries::PreseasonKeeperTiming::OnOrAfter
+    };
+    let dropped_contract =
+        contract_queries::drop_contract(contract_model, keeper_timing, db).await?;
 
     // create transaction
     let transaction_to_insert = transaction::ActiveModel {

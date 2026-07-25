@@ -10,7 +10,7 @@ use fbkl_entity::{
 };
 use tracing::instrument;
 
-use crate::roster::calculate_team_contract_salary_with_model;
+use crate::roster::{SalarySnapshot, calculate_team_contract_salary_with_model};
 
 use super::ir_team_update::create_ir_team_update;
 
@@ -31,8 +31,10 @@ where
             contract_model.id
         )
     })?;
-    let (original_salary, original_salary_cap) =
-        calculate_team_contract_salary_with_model(&team_model, deadline_model, db).await?;
+    let SalarySnapshot {
+        salary: original_salary,
+        cap: original_salary_cap,
+    } = calculate_team_contract_salary_with_model(&team_model, deadline_model, db).await?;
 
     let updated_contract = contract_queries::move_contract_to_ir(contract_model, db).await?;
 

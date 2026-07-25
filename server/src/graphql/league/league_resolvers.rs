@@ -8,7 +8,10 @@ use super::League;
 use async_graphql::{Context, Error as GraphQlError, Object, Result};
 use axum::http::StatusCode;
 use fbkl_entity::{
-    league_queries::{create_league_with_commissioner, find_league_by_user, find_leagues_by_user},
+    league_queries::{
+        NewLeagueWithCommissioner, create_league_with_commissioner, find_league_by_user,
+        find_leagues_by_user,
+    },
     sea_orm::DatabaseConnection,
     user,
 };
@@ -67,9 +70,16 @@ impl LeagueMutation {
         let session = ctx.data_unchecked::<Session>();
         let user_id = enforce_logged_in(session.clone()).await?;
 
-        let (league_model, team_model, team_user_model) =
-            create_league_with_commissioner(league_name, team_name, user_id, user_nickname, db)
-                .await?;
+        let (league_model, team_model, team_user_model) = create_league_with_commissioner(
+            NewLeagueWithCommissioner {
+                league_name,
+                team_name,
+                league_owner_user_id: user_id,
+                user_nickname,
+            },
+            db,
+        )
+        .await?;
 
         let team_user = TeamUser {
             team_id: team_model.id,

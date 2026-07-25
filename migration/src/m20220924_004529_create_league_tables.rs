@@ -1,4 +1,4 @@
-use sea_orm_migration::{prelude::*, sea_orm::TransactionTrait};
+use sea_orm_migration::prelude::*;
 
 use crate::{m20220916_131202_create_user_table::User, set_auto_updated_at_on_table};
 
@@ -8,14 +8,10 @@ pub struct Migration;
 #[async_trait::async_trait]
 impl MigrationTrait for Migration {
     async fn up(&self, manager: &SchemaManager) -> Result<(), DbErr> {
-        let transaction = manager.get_connection().begin().await?;
-
         setup_league(manager).await?;
         setup_league_player(manager).await?;
         setup_team(manager).await?;
-        setup_team_user(manager).await?;
-
-        transaction.commit().await
+        setup_team_user(manager).await
     }
 
     async fn down(&self, manager: &SchemaManager) -> Result<(), DbErr> {

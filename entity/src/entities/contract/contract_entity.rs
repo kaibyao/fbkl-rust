@@ -137,22 +137,18 @@ impl Model {
     where
         C: ConnectionTrait + Debug,
     {
-        let mut all_contracts_in_chain = Entity::find()
+        Entity::find()
             .filter(Column::OriginalContractId.eq(self.original_contract_id))
             .all(db)
-            .await?;
-        all_contracts_in_chain.sort_by_key(|a| a.id);
-        all_contracts_in_chain.pop().ok_or_else(|| {
-            let contract_ids_in_chain: Vec<String> = all_contracts_in_chain
-                .iter()
-                .map(|contract| contract.id.to_string())
-                .collect();
-            eyre!(
-                "Could not retrieve last contract in contract chain: [{}], called on contract (id = {})",
-                contract_ids_in_chain.join(", "),
-                self.id
-            )
-        })
+            .await?
+            .into_iter()
+            .max_by_key(|contract| contract.id)
+            .ok_or_else(|| {
+                eyre!(
+                    "Could not retrieve last contract in contract chain, called on contract (id = {})",
+                    self.id
+                )
+            })
     }
 
     /// Checks whether this contract is the most recent in the contract history chain.

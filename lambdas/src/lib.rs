@@ -26,8 +26,7 @@ pub async fn db() -> Result<&'static DatabaseConnection, DbErr> {
 }
 
 async fn init_db() -> Result<DatabaseConnection, DbErr> {
-    let database_url = std::env::var("FBKL_DATABASE_URL").expect("FBKL_DATABASE_URL must be set");
-    let mut opts = ConnectOptions::new(database_url);
+    let mut opts = ConnectOptions::new(fbkl_server::read_database_url()?);
     opts.max_connections(1)
         .min_connections(0)
         .acquire_timeout(Duration::from_secs(8))

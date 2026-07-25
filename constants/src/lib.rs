@@ -1,5 +1,19 @@
 pub mod date;
 pub mod league_rules;
 
-/// (City, Team Name, Abbr, NBA ID, ESPN ID)
-pub static FREE_AGENCY_TEAM: (&str, &str, &str, i32, i16) = ("Free", "Agency", "FA", 0, 0);
+/// The pseudo-team standing in for free agents (players not on any real NBA team).
+pub struct FreeAgencyTeam {
+    pub city: &'static str,
+    pub name: &'static str,
+    pub abbr: &'static str,
+    pub nba_id: i32,
+    pub espn_id: i16,
+}
+
+pub static FREE_AGENCY_TEAM: FreeAgencyTeam = FreeAgencyTeam {
+    city: "Free",
+    name: "Agency",
+    abbr: "FA",
+    nba_id: 0,
+    espn_id: 0,
+};

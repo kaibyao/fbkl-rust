@@ -1,5 +1,3 @@
-mod team_resolvers;
-
 mod team_types;
 pub use team_types::*;
 
