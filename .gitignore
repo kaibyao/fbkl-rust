@@ -38,3 +38,6 @@ routeTree.gen.ts
 
 # IntelliJ
 .idea/
+
+# Beads / Dolt files (added by bd init)
+.beads/proxieddb/
