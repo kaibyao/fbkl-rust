@@ -11,6 +11,7 @@ pub mod draft_pick_option;
 pub mod job_run;
 pub mod league;
 pub mod league_player;
+pub mod league_team_season_standing;
 pub mod min_bid_tier_config;
 pub mod player;
 pub mod position;

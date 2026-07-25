@@ -28,6 +28,7 @@ mod m20260725_000002_alter_auction_add_status_and_owner;
 mod m20260725_000003_create_auction_schedule_tables;
 mod m20260730_000001_rename_auction_close_timestamps;
 mod m20260731_000001_create_veteran_auction_ranking;
+mod m20260731_000002_create_league_team_season_standing;
 
 pub struct Migrator;
 
@@ -56,6 +57,7 @@ impl MigratorTrait for Migrator {
             Box::new(m20260725_000003_create_auction_schedule_tables::Migration),
             Box::new(m20260730_000001_rename_auction_close_timestamps::Migration),
             Box::new(m20260731_000001_create_veteran_auction_ranking::Migration),
+            Box::new(m20260731_000002_create_league_team_season_standing::Migration),
         ]
     }
 }
