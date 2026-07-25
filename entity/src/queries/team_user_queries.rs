@@ -92,3 +92,14 @@ where
         .await?;
     Ok(team_users)
 }
+
+#[instrument]
+pub async fn find_team_user_by_id<C>(team_user_id: i64, db: &C) -> Result<team_user::Model>
+where
+    C: ConnectionTrait + Debug,
+{
+    team_user::Entity::find_by_id(team_user_id)
+        .one(db)
+        .await?
+        .ok_or_else(|| eyre!("Could not find team_user with id: {}", team_user_id))
+}

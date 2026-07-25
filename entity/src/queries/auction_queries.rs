@@ -30,6 +30,20 @@ where
     Ok(maybe_auction_model)
 }
 
+/// Same as [`find_auction_by_id`] but takes a row lock, so racing bids on one auction serialize.
+/// Only meaningful inside a db transaction.
+#[instrument]
+pub async fn find_auction_by_id_for_update<C>(auction_id: i64, db: &C) -> Result<auction::Model>
+where
+    C: ConnectionTrait + Debug,
+{
+    auction::Entity::find_by_id(auction_id)
+        .lock_exclusive()
+        .one(db)
+        .await?
+        .ok_or_else(|| eyre!("Could not find auction with id: {}", auction_id))
+}
+
 /// Auctions in the league/season that have not settled yet — `transaction_id` is NULL until a
 /// winning bid is signed. The league scope comes from the auctioned contract.
 #[instrument]
