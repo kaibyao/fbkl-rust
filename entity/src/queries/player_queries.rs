@@ -2,7 +2,7 @@ use std::collections::HashSet;
 
 use color_eyre::{Result, eyre::eyre};
 use sea_orm::sea_query::Expr;
-use sea_orm::{ConnectionTrait, EntityTrait, QueryFilter, QueryOrder, QuerySelect};
+use sea_orm::{ColumnTrait, ConnectionTrait, EntityTrait, QueryFilter, QueryOrder, QuerySelect};
 
 use crate::player;
 
@@ -55,4 +55,16 @@ where
 
     let player_models = player::Entity::find().filter(condition).all(db).await?;
     Ok(player_models)
+}
+
+/// Batch fetch for the GraphQL player `DataLoader`.
+pub async fn find_players_by_ids<C>(ids: Vec<i64>, db: &C) -> Result<Vec<player::Model>>
+where
+    C: ConnectionTrait,
+{
+    let players = player::Entity::find()
+        .filter(player::Column::Id.is_in(ids))
+        .all(db)
+        .await?;
+    Ok(players)
 }

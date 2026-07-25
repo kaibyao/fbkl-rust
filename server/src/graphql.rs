@@ -18,7 +18,7 @@ use self::{
     user::UserQuery,
 };
 
-pub use self::{authz::*, error::*};
+pub use self::{authz::*, error::*, loaders::*};
 
 mod auction;
 mod authz;
@@ -28,6 +28,7 @@ mod draft;
 mod error;
 mod keeper;
 mod league;
+mod loaders;
 mod player;
 mod roster;
 mod team;

@@ -80,3 +80,18 @@ where
     let inserted_league_player = league_player_to_insert.insert(db).await?;
     Ok(inserted_league_player)
 }
+
+/// Batch fetch for the GraphQL league-player `DataLoader`.
+pub async fn find_league_players_by_ids<C>(
+    ids: Vec<i64>,
+    db: &C,
+) -> Result<Vec<league_player::Model>>
+where
+    C: ConnectionTrait,
+{
+    let league_players = league_player::Entity::find()
+        .filter(league_player::Column::Id.is_in(ids))
+        .all(db)
+        .await?;
+    Ok(league_players)
+}
