@@ -1,10 +1,7 @@
 use std::fmt::Debug;
 
 use chrono::Days;
-use color_eyre::{
-    Result,
-    eyre::{bail, eyre},
-};
+use color_eyre::{Result, eyre::eyre};
 use sea_orm::{
     ActiveModelTrait, ActiveValue, ColumnTrait, ConnectionTrait, EntityTrait, JoinType,
     QueryFilter, QueryOrder, QuerySelect, RelationTrait, prelude::DateTimeWithTimeZone,
@@ -265,6 +262,7 @@ where
     Ok(inserted_model)
 }
 
+/// Pure insert — `logic::auction::place_auction_bid` owns every bid rule (rules §6.4, §8.3).
 #[instrument]
 pub async fn insert_auction_bid<C>(
     auction_id: i64,
@@ -276,31 +274,6 @@ pub async fn insert_auction_bid<C>(
 where
     C: ConnectionTrait + Debug,
 {
-    let auction_model = find_auction_by_id(auction_id, db).await?;
-    let maybe_latest_bid = auction_model.get_latest_bid(db).await?;
-
-    // validate bid amount
-    match maybe_latest_bid {
-        None => {
-            if bid_amount < auction_model.minimum_bid_amount {
-                bail!(
-                    "Auction bid amount ({}) must be greater than the starting price ({}).",
-                    bid_amount,
-                    auction_model.minimum_bid_amount
-                );
-            }
-        }
-        Some(latest_auction_bid) => {
-            if bid_amount <= latest_auction_bid.bid_amount {
-                bail!(
-                    "Auction bid amount ({}) must be greater than the previous bid ({}).",
-                    bid_amount,
-                    latest_auction_bid.bid_amount
-                );
-            }
-        }
-    }
-
     let auction_bid_to_insert = auction_bid::ActiveModel {
         id: ActiveValue::NotSet,
         bid_amount: ActiveValue::Set(bid_amount),

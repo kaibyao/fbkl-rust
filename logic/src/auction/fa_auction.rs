@@ -9,10 +9,11 @@ use fbkl_entity::{
     contract::{self, ContractKind},
     contract_queries, deadline,
     sea_orm::{ConnectionTrait, TransactionTrait, prelude::DateTimeWithTimeZone},
+    team_update_queries,
 };
 use tracing::instrument;
 
-use super::sign_auction_contract_to_team;
+use super::{AuctionCloseOutcome, auction_close_outcome, sign_auction_contract_to_team};
 
 /// Ends a free agent auction and creates the associated transaction + team contract OR expires the associated contract.
 #[instrument]
@@ -26,36 +27,69 @@ where
     C: ConnectionTrait + TransactionTrait + Debug,
 {
     let auction_model = auction_queries::find_auction_by_id(auction_id, db).await?;
+    let auction_contract_model = auction_model.get_contract(db).await?;
 
     // Create contract for player <--> team
     let db_txn = db.begin().await?;
 
-    let winning_bid_model = auction_model
-        .get_latest_bid(&db_txn)
-        .await?
-        .ok_or_else(|| {
-            eyre!(
-                "Expected a bid to exist for FA auction (auction_id = {})",
-                auction_model.id
-            )
-        })?;
+    let maybe_latest_bid = auction_model.get_latest_bid(&db_txn).await?;
+    let final_contract_model =
+        match auction_close_outcome(auction_contract_model.kind, maybe_latest_bid.is_some()) {
+            AuctionCloseOutcome::AwaitRfaResolution => {
+                auction_queries::update_auction_status(
+                    auction_model.id,
+                    AuctionStatus::Closed,
+                    &db_txn,
+                )
+                .await?;
+                auction_contract_model
+            }
+            AuctionCloseOutcome::Expire => {
+                // No one bid on the player; expire the contract. Player is now a free agent again.
+                auction_queries::update_auction_status(
+                    auction_model.id,
+                    AuctionStatus::Expired,
+                    &db_txn,
+                )
+                .await?;
+                contract_queries::expire_contract(auction_contract_model, &db_txn).await?
+            }
+            AuctionCloseOutcome::Sign => {
+                let winning_bid_model = maybe_latest_bid.ok_or_else(|| {
+                    eyre!("Expected a winning bid for auction {}", auction_model.id)
+                })?;
 
-    // Find preseason FA auction start deadline model, as that only starts at the end of the veteran auction
-    let (signed_contract_model, _, _team_update_model) = sign_auction_contract_to_team(
-        &auction_model,
-        &winning_bid_model,
-        deadline_model,
-        maybe_override_effective_date,
-        &db_txn,
-    )
-    .await?;
+                let (signed_contract_model, _, team_update_model) = sign_auction_contract_to_team(
+                    &auction_model,
+                    &winning_bid_model,
+                    deadline_model,
+                    maybe_override_effective_date,
+                    &db_txn,
+                )
+                .await?;
 
-    auction_queries::update_auction_status(auction_model.id, AuctionStatus::Completed, &db_txn)
-        .await?;
+                // Stamp the team_update the same way the veteran path does; the signing is immediate.
+                team_update_queries::update_team_update_for_auction(
+                    &team_update_model,
+                    maybe_override_effective_date,
+                    &db_txn,
+                )
+                .await?;
+
+                auction_queries::update_auction_status(
+                    auction_model.id,
+                    AuctionStatus::Completed,
+                    &db_txn,
+                )
+                .await?;
+
+                signed_contract_model
+            }
+        };
 
     db_txn.commit().await?;
 
-    Ok(signed_contract_model)
+    Ok(final_contract_model)
 }
 
 /// Opens a new in-season free agent auction for a player (rules §8.3).
