@@ -33,7 +33,7 @@ pub struct Deadline {
 }
 
 impl Deadline {
-    fn from_model(model: &deadline::Model) -> Self {
+    pub fn from_model(model: &deadline::Model) -> Self {
         Self {
             id: model.id,
             date_time: model.date_time.to_rfc3339(),

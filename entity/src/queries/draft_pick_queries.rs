@@ -3,7 +3,7 @@ use std::fmt::Debug;
 use color_eyre::Result;
 use sea_orm::{
     ActiveModelTrait, ColumnTrait, ConnectionTrait, EntityTrait, LoaderTrait, QueryFilter,
-    TransactionTrait,
+    QueryOrder, TransactionTrait,
 };
 use tracing::instrument;
 
@@ -67,6 +67,8 @@ where
                 .eq(league_id)
                 .and(draft_pick::Column::EndOfSeasonYear.eq(end_of_season_year)),
         )
+        .order_by_asc(draft_pick::Column::Round)
+        .order_by_asc(draft_pick::Column::Id)
         .all(db)
         .await?;
 
