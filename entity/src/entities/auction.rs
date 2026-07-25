@@ -16,11 +16,14 @@ pub struct Model {
     #[sea_orm(primary_key)]
     pub id: i64,
     pub kind: AuctionKind,
+    pub status: AuctionStatus,
     pub minimum_bid_amount: i16,
     pub start_timestamp: DateTimeWithTimeZone,
     pub soft_end_timestamp: DateTimeWithTimeZone,
     pub fixed_end_timestamp: DateTimeWithTimeZone,
     pub contract_id: i64,
+    /// The team that held the player before the auction (RFA/UFA only, rules §6.2.2.3 / §15.3.1). NULL otherwise. That team may not bid.
+    pub original_owner_team_id: Option<i64>,
     /// The auction-completed transaction, set once a winning bid is signed (1:1). NULL while the auction is still open.
     pub transaction_id: Option<i64>,
     pub created_at: DateTimeWithTimeZone,
@@ -93,6 +96,40 @@ pub enum AuctionKind {
     // /// Represents a free agent auction that happens during the league preseason. This is either during the open nomination period that immediately follows the veteran auction, or the week 1 free agent period.
     // #[sea_orm(string_value = "2")]
     // PreseasonFreeAgent,
+}
+
+/// Lifecycle of an auction. Replaces the old "open if now < `soft_end`" inference.
+#[derive(
+    Debug,
+    Default,
+    Clone,
+    Copy,
+    Eq,
+    PartialEq,
+    Enum,
+    EnumIter,
+    DeriveActiveEnum,
+    Serialize,
+    Deserialize,
+)]
+#[sea_orm(rs_type = "String", db_type = "String(StringLen::None)")]
+pub enum AuctionStatus {
+    /// Scheduled, not yet open for bids.
+    #[sea_orm(string_value = "Pending")]
+    Pending,
+    /// Taking bids.
+    #[default]
+    #[sea_orm(string_value = "Open")]
+    Open,
+    /// Timer elapsed, awaiting `end_*_auction`. RFA auctions also park here for the spec 03 raise/match flow.
+    #[sea_orm(string_value = "Closed")]
+    Closed,
+    /// Winning bid signed to a team.
+    #[sea_orm(string_value = "Completed")]
+    Completed,
+    /// Closed with no bids; the player went back to the free agent pool.
+    #[sea_orm(string_value = "Expired")]
+    Expired,
 }
 
 #[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]

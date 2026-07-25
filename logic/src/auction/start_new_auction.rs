@@ -30,6 +30,7 @@ where
         starting_bid_amount,
         start_timestamp,
         None,
+        None,
         db,
     )
     .await?;

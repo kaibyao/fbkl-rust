@@ -3,6 +3,7 @@ use std::fmt::Debug;
 use chrono::NaiveDate;
 use color_eyre::{Result, eyre::eyre};
 use fbkl_entity::{
+    auction::AuctionStatus,
     auction_queries,
     contract::{self, ContractKind},
     contract_queries, deadline,
@@ -47,6 +48,9 @@ where
         &db_txn,
     )
     .await?;
+
+    auction_queries::update_auction_status(auction_model.id, AuctionStatus::Completed, &db_txn)
+        .await?;
 
     db_txn.commit().await?;
 

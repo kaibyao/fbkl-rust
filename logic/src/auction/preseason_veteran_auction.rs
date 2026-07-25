@@ -3,6 +3,7 @@ use std::fmt::Debug;
 use chrono::NaiveDate;
 use color_eyre::{Result, eyre::bail};
 use fbkl_entity::{
+    auction::AuctionStatus,
     auction_queries,
     contract::{self, ContractKind},
     contract_queries,
@@ -42,6 +43,12 @@ where
     let final_contract_model = match maybe_latest_bid {
         None => {
             // No one bid on the player; expire the contract. Player is now a free agent.
+            auction_queries::update_auction_status(
+                auction_model.id,
+                AuctionStatus::Expired,
+                &db_txn,
+            )
+            .await?;
             contract_queries::expire_contract(auction_contract_model, &db_txn).await?
         }
         Some(winning_bid_model) => {
@@ -68,6 +75,13 @@ where
             team_update_queries::update_team_update_for_preseason_veteran_auction(
                 &team_update_model,
                 maybe_override_effective_date,
+                &db_txn,
+            )
+            .await?;
+
+            auction_queries::update_auction_status(
+                auction_model.id,
+                AuctionStatus::Completed,
                 &db_txn,
             )
             .await?;

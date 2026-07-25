@@ -12,7 +12,7 @@ use sea_orm::{
 use tracing::instrument;
 
 use crate::{
-    auction::{self, AuctionKind},
+    auction::{self, AuctionKind, AuctionStatus},
     auction_bid, contract,
     queries::pagination::{Paged, fetch_page},
 };
@@ -70,6 +70,69 @@ where
     fetch_page(query, page, page_size, db).await
 }
 
+/// Pushes an auction's rolling 24h soft end out (rules §6.4.4 / §8.3.1).
+#[instrument]
+pub async fn extend_auction_soft_end<C>(
+    auction_id: i64,
+    new_soft_end: DateTimeWithTimeZone,
+    db: &C,
+) -> Result<auction::Model>
+where
+    C: ConnectionTrait + Debug,
+{
+    let mut auction_to_update: auction::ActiveModel =
+        find_auction_by_id(auction_id, db).await?.into();
+    auction_to_update.soft_end_timestamp = ActiveValue::Set(new_soft_end);
+    Ok(auction_to_update.update(db).await?)
+}
+
+/// Pushes an FA auction's all-bid deadline out (the rules §8.3.2 last-hour extension).
+#[instrument]
+pub async fn extend_auction_fixed_end<C>(
+    auction_id: i64,
+    new_fixed_end: DateTimeWithTimeZone,
+    db: &C,
+) -> Result<auction::Model>
+where
+    C: ConnectionTrait + Debug,
+{
+    let mut auction_to_update: auction::ActiveModel =
+        find_auction_by_id(auction_id, db).await?.into();
+    auction_to_update.fixed_end_timestamp = ActiveValue::Set(new_fixed_end);
+    Ok(auction_to_update.update(db).await?)
+}
+
+/// Lowers an unbid veteran auction's minimum bid to the next tier (rules §6.3.4).
+#[instrument]
+pub async fn update_auction_minimum_bid<C>(
+    auction_id: i64,
+    new_minimum_bid_amount: i16,
+    db: &C,
+) -> Result<auction::Model>
+where
+    C: ConnectionTrait + Debug,
+{
+    let mut auction_to_update: auction::ActiveModel =
+        find_auction_by_id(auction_id, db).await?.into();
+    auction_to_update.minimum_bid_amount = ActiveValue::Set(new_minimum_bid_amount);
+    Ok(auction_to_update.update(db).await?)
+}
+
+#[instrument]
+pub async fn update_auction_status<C>(
+    auction_id: i64,
+    new_status: AuctionStatus,
+    db: &C,
+) -> Result<auction::Model>
+where
+    C: ConnectionTrait + Debug,
+{
+    let mut auction_to_update: auction::ActiveModel =
+        find_auction_by_id(auction_id, db).await?.into();
+    auction_to_update.status = ActiveValue::Set(new_status);
+    Ok(auction_to_update.update(db).await?)
+}
+
 /// Creates & inserts a new auction with given arguments.
 #[instrument]
 pub async fn insert_new_auction<C>(
@@ -78,6 +141,7 @@ pub async fn insert_new_auction<C>(
     minimum_bid_amount: i16,
     start_datetime: DateTimeWithTimeZone,
     fixed_end_datetime: Option<DateTimeWithTimeZone>,
+    maybe_original_owner_team_id: Option<i64>,
     db: &C,
 ) -> Result<auction::Model>
 where
@@ -96,11 +160,13 @@ where
     let auction_model_to_insert = auction::ActiveModel {
         id: ActiveValue::NotSet,
         kind: ActiveValue::Set(kind),
+        status: ActiveValue::Set(AuctionStatus::Open),
         minimum_bid_amount: ActiveValue::Set(minimum_bid_amount),
         start_timestamp: ActiveValue::Set(start_datetime),
         soft_end_timestamp: ActiveValue::Set(soft_end_timestamp),
         fixed_end_timestamp: ActiveValue::Set(fixed_end_timestamp),
         contract_id: ActiveValue::Set(contract_id),
+        original_owner_team_id: ActiveValue::Set(maybe_original_owner_team_id),
         transaction_id: ActiveValue::NotSet,
         created_at: ActiveValue::NotSet,
         updated_at: ActiveValue::NotSet,
