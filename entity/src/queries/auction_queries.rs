@@ -15,6 +15,7 @@ use crate::{
     auction::{self, AuctionKind, AuctionStatus},
     auction_bid, contract,
     queries::pagination::{Paged, fetch_page},
+    team_user,
 };
 
 #[instrument]
@@ -42,6 +43,51 @@ where
         .one(db)
         .await?
         .ok_or_else(|| eyre!("Could not find auction with id: {}", auction_id))
+}
+
+/// The team's currently-winning bids (`(auction_id, bid_amount)`) across the league/season's `Open`
+/// auctions — the commitments rules §6.4.1 counts against a new bid.
+#[instrument]
+pub async fn find_winning_bids_for_team<C>(
+    team_id: i64,
+    league_id: i64,
+    end_of_season_year: i16,
+    db: &C,
+) -> Result<Vec<(i64, i16)>>
+where
+    C: ConnectionTrait + Debug,
+{
+    let bids: Vec<(i64, i16, i64)> = auction_bid::Entity::find()
+        .join(JoinType::InnerJoin, auction_bid::Relation::Auction.def())
+        .join(JoinType::InnerJoin, auction::Relation::Contract.def())
+        .join(JoinType::InnerJoin, auction_bid::Relation::TeamUser.def())
+        .filter(auction::Column::Status.eq(AuctionStatus::Open))
+        .filter(contract::Column::LeagueId.eq(league_id))
+        .filter(contract::Column::EndOfSeasonYear.eq(end_of_season_year))
+        .select_only()
+        .column(auction_bid::Column::AuctionId)
+        .column(auction_bid::Column::BidAmount)
+        .column(team_user::Column::TeamId)
+        .order_by_asc(auction_bid::Column::AuctionId)
+        .order_by_desc(auction_bid::Column::CreatedAt)
+        .order_by_desc(auction_bid::Column::Id)
+        .into_tuple()
+        .all(db)
+        .await?;
+
+    // rows are grouped per auction with the latest bid first, so the first row per auction wins it
+    let mut winning_bids = Vec::new();
+    let mut previous_auction_id = None;
+    for (auction_id, bid_amount, bidding_team_id) in bids {
+        if previous_auction_id == Some(auction_id) {
+            continue;
+        }
+        previous_auction_id = Some(auction_id);
+        if bidding_team_id == team_id {
+            winning_bids.push((auction_id, bid_amount));
+        }
+    }
+    Ok(winning_bids)
 }
 
 /// Auctions in the league/season that have not settled yet — `transaction_id` is NULL until a

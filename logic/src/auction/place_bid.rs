@@ -10,13 +10,16 @@ use std::fmt::Debug;
 
 use chrono::TimeDelta;
 use color_eyre::{Result, eyre::eyre};
+use fbkl_constants::league_rules::PRE_SEASON_CONTRACTS_PER_ROSTER_LIMIT;
 use fbkl_entity::{
-    auction::{AuctionKind, AuctionStatus},
-    auction_bid, auction_queries,
+    auction::{self, AuctionKind, AuctionStatus},
+    auction_bid, auction_queries, contract_queries,
     sea_orm::{ConnectionTrait, TransactionTrait, prelude::DateTimeWithTimeZone},
     team_user_queries,
 };
 use tracing::instrument;
+
+use crate::roster;
 
 /// Why a bid was refused. Each variant is a distinct user-facing rejection reason.
 #[derive(Debug, thiserror::Error, PartialEq, Eq)]
@@ -40,6 +43,18 @@ pub enum BidRejection {
     },
     #[error("Bid of ${bid_amount} must be at least ${required} (previous bid + $1).")]
     BelowIncrement { bid_amount: i16, required: i16 },
+    #[error(
+        "Bid of ${bid_amount} would commit ${committed_salary} against a ${salary_cap} salary cap."
+    )]
+    InsufficientCap {
+        bid_amount: i16,
+        committed_salary: i32,
+        salary_cap: i16,
+    },
+    #[error(
+        "Winning this bid would need {roster_used} roster spots, but the limit is {roster_limit}."
+    )]
+    NoRosterSpace { roster_used: i32, roster_limit: i16 },
 }
 
 /// Places a bid on an open auction, rolling the 24h soft end forward (§6.4.4 / §8.3.1).
@@ -96,6 +111,15 @@ where
         maybe_latest_bid.as_ref().map(|bid| bid.bid_amount),
     )?;
 
+    validate_bid_cap_and_roster(
+        &auction_model,
+        bidding_team_user.team_id,
+        bid_amount,
+        now,
+        &db_txn,
+    )
+    .await?;
+
     let inserted_bid = auction_queries::insert_auction_bid(
         auction_id,
         bidding_team_user_id,
@@ -136,9 +160,133 @@ const fn validate_bid_amount(
     }
 }
 
+/// The rules §6.4.1 "null and void" check: a bid that would break the bidder's cap or roster limit
+/// is rejected so the previous bid stays winning.
+///
+/// Only the preseason veteran auction is gated — §8.3.5 lets in-season FA bidders exceed their free
+/// cap and accommodate the win via drops/trades.
+#[instrument]
+async fn validate_bid_cap_and_roster<C>(
+    auction_model: &auction::Model,
+    bidding_team_id: i64,
+    bid_amount: i16,
+    now: DateTimeWithTimeZone,
+    db: &C,
+) -> Result<()>
+where
+    C: ConnectionTrait + Debug,
+{
+    if !requires_cap_and_roster_check(auction_model.kind) {
+        return Ok(());
+    }
+
+    let auctioned_contract = auction_model.get_contract(db).await?;
+    let winning_bids = auction_queries::find_winning_bids_for_team(
+        bidding_team_id,
+        auctioned_contract.league_id,
+        auctioned_contract.end_of_season_year,
+        db,
+    )
+    .await?;
+
+    let salary_snapshot = roster::calculate_team_contract_salary_at_datetime(
+        auctioned_contract.league_id,
+        bidding_team_id,
+        now,
+        db,
+    )
+    .await?;
+    let committed_salary = committed_salary(
+        salary_snapshot.salary,
+        &winning_bids,
+        auction_model.id,
+        bid_amount,
+    );
+    if committed_salary > i32::from(salary_snapshot.cap) {
+        return Err(BidRejection::InsufficientCap {
+            bid_amount,
+            committed_salary,
+            salary_cap: salary_snapshot.cap,
+        }
+        .into());
+    }
+
+    let active_contracts =
+        contract_queries::find_active_contracts_for_team(bidding_team_id, db).await?;
+    let roster_used = roster_spots_used(active_contracts.len(), &winning_bids, auction_model.id);
+    if roster_used > i32::from(PRE_SEASON_CONTRACTS_PER_ROSTER_LIMIT) {
+        return Err(BidRejection::NoRosterSpace {
+            roster_used,
+            roster_limit: PRE_SEASON_CONTRACTS_PER_ROSTER_LIMIT,
+        }
+        .into());
+    }
+
+    Ok(())
+}
+
+const fn requires_cap_and_roster_check(kind: AuctionKind) -> bool {
+    matches!(kind, AuctionKind::PreseasonVeteranAuction)
+}
+
+/// Salary the bidder would be committed to if this bid wins. Re-bidding on an auction the team
+/// already leads swaps the old amount for the new one instead of counting both.
+fn committed_salary(
+    team_current_salary: i16,
+    winning_bids: &[(i64, i16)],
+    this_auction_id: i64,
+    bid_amount: i16,
+) -> i32 {
+    let other_winning_bids: i32 = winning_bids
+        .iter()
+        .filter(|(auction_id, _)| *auction_id != this_auction_id)
+        .map(|(_, amount)| i32::from(*amount))
+        .sum();
+    i32::from(team_current_salary) + other_winning_bids + i32::from(bid_amount)
+}
+
+/// Roster spots the bidder would fill if every winning bid (including this one) is signed.
+fn roster_spots_used(
+    active_contract_count: usize,
+    winning_bids: &[(i64, i16)],
+    this_auction_id: i64,
+) -> i32 {
+    let other_winning_bids = winning_bids
+        .iter()
+        .filter(|(auction_id, _)| *auction_id != this_auction_id)
+        .count();
+    i32::try_from(active_contract_count + other_winning_bids + 1).unwrap_or(i32::MAX)
+}
+
 #[cfg(test)]
 mod tests {
-    use super::{BidRejection, validate_bid_amount};
+    use fbkl_entity::auction::AuctionKind;
+
+    use super::{
+        BidRejection, committed_salary, requires_cap_and_roster_check, roster_spots_used,
+        validate_bid_amount,
+    };
+
+    #[test]
+    fn rebidding_on_your_own_winning_auction_swaps_the_amount() {
+        let winning_bids = [(1, 10), (2, 20)];
+        // re-bid on auction 2: 20 is replaced by 25, not added to it
+        assert_eq!(committed_salary(100, &winning_bids, 2, 25), 135);
+        // first bid on a different auction: everything counts
+        assert_eq!(committed_salary(100, &winning_bids, 3, 25), 155);
+        assert_eq!(roster_spots_used(20, &winning_bids, 2), 22);
+        assert_eq!(roster_spots_used(20, &winning_bids, 3), 23);
+    }
+
+    #[test]
+    fn in_season_free_agency_is_not_cap_gated() {
+        assert!(!requires_cap_and_roster_check(
+            AuctionKind::InSeasonFreeAgent
+        ));
+        assert!(requires_cap_and_roster_check(
+            AuctionKind::PreseasonVeteranAuction
+        ));
+    }
 
     #[test]
     fn opening_bid_must_reach_the_minimum() {
