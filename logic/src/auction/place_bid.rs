@@ -134,6 +134,12 @@ where
         .ok_or_else(|| eyre!("bid time + 24h overflowed: {now}"))?;
     auction_queries::extend_auction_soft_end(auction_id, new_soft_end, &db_txn).await?;
 
+    if auction_model.kind == AuctionKind::InSeasonFreeAgent
+        && let Some(new_fixed_end) = extended_fixed_end(now, auction_model.fixed_end_timestamp)
+    {
+        auction_queries::extend_auction_fixed_end(auction_id, new_fixed_end, &db_txn).await?;
+    }
+
     db_txn.commit().await?;
 
     Ok(inserted_bid)
@@ -158,6 +164,18 @@ const fn validate_bid_amount(
         }
         _ => Ok(()),
     }
+}
+
+/// The §8.3.2 rolling extension: a bid landing in the last 30 minutes pushes the hard end out
+/// another 30 minutes, so the auction only closes once 30 quiet minutes pass.
+///
+/// The 30-minute trigger (rather than the spec prose's "within 1h") is what reproduces the §8.5
+/// worked example — a bid 48 minutes out leaves the end time alone there.
+fn extended_fixed_end(
+    now: DateTimeWithTimeZone,
+    fixed_end: DateTimeWithTimeZone,
+) -> Option<DateTimeWithTimeZone> {
+    (fixed_end - now <= TimeDelta::minutes(30)).then(|| fixed_end + TimeDelta::minutes(30))
 }
 
 /// The rules §6.4.1 "null and void" check: a bid that would break the bidder's cap or roster limit
@@ -262,10 +280,32 @@ fn roster_spots_used(
 mod tests {
     use fbkl_entity::auction::AuctionKind;
 
+    use fbkl_entity::sea_orm::prelude::DateTimeWithTimeZone;
+
     use super::{
-        BidRejection, committed_salary, requires_cap_and_roster_check, roster_spots_used,
-        validate_bid_amount,
+        BidRejection, committed_salary, extended_fixed_end, requires_cap_and_roster_check,
+        roster_spots_used, validate_bid_amount,
     };
+
+    fn at(time: &str) -> DateTimeWithTimeZone {
+        format!("2024-11-17T{time}:00-06:00").parse().unwrap()
+    }
+
+    /// The §8.5 worked example, exactly as written.
+    #[test]
+    fn last_minute_bids_roll_the_hard_end_forward() {
+        let fixed_end = at("20:30");
+        // $5 at 7:15pm — 75 minutes out, no change
+        assert_eq!(extended_fixed_end(at("19:15"), fixed_end), None);
+        // $6 at 7:42pm — 48 minutes out, still 8:30pm
+        assert_eq!(extended_fixed_end(at("19:42"), fixed_end), None);
+        // $7 at 8:13pm — inside the last 30 minutes, pushes to 9:00pm
+        assert_eq!(
+            extended_fixed_end(at("20:13"), fixed_end),
+            Some(at("21:00"))
+        );
+        // then quiet through 9:00pm: no further bid, no further push, Joe wins at $7
+    }
 
     #[test]
     fn rebidding_on_your_own_winning_auction_swaps_the_amount() {
