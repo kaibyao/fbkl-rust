@@ -8,7 +8,11 @@ use self::{
     user::UserQuery,
 };
 
+pub use self::{authz::*, error::*};
+
+mod authz;
 mod contract;
+mod error;
 mod league;
 mod player;
 mod team;

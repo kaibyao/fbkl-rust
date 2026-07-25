@@ -46,7 +46,7 @@ impl FbklError {
     ///
     /// Client-caused faults (bad hex tokens, wrong password) are 4xx; everything
     /// the server is responsible for is 5xx.
-    const fn status_code(&self) -> StatusCode {
+    pub(crate) const fn status_code(&self) -> StatusCode {
         match self {
             Self::Auth(_) | Self::BadRequest(_) => StatusCode::BAD_REQUEST,
             Self::Status(code) => *code,
