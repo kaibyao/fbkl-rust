@@ -16,6 +16,8 @@ pub mod min_bid_tier_config;
 pub mod player;
 pub mod position;
 pub mod real_team;
+pub mod rookie_draft_lottery;
+pub mod rookie_draft_lottery_pick;
 pub mod rookie_draft_selection;
 pub mod sessions;
 pub mod team;
