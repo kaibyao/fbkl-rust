@@ -22,6 +22,9 @@ pub static REGULAR_SEASON_VET_OR_ROOKIE_CONTRACTS_PER_ROSTER_LIMIT: i16 = 22;
 pub static REGULAR_SEASON_TOTAL_SALARY_LIMIT: i16 = 210;
 /// The sum of contract values retained by a team for a roster lock taking place at or after the auction deadline must be at or below this value.
 pub static POST_SEASON_TOTAL_SALARY_LIMIT: i16 = 230;
+/// The floor for an in-season free agent auction's opening bid (rules §8.3.3), used unless the
+/// player was already owned earlier in the same season.
+pub static IN_SEASON_FA_MINIMUM_BID: i16 = 1;
 /// The number of veteran auction players released for bidding each day (rules §6.3.3). The rules set
 /// this per season; this is the default until per-season schedule config exists.
 pub static VETERAN_AUCTION_PLAYERS_RELEASED_PER_DAY: usize = 15;

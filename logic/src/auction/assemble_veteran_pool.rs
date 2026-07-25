@@ -226,6 +226,62 @@ where
     Ok(auction_model)
 }
 
+/// Drops every unbid open veteran auction to the next-lower min-bid tier (rules §6.3.4-.5).
+///
+/// Run by the daily release tick. The slide is a single per-auction tier lookup, never a cascade:
+/// moving a player into a tier does not push that tier's existing players down (§6.3.5). Auctions
+/// opened within the last day are skipped so a fresh open does not slide the same day.
+#[instrument(skip(db))]
+pub async fn slide_unbid_auctions_down_a_tier<C>(
+    league_id: i64,
+    end_of_season_year: i16,
+    now: DateTimeWithTimeZone,
+    db: &C,
+) -> Result<Vec<auction::Model>>
+where
+    C: ConnectionTrait + TransactionTrait + Debug,
+{
+    let opened_before = now
+        .checked_sub_days(Days::new(1))
+        .ok_or_else(|| eyre!("Tier slide tick timestamp underflowed: {now}"))?;
+    let unbid_auctions = auction_queries::find_unbid_open_auctions(
+        league_id,
+        end_of_season_year,
+        AuctionKind::PreseasonVeteranAuction,
+        opened_before,
+        db,
+    )
+    .await?;
+
+    let tier_min_bid_amounts: Vec<i16> =
+        auction_schedule_queries::find_min_bid_tiers(league_id, end_of_season_year, db)
+            .await?
+            .into_iter()
+            .map(|tier| tier.min_bid_amount)
+            .collect();
+
+    let db_txn = db.begin().await?;
+    let mut slid_auctions = Vec::new();
+    for unbid_auction in unbid_auctions {
+        // No lower tier means the auction already sits at the bottom tier.
+        if let Some(next_min_bid_amount) =
+            next_lower_min_bid_amount(&tier_min_bid_amounts, unbid_auction.minimum_bid_amount)
+        {
+            slid_auctions.push(
+                auction_queries::update_auction_minimum_bid(
+                    unbid_auction.id,
+                    next_min_bid_amount,
+                    &db_txn,
+                )
+                .await?,
+            );
+        }
+    }
+    db_txn.commit().await?;
+
+    Ok(slid_auctions)
+}
+
 /// The team that held the player going into free agency, i.e. the team on the previous contract.
 async fn find_original_owner_team_id<C>(
     pooled_contract: &contract::Model,
@@ -266,6 +322,20 @@ const fn tier_slot(ranked_position: usize, ranked_count: usize, tier_count: usiz
     }
 }
 
+/// The configured tier value directly below `current_min_bid_amount`, `None` at the bottom tier.
+///
+/// Depends only on the auction's own current minimum, which is what makes the slide non-cascading.
+fn next_lower_min_bid_amount(
+    tier_min_bid_amounts: &[i16],
+    current_min_bid_amount: i16,
+) -> Option<i16> {
+    tier_min_bid_amounts
+        .iter()
+        .copied()
+        .filter(|min_bid_amount| *min_bid_amount < current_min_bid_amount)
+        .max()
+}
+
 /// Releases are staggered a fixed number of players per day (§6.3.3).
 fn release_date(first_date: Date, position: usize, players_per_day: usize) -> Result<Date> {
     let day_offset = u64::try_from(position / players_per_day.max(1))?;
@@ -278,7 +348,18 @@ fn release_date(first_date: Date, position: usize, players_per_day: usize) -> Re
 mod tests {
     use chrono::NaiveDate;
 
-    use super::{release_date, tier_slot};
+    use super::{next_lower_min_bid_amount, release_date, tier_slot};
+
+    #[test]
+    fn tier_slide_is_one_step_per_auction_and_never_cascades() {
+        let tiers = [20, 15, 10, 5];
+        // Two auctions in the same tier both land on that tier's next-lower value, no push-down.
+        assert_eq!(next_lower_min_bid_amount(&tiers, 20), Some(15));
+        assert_eq!(next_lower_min_bid_amount(&tiers, 15), Some(10));
+        assert_eq!(next_lower_min_bid_amount(&tiers, 15), Some(10));
+        // Bottom tier stays put.
+        assert_eq!(next_lower_min_bid_amount(&tiers, 5), None);
+    }
 
     #[test]
     fn ranked_players_spread_across_tiers_best_rank_first() {

@@ -112,25 +112,3 @@ where
         .await?;
     Ok(maybe_tier_model)
 }
-
-/// The highest configured tier strictly below `current_min_bid_amount` — the single step an unbid
-/// auction slides down (rules §6.3.4). `None` at the bottom tier, which never slides further.
-#[instrument]
-pub async fn find_next_lower_min_bid_tier<C>(
-    league_id: i64,
-    end_of_season_year: i16,
-    current_min_bid_amount: i16,
-    db: &C,
-) -> Result<Option<min_bid_tier_config::Model>>
-where
-    C: ConnectionTrait + Debug,
-{
-    let maybe_tier_model = min_bid_tier_config::Entity::find()
-        .filter(min_bid_tier_config::Column::LeagueId.eq(league_id))
-        .filter(min_bid_tier_config::Column::EndOfSeasonYear.eq(end_of_season_year))
-        .filter(min_bid_tier_config::Column::MinBidAmount.lt(current_min_bid_amount))
-        .order_by_desc(min_bid_tier_config::Column::MinBidAmount)
-        .one(db)
-        .await?;
-    Ok(maybe_tier_model)
-}

@@ -112,6 +112,35 @@ where
     Ok(auction_models)
 }
 
+/// `Open` auctions of the given kind that have no bids yet and opened before `opened_before`.
+///
+/// The timestamp bound keeps a freshly-opened auction from sliding a tier on its first day
+/// (rules §6.3.4).
+#[instrument]
+pub async fn find_unbid_open_auctions<C>(
+    league_id: i64,
+    end_of_season_year: i16,
+    kind: AuctionKind,
+    opened_before: DateTimeWithTimeZone,
+    db: &C,
+) -> Result<Vec<auction::Model>>
+where
+    C: ConnectionTrait + Debug,
+{
+    let auction_models = auction::Entity::find()
+        .join(JoinType::InnerJoin, auction::Relation::Contract.def())
+        .join(JoinType::LeftJoin, auction::Relation::AuctionBid.def())
+        .filter(auction::Column::Status.eq(AuctionStatus::Open))
+        .filter(auction::Column::Kind.eq(kind))
+        .filter(auction::Column::StartTimestamp.lte(opened_before))
+        .filter(auction_bid::Column::Id.is_null())
+        .filter(contract::Column::LeagueId.eq(league_id))
+        .filter(contract::Column::EndOfSeasonYear.eq(end_of_season_year))
+        .all(db)
+        .await?;
+    Ok(auction_models)
+}
+
 /// One page of an auction's bid history, newest bid first.
 #[instrument]
 pub async fn find_auction_bids<C>(
