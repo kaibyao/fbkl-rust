@@ -56,8 +56,9 @@ cargo build
 # Run server (requires database)
 cargo run --bin fbkl-server
 
-# Run tests
-cargo test
+# Run tests (cargo-nextest: install with `curl -LsSf https://get.nexte.st/latest/mac | tar zxf - -C ~/.cargo/bin`)
+cargo nextest run --workspace
+cargo test --doc --workspace  # nextest cannot run doctests
 
 # Lint and format
 cargo clippy
@@ -152,7 +153,7 @@ Uses SeaORM for type-safe database queries. Entity definitions in `entity/` crat
 
 Before committing (Lefthook runs clippy/fmt + oxlint/oxfmt/tsc automatically, but run manually to catch early):
 
-**Rust changes**: `cargo build` → `cargo test` → `cargo clippy` → `cargo fmt`. If schema changed, run migrations.
+**Rust changes**: `cargo build` → `cargo nextest run --workspace` → `cargo clippy` → `cargo fmt`. If schema changed, run migrations. Add `cargo test --doc --workspace` when touching doc examples.
 
 **Frontend changes**: `pnpm --filter <app> lint` → `exec tsc`. If GraphQL schema changed, regenerate types with `pnpm --filter "@fbkl/webapp-logged-in" graphql`.
 

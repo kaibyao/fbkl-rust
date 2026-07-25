@@ -1,0 +1,11 @@
+## cargo-nextest config. Runs each test in its own process, so shared statics
+## (e.g. lambdas' `static DB: OnceCell<DatabaseConnection>`) cannot leak between
+## tests. Note nextest cannot run doctests — CI runs `cargo test --doc` separately.
+##
+## Must live at `<workspace-root>/.config/nextest.toml` — that is nextest's only
+## default config path. A root-level `nextest.toml` is read only via
+## `--config-file` and is otherwise ignored with no warning.
+
+[profile.default]
+# Kill hung tests instead of letting a stuck DB connection burn the CI job timeout.
+slow-timeout = { period = "30s", terminate-after = 3 }

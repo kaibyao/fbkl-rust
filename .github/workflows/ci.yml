@@ -58,10 +58,15 @@ jobs:
       - uses: Swatinem/rust-cache@v2
         with:
           shared-key: rust-clippy-test
+      - uses: taiki-e/install-action@v2
+        with:
+          tool: nextest
       - run: cargo fmt --all --check
       # clippy compiles the workspace, so it subsumes `cargo check`.
       - run: cargo clippy --workspace --all-targets -- -D warnings
-      - run: cargo test --workspace
+      - run: cargo nextest run --workspace
+      # nextest cannot run doctests; separate step so they don't silently stop running.
+      - run: cargo test --doc --workspace
 
   lint:
     needs: changes
