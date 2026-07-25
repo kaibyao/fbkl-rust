@@ -21,6 +21,10 @@ pub enum ErrorCode {
     NotFound,
     /// Client sent an unusable argument or has no league selected.
     BadRequest,
+    /// Acting on a trade/contract that a newer record in its chain has superseded.
+    NotLatestInChain,
+    /// A team involved in a trade has no pre-trade salary snapshot, so it cannot be processed.
+    MissingPreTradeSalary,
     /// Server-side fault; message is deliberately generic.
     Internal,
 }
@@ -32,6 +36,8 @@ impl ErrorCode {
             Self::Forbidden => "FORBIDDEN",
             Self::NotFound => "NOT_FOUND",
             Self::BadRequest => "BAD_REQUEST",
+            Self::NotLatestInChain => "NOT_LATEST_IN_CHAIN",
+            Self::MissingPreTradeSalary => "MISSING_PRE_TRADE_SALARY",
             Self::Internal => "INTERNAL",
         }
     }
@@ -42,6 +48,10 @@ impl ErrorCode {
             Self::Forbidden => "not allowed",
             Self::NotFound => "not found",
             Self::BadRequest => "bad request",
+            Self::NotLatestInChain => "a newer version of this record supersedes it",
+            Self::MissingPreTradeSalary => {
+                "a team involved in this trade is missing its pre-trade salary"
+            }
             Self::Internal => "internal server error",
         }
     }

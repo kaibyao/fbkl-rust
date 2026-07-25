@@ -8,6 +8,7 @@ use self::{
     league::{LeagueMutation, LeagueQuery},
     player::PlayerQuery,
     team::TeamQuery,
+    trade::{TradeMutation, TradeQuery},
     transaction::TransactionQuery,
     user::UserQuery,
 };
@@ -20,6 +21,7 @@ mod error;
 mod league;
 mod player;
 mod team;
+mod trade;
 mod transaction;
 mod user;
 
@@ -32,8 +34,9 @@ pub struct QueryRoot(
     TeamQuery,
     PlayerQuery,
     ContractQuery,
+    TradeQuery,
     TransactionQuery,
 );
 
 #[derive(Default, MergedObject)]
-pub struct MutationRoot(LeagueMutation);
+pub struct MutationRoot(LeagueMutation, TradeMutation);
