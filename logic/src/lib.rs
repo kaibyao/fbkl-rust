@@ -3,6 +3,7 @@ pub mod auction;
 pub mod deadline_processing;
 pub mod draft_picks;
 pub mod drop_contract;
+pub mod eligibility;
 pub mod ir;
 pub mod rookie_development_activation;
 pub mod rookie_development_international;
