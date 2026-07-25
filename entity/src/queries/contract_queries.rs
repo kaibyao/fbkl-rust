@@ -7,7 +7,7 @@ use color_eyre::{
 use multimap::MultiMap;
 use sea_orm::{
     ActiveModelTrait, ActiveValue, ColumnTrait, ConnectionTrait, EntityTrait, JoinType, ModelTrait,
-    QueryFilter, QuerySelect, RelationTrait, prelude::Expr,
+    QueryFilter, QueryOrder, QuerySelect, RelationTrait, prelude::Expr,
 };
 use tracing::instrument;
 
@@ -116,6 +116,33 @@ where
 {
     let contract_to_expire = contract_model.create_expired_contract()?;
     add_replacement_contract_to_chain(contract_model, contract_to_expire, db).await
+}
+
+#[instrument]
+pub async fn find_contract_by_id<C>(contract_id: i64, db: &C) -> Result<contract::Model>
+where
+    C: ConnectionTrait + Debug,
+{
+    contract::Entity::find_by_id(contract_id)
+        .one(db)
+        .await?
+        .ok_or_else(|| eyre!("Could not find contract (id = {})", contract_id))
+}
+
+/// Returns every contract in the given contract's history chain, oldest first.
+#[instrument]
+pub async fn find_contract_chain<C>(contract_id: i64, db: &C) -> Result<Vec<contract::Model>>
+where
+    C: ConnectionTrait + Debug,
+{
+    let contract_model = find_contract_by_id(contract_id, db).await?;
+    let chain = contract::Entity::find()
+        .filter(contract::Column::OriginalContractId.eq(contract_model.original_contract_id))
+        .order_by_asc(contract::Column::Id)
+        .all(db)
+        .await?;
+
+    Ok(chain)
 }
 
 /// Retrieves all contracts currently active in a league. Note that this includes Free Agent contracts where the player had been signed onto a team at some point but ended the season as a free agent.
