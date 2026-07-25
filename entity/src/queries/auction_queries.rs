@@ -1,9 +1,9 @@
 use std::fmt::Debug;
 
-use chrono::Days;
+use chrono::{Days, TimeDelta};
 use color_eyre::{Result, eyre::eyre};
 use sea_orm::{
-    ActiveModelTrait, ActiveValue, ColumnTrait, ConnectionTrait, EntityTrait, JoinType,
+    ActiveModelTrait, ActiveValue, ColumnTrait, Condition, ConnectionTrait, EntityTrait, JoinType,
     QueryFilter, QueryOrder, QuerySelect, RelationTrait, prelude::DateTimeWithTimeZone,
 };
 use tracing::instrument;
@@ -109,11 +109,27 @@ where
     Ok(auction_models)
 }
 
-/// `Open` auctions whose bidding window has elapsed, with the contract they auction.
+/// Whether an open auction's bidding is over: the soft end has passed with no bid in the last hour
+/// (rules §6.4.4 / §8.3.1 / §8.3.2), or the fixed end — the auction's final end time — has passed.
 ///
-/// `soft_end_timestamp` is 24h after the last bid (rules §6.4.4 / §8.3.1). Free agent auctions
-/// additionally must be past their (possibly extended) all-bid deadline; veteran auctions ignore
-/// `fixed_end_timestamp`, so that check is applied per kind by the caller-facing filter below.
+/// The last-hour reprieve is why a lapsed soft end alone is not enough: bids landing within an hour
+/// of each other keep an auction alive past it. `fixed_end_timestamp` is the ceiling that stops that
+/// going on forever, and it closes the auction on its own.
+pub fn is_due_for_close(
+    now: DateTimeWithTimeZone,
+    soft_end: DateTimeWithTimeZone,
+    fixed_end: DateTimeWithTimeZone,
+    maybe_last_bid_at: Option<DateTimeWithTimeZone>,
+) -> bool {
+    if fixed_end <= now {
+        return true;
+    }
+    let quiet_for_an_hour =
+        maybe_last_bid_at.is_none_or(|last_bid_at| now - last_bid_at >= TimeDelta::hours(1));
+    soft_end <= now && quiet_for_an_hour
+}
+
+/// `Open` auctions whose bidding is over per [`is_due_for_close`], with the contract they auction.
 #[instrument]
 pub async fn find_auctions_due_for_close<C>(
     now: DateTimeWithTimeZone,
@@ -122,23 +138,37 @@ pub async fn find_auctions_due_for_close<C>(
 where
     C: ConnectionTrait + Debug,
 {
+    // Either timestamp can trigger a close, so both are candidates to narrow in the database.
     let rows = auction::Entity::find()
         .find_also_related(contract::Entity)
         .filter(auction::Column::Status.eq(AuctionStatus::Open))
-        .filter(auction::Column::SoftEndTimestamp.lte(now))
+        .filter(
+            Condition::any()
+                .add(auction::Column::SoftEndTimestamp.lte(now))
+                .add(auction::Column::FixedEndTimestamp.lte(now)),
+        )
         .order_by_asc(auction::Column::SoftEndTimestamp)
         .all(db)
         .await?;
 
-    let due_auctions = rows
-        .into_iter()
-        .filter_map(|(auction_model, maybe_contract)| {
-            let contract_model = maybe_contract?;
-            let is_due = auction_model.kind != AuctionKind::InSeasonFreeAgent
-                || auction_model.fixed_end_timestamp <= now;
-            is_due.then_some((auction_model, contract_model))
-        })
-        .collect();
+    let mut due_auctions = Vec::new();
+    for (auction_model, maybe_contract) in rows {
+        let Some(contract_model) = maybe_contract else {
+            continue;
+        };
+        let maybe_last_bid_at = auction_model
+            .get_latest_bid(db)
+            .await?
+            .map(|bid| bid.created_at);
+        if is_due_for_close(
+            now,
+            auction_model.soft_end_timestamp,
+            auction_model.fixed_end_timestamp,
+            maybe_last_bid_at,
+        ) {
+            due_auctions.push((auction_model, contract_model));
+        }
+    }
     Ok(due_auctions)
 }
 
@@ -247,22 +277,6 @@ where
     Ok(auction_to_update.update(db).await?)
 }
 
-/// Pushes an FA auction's all-bid deadline out (the rules §8.3.2 last-hour extension).
-#[instrument]
-pub async fn extend_auction_fixed_end<C>(
-    auction_id: i64,
-    new_fixed_end: DateTimeWithTimeZone,
-    db: &C,
-) -> Result<auction::Model>
-where
-    C: ConnectionTrait + Debug,
-{
-    let mut auction_to_update: auction::ActiveModel =
-        find_auction_by_id(auction_id, db).await?.into();
-    auction_to_update.fixed_end_timestamp = ActiveValue::Set(new_fixed_end);
-    Ok(auction_to_update.update(db).await?)
-}
-
 /// Lowers an unbid veteran auction's minimum bid to the next tier (rules §6.3.4).
 #[instrument]
 pub async fn update_auction_minimum_bid<C>(
@@ -360,4 +374,71 @@ where
     };
     let inserted_auction_bid = auction_bid_to_insert.insert(db).await?;
     Ok(inserted_auction_bid)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{DateTimeWithTimeZone, is_due_for_close};
+
+    fn at(time: &str) -> DateTimeWithTimeZone {
+        format!("2024-11-17T{time}:00-06:00").parse().unwrap()
+    }
+
+    #[test]
+    fn a_quiet_auction_closes_once_its_soft_end_passes() {
+        assert!(is_due_for_close(
+            at("20:00"),
+            at("19:30"),
+            at("23:00"),
+            Some(at("18:00"))
+        ));
+    }
+
+    #[test]
+    fn an_auction_still_taking_bids_outlives_its_soft_end() {
+        // Soft end lapsed at 7:30pm but a bid landed 20 minutes ago, so bidding continues.
+        assert!(!is_due_for_close(
+            at("20:00"),
+            at("19:30"),
+            at("23:00"),
+            Some(at("19:40"))
+        ));
+    }
+
+    #[test]
+    fn an_hour_of_quiet_after_a_late_bid_closes_it() {
+        assert!(is_due_for_close(
+            at("20:40"),
+            at("19:30"),
+            at("23:00"),
+            Some(at("19:40"))
+        ));
+    }
+
+    #[test]
+    fn the_fixed_end_closes_an_auction_even_mid_flurry() {
+        // A bid a minute ago rolled soft end past the fixed end; without this the auction never ends.
+        assert!(is_due_for_close(
+            at("23:00"),
+            at("23:59"),
+            at("23:00"),
+            Some(at("22:59"))
+        ));
+    }
+
+    #[test]
+    fn a_bid_free_auction_closes_on_its_soft_end() {
+        assert!(is_due_for_close(
+            at("20:00"),
+            at("19:30"),
+            at("23:00"),
+            None
+        ));
+        assert!(!is_due_for_close(
+            at("19:00"),
+            at("19:30"),
+            at("23:00"),
+            None
+        ));
+    }
 }

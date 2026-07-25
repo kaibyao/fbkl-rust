@@ -31,9 +31,9 @@ New/changed:
 2. **`auction.soft_end_timestamp` semantics** — keep the column, but it becomes mutable: each
    accepted bid sets `soft_end = bid_time + 24h` (§6.4.4 / §8.3.1). Add query
    `extend_auction_soft_end(auction_id, new_soft_end, db)`.
-3. **`auction.fixed_end_timestamp` semantics** — for FA auctions this is the *all-bid deadline*
-   (Sun 8pm CT) and is mutable by the §8.3.2 rolling extension; for veteran auctions it is unused
-   (veteran close is purely 24h-since-last-bid). Add query `extend_auction_fixed_end(...)`.
+3. **`auction.fixed_end_timestamp` semantics** — the auction's **final end time**, and it never
+   moves. For FA auctions it is the all-bid deadline (Sun 8pm CT); it is what bounds the §8.3.2
+   last-hour reprieve so bidding cannot continue indefinitely. Do **not** add a mutator for it.
 4. **`auction.minimum_bid_amount`** — already present; the tier slide-down (§6.3.4) mutates it.
    Add `update_auction_minimum_bid(auction_id, new_min, db)`.
 5. **`auction_schedule`** (new table) — drives §6.3 veteran-auction release + tiers. Columns:
@@ -145,9 +145,9 @@ The `jobs` and `transaction-processor` crates are stubs; the timer lives in **sp
 05 (`05-deadline-scheduler-and-transaction-processor.md`)** — do not redesign it here. This engine
 just supplies the functions spec 05 must invoke:
 
-- **Per-minute close tick:** find `Open` auctions where `now >= soft_end_timestamp` (24h since last
-  bid) AND (for FA) `now >= fixed_end_timestamp` (all-bid deadline + any rolling extension) →
-  call `end_veteran_auction` / `end_fa_auction`. RFA closes route to spec 03 instead of signing.
+- **Per-minute close tick:** find `Open` auctions due per `auction_queries::is_due_for_close`
+  (soft end passed with an hour of quiet, or the fixed end passed) → call `end_veteran_auction` /
+  `end_fa_auction`. RFA closes route to spec 03 instead of signing.
 - **Daily release tick (veteran, §6.3.3):** `open_scheduled_auction` for rows whose
   `scheduled_release_date <= today`, then `slide_unbid_auctions_down_a_tier` for unbid open
   auctions.
@@ -155,11 +155,15 @@ just supplies the functions spec 05 must invoke:
   auctions may be opened — gate the nominate path), all-bid deadline Sun 8pm CT
   (`auction.fixed_end_timestamp`). These map to `DeadlineKind::FreeAgentAuctionEnd` /
   `Week1FreeAgentAuctionStart/End` which already exist.
-- **§8.3.2 rolling extension** is applied *inside* `place_auction_bid` (not the scheduler): if
-  `now` is within 1h of `fixed_end_timestamp`, set `fixed_end = fixed_end + 30min`; subsequent bids
-  within the 30-min window each push +30min until a 30-min gap. (Worked example §8.5: $5 bid 7:15pm
-  → 8:30pm; $6 at 7:42pm → still 8:30; $7 at 8:13pm → 9:00pm; quiet → Joe wins $7.) Unit-test this
-  example exactly.
+- **§8.3.2 last-hour reprieve** is a *close condition*, not a mutation of either end timestamp.
+  An auction ends when `(now > soft_end AND now > last_bid + 1h) OR now > fixed_end`. So a lapsed
+  soft end is not enough on its own — bids landing within an hour of each other keep the auction
+  alive past it — and `fixed_end_timestamp` is the final end time that stops this running forever.
+  It closes the auction on its own, which matters because a late bid rolls `soft_end` 24h out and
+  would otherwise push it beyond `fixed_end`. Lives in `auction_queries::is_due_for_close`.
+  **Note:** an earlier draft of this spec described a +30min extension of `fixed_end` and cited a
+  §8.5 worked example ($6 at 7:42pm leaving an 8:30pm end alone). That contradicted its own "within
+  1h" prose and treated the final end time as movable; the rule above is authoritative.
 
 ### GraphQL (cross-ref spec 06)
 
