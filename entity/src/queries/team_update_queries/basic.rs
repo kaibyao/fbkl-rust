@@ -1,7 +1,7 @@
 use color_eyre::Result;
 use sea_orm::{
     ActiveModelTrait, ActiveValue, ColumnTrait, ConnectionTrait, EntityTrait, ModelTrait,
-    QueryFilter, sea_query::Expr,
+    QueryFilter, QueryOrder, sea_query::Expr,
 };
 use std::fmt::Debug;
 use tracing::instrument;
@@ -40,6 +40,26 @@ where
         .filter(team_update::Column::TransactionId.eq(transaction_id))
         .all(db)
         .await?;
+    Ok(team_updates)
+}
+
+/// Finds a team's `team_updates` newest-first, optionally narrowed to one status.
+#[instrument]
+pub async fn find_team_updates_by_team<C>(
+    team_id: i64,
+    maybe_status: Option<TeamUpdateStatus>,
+    db: &C,
+) -> Result<Vec<team_update::Model>>
+where
+    C: ConnectionTrait + Debug,
+{
+    let mut query = team_update::Entity::find().filter(team_update::Column::TeamId.eq(team_id));
+
+    if let Some(status) = maybe_status {
+        query = query.filter(team_update::Column::Status.eq(status));
+    }
+
+    let team_updates = query.order_by_desc(team_update::Column::Id).all(db).await?;
     Ok(team_updates)
 }
 
