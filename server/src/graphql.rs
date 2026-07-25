@@ -5,6 +5,7 @@ use async_graphql::{EmptySubscription, MergedObject, Schema};
 
 use self::{
     league::{LeagueMutation, LeagueQuery},
+    player::PlayerQuery,
     team::TeamQuery,
     user::UserQuery,
 };
@@ -22,7 +23,7 @@ mod user;
 pub type FbklSchema = Schema<QueryRoot, MutationRoot, EmptySubscription>;
 
 #[derive(Default, MergedObject)]
-pub struct QueryRoot(UserQuery, LeagueQuery, TeamQuery);
+pub struct QueryRoot(UserQuery, LeagueQuery, TeamQuery, PlayerQuery);
 
 #[derive(Default, MergedObject)]
 pub struct MutationRoot(LeagueMutation);
