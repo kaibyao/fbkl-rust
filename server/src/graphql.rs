@@ -7,7 +7,7 @@ use self::{
     auction::{AuctionMutation, AuctionQuery},
     contract::ContractQuery,
     deadline::{DeadlineMutation, DeadlineQuery},
-    draft::DraftQuery,
+    draft::{DraftMutation, DraftQuery},
     eligibility::{EligibilityMutation, EligibilityQuery},
     keeper::{KeeperMutation, KeeperQuery},
     league::{LeagueMutation, LeagueQuery},
@@ -66,4 +66,5 @@ pub struct MutationRoot(
     DeadlineMutation,
     EligibilityMutation,
     AuctionMutation,
+    DraftMutation,
 );

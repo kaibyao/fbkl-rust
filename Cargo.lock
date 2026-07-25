@@ -1450,6 +1450,7 @@ dependencies = [
  "color-eyre",
  "dotenv",
  "fbkl-auth",
+ "fbkl-constants",
  "fbkl-entity",
  "fbkl-jobs",
  "fbkl-logic",
