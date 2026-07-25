@@ -21,6 +21,7 @@ values from there; do not duplicate literals into logic.
 | `deadline_processing/keeper_deadline/` | Validate + record team keepers at the keeper deadline. |
 | `deadline_processing/roster_lock/` | Validate rosters (IR/type/cap) and lock them at each lock deadline. |
 | `draft_picks/` | Generate future draft picks (rounds 1..=N, N seasons ahead). |
+| `eligibility/` | Classify players (auction vs rookie draft vs ineligible) and build the acquisition pools. |
 | `drop_contract/` | Drop a contract from a team; record dropped-contract cap penalty data. |
 | `ir/` | Move a contract to / activate from IR. |
 | `rookie_development_activation/` | Activate an RD/RDI contract into a rookie contract. |

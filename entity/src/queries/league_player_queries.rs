@@ -27,6 +27,24 @@ where
     Ok(league_players_by_name)
 }
 
+/// Every league player in a league, name-ordered. Unlike `find_all_league_players_in_league` this
+/// keeps duplicates-by-name and preserves order, which the eligibility pools need.
+#[instrument]
+pub async fn find_league_players_in_league<C>(
+    league_id: i64,
+    db: &C,
+) -> Result<Vec<league_player::Model>>
+where
+    C: ConnectionTrait + Debug,
+{
+    let league_players = league_player::Entity::find()
+        .filter(league_player::Column::LeagueId.eq(league_id))
+        .order_by_asc(league_player::Column::Name)
+        .all(db)
+        .await?;
+    Ok(league_players)
+}
+
 /// Case- and accent-insensitive substring search on league player names, scoped to one league.
 #[instrument]
 pub async fn search_league_players_by_name<C>(

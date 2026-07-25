@@ -57,6 +57,30 @@ where
     Ok(player_models)
 }
 
+/// Real players that could land in any eligibility pool (spec 10).
+///
+/// Currently-active players that either have NBA-roster history, carry the draft-eligible flag, or
+/// have a commissioner override. Everyone else classifies `Ineligible`, so filtering them in SQL
+/// keeps the whole all-seasons `player` table out of memory. Callers classify and filter roster
+/// status themselves.
+pub async fn find_eligibility_candidate_players<C>(db: &C) -> Result<Vec<player::Model>>
+where
+    C: ConnectionTrait,
+{
+    let players = player::Entity::find()
+        .filter(player::Column::Status.eq(player::PlayerStatus::Active))
+        .filter(
+            player::Column::HasBeenOnNbaRoster
+                .eq(true)
+                .or(player::Column::IsRdiEligible.eq(true))
+                .or(player::Column::EligibilityOverride.is_not_null()),
+        )
+        .order_by_asc(player::Column::Name)
+        .all(db)
+        .await?;
+    Ok(players)
+}
+
 /// Batch fetch for the GraphQL player `DataLoader`.
 pub async fn find_players_by_ids<C>(ids: Vec<i64>, db: &C) -> Result<Vec<player::Model>>
 where
