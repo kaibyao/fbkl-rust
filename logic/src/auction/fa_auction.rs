@@ -1,13 +1,21 @@
 use std::fmt::Debug;
 
-use chrono::NaiveDate;
-use color_eyre::{Result, eyre::eyre};
-use fbkl_constants::league_rules::IN_SEASON_FA_MINIMUM_BID;
+use chrono::{Datelike, Days, FixedOffset, NaiveDate};
+use color_eyre::{
+    Result,
+    eyre::{ensure, eyre},
+};
+use fbkl_constants::league_rules::{
+    IN_SEASON_FA_ALL_BID_DEADLINE_HOUR_MINUTE, IN_SEASON_FA_MINIMUM_BID,
+    IN_SEASON_FA_OPENING_BID_DEADLINE_HOUR_MINUTE, LEAGUE_TIME_ZONE_UTC_OFFSET_SECONDS,
+};
 use fbkl_entity::{
     auction::{self, AuctionKind, AuctionStatus},
     auction_queries,
     contract::{self, ContractKind},
-    contract_queries, deadline,
+    contract_queries,
+    deadline::{self, DeadlineKind},
+    deadline_queries,
     sea_orm::{ConnectionTrait, TransactionTrait, prelude::DateTimeWithTimeZone},
     team_update_queries,
 };
@@ -94,19 +102,37 @@ where
 
 /// Opens a new in-season free agent auction for a player (rules §8.3).
 ///
-/// `fixed_end` is the week's all-bid deadline (§8.2.1); bids may still roll it forward.
+/// Only allowed up to the week's Friday opening-bid deadline (§8.2); the auction's all-bid
+/// deadline is that week's Sunday 8pm CT, which bids may still roll forward (§8.3.2).
 #[instrument]
 pub async fn open_in_season_fa_auction<C>(
     league_id: i64,
     end_of_season_year: i16,
     player_id: i64,
     now: DateTimeWithTimeZone,
-    fixed_end: DateTimeWithTimeZone,
     db: &C,
 ) -> Result<auction::Model>
 where
     C: ConnectionTrait + Debug,
 {
+    let (opening_bid_deadline, all_bid_deadline) = fa_auction_week_deadlines(now)?;
+    ensure!(
+        now <= opening_bid_deadline,
+        "New free agent auctions cannot be opened after the week's opening-bid deadline ({opening_bid_deadline}) per rules §8.2."
+    );
+    let fa_auction_end = deadline_queries::find_deadline_for_season_by_type(
+        league_id,
+        end_of_season_year,
+        DeadlineKind::FreeAgentAuctionEnd,
+        db,
+    )
+    .await?;
+    ensure!(
+        now <= fa_auction_end.date_time,
+        "The season's free agent auction period ended at {}.",
+        fa_auction_end.date_time
+    );
+
     let pooled_contract =
         get_or_create_player_contract_for_fa_auction(league_id, end_of_season_year, player_id, db)
             .await?;
@@ -117,11 +143,38 @@ where
         AuctionKind::InSeasonFreeAgent,
         minimum_bid_amount,
         now,
-        Some(fixed_end),
+        Some(all_bid_deadline),
         None,
         db,
     )
     .await
+}
+
+/// The week's §8.2 free agent auction deadlines as `(opening-bid, all-bid)`.
+///
+/// Weeks run Monday-Sunday (the league's matchup week): new auctions may be nominated until Friday
+/// 11:59pm CT, and every auction in that week ends at Sunday 8pm CT — so auctions opened before
+/// Friday keep taking bids after new nominations freeze (§8.2.1).
+pub fn fa_auction_week_deadlines(
+    now: DateTimeWithTimeZone,
+) -> Result<(DateTimeWithTimeZone, DateTimeWithTimeZone)> {
+    let league_offset = FixedOffset::east_opt(LEAGUE_TIME_ZONE_UTC_OFFSET_SECONDS)
+        .ok_or_else(|| eyre!("Invalid league time zone offset."))?;
+    let league_now = now.with_timezone(&league_offset);
+    let monday =
+        league_now.date_naive() - Days::new(u64::from(league_now.weekday().num_days_from_monday()));
+
+    let deadline_at = |day_offset: u64, (hour, minute): (u32, u32)| {
+        (monday + Days::new(day_offset))
+            .and_hms_opt(hour, minute, 0)
+            .and_then(|naive| naive.and_local_timezone(league_offset).single())
+            .ok_or_else(|| eyre!("Could not build the §8.2 weekly deadline for {monday}."))
+    };
+
+    Ok((
+        deadline_at(4, IN_SEASON_FA_OPENING_BID_DEADLINE_HOUR_MINUTE)?,
+        deadline_at(6, IN_SEASON_FA_ALL_BID_DEADLINE_HOUR_MINUTE)?,
+    ))
 }
 
 /// The opening bid an in-season free agent auction starts at (rules §8.3.3).
@@ -191,7 +244,30 @@ where
 mod tests {
     use fbkl_entity::contract::{ContractKind, ContractStatus, Model};
 
-    use super::previous_in_season_salary;
+    use fbkl_entity::sea_orm::prelude::DateTimeWithTimeZone;
+
+    use super::{fa_auction_week_deadlines, previous_in_season_salary};
+
+    #[test]
+    fn weekly_free_agent_deadlines_freeze_new_auctions_on_friday_but_take_bids_until_sunday() {
+        // 2026-11-04 is a Wednesday; 10am CT = 16:00 UTC.
+        let wednesday = DateTimeWithTimeZone::parse_from_rfc3339("2026-11-04T16:00:00Z").unwrap();
+        let (opening_bid_deadline, all_bid_deadline) =
+            fa_auction_week_deadlines(wednesday).unwrap();
+        assert_eq!(
+            opening_bid_deadline.to_rfc3339(),
+            "2026-11-06T23:59:00-06:00"
+        );
+        assert_eq!(all_bid_deadline.to_rfc3339(), "2026-11-08T20:00:00-06:00");
+
+        // Saturday sits past the opening-bid deadline but inside the same bidding week.
+        let saturday = DateTimeWithTimeZone::parse_from_rfc3339("2026-11-07T16:00:00Z").unwrap();
+        let (saturday_opening, saturday_all_bid) = fa_auction_week_deadlines(saturday).unwrap();
+        assert_eq!(saturday_opening, opening_bid_deadline);
+        assert_eq!(saturday_all_bid, all_bid_deadline);
+        assert!(saturday > saturday_opening);
+        assert!(saturday < saturday_all_bid);
+    }
 
     fn contract(id: i64, end_of_season_year: i16, team_id: Option<i64>, salary: i16) -> Model {
         Model {

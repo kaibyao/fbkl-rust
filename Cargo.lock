@@ -1391,6 +1391,7 @@ dependencies = [
  "chrono",
  "color-eyre",
  "fbkl-entity",
+ "fbkl-logic",
  "fbkl-transaction-processor",
  "tokio",
  "tracing",

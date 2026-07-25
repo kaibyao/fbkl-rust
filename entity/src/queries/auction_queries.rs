@@ -109,16 +109,90 @@ where
     Ok(auction_models)
 }
 
-/// `Open` auctions of the given kind that have no bids yet and opened before `opened_before`.
+/// `Open` auctions whose bidding window has elapsed, with the contract they auction.
 ///
-/// The timestamp bound keeps a freshly-opened auction from sliding a tier on its first day
-/// (rules §6.3.4).
+/// `soft_end_timestamp` is 24h after the last bid (rules §6.4.4 / §8.3.1). Free agent auctions
+/// additionally must be past their (possibly extended) all-bid deadline; veteran auctions ignore
+/// `fixed_end_timestamp`, so that check is applied per kind by the caller-facing filter below.
+#[instrument]
+pub async fn find_auctions_due_for_close<C>(
+    now: DateTimeWithTimeZone,
+    db: &C,
+) -> Result<Vec<(auction::Model, contract::Model)>>
+where
+    C: ConnectionTrait + Debug,
+{
+    let rows = auction::Entity::find()
+        .find_also_related(contract::Entity)
+        .filter(auction::Column::Status.eq(AuctionStatus::Open))
+        .filter(auction::Column::SoftEndTimestamp.lte(now))
+        .order_by_asc(auction::Column::SoftEndTimestamp)
+        .all(db)
+        .await?;
+
+    let due_auctions = rows
+        .into_iter()
+        .filter_map(|(auction_model, maybe_contract)| {
+            let contract_model = maybe_contract?;
+            let is_due = auction_model.kind != AuctionKind::InSeasonFreeAgent
+                || auction_model.fixed_end_timestamp <= now;
+            is_due.then_some((auction_model, contract_model))
+        })
+        .collect();
+    Ok(due_auctions)
+}
+
+/// The distinct `(league_id, end_of_season_year)` pairs that currently have an `Open` auction of
+/// the given kind — the leagues a periodic auction tick has work for.
+#[instrument]
+pub async fn find_league_seasons_with_open_auctions<C>(
+    kind: AuctionKind,
+    db: &C,
+) -> Result<Vec<(i64, i16)>>
+where
+    C: ConnectionTrait + Debug,
+{
+    let league_seasons = auction::Entity::find()
+        .join(JoinType::InnerJoin, auction::Relation::Contract.def())
+        .filter(auction::Column::Status.eq(AuctionStatus::Open))
+        .filter(auction::Column::Kind.eq(kind))
+        .select_only()
+        .column(contract::Column::LeagueId)
+        .column(contract::Column::EndOfSeasonYear)
+        .distinct()
+        .into_tuple()
+        .all(db)
+        .await?;
+    Ok(league_seasons)
+}
+
+/// The auction for a given pooled contract, if one was already opened.
+#[instrument]
+pub async fn find_auction_by_contract_id<C>(
+    contract_id: i64,
+    db: &C,
+) -> Result<Option<auction::Model>>
+where
+    C: ConnectionTrait + Debug,
+{
+    let auction_model = auction::Entity::find()
+        .filter(auction::Column::ContractId.eq(contract_id))
+        .one(db)
+        .await?;
+    Ok(auction_model)
+}
+
+/// `Open` auctions of the given kind that have no bids yet and were last touched before
+/// `unchanged_before`.
+///
+/// The timestamp bound keeps a freshly-opened auction from sliding a tier on its first day, and
+/// keeps an auction already slid today from sliding again on the next tick (rules §6.3.4).
 #[instrument]
 pub async fn find_unbid_open_auctions<C>(
     league_id: i64,
     end_of_season_year: i16,
     kind: AuctionKind,
-    opened_before: DateTimeWithTimeZone,
+    unchanged_before: DateTimeWithTimeZone,
     db: &C,
 ) -> Result<Vec<auction::Model>>
 where
@@ -129,7 +203,8 @@ where
         .join(JoinType::LeftJoin, auction::Relation::AuctionBid.def())
         .filter(auction::Column::Status.eq(AuctionStatus::Open))
         .filter(auction::Column::Kind.eq(kind))
-        .filter(auction::Column::StartTimestamp.lte(opened_before))
+        .filter(auction::Column::StartTimestamp.lte(unchanged_before))
+        .filter(auction::Column::UpdatedAt.lte(unchanged_before))
         .filter(auction_bid::Column::Id.is_null())
         .filter(contract::Column::LeagueId.eq(league_id))
         .filter(contract::Column::EndOfSeasonYear.eq(end_of_season_year))

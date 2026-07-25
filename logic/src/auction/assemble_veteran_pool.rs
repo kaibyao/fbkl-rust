@@ -167,6 +167,9 @@ where
 
 /// Opens the auction for one released schedule row (rules §6.3.3). RFA/UFA auctions carry their
 /// original owner so bids from that team are rejected and their close routes to RFA resolution.
+///
+/// Idempotent: a schedule row stays due after its release date passes, so an already-opened row
+/// returns its existing auction instead of opening a second one.
 #[instrument(skip(db))]
 pub async fn open_scheduled_auction<C>(
     schedule_row: &auction_schedule::Model,
@@ -183,6 +186,12 @@ where
         db,
     )
     .await?;
+
+    if let Some(existing_auction) =
+        auction_queries::find_auction_by_contract_id(pooled_contract.id, db).await?
+    {
+        return Ok(existing_auction);
+    }
 
     let minimum_bid_amount = if CARRY_SALARY_CONTRACT_KINDS.contains(&pooled_contract.kind) {
         pooled_contract.salary

@@ -31,3 +31,10 @@ pub static VETERAN_AUCTION_PLAYERS_RELEASED_PER_DAY: usize = 15;
 /// Length of the RFA-only first week of the veteran auction (rules §6.3.1), after which the rest of
 /// the pool starts being released.
 pub static VETERAN_AUCTION_RFA_WEEK_DAYS: u64 = 7;
+/// UTC offset of the league's wall clock (US Central), which the rules state deadlines in.
+// ponytail: fixed standard-time offset, swap for chrono-tz if DST-exact deadlines start mattering.
+pub static LEAGUE_TIME_ZONE_UTC_OFFSET_SECONDS: i32 = -6 * 3600;
+/// Friday 11:59pm CT: the weekly cutoff for nominating new in-season FA auctions (rules §8.2).
+pub static IN_SEASON_FA_OPENING_BID_DEADLINE_HOUR_MINUTE: (u32, u32) = (23, 59);
+/// Sunday 8pm CT: the weekly all-bid deadline every open in-season FA auction ends at (rules §8.2).
+pub static IN_SEASON_FA_ALL_BID_DEADLINE_HOUR_MINUTE: (u32, u32) = (20, 0);

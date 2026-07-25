@@ -208,7 +208,7 @@ where
 }
 
 /// Maps a deadline kind to its `fbkl_logic` handler (the spec-05 dispatch table). Kinds whose
-/// engines are not yet built (auction opens, rookie draft, freezes) are recorded no-ops: their
+/// effects live elsewhere (auction ticks, rookie draft, freezes) are recorded no-ops: their
 /// effects are either implicit (e.g. the §4.2.3 cap bump lives in
 /// `deadline::Model::get_salary_cap`) or owned by unbuilt engines (specs 01/02), and recording
 /// success keeps the scheduler from retrying them forever.
@@ -237,15 +237,14 @@ async fn dispatch_deadline(
         DeadlineKind::PreseasonFinalRosterLock
         | DeadlineKind::Week1RosterLock
         | DeadlineKind::InSeasonRosterLock => lock_rosters(deadline_model, txn).await,
-        // Auction engine lifecycle deadlines — spec 01 (fbkl-rust-lcc) owns opening/closing
-        // auction state; until then the deadline passing is itself the only effect.
+        // Auction opens/closes/tier slides run off `fbkl_jobs`' per-tick auction discovery, and the §8.2 weekly nomination window is enforced at read time in `open_in_season_fa_auction`.
         DeadlineKind::PreseasonVeteranAuctionStart
         | DeadlineKind::PreseasonFaAuctionStart
         | DeadlineKind::PreseasonFaAuctionEnd
         | DeadlineKind::Week1FreeAgentAuctionStart
         | DeadlineKind::Week1FreeAgentAuctionEnd => {
             info!(
-                "Deadline {:?} (id = {}) recorded; auction engine lifecycle is spec 01",
+                "Deadline {:?} (id = {}) recorded; auction opens/closes are driven by the scheduler tick",
                 deadline_model.kind, deadline_model.id
             );
             Ok(())

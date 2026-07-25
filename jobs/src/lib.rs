@@ -16,8 +16,15 @@ use std::collections::BTreeMap;
 
 use chrono::Utc;
 use color_eyre::eyre::Result;
-use fbkl_entity::{deadline_queries, sea_orm::DatabaseConnection};
-use fbkl_transaction_processor::{ProcessOutcome, process_deadline};
+use fbkl_entity::{
+    auction::AuctionKind,
+    auction_queries, auction_schedule, auction_schedule_queries, deadline_queries,
+    sea_orm::{DatabaseConnection, prelude::DateTimeWithTimeZone},
+};
+use fbkl_logic::auction::{open_scheduled_auction, slide_unbid_auctions_down_a_tier};
+use fbkl_transaction_processor::{
+    ProcessOutcome, ProcessableEvent, ProcessableEventKind, process_deadline, process_event,
+};
 use tokio::task::JoinHandle;
 use tracing::{error, info, instrument};
 
@@ -25,7 +32,7 @@ use tracing::{error, info, instrument};
 pub const SCHEDULER_TICK_INTERVAL_SECS: u64 = 30;
 
 /// Counts of what a single scheduler tick did.
-#[derive(Debug, Default, Clone, PartialEq, Eq)]
+#[derive(Debug, Default, Clone, Copy, PartialEq, Eq)]
 pub struct TickSummary {
     pub processed: usize,
     pub failed: usize,
@@ -34,6 +41,16 @@ pub struct TickSummary {
     pub blocked: usize,
     /// Errors at the orchestration layer itself (claiming/recording), not handler failures.
     pub errors: usize,
+}
+
+impl TickSummary {
+    const fn merge(&mut self, other: Self) {
+        self.processed += other.processed;
+        self.failed += other.failed;
+        self.skipped += other.skipped;
+        self.blocked += other.blocked;
+        self.errors += other.errors;
+    }
 }
 
 /// Runs one scheduler tick: find every due deadline lacking a `Succeeded` `job_run` and process
@@ -90,8 +107,9 @@ pub async fn run_scheduler_tick(db: &DatabaseConnection) -> Result<TickSummary> 
         }
     }
 
-    // TODO(fbkl-rust-lcc, spec 01): synthesize auction sub-events (24h no-bid closes, §8.3.2
-    // extension expiries) from open `auction` rows and dispatch via `process_event`.
+    summary.merge(run_auction_close_tick(db, now).await?);
+    summary.merge(run_veteran_auction_release_tick(db, now).await?);
+
     // TODO(fbkl-rust-1dk, spec 03): synthesize RFA 48h raise/match window expiries.
 
     if summary != TickSummary::default() {
@@ -102,6 +120,110 @@ pub async fn run_scheduler_tick(db: &DatabaseConnection) -> Result<TickSummary> 
     }
 
     Ok(summary)
+}
+
+/// Closes every auction whose bidding window has elapsed (rules §6.4.4 / §8.3.1-.2).
+///
+/// Runs on every tick: a veteran auction is due 24h after its last bid, a free agent auction once
+/// both that and its (possibly rolled-forward) all-bid deadline have passed. Each close goes
+/// through `process_event`, so the `job_run` claim is the double-fire guard.
+#[instrument(skip(db))]
+pub async fn run_auction_close_tick(
+    db: &DatabaseConnection,
+    now: DateTimeWithTimeZone,
+) -> Result<TickSummary> {
+    let mut summary = TickSummary::default();
+    for (auction_model, contract_model) in
+        auction_queries::find_auctions_due_for_close(now, db).await?
+    {
+        let event = ProcessableEvent {
+            league_id: contract_model.league_id,
+            end_of_season_year: contract_model.end_of_season_year,
+            auction_id: auction_model.id,
+            kind: match auction_model.kind {
+                AuctionKind::InSeasonFreeAgent => ProcessableEventKind::FaAuctionClose,
+                AuctionKind::PreseasonVeteranAuction => ProcessableEventKind::VeteranAuctionClose,
+            },
+        };
+        match process_event(db, event).await {
+            Ok(ProcessOutcome::Processed { .. }) => summary.processed += 1,
+            Ok(ProcessOutcome::Failed { .. }) => summary.failed += 1,
+            Ok(
+                ProcessOutcome::AlreadyProcessed
+                | ProcessOutcome::AlreadyRunning
+                | ProcessOutcome::AttemptsExhausted { .. },
+            ) => summary.skipped += 1,
+            Err(orchestration_error) => {
+                summary.errors += 1;
+                error!(
+                    "Scheduler error closing auction (id = {}): {orchestration_error:?}",
+                    auction_model.id
+                );
+            }
+        }
+    }
+    Ok(summary)
+}
+
+/// Releases the veteran auction players due today and slides unbid auctions a tier (rules §6.3.3-.5).
+///
+/// Both steps are idempotent by construction rather than `job_run`-tracked: opening an
+/// already-opened schedule row returns the existing auction, and the tier slide only touches
+/// auctions untouched for a day, so re-running within the same day is a no-op.
+#[instrument(skip(db))]
+pub async fn run_veteran_auction_release_tick(
+    db: &DatabaseConnection,
+    now: DateTimeWithTimeZone,
+) -> Result<TickSummary> {
+    let mut schedule_rows_by_league_season: BTreeMap<(i64, i16), Vec<_>> = BTreeMap::new();
+    for schedule_row in
+        auction_schedule_queries::find_auction_schedule_rows_due_for_release(now.date_naive(), db)
+            .await?
+    {
+        schedule_rows_by_league_season
+            .entry((schedule_row.league_id, schedule_row.end_of_season_year))
+            .or_default()
+            .push(schedule_row);
+    }
+    // Leagues whose whole pool is already released still need the daily tier slide.
+    for league_season in auction_queries::find_league_seasons_with_open_auctions(
+        AuctionKind::PreseasonVeteranAuction,
+        db,
+    )
+    .await?
+    {
+        schedule_rows_by_league_season
+            .entry(league_season)
+            .or_default();
+    }
+
+    let mut summary = TickSummary::default();
+    for ((league_id, end_of_season_year), schedule_rows) in schedule_rows_by_league_season {
+        match release_and_slide(db, &schedule_rows, league_id, end_of_season_year, now).await {
+            Ok(()) => summary.processed += 1,
+            Err(release_error) => {
+                summary.errors += 1;
+                error!(
+                    "Veteran auction release tick failed for league {league_id} season {end_of_season_year}: {release_error:?}"
+                );
+            }
+        }
+    }
+    Ok(summary)
+}
+
+async fn release_and_slide(
+    db: &DatabaseConnection,
+    schedule_rows: &[auction_schedule::Model],
+    league_id: i64,
+    end_of_season_year: i16,
+    now: DateTimeWithTimeZone,
+) -> Result<()> {
+    for schedule_row in schedule_rows {
+        open_scheduled_auction(schedule_row, now, db).await?;
+    }
+    slide_unbid_auctions_down_a_tier(league_id, end_of_season_year, now, db).await?;
+    Ok(())
 }
 
 /// Spawns the scheduler loop on the tokio runtime. Tick errors are logged, never fatal —

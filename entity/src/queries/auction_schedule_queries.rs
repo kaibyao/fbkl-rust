@@ -53,11 +53,10 @@ where
     Ok(())
 }
 
-/// Schedule rows whose release date has arrived, ranked players first (rules §6.3.3).
+/// Schedule rows across all leagues whose release date has arrived, ranked players first
+/// (rules §6.3.3). Rows stay due once their date passes; opening an already-opened row is a no-op.
 #[instrument]
 pub async fn find_auction_schedule_rows_due_for_release<C>(
-    league_id: i64,
-    end_of_season_year: i16,
     today: Date,
     db: &C,
 ) -> Result<Vec<auction_schedule::Model>>
@@ -65,8 +64,6 @@ where
     C: ConnectionTrait + Debug,
 {
     let schedule_models = auction_schedule::Entity::find()
-        .filter(auction_schedule::Column::LeagueId.eq(league_id))
-        .filter(auction_schedule::Column::EndOfSeasonYear.eq(end_of_season_year))
         .filter(auction_schedule::Column::ScheduledReleaseDate.lte(today))
         .order_by_asc(auction_schedule::Column::ScheduledReleaseDate)
         .order_by_asc(auction_schedule::Column::NominationRank)
