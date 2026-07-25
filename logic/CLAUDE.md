@@ -24,6 +24,7 @@ values from there; do not duplicate literals into logic.
 | `eligibility/` | Classify players (auction vs rookie draft vs ineligible) and build the acquisition pools. |
 | `drop_contract/` | Drop a contract from a team; record dropped-contract cap penalty data. |
 | `ir/` | Move a contract to / activate from IR. |
+| `rookie_draft/` | Live rookie draft: order from standings + lottery, make/pass picks, re-draft ban. |
 | `rookie_development_activation/` | Activate an RD/RDI contract into a rookie contract. |
 | `rookie_development_international/` | Move contracts RD↔RDI (stateside ↔ international). |
 | `roster/` | Salary + cap calculation (incl. dropped-contract penalties). |
