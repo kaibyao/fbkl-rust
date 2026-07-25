@@ -2,7 +2,8 @@ use std::fmt::Debug;
 
 use color_eyre::eyre::{Result, eyre};
 use fbkl_entity::{
-    contract, contract_queries, deadline,
+    contract::{self, ContractKind},
+    contract_queries, deadline,
     sea_orm::{ActiveValue, ConnectionTrait},
     team_update::ContractUpdateType,
     transaction::{self, TransactionKind},
@@ -10,7 +11,7 @@ use fbkl_entity::{
 };
 use tracing::instrument;
 
-use super::rdi_team_update::create_rdi_move_team_update;
+use super::{rdi_team_update::create_rdi_move_team_update, validate_contract_kind};
 
 #[instrument]
 pub async fn move_rookie_development_international_contract_to_stateside<C>(
@@ -21,6 +22,12 @@ pub async fn move_rookie_development_international_contract_to_stateside<C>(
 where
     C: ConnectionTrait + Debug,
 {
+    // §11.3.1 forced transition: leaving international is always legal, so kind is the only gate.
+    validate_contract_kind(
+        &contract_model,
+        ContractKind::RookieDevelopmentInternational,
+    )?;
+
     let team_model = contract_model.get_team(db).await?.ok_or_else(|| {
         eyre!(
             "Could not retrieve the expected team for an RD contract with id: {}",

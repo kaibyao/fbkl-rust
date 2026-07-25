@@ -43,9 +43,9 @@ values from there; do not duplicate literals into logic.
    should not build raw SeaORM statements. If a query is missing, add it to `entity`, not here.
 
 4. **Validate eligibility before mutating.** `drop_contract` and `ir` check `ContractStatus` /
-   `is_ir` first and `bail!`/`ensure!` on violation. Note: `rookie_development_activation` and
-   `rookie_development_international` currently *skip* this guard — that's a known inconsistency,
-   not a pattern to copy. Add guards to new mutators.
+   `is_ir` first and `bail!`/`ensure!` on violation. `rookie_development_activation` checks
+   kind/status/latest-in-chain, and `rookie_development_international` checks the source contract
+   kind plus (for RD → RDI only) `eligibility::validate_rdi_eligible`. Add guards to new mutators.
 
 5. **Contracts form a chain.** Mutations create a *new* contract record (previous/original ids
    linked) rather than editing in place. Validate "latest in chain" before acting on a contract

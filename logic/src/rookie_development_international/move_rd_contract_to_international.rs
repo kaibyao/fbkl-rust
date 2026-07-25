@@ -2,7 +2,8 @@ use std::fmt::Debug;
 
 use color_eyre::eyre::{Result, eyre};
 use fbkl_entity::{
-    contract, contract_queries, deadline,
+    contract::{self, ContractKind, RelatedPlayer},
+    contract_queries, deadline,
     sea_orm::{ActiveValue, ConnectionTrait},
     team_update::ContractUpdateType,
     transaction::{self, TransactionKind},
@@ -10,7 +11,9 @@ use fbkl_entity::{
 };
 use tracing::instrument;
 
-use super::rdi_team_update::create_rdi_move_team_update;
+use crate::eligibility::{PlayerEligibilityFacts, validate_rdi_eligible};
+
+use super::{rdi_team_update::create_rdi_move_team_update, validate_contract_kind};
 
 #[instrument]
 pub async fn move_rookie_development_contract_to_international<C>(
@@ -21,6 +24,13 @@ pub async fn move_rookie_development_contract_to_international<C>(
 where
     C: ConnectionTrait + Debug,
 {
+    validate_contract_kind(&contract_model, ContractKind::RookieDevelopment)?;
+    let player_facts = match contract_model.get_player(db).await? {
+        RelatedPlayer::Player(model) => PlayerEligibilityFacts::from(&model),
+        RelatedPlayer::LeaguePlayer(model) => PlayerEligibilityFacts::from(&model),
+    };
+    validate_rdi_eligible(&contract_model, player_facts, db).await?;
+
     let team_model = contract_model.get_team(db).await?.ok_or_else(|| {
         eyre!(
             "Could not retrieve the expected team for an RD contract with id: {}",
