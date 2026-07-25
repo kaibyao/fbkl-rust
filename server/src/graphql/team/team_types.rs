@@ -46,7 +46,7 @@ pub struct TeamUpdate {
 }
 
 impl TeamUpdate {
-    fn from_model(entity: &team_update::Model) -> Self {
+    pub fn from_model(entity: &team_update::Model) -> Self {
         Self {
             id: entity.id,
             team_id: entity.team_id,

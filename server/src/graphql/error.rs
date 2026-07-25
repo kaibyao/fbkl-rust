@@ -25,6 +25,8 @@ pub enum ErrorCode {
     NotLatestInChain,
     /// A team involved in a trade has no pre-trade salary snapshot, so it cannot be processed.
     MissingPreTradeSalary,
+    /// Submitted keepers break a league keeper rule (ineligible kind, count limit, salary limit).
+    KeeperValidationFailed,
     /// Server-side fault; message is deliberately generic.
     Internal,
 }
@@ -38,6 +40,7 @@ impl ErrorCode {
             Self::BadRequest => "BAD_REQUEST",
             Self::NotLatestInChain => "NOT_LATEST_IN_CHAIN",
             Self::MissingPreTradeSalary => "MISSING_PRE_TRADE_SALARY",
+            Self::KeeperValidationFailed => "KEEPER_VALIDATION_FAILED",
             Self::Internal => "INTERNAL",
         }
     }
@@ -52,6 +55,7 @@ impl ErrorCode {
             Self::MissingPreTradeSalary => {
                 "a team involved in this trade is missing its pre-trade salary"
             }
+            Self::KeeperValidationFailed => "these keepers break a league keeper rule",
             Self::Internal => "internal server error",
         }
     }

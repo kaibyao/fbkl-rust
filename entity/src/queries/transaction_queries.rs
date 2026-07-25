@@ -61,6 +61,29 @@ where
     fetch_page(query, page, page_size, db).await
 }
 
+/// The league's keeper transaction for a season, if keepers have been touched at all yet.
+#[instrument]
+pub async fn find_keeper_deadline_transaction<C>(
+    league_id: i64,
+    end_of_season_year: i16,
+    db: &C,
+) -> Result<Option<transaction::Model>>
+where
+    C: ConnectionTrait + Debug,
+{
+    let found = transaction::Entity::find()
+        .filter(
+            transaction::Column::Kind
+                .eq(TransactionKind::PreseasonKeeper)
+                .and(transaction::Column::EndOfSeasonYear.eq(end_of_season_year))
+                .and(transaction::Column::LeagueId.eq(league_id)),
+        )
+        .one(db)
+        .await?;
+
+    Ok(found)
+}
+
 #[instrument]
 pub async fn get_or_create_keeper_deadline_transaction<C>(
     league_id: i64,
@@ -70,15 +93,8 @@ pub async fn get_or_create_keeper_deadline_transaction<C>(
 where
     C: ConnectionTrait + Debug,
 {
-    let maybe_existing_keeper_deadline_transaction = transaction::Entity::find()
-        .filter(
-            transaction::Column::Kind
-                .eq(TransactionKind::PreseasonKeeper)
-                .and(transaction::Column::EndOfSeasonYear.eq(end_of_season_year))
-                .and(transaction::Column::LeagueId.eq(league_id)),
-        )
-        .one(db)
-        .await?;
+    let maybe_existing_keeper_deadline_transaction =
+        find_keeper_deadline_transaction(league_id, end_of_season_year, db).await?;
 
     if let Some(existing_keeper_deadline_transaction) = maybe_existing_keeper_deadline_transaction {
         return Ok(existing_keeper_deadline_transaction);
