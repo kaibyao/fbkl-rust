@@ -1,5 +1,6 @@
 use std::{collections::HashMap, fmt::Debug};
 
+use chrono::Utc;
 use color_eyre::{Result, eyre::eyre};
 use sea_orm::{
     ActiveModelTrait, ActiveValue, ColumnTrait, ConnectionTrait, EntityTrait, QueryFilter,
@@ -93,6 +94,8 @@ where
         name: ActiveValue::Set(name),
         league_id: ActiveValue::Set(league_id),
         is_rdi_eligible: ActiveValue::Set(true),
+        // a league_player has no NBA index entry by definition; stamp when we last checked
+        nba_roster_asof: ActiveValue::Set(Some(Utc::now().into())),
         ..Default::default()
     };
     let inserted_league_player = league_player_to_insert.insert(db).await?;
