@@ -2,15 +2,15 @@
 //!
 //! Every classification rule lives in `fbkl_logic::eligibility`; these resolvers only fetch,
 //! authorize, and map to GraphQL types. The two mutations stay deliberately separate:
-//! `setPlayerNbaRosterStatus` corrects the underlying *fact*, `overridePlayerEligibility`
+//! `setPlayerNbaStatus` corrects the underlying *facts*, `overridePlayerEligibility`
 //! overrides the *derived classification*.
 
 use async_graphql::{Context, Object, Result, SimpleObject};
 use fbkl_entity::{
     contract::RelatedPlayer,
     eligibility_queries::{
-        set_league_player_eligibility_override, set_league_player_nba_roster_status,
-        set_player_eligibility_override, set_player_nba_roster_status,
+        set_league_player_eligibility_override, set_league_player_nba_status,
+        set_player_eligibility_override, set_player_nba_status,
     },
     league_player_queries::find_league_player_by_id,
     player::EligibilityClassification,
@@ -54,9 +54,9 @@ impl EligibilityQuery {
             .map_err(|err| internal("failed to build the veteran auction pool", &err))?;
 
         Ok(VeteranAuctionPool {
-            restricted: to_graphql(pool.restricted_free_agents),
-            unrestricted: to_graphql(pool.unrestricted_free_agents),
-            free_agents: to_graphql(pool.free_agents),
+            restricted: to_graphql(pool.restricted_free_agents, season),
+            unrestricted: to_graphql(pool.unrestricted_free_agents, season),
+            free_agents: to_graphql(pool.free_agents, season),
         })
     }
 
@@ -74,7 +74,7 @@ impl EligibilityQuery {
             .await
             .map_err(|err| internal("failed to build the rookie draft pool", &err))?;
 
-        Ok(to_graphql(pool))
+        Ok(to_graphql(pool, season))
     }
 
     /// Players signable in-season: both eligible pools minus current rosters (§8.4).
@@ -91,7 +91,7 @@ impl EligibilityQuery {
             .await
             .map_err(|err| internal("failed to build the in-season free agent pool", &err))?;
 
-        Ok(to_graphql(pool))
+        Ok(to_graphql(pool, season))
     }
 }
 
@@ -100,32 +100,55 @@ pub struct EligibilityMutation;
 
 #[Object]
 impl EligibilityMutation {
-    /// Commissioner correction of the NBA-roster *fact* the classification derives from.
+    /// Commissioner correction of the NBA *facts* the classification derives from.
+    /// `nbaFirstSeasonEndOfSeasonYear` is when the player first appeared in NBA data — `null` for
+    /// never — and `hasPlayedNbaGame` says whether any of that was an actual game appearance.
     #[graphql(guard = "LeagueRoleGuard(RoleRequirement::Commissioner)")]
-    async fn set_player_nba_roster_status(
+    async fn set_player_nba_status(
         &self,
         ctx: &Context<'_>,
         kind: PlayerSearchKind,
         id: i64,
-        has_been_on_nba_roster: bool,
+        has_played_nba_game: bool,
+        nba_first_season_end_of_season_year: Option<i16>,
     ) -> Result<LeagueOrRealPlayer> {
+        // Appearing in a game requires an NBA season to have appeared in.
+        if has_played_nba_game && nba_first_season_end_of_season_year.is_none() {
+            return Err(graphql_error(
+                ErrorCode::BadRequest,
+                "a player who has played in an NBA game needs a first NBA season",
+            ));
+        }
+
         let db = ctx.data_unchecked::<DatabaseConnection>();
+        let (_, caller_team) = require_league_role(ctx, RoleRequirement::Commissioner).await?;
+        let season = current_season(ctx, caller_team.league_id).await?;
         let related_player = load_player_for_commissioner(ctx, kind, id).await?;
 
         let updated = match related_player {
             RelatedPlayer::LeaguePlayer(model) => RelatedPlayer::LeaguePlayer(
-                set_league_player_nba_roster_status(model, has_been_on_nba_roster, db)
-                    .await
-                    .map_err(|err| internal("failed to set the NBA roster status", &err))?,
+                set_league_player_nba_status(
+                    model,
+                    has_played_nba_game,
+                    nba_first_season_end_of_season_year,
+                    db,
+                )
+                .await
+                .map_err(|err| internal("failed to set the NBA status", &err))?,
             ),
             RelatedPlayer::Player(model) => RelatedPlayer::Player(
-                set_player_nba_roster_status(model, has_been_on_nba_roster, db)
-                    .await
-                    .map_err(|err| internal("failed to set the NBA roster status", &err))?,
+                set_player_nba_status(
+                    model,
+                    has_played_nba_game,
+                    nba_first_season_end_of_season_year,
+                    db,
+                )
+                .await
+                .map_err(|err| internal("failed to set the NBA status", &err))?,
             ),
         };
 
-        Ok(LeagueOrRealPlayer::from_related_player(updated))
+        Ok(LeagueOrRealPlayer::from_related_player(updated, season))
     }
 
     /// Commissioner override of the *derived* classification. `classification: null` clears it.
@@ -146,7 +169,9 @@ impl EligibilityMutation {
         }
 
         let db = ctx.data_unchecked::<DatabaseConnection>();
-        let (team_user, _) = require_league_role(ctx, RoleRequirement::Commissioner).await?;
+        let (team_user, caller_team) =
+            require_league_role(ctx, RoleRequirement::Commissioner).await?;
+        let season = current_season(ctx, caller_team.league_id).await?;
         let related_player = load_player_for_commissioner(ctx, kind, id).await?;
 
         let updated = match related_player {
@@ -168,7 +193,7 @@ impl EligibilityMutation {
             ),
         };
 
-        Ok(LeagueOrRealPlayer::from_related_player(updated))
+        Ok(LeagueOrRealPlayer::from_related_player(updated, season))
     }
 }
 
@@ -213,10 +238,10 @@ async fn league_and_season(
     Ok((caller_team.league_id, season))
 }
 
-fn to_graphql(members: Vec<RelatedPlayer>) -> Vec<LeagueOrRealPlayer> {
+fn to_graphql(members: Vec<RelatedPlayer>, end_of_season_year: i16) -> Vec<LeagueOrRealPlayer> {
     members
         .into_iter()
-        .map(LeagueOrRealPlayer::from_related_player)
+        .map(|member| LeagueOrRealPlayer::from_related_player(member, end_of_season_year))
         .collect()
 }
 

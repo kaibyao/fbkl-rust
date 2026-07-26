@@ -119,6 +119,7 @@ impl Contract {
                     .ok_or_else(|| eyre!("player {player_id} not found"))?;
                 Ok(LeagueOrRealPlayer::RealPlayer(RealPlayer::from_model(
                     player,
+                    self.end_of_season_year,
                 )))
             }
             PlayerRef::League(league_player_id) => {
@@ -130,6 +131,7 @@ impl Contract {
                     .ok_or_else(|| eyre!("league player {league_player_id} not found"))?;
                 Ok(LeagueOrRealPlayer::LeaguePlayer(LeaguePlayer::from_model(
                     league_player,
+                    self.end_of_season_year,
                 )))
             }
         }

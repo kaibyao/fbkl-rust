@@ -1,9 +1,10 @@
 //! Eligibility pool membership (spec 10 / rules §6.2, §7.5, §8.4).
 //!
-//! All three pools are the same two-step read: classify every candidate player, then subtract the
-//! players a team currently rosters. Nothing keys off historical contract rows — §7.5.3 is explicit
+//! All three pools are the same two-step read: classify every candidate player *as of the pool's
+//! season*, then subtract the players a team currently rosters. Asking for a past season therefore
+//! yields that season's pool, not today's. Nothing keys off historical contract rows — §7.5.3 is explicit
 //! that prior league draft/ownership never affects eligibility, so a previously-drafted,
-//! now-unrostered, never-NBA player is still in the rookie draft pool.
+//! now-unrostered player who has never played an NBA game is still in the rookie draft pool.
 //!
 //! Membership only. Minimum bids and the auction schedule belong to spec 01.
 
@@ -112,7 +113,8 @@ where
     .await?;
     let snapshot = RosterSnapshot::from_contracts(&contracts);
 
-    let players = player_queries::find_eligibility_candidate_players(db).await?;
+    let players =
+        player_queries::find_eligibility_candidate_players(end_of_season_year, db).await?;
     let league_players =
         league_player_queries::find_league_players_in_league(league_id, db).await?;
 
@@ -141,7 +143,8 @@ where
 
     let members = candidates
         .filter(|(player_ref, facts, _)| {
-            allowed.contains(&classify_player(*facts)) && !snapshot.rostered.contains(player_ref)
+            allowed.contains(&classify_player(*facts, end_of_season_year))
+                && !snapshot.rostered.contains(player_ref)
         })
         .map(|(player_ref, _, related_player)| (player_ref, related_player))
         .collect();
@@ -149,7 +152,7 @@ where
     Ok((members, snapshot))
 }
 
-/// §6.2.1 — every player who has been on an active NBA roster and is not a keeper, split per §6.2.2.
+/// §6.2.1 — every player who has played in an NBA game and is not a keeper, split per §6.2.2.
 #[instrument(skip(db))]
 pub async fn build_veteran_auction_pool<C>(
     league_id: i64,
@@ -179,7 +182,7 @@ where
     Ok(pool)
 }
 
-/// §7.5 — never-NBA players in the draft-eligible set who are not currently rostered.
+/// §7.5 — never-played-an-NBA-game players in the draft-eligible set who are not currently rostered.
 #[instrument(skip(db))]
 pub async fn build_rookie_draft_eligible_pool<C>(
     league_id: i64,

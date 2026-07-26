@@ -27,10 +27,15 @@ pub struct Model {
     pub nba_id: Option<i32>,
     pub position_id: i32,
     pub status: PlayerStatus,
-    /// Whether the player has ever been on an active NBA roster (rules §3.1.2) — the auction-vs-draft pivot.
-    pub has_been_on_nba_roster: bool,
+    /// Whether the player has ever appeared in an in-season NBA game (rules §3.1.2). Combined with
+    /// `nba_first_season_end_of_season_year` to answer the auction-vs-draft pivot for a given season.
+    pub has_played_nba_game: bool,
+    /// The season the player first appeared in NBA data, or `None` if he never has. `Some(y)` with
+    /// `y <= season` is the rules §3.1.3 "has been on an active NBA roster" fact for that season,
+    /// which is broader than §3.1.2 and gates RDI (§11.3) rather than pool membership.
+    pub nba_first_season_end_of_season_year: Option<i16>,
     pub nba_roster_source: NbaRosterSource,
-    /// When `has_been_on_nba_roster` was last evaluated.
+    /// When the NBA facts above were last evaluated.
     pub nba_roster_asof: Option<DateTimeWithTimeZone>,
     /// Commissioner override of the derived classification (rules §3.1.2, §11.3.6). Wins when set.
     pub eligibility_override: Option<EligibilityClassification>,
@@ -94,10 +99,10 @@ pub enum PlayerStatus {
 )]
 #[sea_orm(rs_type = "String", db_type = "String(StringLen::None)")]
 pub enum EligibilityClassification {
-    /// Never on an NBA roster and in the rules §7.5.1 eligible set.
+    /// Never played in an NBA game and in the rules §7.5.1 eligible set.
     #[sea_orm(string_value = "RookieDraftEligible")]
     RookieDraftEligible,
-    /// Has been on an active NBA roster (rules §6.2.1).
+    /// Has played in an NBA game (rules §6.2.1).
     #[sea_orm(string_value = "VeteranAuctionEligible")]
     VeteranAuctionEligible,
     /// Rules §7.5.2 / §8.4.2 — current college/HS, undrafted foreign non-collegian, etc.
@@ -105,7 +110,7 @@ pub enum EligibilityClassification {
     Ineligible,
 }
 
-/// Provenance of `has_been_on_nba_roster`.
+/// Provenance of the NBA facts, which one ingest sets together.
 #[derive(
     Debug,
     Default,

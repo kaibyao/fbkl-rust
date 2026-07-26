@@ -2,6 +2,13 @@
 //!
 //! Gates RD → RDI moves. The `is_rdi_eligible` bool on `player`/`league_player` is a cache this
 //! validator can correct, so it is deliberately not an input here — callers pass the derived facts.
+//!
+//! RDI keys off the broader §3.1.3 "was on an NBA roster" fact, not the §3.1.2 pool pivot: §11.3.1
+//! forces RDI→RD/1 the moment a player is "on an NBA roster / signed to an NBA contract", so a
+//! rostered player who never appeared in a game is still rookie-draft-eligible yet already
+//! RDI-ineligible. Both are asked as of the contract's own season, so replaying a 2021 RD→RDI move
+//! is judged on what was true entering 2021, not on the player's career to date. §11.3.5's
+//! mid-season grace period is why "before the season" is strict — see `was_on_nba_roster_before`.
 
 use std::fmt::Debug;
 
@@ -18,8 +25,9 @@ use super::{PlayerEligibilityFacts, classify_player};
 
 /// Validates that a contract's player may move to Rookie Development International.
 ///
-/// Rules §11.3.1: the player must be rookie-draft-eligible, must never have been on an NBA roster,
-/// and must not have already been an RD contract at/after an in-season roster legalization.
+/// Rules §11.3.1, judged entering the contract's season: the player must be rookie-draft-eligible,
+/// must not have been on an NBA roster in an earlier season (broader than the pool pivot — see the
+/// module docs), and must not have already been an RD contract at/after an in-season legalization.
 #[instrument]
 pub async fn validate_rdi_eligible<C>(
     contract_model: &contract::Model,
@@ -29,14 +37,15 @@ pub async fn validate_rdi_eligible<C>(
 where
     C: ConnectionTrait + Debug,
 {
+    let season = contract_model.end_of_season_year;
     ensure!(
-        classify_player(player_facts) == EligibilityClassification::RookieDraftEligible,
-        "Contract (id = {}) player is not rookie-draft-eligible, so cannot move to RDI.",
+        classify_player(player_facts, season) == EligibilityClassification::RookieDraftEligible,
+        "Contract (id = {}) player was not rookie-draft-eligible in {season}, so cannot move to RDI.",
         contract_model.id
     );
     ensure!(
-        !player_facts.has_been_on_nba_roster,
-        "Contract (id = {}) player has been on an NBA roster, so cannot move to RDI.",
+        !player_facts.was_on_nba_roster_before(season),
+        "Contract (id = {}) player was on an NBA roster before {season}, so cannot move to RDI.",
         contract_model.id
     );
 

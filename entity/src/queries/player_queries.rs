@@ -59,19 +59,23 @@ where
 
 /// Real players that could land in any eligibility pool (spec 10).
 ///
-/// Currently-active players that either have NBA-roster history, carry the draft-eligible flag, or
-/// have a commissioner override. Everyone else classifies `Ineligible`, so filtering them in SQL
-/// keeps the whole all-seasons `player` table out of memory. Callers classify and filter roster
-/// status themselves.
-pub async fn find_eligibility_candidate_players<C>(db: &C) -> Result<Vec<player::Model>>
+/// Currently-active players that could land in any eligibility pool for `end_of_season_year`: those
+/// already in NBA data by then, plus anyone carrying the draft-eligible flag or a commissioner
+/// override. Everyone else classifies `Ineligible` for that season, so filtering them in SQL keeps
+/// the whole all-seasons `player` table out of memory. Callers classify and filter roster status
+/// themselves.
+pub async fn find_eligibility_candidate_players<C>(
+    end_of_season_year: i16,
+    db: &C,
+) -> Result<Vec<player::Model>>
 where
     C: ConnectionTrait,
 {
     let players = player::Entity::find()
         .filter(player::Column::Status.eq(player::PlayerStatus::Active))
         .filter(
-            player::Column::HasBeenOnNbaRoster
-                .eq(true)
+            player::Column::NbaFirstSeasonEndOfSeasonYear
+                .lte(end_of_season_year)
                 .or(player::Column::IsRdiEligible.eq(true))
                 .or(player::Column::EligibilityOverride.is_not_null()),
         )

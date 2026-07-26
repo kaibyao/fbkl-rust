@@ -19,42 +19,61 @@ pub enum LeagueOrRealPlayer {
 }
 
 impl LeagueOrRealPlayer {
-    /// Pool builders and contracts both hand back entity's `RelatedPlayer`.
-    pub fn from_related_player(related_player: RelatedPlayer) -> Self {
+    /// Pool builders and contracts both hand back entity's `RelatedPlayer`. `end_of_season_year` is
+    /// the season the classification is asked about — the pool's season, or the contract's.
+    pub fn from_related_player(related_player: RelatedPlayer, end_of_season_year: i16) -> Self {
         match related_player {
             RelatedPlayer::LeaguePlayer(model) => {
-                Self::LeaguePlayer(LeaguePlayer::from_model(model))
+                Self::LeaguePlayer(LeaguePlayer::from_model(model, end_of_season_year))
             }
-            RelatedPlayer::Player(model) => Self::RealPlayer(RealPlayer::from_model(model)),
+            RelatedPlayer::Player(model) => {
+                Self::RealPlayer(RealPlayer::from_model(model, end_of_season_year))
+            }
         }
     }
 }
 
-/// The spec-10 eligibility columns shared by both player types, plus the derived classification.
+/// The spec-10 eligibility columns shared by both player types, plus the classification derived for
+/// `classifiedForEndOfSeasonYear` — eligibility is per-season, so the answer is stamped with the
+/// season it answers for.
 #[derive(Clone, Debug, Eq, PartialEq, SimpleObject)]
 pub struct PlayerEligibility {
     pub classification: EligibilityClassification,
-    pub has_been_on_nba_roster: bool,
+    pub classified_for_end_of_season_year: i16,
+    /// §3.1.2, over the player's whole career. Narrowed to a season by `nbaFirstSeason...`.
+    pub has_played_nba_game: bool,
+    /// The season the player first appeared in NBA data. `<=` a season is the §3.1.3 RDI fact.
+    pub nba_first_season_end_of_season_year: Option<i16>,
     pub nba_roster_source: NbaRosterSource,
     pub nba_roster_asof: Option<String>,
     pub eligibility_override: Option<EligibilityClassification>,
 }
 
 impl PlayerEligibility {
-    fn from_league_player(entity: &league_player::Model) -> Self {
+    fn from_league_player(entity: &league_player::Model, end_of_season_year: i16) -> Self {
         Self {
-            classification: classify_player(PlayerEligibilityFacts::from(entity)),
-            has_been_on_nba_roster: entity.has_been_on_nba_roster,
+            classification: classify_player(
+                PlayerEligibilityFacts::from(entity),
+                end_of_season_year,
+            ),
+            classified_for_end_of_season_year: end_of_season_year,
+            has_played_nba_game: entity.has_played_nba_game,
+            nba_first_season_end_of_season_year: entity.nba_first_season_end_of_season_year,
             nba_roster_source: entity.nba_roster_source,
             nba_roster_asof: entity.nba_roster_asof.map(|asof| asof.to_rfc3339()),
             eligibility_override: entity.eligibility_override,
         }
     }
 
-    fn from_player(entity: &player::Model) -> Self {
+    fn from_player(entity: &player::Model, end_of_season_year: i16) -> Self {
         Self {
-            classification: classify_player(PlayerEligibilityFacts::from(entity)),
-            has_been_on_nba_roster: entity.has_been_on_nba_roster,
+            classification: classify_player(
+                PlayerEligibilityFacts::from(entity),
+                end_of_season_year,
+            ),
+            classified_for_end_of_season_year: end_of_season_year,
+            has_played_nba_game: entity.has_played_nba_game,
+            nba_first_season_end_of_season_year: entity.nba_first_season_end_of_season_year,
             nba_roster_source: entity.nba_roster_source,
             nba_roster_asof: entity.nba_roster_asof.map(|asof| asof.to_rfc3339()),
             eligibility_override: entity.eligibility_override,
@@ -72,8 +91,8 @@ pub struct LeaguePlayer {
 }
 
 impl LeaguePlayer {
-    pub fn from_model(entity: league_player::Model) -> Self {
-        let eligibility = PlayerEligibility::from_league_player(&entity);
+    pub fn from_model(entity: league_player::Model, end_of_season_year: i16) -> Self {
+        let eligibility = PlayerEligibility::from_league_player(&entity, end_of_season_year);
         Self {
             id: entity.id,
             is_rdi_eligible: entity.is_rdi_eligible,
@@ -115,7 +134,10 @@ impl LeaguePlayer {
                     .await
                     .map_err(|error| eyre!("{error}"))?
                     .ok_or_else(|| eyre!("player {real_player_id} not found"))?;
-                Ok(Some(RealPlayer::from_model(real_player)))
+                Ok(Some(RealPlayer::from_model(
+                    real_player,
+                    self.eligibility.classified_for_end_of_season_year,
+                )))
             }
             None => Ok(None),
         }
@@ -137,8 +159,8 @@ pub struct RealPlayer {
 }
 
 impl RealPlayer {
-    pub fn from_model(entity: player::Model) -> Self {
-        let eligibility = PlayerEligibility::from_player(&entity);
+    pub fn from_model(entity: player::Model, end_of_season_year: i16) -> Self {
+        let eligibility = PlayerEligibility::from_player(&entity, end_of_season_year);
         Self {
             id: entity.id,
             is_rdi_eligible: entity.is_rdi_eligible,
