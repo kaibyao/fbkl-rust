@@ -22,6 +22,24 @@ where
     Ok(team_models)
 }
 
+/// Looks up a single team, scoped to `league_id` so a caller cannot read a team outside the
+/// league its session has selected.
+#[instrument]
+pub async fn find_team_by_id_in_league<C>(
+    team_id: i64,
+    league_id: i64,
+    db: &C,
+) -> Result<team::Model>
+where
+    C: ConnectionTrait + Debug,
+{
+    team::Entity::find_by_id(team_id)
+        .filter(team::Column::LeagueId.eq(league_id))
+        .one(db)
+        .await?
+        .ok_or_else(|| eyre!("Could not find team {team_id} in league {league_id}."))
+}
+
 #[instrument]
 pub async fn find_teams_by_name_in_league<C>(
     league_id: i64,

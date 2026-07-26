@@ -1,10 +1,68 @@
 use std::fmt::Debug;
 
-use color_eyre::{Result, eyre::ensure};
-use sea_orm::{ActiveModelTrait, ActiveValue, ConnectionTrait};
+use color_eyre::{
+    Result,
+    eyre::{ensure, eyre},
+};
+use sea_orm::{
+    ActiveModelTrait, ActiveValue, ColumnTrait, ConnectionTrait, EntityTrait, JoinType,
+    QueryFilter, QueryOrder, QuerySelect, RelationTrait,
+};
 use tracing::instrument;
 
-use crate::trade::{self, TradeStatus};
+use crate::{
+    team_trade,
+    trade::{self, TradeStatus},
+};
+
+/// Statuses a team can still act on (accept / reject / counter).
+const ACTIVE_TRADE_STATUSES: [TradeStatus; 2] =
+    [TradeStatus::Proposed, TradeStatus::Counteroffered];
+
+#[instrument]
+pub async fn find_trade_by_id<C>(trade_id: i64, db: &C) -> Result<trade::Model>
+where
+    C: ConnectionTrait + Debug,
+{
+    trade::Entity::find_by_id(trade_id)
+        .one(db)
+        .await?
+        .ok_or_else(|| eyre!("Could not find trade (id = {})", trade_id))
+}
+
+/// Every still-actionable trade in a league, newest first.
+#[instrument]
+pub async fn find_active_trades_in_league<C>(league_id: i64, db: &C) -> Result<Vec<trade::Model>>
+where
+    C: ConnectionTrait + Debug,
+{
+    let trades = trade::Entity::find()
+        .filter(trade::Column::LeagueId.eq(league_id))
+        .filter(trade::Column::Status.is_in(ACTIVE_TRADE_STATUSES))
+        .order_by_desc(trade::Column::Id)
+        .all(db)
+        .await?;
+
+    Ok(trades)
+}
+
+/// Every still-actionable trade a team is involved in (as proposer or recipient), newest first.
+#[instrument]
+pub async fn find_active_trades_for_team<C>(team_id: i64, db: &C) -> Result<Vec<trade::Model>>
+where
+    C: ConnectionTrait + Debug,
+{
+    let trades = trade::Entity::find()
+        .join(JoinType::InnerJoin, team_trade::Relation::Trade.def().rev())
+        .filter(team_trade::Column::TeamId.eq(team_id))
+        .filter(trade::Column::Status.is_in(ACTIVE_TRADE_STATUSES))
+        .order_by_desc(trade::Column::Id)
+        .distinct()
+        .all(db)
+        .await?;
+
+    Ok(trades)
+}
 
 #[instrument]
 pub async fn insert_new_trade<C>(

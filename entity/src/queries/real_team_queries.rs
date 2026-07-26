@@ -1,7 +1,7 @@
 use std::fmt::Debug;
 
 use color_eyre::eyre::{Result, eyre};
-use sea_orm::{ConnectionTrait, EntityTrait};
+use sea_orm::{ColumnTrait, ConnectionTrait, EntityTrait, QueryFilter};
 use tracing::instrument;
 
 use crate::real_team;
@@ -21,4 +21,16 @@ where
 {
     let real_team_models = real_team::Entity::find().all(db).await?;
     Ok(real_team_models)
+}
+
+/// Batch fetch for the GraphQL real-team `DataLoader`.
+pub async fn find_real_teams_by_ids<C>(ids: Vec<i64>, db: &C) -> Result<Vec<real_team::Model>>
+where
+    C: ConnectionTrait,
+{
+    let real_teams = real_team::Entity::find()
+        .filter(real_team::Column::Id.is_in(ids))
+        .all(db)
+        .await?;
+    Ok(real_teams)
 }

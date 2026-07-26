@@ -1,13 +1,41 @@
 use std::fmt::Debug;
 
 use color_eyre::eyre::Result;
-use sea_orm::{ActiveModelTrait, ActiveValue, ConnectionTrait};
+use sea_orm::{
+    ActiveModelTrait, ActiveValue, ColumnTrait, ConnectionTrait, EntityTrait, JoinType,
+    QueryFilter, QueryOrder, QuerySelect, RelationTrait,
+};
 use tracing::instrument;
 
 use crate::{
-    contract,
+    contract, draft_pick,
     rookie_draft_selection::{self, RookieDraftSelectionStatus},
 };
+
+/// Rookie draft selections made in a league's season, in draft order. The season comes from the
+/// selection's draft pick.
+#[instrument]
+pub async fn find_rookie_draft_selections_for_league_season<C>(
+    league_id: i64,
+    end_of_season_year: i16,
+    db: &C,
+) -> Result<Vec<rookie_draft_selection::Model>>
+where
+    C: ConnectionTrait + Debug,
+{
+    let selections = rookie_draft_selection::Entity::find()
+        .join(
+            JoinType::InnerJoin,
+            rookie_draft_selection::Relation::DraftPick.def(),
+        )
+        .filter(rookie_draft_selection::Column::LeagueId.eq(league_id))
+        .filter(draft_pick::Column::EndOfSeasonYear.eq(end_of_season_year))
+        .order_by_asc(rookie_draft_selection::Column::Order)
+        .all(db)
+        .await?;
+
+    Ok(selections)
+}
 
 #[instrument]
 pub async fn insert_used_rookie_draft_selection<C>(

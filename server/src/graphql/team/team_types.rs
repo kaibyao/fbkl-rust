@@ -3,11 +3,17 @@ use fbkl_entity::{
     contract_queries::find_active_contracts_for_team,
     sea_orm::{DatabaseConnection, prelude::DateTimeWithTimeZone},
     team,
+    team_update::{self, TeamUpdateStatus},
+    team_update_queries::find_team_updates_by_team,
+    team_user::LeagueRole,
     team_user_queries::get_team_users_by_team,
 };
 use fbkl_logic::roster::calculate_team_contract_salary_at_datetime;
 
-use crate::{error::FbklError, graphql::contract::Contract};
+use crate::{
+    error::FbklError,
+    graphql::{ErrorCode, RoleRequirement, code_error, contract::Contract, require_league_role},
+};
 
 use super::TeamUser;
 
@@ -25,6 +31,31 @@ pub struct Team {
 pub struct TeamSalaryCap {
     pub salary_cap: i16,
     pub salary_used: i16,
+}
+
+/// One recorded change to a team's roster or settings. `data` is the raw
+/// `TeamUpdateData` json — typing its variants is deferred until a client needs it.
+#[derive(SimpleObject)]
+pub struct TeamUpdate {
+    pub id: i64,
+    pub team_id: i64,
+    pub effective_date: String,
+    pub status: TeamUpdateStatus,
+    pub transaction_id: Option<i64>,
+    pub data: String,
+}
+
+impl TeamUpdate {
+    pub fn from_model(entity: &team_update::Model) -> Self {
+        Self {
+            id: entity.id,
+            team_id: entity.team_id,
+            effective_date: entity.effective_date.to_string(),
+            status: entity.status,
+            transaction_id: entity.transaction_id,
+            data: entity.data.to_string(),
+        }
+    }
 }
 
 impl Team {
@@ -85,6 +116,33 @@ impl Team {
         };
 
         Ok(salary_cap)
+    }
+
+    /// A team's change history. Only the team's own members and the commissioner may read it.
+    async fn team_updates(
+        &self,
+        ctx: &Context<'_>,
+        status: Option<TeamUpdateStatus>,
+    ) -> Result<Vec<TeamUpdate>> {
+        let db = ctx.data_unchecked::<DatabaseConnection>();
+        let (team_user, _) = require_league_role(ctx, RoleRequirement::Member).await?;
+
+        let is_commissioner = team_user.league_role == LeagueRole::LeagueCommissioner;
+        if team_user.team_id != self.id && !is_commissioner {
+            return Err(code_error(ErrorCode::Forbidden));
+        }
+
+        let team_update_models = find_team_updates_by_team(self.id, status, db)
+            .await
+            .map_err(|db_err| {
+                tracing::error!(error = ?db_err, team_id = self.id, "failed to load team updates");
+                code_error(ErrorCode::Internal)
+            })?;
+
+        Ok(team_update_models
+            .iter()
+            .map(TeamUpdate::from_model)
+            .collect())
     }
 
     async fn team_users(&self, ctx: &Context<'_>) -> Result<Vec<TeamUser>, FbklError> {

@@ -22,6 +22,27 @@ use crate::roster::{SalarySnapshot, calculate_team_contract_salary};
 
 static EMPTY_VEC: &Vec<contract::Model> = &vec![];
 
+/// A team involved in the trade has no pre-trade salary snapshot.
+///
+/// Concrete (not an opaque `eyre!`) so callers can `downcast_ref` and report it as a typed failure
+/// instead of a generic server fault.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct MissingPreTradeSalary {
+    pub team_id: i64,
+}
+
+impl std::fmt::Display for MissingPreTradeSalary {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(
+            f,
+            "missing pre-trade salary for team (id = {}); salaries must be computed for every team involved in the trade",
+            self.team_id
+        )
+    }
+}
+
+impl std::error::Error for MissingPreTradeSalary {}
+
 /// Generates the data needed to create the team updates related to a trade. Returns a `MultiMap` w/ `team_id`s as its key and Team Update Assets as its values.
 #[instrument]
 pub async fn generate_team_update_assets_data_for_trade<C>(
@@ -92,12 +113,9 @@ where
         let new_salary =
             calculate_team_contract_salary(team_id, team_active_contracts, deadline_model, db)
                 .await?;
-        let previous_salary = team_salaries_before_trade.get(&team_id).ok_or_else(|| {
-            eyre!(
-                "Missing pre-trade salary for team (id = {}); salaries must be computed for every team involved in the trade",
-                team_id
-            )
-        })?;
+        let previous_salary = team_salaries_before_trade
+            .get(&team_id)
+            .ok_or(MissingPreTradeSalary { team_id })?;
 
         let team_update_data = TeamUpdateData::from_assets(
             team_contract_ids,

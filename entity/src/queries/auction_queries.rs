@@ -6,14 +6,15 @@ use color_eyre::{
     eyre::{bail, eyre},
 };
 use sea_orm::{
-    ActiveModelTrait, ActiveValue, ColumnTrait, ConnectionTrait, EntityTrait, QueryFilter,
-    prelude::DateTimeWithTimeZone,
+    ActiveModelTrait, ActiveValue, ColumnTrait, ConnectionTrait, EntityTrait, JoinType,
+    QueryFilter, QueryOrder, QuerySelect, RelationTrait, prelude::DateTimeWithTimeZone,
 };
 use tracing::instrument;
 
 use crate::{
     auction::{self, AuctionKind},
-    auction_bid,
+    auction_bid, contract,
+    queries::pagination::{Paged, fetch_page},
 };
 
 #[instrument]
@@ -27,6 +28,46 @@ where
         .await?
         .ok_or_else(|| eyre!("Could not find auction with id: {}", auction_id))?;
     Ok(maybe_auction_model)
+}
+
+/// Auctions in the league/season that have not settled yet — `transaction_id` is NULL until a
+/// winning bid is signed. The league scope comes from the auctioned contract.
+#[instrument]
+pub async fn find_open_auctions_in_league<C>(
+    league_id: i64,
+    end_of_season_year: i16,
+    db: &C,
+) -> Result<Vec<auction::Model>>
+where
+    C: ConnectionTrait + Debug,
+{
+    let auction_models = auction::Entity::find()
+        .join(JoinType::InnerJoin, auction::Relation::Contract.def())
+        .filter(auction::Column::TransactionId.is_null())
+        .filter(contract::Column::LeagueId.eq(league_id))
+        .filter(contract::Column::EndOfSeasonYear.eq(end_of_season_year))
+        .order_by_asc(auction::Column::FixedEndTimestamp)
+        .all(db)
+        .await?;
+    Ok(auction_models)
+}
+
+/// One page of an auction's bid history, newest bid first.
+#[instrument]
+pub async fn find_auction_bids<C>(
+    auction_id: i64,
+    page: u64,
+    page_size: u64,
+    db: &C,
+) -> Result<Paged<auction_bid::Model>>
+where
+    C: ConnectionTrait + Debug,
+{
+    let query = auction_bid::Entity::find()
+        .filter(auction_bid::Column::AuctionId.eq(auction_id))
+        .order_by_desc(auction_bid::Column::CreatedAt);
+
+    fetch_page(query, page, page_size, db).await
 }
 
 /// Creates & inserts a new auction with given arguments.

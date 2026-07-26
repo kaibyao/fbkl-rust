@@ -1,11 +1,11 @@
-use async_graphql::{Context, Object, Result, Union};
-use fbkl_entity::{
-    league_player, player, player_queries::find_player_by_id,
-    position_queries::find_position_by_id, real_team_queries::find_real_team_by_id,
-    sea_orm::DatabaseConnection,
-};
+use async_graphql::{Context, Object, Result, Union, dataloader::DataLoader};
+use color_eyre::eyre::eyre;
+use fbkl_entity::{league_player, player};
 
-use crate::error::FbklError;
+use crate::{
+    error::FbklError,
+    graphql::{PlayerLoader, PositionLoader, RealTeamLoader},
+};
 
 #[derive(Debug, Clone, Eq, PartialEq, Union)]
 pub enum LeagueOrRealPlayer {
@@ -55,8 +55,12 @@ impl LeaguePlayer {
     async fn real_player(&self, ctx: &Context<'_>) -> Result<Option<RealPlayer>, FbklError> {
         match self.real_player_id {
             Some(real_player_id) => {
-                let db = ctx.data_unchecked::<DatabaseConnection>();
-                let real_player = find_player_by_id(real_player_id, db).await?;
+                let real_player = ctx
+                    .data_unchecked::<DataLoader<PlayerLoader>>()
+                    .load_one(real_player_id)
+                    .await
+                    .map_err(|error| eyre!("{error}"))?
+                    .ok_or_else(|| eyre!("player {real_player_id} not found"))?;
                 Ok(Some(RealPlayer::from_model(real_player)))
             }
             None => Ok(None),
@@ -120,9 +124,12 @@ impl RealPlayer {
     }
 
     async fn position(&self, ctx: &Context<'_>) -> Result<String, FbklError> {
-        let db = ctx.data_unchecked::<DatabaseConnection>();
-
-        let position = find_position_by_id(self.position_id, db).await?;
+        let position = ctx
+            .data_unchecked::<DataLoader<PositionLoader>>()
+            .load_one(self.position_id)
+            .await
+            .map_err(|error| eyre!("{error}"))?
+            .ok_or_else(|| eyre!("position {} not found", self.position_id))?;
         Ok(position.name)
     }
 
@@ -131,9 +138,12 @@ impl RealPlayer {
     }
 
     async fn real_team_name(&self, ctx: &Context<'_>) -> Result<String, FbklError> {
-        let db = ctx.data_unchecked::<DatabaseConnection>();
-
-        let real_team = find_real_team_by_id(self.real_team_id, db).await?;
+        let real_team = ctx
+            .data_unchecked::<DataLoader<RealTeamLoader>>()
+            .load_one(self.real_team_id)
+            .await
+            .map_err(|error| eyre!("{error}"))?
+            .ok_or_else(|| eyre!("real team {} not found", self.real_team_id))?;
         Ok(real_team.name)
     }
 }

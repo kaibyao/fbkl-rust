@@ -9,7 +9,7 @@ pub use server::*;
 
 use std::sync::Arc;
 
-use async_graphql::{EmptySubscription, Schema};
+use async_graphql::{EmptySubscription, Schema, dataloader::DataLoader};
 use axum::{Extension, Router};
 use color_eyre::Result;
 use fbkl_auth::{encode_token, generate_token};
@@ -47,6 +47,10 @@ pub fn build_graphql_schema(db: DatabaseConnection) -> AppSchema {
         MutationRoot::default(),
         EmptySubscription,
     )
+    .data(DataLoader::new(PlayerLoader(db.clone()), tokio::spawn))
+    .data(DataLoader::new(LeaguePlayerLoader(db.clone()), tokio::spawn))
+    .data(DataLoader::new(PositionLoader(db.clone()), tokio::spawn))
+    .data(DataLoader::new(RealTeamLoader(db.clone()), tokio::spawn))
     .data(db)
     .limit_complexity(50) // If this ever gets to 100, we should probably consider loader patterns.
     .limit_depth(10)

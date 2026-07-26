@@ -44,6 +44,17 @@ where
 }
 
 #[instrument]
+pub async fn find_deadline_by_id<C>(deadline_id: i64, db: &C) -> Result<deadline::Model>
+where
+    C: ConnectionTrait + Debug,
+{
+    deadline::Entity::find_by_id(deadline_id)
+        .one(db)
+        .await?
+        .ok_or_else(|| eyre!("Could not find a deadline with id = {}.", deadline_id))
+}
+
+#[instrument]
 pub async fn find_deadline_for_season_by_type<C>(
     league_id: i64,
     end_of_season_year: i16,

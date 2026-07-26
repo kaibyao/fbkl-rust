@@ -56,6 +56,44 @@ impl Model {
         }
     }
 
+    /// Creates a not-yet-persisted Trade Asset `ActiveModel` from a draft pick.
+    pub fn from_draft_pick(
+        trade_id: Option<i64>,
+        draft_pick_id: i64,
+        from_team_id: FromTeamId,
+        to_team_id: ToTeamId,
+    ) -> ActiveModel {
+        ActiveModel {
+            id: ActiveValue::NotSet,
+            asset_type: ActiveValue::Set(TradeAssetType::DraftPick),
+            contract_id: ActiveValue::NotSet,
+            draft_pick_id: ActiveValue::Set(Some(draft_pick_id)),
+            draft_pick_option_id: ActiveValue::NotSet,
+            from_team_id: ActiveValue::Set(from_team_id.0),
+            to_team_id: ActiveValue::Set(to_team_id.0),
+            trade_id: trade_id.map_or(ActiveValue::NotSet, ActiveValue::Set),
+        }
+    }
+
+    /// Creates a not-yet-persisted Trade Asset `ActiveModel` from a draft pick option.
+    pub fn from_draft_pick_option(
+        trade_id: Option<i64>,
+        draft_pick_option_id: i64,
+        from_team_id: FromTeamId,
+        to_team_id: ToTeamId,
+    ) -> ActiveModel {
+        ActiveModel {
+            id: ActiveValue::NotSet,
+            asset_type: ActiveValue::Set(TradeAssetType::DraftPickOption),
+            contract_id: ActiveValue::NotSet,
+            draft_pick_id: ActiveValue::NotSet,
+            draft_pick_option_id: ActiveValue::Set(Some(draft_pick_option_id)),
+            from_team_id: ActiveValue::Set(from_team_id.0),
+            to_team_id: ActiveValue::Set(to_team_id.0),
+            trade_id: trade_id.map_or(ActiveValue::NotSet, ActiveValue::Set),
+        }
+    }
+
     /// Retrieves the contract related to the trade asset, assuming that its `TradeAssetType` is `Contract`.
     #[instrument]
     pub async fn get_contract<C>(&self, db: &C) -> Result<contract::Model>

@@ -1,6 +1,6 @@
 use std::fmt::Debug;
 
-use color_eyre::{Result, eyre::bail};
+use color_eyre::Result;
 use fbkl_constants::league_rules::{
     KEEPER_CONTRACT_COUNT_LIMIT, KEEPER_CONTRACT_TOTAL_SALARY_LIMIT,
 };
@@ -65,12 +65,31 @@ where
     }
 }
 
+/// A keeper submission that breaks a league keeper rule.
+///
+/// Concrete (not an opaque `eyre!`) so callers can `downcast_ref` and report a rule violation as a
+/// client error instead of a generic server fault.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct KeeperValidationError {
+    pub message: String,
+}
+
+impl std::fmt::Display for KeeperValidationError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(&self.message)
+    }
+}
+
+impl std::error::Error for KeeperValidationError {}
+
 /// Validates the following:
 /// * The given list of contracts does not contain any RFA or UFA contract.
 /// * The total contract value is $100 or less.
 /// * The total number of non-(RFA|UFA) keeper contracts is 14 or less.
+///
+/// Read-only, so it doubles as the dry-run check behind the `validateKeepers` query.
 #[instrument]
-fn validate_team_keepers(contracts: &[contract::Model]) -> Result<()> {
+pub fn validate_team_keepers(contracts: &[contract::Model]) -> Result<(), KeeperValidationError> {
     let counted_contracts: Vec<&contract::Model> = contracts
         .iter()
         .filter(|contract| match contract.kind {
@@ -87,10 +106,9 @@ fn validate_team_keepers(contracts: &[contract::Model]) -> Result<()> {
         .collect();
 
     if counted_contracts.len() != contracts.len() {
-        bail!(
-            "The contracts attempted to be saved as Keepers contained contract types that cannot be kept. Only the following types of contracts can be kept: Rookie Development (International) (1-3), Rookie (1-3), Rookie Extension (4-5), and Veteran (1-3).\n\nGiven contracts:\n{:#?}",
-            contracts
-        );
+        return Err(KeeperValidationError {
+            message: "The contracts attempted to be saved as Keepers contained contract types that cannot be kept. Only the following types of contracts can be kept: Rookie Development (International) (1-3), Rookie (1-3), Rookie Extension (4-5), and Veteran (1-3).".to_owned(),
+        });
     }
 
     let counted_non_rd_contracts: Vec<&contract::Model> = counted_contracts
@@ -102,12 +120,12 @@ fn validate_team_keepers(contracts: &[contract::Model]) -> Result<()> {
         .collect();
 
     if counted_non_rd_contracts.len() > KEEPER_CONTRACT_COUNT_LIMIT {
-        bail!(
-            "The number of contracts attempted ({}) to be saved as Keepers exceeds the league limit of {}.\n\nContracts: {:#?}",
-            counted_non_rd_contracts.len(),
-            KEEPER_CONTRACT_COUNT_LIMIT,
-            counted_non_rd_contracts
-        );
+        return Err(KeeperValidationError {
+            message: format!(
+                "The number of contracts attempted ({}) to be saved as Keepers exceeds the league limit of {KEEPER_CONTRACT_COUNT_LIMIT}.",
+                counted_non_rd_contracts.len()
+            ),
+        });
     }
 
     let total_counted_contract_value: i16 = counted_non_rd_contracts
@@ -115,11 +133,11 @@ fn validate_team_keepers(contracts: &[contract::Model]) -> Result<()> {
         .map(|contract| contract.salary)
         .sum();
     if total_counted_contract_value > KEEPER_CONTRACT_TOTAL_SALARY_LIMIT {
-        bail!(
-            "The total contract salary amount ({}) exceeds the league salary cap of {}.",
-            total_counted_contract_value,
-            KEEPER_CONTRACT_TOTAL_SALARY_LIMIT
-        );
+        return Err(KeeperValidationError {
+            message: format!(
+                "The total contract salary amount ({total_counted_contract_value}) exceeds the league salary cap of {KEEPER_CONTRACT_TOTAL_SALARY_LIMIT}."
+            ),
+        });
     }
 
     Ok(())

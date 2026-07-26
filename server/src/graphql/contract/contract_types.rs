@@ -1,15 +1,13 @@
-use async_graphql::{Context, Object, Result};
+use async_graphql::{Context, Object, Result, dataloader::DataLoader};
 use color_eyre::eyre::eyre;
-use fbkl_entity::{
-    contract::{self, ContractKind, ContractStatus},
-    league_player_queries::find_league_player_by_id,
-    player_queries::find_player_by_id,
-    sea_orm::DatabaseConnection,
-};
+use fbkl_entity::contract::{self, ContractKind, ContractStatus};
 
 use crate::{
     error::FbklError,
-    graphql::player::{LeagueOrRealPlayer, LeaguePlayer, RealPlayer},
+    graphql::{
+        LeaguePlayerLoader, PlayerLoader,
+        player::{LeagueOrRealPlayer, LeaguePlayer, RealPlayer},
+    },
 };
 
 /// Exactly one player reference per contract; stored as an enum so the two-`Option` illegal
@@ -111,16 +109,25 @@ impl Contract {
         &self,
         ctx: &Context<'_>,
     ) -> Result<LeagueOrRealPlayer, FbklError> {
-        let db = ctx.data_unchecked::<DatabaseConnection>();
         match self.player {
             PlayerRef::Real(player_id) => {
-                let player = find_player_by_id(player_id, db).await?;
+                let player = ctx
+                    .data_unchecked::<DataLoader<PlayerLoader>>()
+                    .load_one(player_id)
+                    .await
+                    .map_err(|error| eyre!("{error}"))?
+                    .ok_or_else(|| eyre!("player {player_id} not found"))?;
                 Ok(LeagueOrRealPlayer::RealPlayer(RealPlayer::from_model(
                     player,
                 )))
             }
             PlayerRef::League(league_player_id) => {
-                let league_player = find_league_player_by_id(league_player_id, db).await?;
+                let league_player = ctx
+                    .data_unchecked::<DataLoader<LeaguePlayerLoader>>()
+                    .load_one(league_player_id)
+                    .await
+                    .map_err(|error| eyre!("{error}"))?
+                    .ok_or_else(|| eyre!("league player {league_player_id} not found"))?;
                 Ok(LeagueOrRealPlayer::LeaguePlayer(LeaguePlayer::from_model(
                     league_player,
                 )))
