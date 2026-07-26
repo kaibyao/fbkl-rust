@@ -8,6 +8,7 @@ use self::{
     contract::ContractQuery,
     deadline::{DeadlineMutation, DeadlineQuery},
     draft::DraftQuery,
+    eligibility::{EligibilityMutation, EligibilityQuery},
     keeper::{KeeperMutation, KeeperQuery},
     league::{LeagueMutation, LeagueQuery},
     player::PlayerQuery,
@@ -18,19 +19,21 @@ use self::{
     user::UserQuery,
 };
 
-pub use self::{authz::*, error::*, loaders::*};
+pub use self::{authz::*, error::*, loaders::*, season::*};
 
 mod auction;
 mod authz;
 mod contract;
 mod deadline;
 mod draft;
+mod eligibility;
 mod error;
 mod keeper;
 mod league;
 mod loaders;
 mod player;
 mod roster;
+mod season;
 mod team;
 mod trade;
 mod transaction;
@@ -51,6 +54,7 @@ pub struct QueryRoot(
     DeadlineQuery,
     AuctionQuery,
     DraftQuery,
+    EligibilityQuery,
 );
 
 #[derive(Default, MergedObject)]
@@ -60,4 +64,5 @@ pub struct MutationRoot(
     RosterMutation,
     KeeperMutation,
     DeadlineMutation,
+    EligibilityMutation,
 );

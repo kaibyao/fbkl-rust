@@ -4,12 +4,10 @@
 //! is deliberately not exposed as a mutation.
 
 use async_graphql::{Context, Error as GraphQlError, Object, Result, SimpleObject};
-use chrono::Utc;
 use color_eyre::Report;
 use fbkl_entity::{
     contract,
     contract_queries::find_contract_by_id,
-    deadline_queries::find_most_recent_deadline_by_datetime,
     sea_orm::{DatabaseConnection, TransactionTrait},
     team,
     team_update_queries::find_team_updates_by_transaction,
@@ -22,7 +20,8 @@ use fbkl_logic::deadline_processing::keeper_deadline::{
 
 use super::super::team::TeamUpdate;
 use crate::graphql::{
-    ErrorCode, LeagueRoleGuard, RoleRequirement, code_error, graphql_error, require_league_role,
+    ErrorCode, LeagueRoleGuard, RoleRequirement, code_error, current_season, graphql_error,
+    require_league_role,
 };
 
 /// Result of a keeper dry-run: whether the submission would be accepted, and why not if it wouldn't.
@@ -58,7 +57,7 @@ impl KeeperQuery {
             None => Some(team_user.team_id),
         };
 
-        let end_of_season_year = current_season(ctx).await?;
+        let end_of_season_year = caller_season(ctx).await?;
         let Some(keeper_transaction) =
             find_keeper_deadline_transaction(caller_team.league_id, end_of_season_year, db)
                 .await
@@ -114,7 +113,7 @@ impl KeeperMutation {
     ) -> Result<TeamUpdate> {
         let db = ctx.data_unchecked::<DatabaseConnection>();
         let (caller_team, contracts) = load_own_keeper_contracts(ctx, &contract_ids).await?;
-        let end_of_season_year = current_season(ctx).await?;
+        let end_of_season_year = caller_season(ctx).await?;
 
         let db_txn = db
             .begin()
@@ -158,16 +157,9 @@ async fn load_own_keeper_contracts(
     Ok((caller_team, contracts))
 }
 
-async fn current_season(ctx: &Context<'_>) -> Result<i16> {
-    let db = ctx.data_unchecked::<DatabaseConnection>();
+async fn caller_season(ctx: &Context<'_>) -> Result<i16> {
     let (_, caller_team) = require_league_role(ctx, RoleRequirement::Member).await?;
-
-    let deadline =
-        find_most_recent_deadline_by_datetime(caller_team.league_id, Utc::now().fixed_offset(), db)
-            .await
-            .map_err(|err| internal("failed to resolve the current deadline", &err))?;
-
-    Ok(deadline.end_of_season_year)
+    current_season(ctx, caller_team.league_id).await
 }
 
 /// A broken keeper rule is the client's fault; anything else is a server fault.

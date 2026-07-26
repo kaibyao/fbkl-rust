@@ -2,20 +2,17 @@
 //! open and settle through deadline processing, never as a direct mutation.
 
 use async_graphql::{Context, Object, Result, SimpleObject};
-use chrono::Utc;
 use fbkl_entity::{
     auction::{self, AuctionKind},
     auction_bid,
     auction_queries::{find_auction_bids, find_auction_by_id, find_open_auctions_in_league},
     deadline::DeadlineKind,
-    deadline_queries::{
-        find_most_recent_deadline_by_datetime, find_sorted_deadlines_for_league_season,
-    },
+    deadline_queries::find_sorted_deadlines_for_league_season,
     sea_orm::DatabaseConnection,
 };
 
 use crate::graphql::{
-    ErrorCode, LeagueRoleGuard, RoleRequirement, code_error, deadline::Deadline,
+    ErrorCode, LeagueRoleGuard, RoleRequirement, code_error, current_season, deadline::Deadline,
     require_league_role,
 };
 
@@ -192,16 +189,4 @@ async fn load_auction_in_league(ctx: &Context<'_>, auction_id: i64) -> Result<au
     }
 
     Ok(auction_model)
-}
-
-async fn current_season(ctx: &Context<'_>, league_id: i64) -> Result<i16> {
-    let db = ctx.data_unchecked::<DatabaseConnection>();
-    let deadline = find_most_recent_deadline_by_datetime(league_id, Utc::now().fixed_offset(), db)
-        .await
-        .map_err(|err| {
-            tracing::error!(error = ?err, league_id, "failed to resolve the current season");
-            code_error(ErrorCode::Internal)
-        })?;
-
-    Ok(deadline.end_of_season_year)
 }

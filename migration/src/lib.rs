@@ -23,6 +23,7 @@ mod m20221117_235325_create_transaction;
 mod m20230217_011454_create_team_update;
 mod m20260609_000001_create_job_run;
 mod m20260722_000001_collapse_transaction_fk_columns;
+mod m20260725_000001_add_player_eligibility_fields;
 
 pub struct Migrator;
 
@@ -46,6 +47,7 @@ impl MigratorTrait for Migrator {
             Box::new(m20230217_011454_create_team_update::Migration),
             Box::new(m20260609_000001_create_job_run::Migration),
             Box::new(m20260722_000001_collapse_transaction_fk_columns::Migration),
+            Box::new(m20260725_000001_add_player_eligibility_fields::Migration),
         ]
     }
 }

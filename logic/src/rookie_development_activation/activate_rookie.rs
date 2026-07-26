@@ -1,8 +1,9 @@
 use std::fmt::Debug;
 
-use color_eyre::eyre::{Result, eyre};
+use color_eyre::eyre::{Result, ensure, eyre};
 use fbkl_entity::{
-    contract, contract_queries, deadline,
+    contract::{self, ContractKind, ContractStatus},
+    contract_queries, deadline,
     sea_orm::{ActiveValue, ConnectionTrait},
     transaction::{self, TransactionKind},
     transaction_queries,
@@ -22,6 +23,9 @@ pub async fn activate_rookie_development_contract<C>(
 where
     C: ConnectionTrait + Debug,
 {
+    validate_contract_is_activatable(&contract_model)?;
+    contract_queries::validate_contract_is_latest_in_chain(&contract_model, db).await?;
+
     let team_model = contract_model.get_team(db).await?.ok_or_else(|| {
         eyre!(
             "Could not retrieve the expected team for a RD(I) contract with id: {}",
@@ -60,4 +64,78 @@ where
     .await?;
 
     Ok(activated_contract)
+}
+
+/// Guards activation against non-RD(I) or stale contracts.
+fn validate_contract_is_activatable(contract_model: &contract::Model) -> Result<()> {
+    ensure!(
+        matches!(
+            contract_model.kind,
+            ContractKind::RookieDevelopment | ContractKind::RookieDevelopmentInternational
+        ),
+        "Contract (id = {}) is a {:?} contract, so it cannot be activated as a rookie contract.",
+        contract_model.id,
+        contract_model.kind
+    );
+    ensure!(
+        contract_model.status == ContractStatus::Active,
+        "Contract (id = {}) has status {:?}, so it cannot be activated.",
+        contract_model.id,
+        contract_model.status
+    );
+
+    Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use fbkl_entity::contract::{ContractKind, ContractStatus, Model};
+
+    use super::validate_contract_is_activatable;
+
+    fn contract(kind: ContractKind, status: ContractStatus) -> Model {
+        Model {
+            id: 1,
+            year_number: 1,
+            kind,
+            is_ir: false,
+            salary: 10,
+            end_of_season_year: 2025,
+            status,
+            league_id: 1,
+            league_player_id: None,
+            player_id: Some(1),
+            previous_contract_id: None,
+            original_contract_id: Some(1),
+            team_id: Some(7),
+            created_at: chrono::Utc::now().into(),
+            updated_at: chrono::Utc::now().into(),
+        }
+    }
+
+    #[test]
+    fn non_rookie_development_kind_is_rejected() {
+        let contract_model = contract(ContractKind::Veteran, ContractStatus::Active);
+
+        assert!(validate_contract_is_activatable(&contract_model).is_err());
+    }
+
+    #[test]
+    fn replaced_contract_is_rejected() {
+        let contract_model = contract(ContractKind::RookieDevelopment, ContractStatus::Replaced);
+
+        assert!(validate_contract_is_activatable(&contract_model).is_err());
+    }
+
+    #[test]
+    fn active_rd_and_rdi_are_accepted() {
+        for kind in [
+            ContractKind::RookieDevelopment,
+            ContractKind::RookieDevelopmentInternational,
+        ] {
+            assert!(
+                validate_contract_is_activatable(&contract(kind, ContractStatus::Active)).is_ok()
+            );
+        }
+    }
 }

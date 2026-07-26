@@ -27,6 +27,21 @@ pub struct Model {
     pub nba_id: Option<i32>,
     pub position_id: i32,
     pub status: PlayerStatus,
+    /// Whether the player has ever appeared in an in-season NBA game (rules §3.1.2). Combined with
+    /// `nba_first_season_end_of_season_year` to answer the auction-vs-draft pivot for a given season.
+    pub has_played_nba_game: bool,
+    /// The season the player first appeared in NBA data, or `None` if he never has. `Some(y)` with
+    /// `y <= season` is the rules §3.1.3 "has been on an active NBA roster" fact for that season,
+    /// which is broader than §3.1.2 and gates RDI (§11.3) rather than pool membership.
+    pub nba_first_season_end_of_season_year: Option<i16>,
+    pub nba_roster_source: NbaRosterSource,
+    /// When the NBA facts above were last evaluated.
+    pub nba_roster_asof: Option<DateTimeWithTimeZone>,
+    /// Commissioner override of the derived classification (rules §3.1.2, §11.3.6). Wins when set.
+    pub eligibility_override: Option<EligibilityClassification>,
+    pub eligibility_override_reason: Option<String>,
+    pub eligibility_override_by_team_user_id: Option<i64>,
+    pub eligibility_override_at: Option<DateTimeWithTimeZone>,
     pub current_real_team_id: i64,
     pub created_at: DateTimeWithTimeZone,
     pub updated_at: DateTimeWithTimeZone,
@@ -75,6 +90,53 @@ pub enum PlayerStatus {
     /// Player exists as an active player in either ESPN fantasy or the NBA's player data.
     #[sea_orm(string_value = "Active")]
     Active,
+}
+
+/// Which acquisition pool a player belongs to. Always derived (see `logic::eligibility`), never
+/// stored as a column — only `eligibility_override` is persisted.
+#[derive(
+    Debug, Clone, Copy, Eq, PartialEq, Enum, EnumIter, DeriveActiveEnum, Serialize, Deserialize,
+)]
+#[sea_orm(rs_type = "String", db_type = "String(StringLen::None)")]
+pub enum EligibilityClassification {
+    /// Never played in an NBA game and in the rules §7.5.1 eligible set.
+    #[sea_orm(string_value = "RookieDraftEligible")]
+    RookieDraftEligible,
+    /// Has played in an NBA game (rules §6.2.1).
+    #[sea_orm(string_value = "VeteranAuctionEligible")]
+    VeteranAuctionEligible,
+    /// Rules §7.5.2 / §8.4.2 — current college/HS, undrafted foreign non-collegian, etc.
+    #[sea_orm(string_value = "Ineligible")]
+    Ineligible,
+}
+
+/// Provenance of the NBA facts, which one ingest sets together.
+#[derive(
+    Debug,
+    Default,
+    Clone,
+    Copy,
+    Eq,
+    PartialEq,
+    Enum,
+    EnumIter,
+    DeriveActiveEnum,
+    Serialize,
+    Deserialize,
+)]
+#[sea_orm(rs_type = "String", db_type = "String(StringLen::None)")]
+pub enum NbaRosterSource {
+    #[sea_orm(string_value = "BasketballReference")]
+    BasketballReference,
+    #[sea_orm(string_value = "Espn")]
+    Espn,
+    #[sea_orm(string_value = "Nba")]
+    Nba,
+    #[sea_orm(string_value = "CommissionerOverride")]
+    CommissionerOverride,
+    #[default]
+    #[sea_orm(string_value = "Unknown")]
+    Unknown,
 }
 
 #[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]

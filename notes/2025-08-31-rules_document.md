@@ -81,9 +81,10 @@ Rules Document
 
 1. Definitions  
    1. “Contract” refers to the number of years the player has been a kept by a team.  There are no actual contracts in this league, in the sense of having a fixed salary commitment to a player over multiple years.  This league essentially has one-year contracts for all players with an option that increases the player salary to keep him next year, with restrictions on how many years a player may be kept.  
-   2. “Having been on an active NBA roster” is defined by an NBA entry for the player in basketball-reference.com.  A player does not necessarily have to have NBA game minutes logged, he may have just been on an NBA roster but not played in a game.  Any further questions over whether a player is classified as having previously been on an active NBA roster (for auction/draft purposes) will be decided by the commissioner.  
-   3. “League website” refers to the league hosting website (Fantrax), and not the league’s Google Group.  
-   4. “Original owner” for the purposes of who owns a player’s RFA/UFA exception, is the owner of the player at the time of the keeper deadline, when keepers are declared and RFAs/UFAs announced.  See 15\. Restricted Free Agents (RFA) and 16\. Unrestricted Free Agents (UFA).
+   2. “Having played in an NBA game” is defined by the player having appeared in at least one in-season (regular season or playoff) NBA game, per basketball-reference.com.  Being on an NBA roster without appearing in a game does not count, and neither do summer league, preseason, or G League games.  This is the pivot that splits the Veteran Auction pool from the Rookie Draft pool.  Any further questions over whether a player is classified as having played in an NBA game (for auction/draft purposes) will be decided by the commissioner.  
+   3. “Having been on an active NBA roster” is defined by an NBA entry for the player in basketball-reference.com — he may have been rostered without appearing in a game.  This is a separate, broader fact than 3.1.2 above, and is only used for RDI eligibility (see 11\. Rookie-Development Squad, 11.3); it does not affect Veteran Auction or Rookie Draft eligibility.  
+   4. “League website” refers to the league hosting website (Fantrax), and not the league’s Google Group.  
+   5. “Original owner” for the purposes of who owns a player’s RFA/UFA exception, is the owner of the player at the time of the keeper deadline, when keepers are declared and RFAs/UFAs announced.  See 15\. Restricted Free Agents (RFA) and 16\. Unrestricted Free Agents (UFA).
 
 **II. LEAGUE CONFIGURATION**
 
@@ -118,7 +119,7 @@ Rules Document
    1. The Veteran Auction is held every year and is the only way to acquire free agent veterans before the season begins.  
    2. Any players not bid on in the Veteran Auction will be free agents available for bidding during the season.  
 2. Player Pool  
-   1. All NBA veterans (players who have been on an active NBA roster at any point in their career) are eligible to be bid on in the Veteran Auction.  
+   1. All NBA veterans (players who have played in an NBA game at any point in their career) are eligible to be bid on in the Veteran Auction.  
    2. The Veteran Auction pool is made up of Free Agents, Unrestricted Free Agents, and Restricted Free Agents.  
       1. Free Agents (FA) were either not previously owned, or the original owner did not keep the player, or the player was an RFA that was not bid on and not re-signed.  
       2. Unrestricted Free Agents (UFA) were previously owned either up to the 3 year maximum contract (if signed via Veteran Auction), or the 5 year maximum contract (if signed via Rookie Draft).  The original owner is allowed to participate in an auction for a UFA.  UFAs have veteran exceptions, which are re-signing discounts for the original owner (see 16\. Unrestricted Free Agents (UFA) below for more details).  
@@ -172,16 +173,16 @@ Rules Document
    1. The below players are eligible to be drafted in the Rookie Draft:  
       1. Rookies drafted in the NBA Draft for that year  
       2. Players that declared for the NBA Draft and went undrafted  
-      3. Players playing in summer league that have never been on an active NBA roster  
-      4. Players playing in the NBA G League that have never been on an active NBA roster  
-      5. Foreign players that have been previously drafted by an NBA team that have never been on an active NBA roster  
-      6. Former American college players (drafted or undrafted) playing overseas that have never been on an active NBA roster.  
+      3. Players playing in summer league that have never played in an NBA game  
+      4. Players playing in the NBA G League that have never played in an NBA game  
+      5. Foreign players that have been previously drafted by an NBA team that have never played in an NBA game  
+      6. Former American college players (drafted or undrafted) playing overseas that have never played in an NBA game.  
    2. The below players are ineligible to be drafted in the Rookie Draft:  
-      1. Any player that has been on an active NBA roster at any point in his career  
+      1. Any player that has played in an NBA game at any point in his career  
       2. College players not covered in the above list of eligible players  
       3. High school or other players not covered in the above list of eligible players  
       4. Foreign players not covered in the above list of eligible players  
-   3. Previous league draft/ownership status does not affect whether a player is Rookie Draft eligible \- if a player was previously drafted in the Rookie Draft, that player can still potentially be drafted again in later years if he is not on a roster (assuming he is still eligible, i.e. has never been on an active NBA roster).
+   3. Previous league draft/ownership status does not affect whether a player is Rookie Draft eligible \- if a player was previously drafted in the Rookie Draft, that player can still potentially be drafted again in later years if he is not on a roster (assuming he is still eligible, i.e. has never played in an NBA game).
 
 **IV. IN-SEASON**
 
@@ -207,7 +208,7 @@ Rules Document
       1. Example: Joe wins Davion Mitchell for $7 and Jose Alvarado for $1 in Week 2\.  He must add both Davion Mitchell and Jose Alvarado for that week; he may not add Jose Alvarado, then drop him to make space and add Davion Mitchell after that.  However, he is free to drop either Mitchell or Alvarado after they are both legally added to his roster.  
    8. Once a player(s) is won in auction, owners must send out an FA report email to the Google Group, specifying his pickups and drops for the week, and his new salary cap figures after pickups/drops.  
 4. Eligibility  
-   1. Any players (including rookies) that were eligible in the Veteran Auction or the Rookie Draft, are eligible for bidding.  This includes: any NBA veterans (has been on an active NBA roster at any point in his career), NBA rookies (drafted or undrafted), NBA G League players, previously drafted foreign players, and former American collegiates playing overseas.  
+   1. Any players (including rookies) that were eligible in the Veteran Auction or the Rookie Draft, are eligible for bidding.  This includes: any NBA veterans (has played in an NBA game at any point in his career), NBA rookies (drafted or undrafted), NBA G League players, previously drafted foreign players, and former American collegiates playing overseas.  
    2. All players that were ineligible for the Veteran Auction and Rookie Draft are still ineligible for In-Season Free Agency.  This includes: current college or high school players, and foreign players that were not previously drafted and not former American collegiates.  
 5. Examples  
    1. Bidding example (all times are CT):  
@@ -232,7 +233,7 @@ Rules Document
    4. Nick Adenhart rule: if a player dies in-season, or at any time between the declaration of keepers and the start of the season, the owner of that player may drop him immediately without any salary cap penalty.  
    5. RD/RDI players may be dropped without penalty.  
 2. Dropped Players  
-   1. Dropped players (including RD/RDI players) retain the salary they had before they were dropped, as a minimum starting bid for in-season free agent auctions.  After the season is over, all dropped players return to the Veteran Auction pool (if they are NBA veterans, players never on an active NBA roster would be Rookie Draft eligible) and no longer have a minimum starting bid.  Salaries for dropped players in-season will be tracked via a google spreadsheet.  
+   1. Dropped players (including RD/RDI players) retain the salary they had before they were dropped, as a minimum starting bid for in-season free agent auctions.  After the season is over, all dropped players return to the Veteran Auction pool (if they are NBA veterans, players who have never played in an NBA game would be Rookie Draft eligible) and no longer have a minimum starting bid.  Salaries for dropped players in-season will be tracked via a google spreadsheet.  
    2. Dropped players are released into the free agent pool the week after they are dropped, and may be bid on by any owner with a starting minimum bid of the player’s salary before he was dropped.
 
 **10\. Injured Reserve**
@@ -360,7 +361,7 @@ Rules Document
    2. A player signed through the Veteran Auction or In-Season Free Agency has a maximum 3 year contract (maximum 3 years in a contract, including trades, before he is not allowed to be kept).  After the 3rd year in the contract, the player is released into the Veteran Auction pool as a unrestricted free agent (UFA).  The original owner is allowed to bid on a UFA.  As a UFA, he will be slotted into the Veteran Auction as if he were a normal free agent; however, the original owner gets a veteran exception as detailed under 16\. Unrestricted Free Agents (UFA).  
    3. A player signed via in-season free agency is considered to be in year 1 of his contract.  Thus, if a player is signed towards the end of a season before the in-season free agency freeze, then kept into next season, he is now in year 2 of his contract.  
 4. Deadline  
-   1. Keepers will be declared by a specified deadline, shortly before the start of the Veteran Auction.  Each owner decides which of his keeper-eligible players he will be keeping with the salary increase, with all non-kept players released into the Veteran Auction (for NBA veterans) or Rookie Draft (for players that have never been on an active NBA roster).  
+   1. Keepers will be declared by a specified deadline, shortly before the start of the Veteran Auction.  Each owner decides which of his keeper-eligible players he will be keeping with the salary increase, with all non-kept players released into the Veteran Auction (for NBA veterans) or Rookie Draft (for players that have never played in an NBA game).  
    2. The keeper deadline is also when RFAs and UFAs are announced.  The owners of any players that are ineligible to be kept (3rd and 5th year players) will have their RFA/UFA exceptions for the next Veteran Auction.  See 15\. Restricted Free Agents (RFA) and 16\. Unrestricted Free Agents (UFA).
 
 **15\. Restricted Free Agents (RFA)**

@@ -166,6 +166,27 @@ where
     Ok(contracts)
 }
 
+/// `find_active_contracts_in_league` narrowed to one season. This is the league's current roster +
+/// free-agency snapshot, which the eligibility pools read to exclude rostered players.
+#[instrument]
+pub async fn find_active_contracts_in_league_for_season<C>(
+    league_id: i64,
+    end_of_season_year: i16,
+    db: &C,
+) -> Result<Vec<contract::Model>>
+where
+    C: ConnectionTrait + Debug,
+{
+    let contracts = contract::Entity::find()
+        .filter(contract::Column::LeagueId.eq(league_id))
+        .filter(contract::Column::EndOfSeasonYear.eq(end_of_season_year))
+        .filter(contract::Column::Status.eq(contract::ContractStatus::Active))
+        .all(db)
+        .await?;
+
+    Ok(contracts)
+}
+
 /// Finds active contracts that belong to the given teams.
 #[instrument]
 pub async fn find_active_contracts_by_teams<C>(
