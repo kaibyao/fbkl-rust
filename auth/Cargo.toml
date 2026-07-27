@@ -6,7 +6,7 @@ edition = "2024"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-argon2 = {version = "0.4.1", features = ["std"]}
+argon2 = {version = "0.5.3", features = ["std"]}
 hex = "0.4.3"
 rand = { version = "0.8.5", features = ["getrandom"] }
 thiserror = "2.0.12"
