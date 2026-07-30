@@ -27,6 +27,12 @@ pub static POST_SEASON_TOTAL_SALARY_LIMIT: i16 = 230;
 pub static IN_SEASON_FA_MINIMUM_BID: i16 = 1;
 /// How long after its last bid an auction stays open (rules §6.4.4 / §8.3.1).
 pub static AUCTION_QUIET_WINDOW_HOURS: i64 = 24;
+/// How far a qualifying late bid pushes the in-season all-bid deadline out (rules §8.3.2).
+pub static IN_SEASON_FA_EXTENSION_MINUTES: i64 = 30;
+/// A bid this close to the week's *original* 8pm all-bid deadline extends it (§8.3.2's "Sunday 7:00 PM-8:00 PM CT").
+pub static IN_SEASON_FA_FIRST_EXTENSION_TRIGGER_MINUTES: i64 = 60;
+/// Once extended, a bid this close to the current deadline extends it again, until that many quiet minutes pass (§8.3.2).
+pub static IN_SEASON_FA_LATER_EXTENSION_TRIGGER_MINUTES: i64 = 30;
 /// The number of veteran auction players released for bidding each day (rules §6.3.3). The rules set
 /// this per season; this is the default until per-season schedule config exists.
 pub static VETERAN_AUCTION_PLAYERS_RELEASED_PER_DAY: usize = 15;

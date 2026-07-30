@@ -242,6 +242,22 @@ where
     Ok(auction_to_update.update(db).await?)
 }
 
+/// Pushes an in-season FA auction's all-bid deadline out for a late bid (rules §8.3.2).
+#[instrument]
+pub async fn roll_auction_all_bid_deadline<C>(
+    auction_id: i64,
+    new_all_bid_deadline: DateTimeWithTimeZone,
+    db: &C,
+) -> Result<auction::Model>
+where
+    C: ConnectionTrait + Debug,
+{
+    let mut auction_to_update: auction::ActiveModel =
+        find_auction_by_id(auction_id, db).await?.into();
+    auction_to_update.all_bid_deadline_timestamp = ActiveValue::Set(Some(new_all_bid_deadline));
+    Ok(auction_to_update.update(db).await?)
+}
+
 /// Lowers an unbid veteran auction's minimum bid to the next tier (rules §6.3.4).
 #[instrument]
 pub async fn update_auction_minimum_bid<C>(

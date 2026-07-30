@@ -18,7 +18,10 @@ use fbkl_entity::{
 };
 use tracing::instrument;
 
-use super::{auction_close_at, auction_quiet_window, find_auction_hard_deadline};
+use super::{
+    auction_close_at, auction_quiet_window, fa_auction_week_deadlines, find_auction_hard_deadline,
+    rolled_all_bid_deadline,
+};
 use crate::roster;
 
 /// Why a bid was refused. Each variant is a distinct user-facing rejection reason.
@@ -130,10 +133,24 @@ where
         &db_txn,
     )
     .await?;
+
+    // Roll before close_at is computed from it, or a bid that earns an extension closes on the pre-roll deadline.
+    let maybe_rolled_deadline = match auction_model.all_bid_deadline_timestamp {
+        Some(all_bid_deadline) => {
+            let (_, week_all_bid_deadline) = fa_auction_week_deadlines(now)?;
+            rolled_all_bid_deadline(now, all_bid_deadline, week_all_bid_deadline, hard_deadline)
+        }
+        None => None,
+    };
+    if let Some(rolled_deadline) = maybe_rolled_deadline {
+        auction_queries::roll_auction_all_bid_deadline(auction_id, rolled_deadline, &db_txn)
+            .await?;
+    }
+
     let new_close_at = auction_close_at(
         now,
         auction_quiet_window(),
-        auction_model.all_bid_deadline_timestamp,
+        maybe_rolled_deadline.or(auction_model.all_bid_deadline_timestamp),
         hard_deadline,
     )?;
     auction_queries::set_auction_close_at(auction_id, new_close_at, &db_txn).await?;
