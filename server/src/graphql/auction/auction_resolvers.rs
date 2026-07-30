@@ -44,8 +44,10 @@ pub struct Auction {
     pub status: AuctionStatus,
     pub minimum_bid_amount: i16,
     pub start_timestamp: String,
-    pub soft_end_timestamp: String,
-    pub fixed_end_timestamp: String,
+    /// When the auction stops taking bids — the countdown to lead with.
+    pub close_at_timestamp: String,
+    /// In-season FA only: the week's all-bid cutoff, which a late bid rolls +30min (rules §8.3.2). Null for preseason auctions.
+    pub all_bid_deadline_timestamp: Option<String>,
     pub contract_id: i64,
     pub transaction_id: Option<i64>,
 }
@@ -58,8 +60,10 @@ impl Auction {
             status: model.status,
             minimum_bid_amount: model.minimum_bid_amount,
             start_timestamp: model.start_timestamp.to_rfc3339(),
-            soft_end_timestamp: model.soft_end_timestamp.to_rfc3339(),
-            fixed_end_timestamp: model.fixed_end_timestamp.to_rfc3339(),
+            close_at_timestamp: model.close_at_timestamp.to_rfc3339(),
+            all_bid_deadline_timestamp: model
+                .all_bid_deadline_timestamp
+                .map(|deadline| deadline.to_rfc3339()),
             contract_id: model.contract_id,
             transaction_id: model.transaction_id,
         }

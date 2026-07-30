@@ -57,7 +57,7 @@ pub enum BidRejection {
     NoRosterSpace { roster_used: i32, roster_limit: i16 },
 }
 
-/// Places a bid on an open auction, rolling the 24h soft end forward (§6.4.4 / §8.3.1).
+/// Places a bid on an open auction, rolling its 24h close time forward (§6.4.4 / §8.3.1).
 #[instrument]
 pub async fn place_auction_bid<C>(
     auction_id: i64,
@@ -80,18 +80,20 @@ where
         }
         .into());
     }
-    if now >= auction_model.soft_end_timestamp {
+    if now >= auction_model.close_at_timestamp {
         return Err(BidRejection::BiddingWindowElapsed {
             auction_id,
-            deadline: auction_model.soft_end_timestamp,
+            deadline: auction_model.close_at_timestamp,
         }
         .into());
     }
-    // Every auction has a final end time, so this is not gated by kind.
-    if now >= auction_model.fixed_end_timestamp {
+    // In-season FA only; the preseason auctions have no all-bid deadline (rules §8.2.2).
+    if let Some(all_bid_deadline) = auction_model.all_bid_deadline_timestamp
+        && now >= all_bid_deadline
+    {
         return Err(BidRejection::BiddingWindowElapsed {
             auction_id,
-            deadline: auction_model.fixed_end_timestamp,
+            deadline: all_bid_deadline,
         }
         .into());
     }
@@ -127,11 +129,11 @@ where
     )
     .await?;
 
-    // The §8.3.2 last-hour reprieve is a close condition, not a soft-end mutation.
-    let new_soft_end = now
+    // The §8.3.2 last-hour reprieve is a close condition, not a close-time mutation.
+    let new_close_at = now
         .checked_add_signed(TimeDelta::hours(24))
         .ok_or_else(|| eyre!("bid time + 24h overflowed: {now}"))?;
-    auction_queries::extend_auction_soft_end(auction_id, new_soft_end, &db_txn).await?;
+    auction_queries::set_auction_close_at(auction_id, new_close_at, &db_txn).await?;
 
     db_txn.commit().await?;
 

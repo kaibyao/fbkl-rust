@@ -19,8 +19,10 @@ pub struct Model {
     pub status: AuctionStatus,
     pub minimum_bid_amount: i16,
     pub start_timestamp: DateTimeWithTimeZone,
-    pub soft_end_timestamp: DateTimeWithTimeZone,
-    pub fixed_end_timestamp: DateTimeWithTimeZone,
+    /// When the auction stops taking bids: `min(last_bid + quiet_window, all_bid_deadline)` clamped to the hard deadline (rules §6.4.4 / §8.3.1-.2). Mutable — rewritten on each bid, each veteran tier slide, and by the crunch-window sweep.
+    pub close_at_timestamp: DateTimeWithTimeZone,
+    /// In-season FA only: the week's Sunday 8pm CT cutoff, rolled +30min per §8.3.2. NULL for the preseason auctions, which the crunch window bounds instead.
+    pub all_bid_deadline_timestamp: Option<DateTimeWithTimeZone>,
     pub contract_id: i64,
     /// The team that held the player before the auction (RFA/UFA only, rules §6.2.2.3 / §15.3.1). NULL otherwise. That team may not bid.
     pub original_owner_team_id: Option<i64>,
@@ -98,7 +100,7 @@ pub enum AuctionKind {
     // PreseasonFreeAgent,
 }
 
-/// Lifecycle of an auction. Replaces the old "open if now < `soft_end`" inference.
+/// Lifecycle of an auction. Replaces the old "open if now < `close_at`" inference.
 #[derive(
     Debug,
     Default,
