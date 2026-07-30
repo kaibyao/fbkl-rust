@@ -35,7 +35,7 @@ use fbkl_entity::{
 use tracing::instrument;
 
 use super::{
-    auction_close_at, auction_quiet_window, find_auction_hard_deadline,
+    auction_close_at, auction_quiet_window, find_auction_mode_deadlines,
     get_or_create_player_contract_for_veteran_auction,
 };
 use crate::eligibility::build_veteran_auction_pool;
@@ -226,7 +226,7 @@ where
         };
 
     // With no bids the §6.3.4 tier ladder is the clock; the daily slide pushes this close time out.
-    let hard_deadline = find_auction_hard_deadline(
+    let mode_deadlines = find_auction_mode_deadlines(
         AuctionKind::PreseasonVeteranAuction,
         schedule_row.league_id,
         schedule_row.end_of_season_year,
@@ -240,7 +240,12 @@ where
             kind: AuctionKind::PreseasonVeteranAuction,
             minimum_bid_amount,
             start_timestamp: now,
-            close_at_timestamp: auction_close_at(now, auction_quiet_window(), None, hard_deadline)?,
+            close_at_timestamp: auction_close_at(
+                now,
+                auction_quiet_window(now, None),
+                None,
+                mode_deadlines.hard_deadline,
+            )?,
             all_bid_deadline_timestamp: None,
             original_owner_team_id: maybe_original_owner_team_id,
         },

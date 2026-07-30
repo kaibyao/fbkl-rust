@@ -17,11 +17,13 @@
 
 use std::fmt::Debug;
 
-use chrono::TimeDelta;
+use chrono::{FixedOffset, TimeDelta, Timelike};
 use color_eyre::{Result, eyre::eyre};
 use fbkl_constants::league_rules::{
-    AUCTION_QUIET_WINDOW_HOURS, IN_SEASON_FA_EXTENSION_MINUTES,
+    AUCTION_CRUNCH_EARLIEST_START_HOUR, AUCTION_CRUNCH_QUIET_WINDOW_HOURS,
+    AUCTION_CRUNCH_WINDOW_HOURS, AUCTION_QUIET_WINDOW_HOURS, IN_SEASON_FA_EXTENSION_MINUTES,
     IN_SEASON_FA_FIRST_EXTENSION_TRIGGER_MINUTES, IN_SEASON_FA_LATER_EXTENSION_TRIGGER_MINUTES,
+    LEAGUE_TIME_ZONE_UTC_OFFSET_SECONDS,
 };
 use fbkl_entity::{
     auction::AuctionKind,
@@ -31,10 +33,18 @@ use fbkl_entity::{
 };
 use tracing::instrument;
 
-/// The quiet period a bid buys (rules §6.4.4 / §8.3.1).
+/// The quiet period a bid buys: 24h (rules §6.4.4 / §8.3.1), or 1h once the preseason crunch window
+/// has opened. Pass `None` for a mode that has no crunch window.
 #[must_use]
-pub fn auction_quiet_window() -> TimeDelta {
-    TimeDelta::hours(AUCTION_QUIET_WINDOW_HOURS)
+pub fn auction_quiet_window(
+    now: DateTimeWithTimeZone,
+    maybe_crunch_window_start: Option<DateTimeWithTimeZone>,
+) -> TimeDelta {
+    if maybe_crunch_window_start.is_some_and(|crunch_window_start| now >= crunch_window_start) {
+        TimeDelta::hours(AUCTION_CRUNCH_QUIET_WINDOW_HOURS)
+    } else {
+        TimeDelta::hours(AUCTION_QUIET_WINDOW_HOURS)
+    }
 }
 
 /// When an auction stops taking bids: the last bid's quiet window, cut short by whichever of the
@@ -86,19 +96,50 @@ pub fn rolled_all_bid_deadline(
     (clamped > all_bid_deadline).then_some(clamped)
 }
 
-/// The instant past which an auction of this kind cannot take bids, whatever its own clocks say.
+/// When the preseason crunch window opens: 24h before the hard deadline, moved forward to 8:00am CT
+/// if that lands between midnight and 8:00am, since it must not open while owners are asleep.
 ///
-/// Preseason auctions cannot outlive the final preseason roster lock; in-season FA cannot outlive
-/// the following week's roster lock, which is what bounds the §8.3.2 extension chain (the rules doc
-/// leaves it open-ended). `None` only when the season has no in-season lock left to clamp against.
+/// Inside it a bid's reprieve drops from 24h to 1h, which is what ends a preseason bidding war
+/// before the roster lock — in-season the §8.3.2 chain does that job instead.
+pub fn crunch_window_start(hard_deadline: DateTimeWithTimeZone) -> Result<DateTimeWithTimeZone> {
+    let league_offset = FixedOffset::east_opt(LEAGUE_TIME_ZONE_UTC_OFFSET_SECONDS)
+        .ok_or_else(|| eyre!("Invalid league time zone offset."))?;
+    let window_start = hard_deadline
+        .checked_sub_signed(TimeDelta::hours(AUCTION_CRUNCH_WINDOW_HOURS))
+        .ok_or_else(|| eyre!("crunch window start underflowed from {hard_deadline}"))?
+        .with_timezone(&league_offset);
+    if window_start.hour() >= AUCTION_CRUNCH_EARLIEST_START_HOUR {
+        return Ok(window_start);
+    }
+
+    window_start
+        .date_naive()
+        .and_hms_opt(AUCTION_CRUNCH_EARLIEST_START_HOUR, 0, 0)
+        .and_then(|naive| naive.and_local_timezone(league_offset).single())
+        .ok_or_else(|| eyre!("Could not move the crunch window start to 8:00am on {window_start}."))
+}
+
+/// The clocks an auction's *mode* imposes, as opposed to the ones its own bids set.
+#[derive(Clone, Copy, Debug)]
+pub struct AuctionModeDeadlines {
+    /// The instant past which the auction cannot take bids, whatever its own clocks say: the final
+    /// preseason roster lock, or in-season the following week's lock (which is what bounds the
+    /// §8.3.2 chain — the rules doc leaves it open-ended). `None` when the season has no lock left.
+    pub hard_deadline: Option<DateTimeWithTimeZone>,
+    /// When the quiet window shortens to 1h. `None` in-season: bidding is over by Sunday evening,
+    /// well before Monday tipoff, so in-season never reaches a crunch window.
+    pub crunch_window_start: Option<DateTimeWithTimeZone>,
+}
+
+/// Looks up the deadlines an auction of this kind runs against.
 #[instrument]
-pub async fn find_auction_hard_deadline<C>(
+pub async fn find_auction_mode_deadlines<C>(
     kind: AuctionKind,
     league_id: i64,
     end_of_season_year: i16,
     now: DateTimeWithTimeZone,
     db: &C,
-) -> Result<Option<DateTimeWithTimeZone>>
+) -> Result<AuctionModeDeadlines>
 where
     C: ConnectionTrait + Debug,
 {
@@ -110,7 +151,10 @@ where
             db,
         )
         .await?;
-        return Ok(Some(final_roster_lock.date_time));
+        return Ok(AuctionModeDeadlines {
+            hard_deadline: Some(final_roster_lock.date_time),
+            crunch_window_start: Some(crunch_window_start(final_roster_lock.date_time)?),
+        });
     }
 
     let maybe_next_roster_lock = deadline_queries::find_next_deadline_for_season_by_datetime(
@@ -121,15 +165,25 @@ where
         db,
     )
     .await?;
-    Ok(maybe_next_roster_lock.map(|roster_lock| roster_lock.date_time))
+    Ok(AuctionModeDeadlines {
+        hard_deadline: maybe_next_roster_lock.map(|roster_lock| roster_lock.date_time),
+        crunch_window_start: None,
+    })
 }
 
 #[cfg(test)]
 mod tests {
-    use super::{DateTimeWithTimeZone, TimeDelta, auction_close_at, rolled_all_bid_deadline};
+    use super::{
+        DateTimeWithTimeZone, TimeDelta, auction_close_at, auction_quiet_window,
+        crunch_window_start, rolled_all_bid_deadline,
+    };
 
     fn at(time: &str) -> DateTimeWithTimeZone {
         format!("2024-11-17T{time}:00-06:00").parse().unwrap()
+    }
+
+    fn on(date: &str, time: &str) -> DateTimeWithTimeZone {
+        format!("{date}T{time}:00-06:00").parse().unwrap()
     }
 
     fn quiet_window() -> TimeDelta {
@@ -226,6 +280,61 @@ mod tests {
         assert_eq!(
             rolled_all_bid_deadline(at("20:10"), roster_lock, original, Some(roster_lock)),
             None
+        );
+    }
+
+    #[test]
+    fn the_crunch_window_opens_a_day_before_the_hard_deadline() {
+        assert_eq!(
+            crunch_window_start(on("2024-10-18", "19:00")).unwrap(),
+            on("2024-10-17", "19:00")
+        );
+    }
+
+    #[test]
+    fn a_crunch_window_that_would_open_overnight_waits_for_8am() {
+        // A 3:00am hard deadline puts the window at 3:00am the day before; owners are asleep.
+        assert_eq!(
+            crunch_window_start(on("2024-10-18", "03:00")).unwrap(),
+            on("2024-10-17", "08:00")
+        );
+        // 8:00am exactly is late enough to stand.
+        assert_eq!(
+            crunch_window_start(on("2024-10-18", "08:00")).unwrap(),
+            on("2024-10-17", "08:00")
+        );
+    }
+
+    #[test]
+    fn the_crunch_window_shortens_the_reprieve_to_an_hour() {
+        let crunch_window_start = at("08:00");
+        assert_eq!(
+            auction_quiet_window(at("07:59"), Some(crunch_window_start)),
+            TimeDelta::hours(24)
+        );
+        assert_eq!(
+            auction_quiet_window(at("08:00"), Some(crunch_window_start)),
+            TimeDelta::hours(1)
+        );
+        // In-season has no crunch window, so a bid always buys the full 24h.
+        assert_eq!(
+            auction_quiet_window(at("08:00"), None),
+            TimeDelta::hours(24)
+        );
+    }
+
+    #[test]
+    fn a_bid_inside_the_crunch_window_cannot_push_past_the_hard_deadline() {
+        let hard_deadline = at("20:00");
+        assert_eq!(
+            auction_close_at(
+                at("19:30"),
+                auction_quiet_window(at("19:30"), Some(at("08:00"))),
+                None,
+                Some(hard_deadline)
+            )
+            .unwrap(),
+            hard_deadline
         );
     }
 

@@ -19,7 +19,7 @@ use fbkl_entity::{
 use tracing::instrument;
 
 use super::{
-    auction_close_at, auction_quiet_window, fa_auction_week_deadlines, find_auction_hard_deadline,
+    auction_close_at, auction_quiet_window, fa_auction_week_deadlines, find_auction_mode_deadlines,
     rolled_all_bid_deadline,
 };
 use crate::roster;
@@ -125,7 +125,7 @@ where
     )
     .await?;
 
-    let hard_deadline = find_auction_hard_deadline(
+    let mode_deadlines = find_auction_mode_deadlines(
         auction_model.kind,
         auctioned_contract.league_id,
         auctioned_contract.end_of_season_year,
@@ -138,7 +138,12 @@ where
     let maybe_rolled_deadline = match auction_model.all_bid_deadline_timestamp {
         Some(all_bid_deadline) => {
             let (_, week_all_bid_deadline) = fa_auction_week_deadlines(now)?;
-            rolled_all_bid_deadline(now, all_bid_deadline, week_all_bid_deadline, hard_deadline)
+            rolled_all_bid_deadline(
+                now,
+                all_bid_deadline,
+                week_all_bid_deadline,
+                mode_deadlines.hard_deadline,
+            )
         }
         None => None,
     };
@@ -149,9 +154,9 @@ where
 
     let new_close_at = auction_close_at(
         now,
-        auction_quiet_window(),
+        auction_quiet_window(now, mode_deadlines.crunch_window_start),
         maybe_rolled_deadline.or(auction_model.all_bid_deadline_timestamp),
-        hard_deadline,
+        mode_deadlines.hard_deadline,
     )?;
     auction_queries::set_auction_close_at(auction_id, new_close_at, &db_txn).await?;
 

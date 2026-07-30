@@ -23,7 +23,7 @@ use tracing::instrument;
 
 use super::{
     AuctionCloseOutcome, auction_close_at, auction_close_outcome, auction_quiet_window,
-    find_auction_hard_deadline, sign_auction_contract_to_team,
+    find_auction_mode_deadlines, sign_auction_contract_to_team,
 };
 
 /// Ends a free agent auction and creates the associated transaction + team contract OR expires the associated contract.
@@ -141,7 +141,7 @@ where
             .await?;
     let minimum_bid_amount = in_season_fa_minimum_bid(&pooled_contract, db).await?;
 
-    let hard_deadline = find_auction_hard_deadline(
+    let mode_deadlines = find_auction_mode_deadlines(
         AuctionKind::InSeasonFreeAgent,
         league_id,
         end_of_season_year,
@@ -158,9 +158,9 @@ where
             start_timestamp: now,
             close_at_timestamp: auction_close_at(
                 now,
-                auction_quiet_window(),
+                auction_quiet_window(now, mode_deadlines.crunch_window_start),
                 Some(all_bid_deadline),
-                hard_deadline,
+                mode_deadlines.hard_deadline,
             )?,
             all_bid_deadline_timestamp: Some(all_bid_deadline),
             original_owner_team_id: None,

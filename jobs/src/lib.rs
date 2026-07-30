@@ -21,7 +21,10 @@ use fbkl_entity::{
     auction_queries, auction_schedule, auction_schedule_queries, deadline_queries,
     sea_orm::{DatabaseConnection, prelude::DateTimeWithTimeZone},
 };
-use fbkl_logic::auction::{open_scheduled_auction, slide_unbid_auctions_down_a_tier};
+use fbkl_logic::auction::{
+    open_scheduled_auction, shorten_open_auctions_for_crunch_window,
+    slide_unbid_auctions_down_a_tier,
+};
 use fbkl_transaction_processor::{
     ProcessOutcome, ProcessableEvent, ProcessableEventKind, process_deadline, process_event,
 };
@@ -165,11 +168,12 @@ pub async fn run_auction_close_tick(
     Ok(summary)
 }
 
-/// Releases the veteran auction players due today and slides unbid auctions a tier (rules §6.3.3-.5).
+/// Releases the veteran auction players due today, slides unbid auctions a tier (rules §6.3.3-.5),
+/// and shortens the reprieve of auctions still live inside the crunch window (§6.4.4).
 ///
-/// Both steps are idempotent by construction rather than `job_run`-tracked: opening an
-/// already-opened schedule row returns the existing auction, and the tier slide only touches
-/// auctions untouched for a day, so re-running within the same day is a no-op.
+/// Every step is idempotent by construction rather than `job_run`-tracked: opening an already-opened
+/// schedule row returns the existing auction, the tier slide only touches auctions untouched for a
+/// day, and the crunch sweep only ever moves a close time earlier.
 #[instrument(skip(db))]
 pub async fn run_veteran_auction_release_tick(
     db: &DatabaseConnection,
@@ -199,7 +203,9 @@ pub async fn run_veteran_auction_release_tick(
 
     let mut summary = TickSummary::default();
     for ((league_id, end_of_season_year), schedule_rows) in schedule_rows_by_league_season {
-        match release_and_slide(db, &schedule_rows, league_id, end_of_season_year, now).await {
+        match run_preseason_auction_tick(db, &schedule_rows, league_id, end_of_season_year, now)
+            .await
+        {
             Ok(()) => summary.processed += 1,
             Err(release_error) => {
                 summary.errors += 1;
@@ -212,7 +218,7 @@ pub async fn run_veteran_auction_release_tick(
     Ok(summary)
 }
 
-async fn release_and_slide(
+async fn run_preseason_auction_tick(
     db: &DatabaseConnection,
     schedule_rows: &[auction_schedule::Model],
     league_id: i64,
@@ -223,6 +229,14 @@ async fn release_and_slide(
         open_scheduled_auction(schedule_row, now, db).await?;
     }
     slide_unbid_auctions_down_a_tier(league_id, end_of_season_year, now, db).await?;
+    shorten_open_auctions_for_crunch_window(
+        league_id,
+        end_of_season_year,
+        AuctionKind::PreseasonVeteranAuction,
+        now,
+        db,
+    )
+    .await?;
     Ok(())
 }
 

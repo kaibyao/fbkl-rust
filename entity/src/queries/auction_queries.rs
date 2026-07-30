@@ -86,22 +86,28 @@ where
     Ok(winning_bids)
 }
 
-/// Auctions in the league/season that have not settled yet — `transaction_id` is NULL until a
-/// winning bid is signed. The league scope comes from the auctioned contract.
+/// Auctions in the league/season still taking bids, soonest close first, optionally of one kind
+/// only. The league scope comes from the auctioned contract.
 #[instrument]
 pub async fn find_open_auctions_in_league<C>(
     league_id: i64,
     end_of_season_year: i16,
+    maybe_kind: Option<AuctionKind>,
     db: &C,
 ) -> Result<Vec<auction::Model>>
 where
     C: ConnectionTrait + Debug,
 {
-    let auction_models = auction::Entity::find()
+    let mut query = auction::Entity::find()
         .join(JoinType::InnerJoin, auction::Relation::Contract.def())
-        .filter(auction::Column::TransactionId.is_null())
+        .filter(auction::Column::Status.eq(AuctionStatus::Open))
         .filter(contract::Column::LeagueId.eq(league_id))
-        .filter(contract::Column::EndOfSeasonYear.eq(end_of_season_year))
+        .filter(contract::Column::EndOfSeasonYear.eq(end_of_season_year));
+    if let Some(kind) = maybe_kind {
+        query = query.filter(auction::Column::Kind.eq(kind));
+    }
+
+    let auction_models = query
         .order_by_asc(auction::Column::CloseAtTimestamp)
         .all(db)
         .await?;

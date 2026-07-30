@@ -27,7 +27,12 @@ where
     C: ConnectionTrait + Debug,
 {
     // Historical replay opens and closes an auction in one go, so the quiet window is all it needs.
-    let close_at_timestamp = auction_close_at(start_timestamp, auction_quiet_window(), None, None)?;
+    let close_at_timestamp = auction_close_at(
+        start_timestamp,
+        auction_quiet_window(start_timestamp, None),
+        None,
+        None,
+    )?;
     let inserted_auction = auction_queries::insert_new_auction(
         NewAuction {
             contract_id: player_contract.id,

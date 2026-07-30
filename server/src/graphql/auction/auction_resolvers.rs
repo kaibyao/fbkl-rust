@@ -112,14 +112,14 @@ pub struct AuctionQuery;
 
 #[Object]
 impl AuctionQuery {
-    /// Auctions in the caller's league that have not settled yet, soonest deadline first.
+    /// Auctions in the caller's league still taking bids, soonest close first.
     #[graphql(guard = "LeagueRoleGuard(RoleRequirement::Member)")]
     async fn open_auctions(&self, ctx: &Context<'_>) -> Result<Vec<Auction>> {
         let db = ctx.data_unchecked::<DatabaseConnection>();
         let (_, caller_team) = require_league_role(ctx, RoleRequirement::Member).await?;
         let season = current_season(ctx, caller_team.league_id).await?;
 
-        let auctions = find_open_auctions_in_league(caller_team.league_id, season, db)
+        let auctions = find_open_auctions_in_league(caller_team.league_id, season, None, db)
             .await
             .map_err(|err| {
                 tracing::error!(error = ?err, "failed to load open auctions");

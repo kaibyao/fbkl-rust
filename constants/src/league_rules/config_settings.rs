@@ -27,6 +27,12 @@ pub static POST_SEASON_TOTAL_SALARY_LIMIT: i16 = 230;
 pub static IN_SEASON_FA_MINIMUM_BID: i16 = 1;
 /// How long after its last bid an auction stays open (rules §6.4.4 / §8.3.1).
 pub static AUCTION_QUIET_WINDOW_HOURS: i64 = 24;
+/// How long before a preseason auction's hard deadline the crunch window opens (spec 01 timing rules).
+pub static AUCTION_CRUNCH_WINDOW_HOURS: i64 = 24;
+/// The quiet period a bid buys once the preseason crunch window has opened (rules §6.4.4).
+pub static AUCTION_CRUNCH_QUIET_WINDOW_HOURS: i64 = 1;
+/// The crunch window never opens before this hour CT — owners are asleep before it.
+pub static AUCTION_CRUNCH_EARLIEST_START_HOUR: u32 = 8;
 /// How far a qualifying late bid pushes the in-season all-bid deadline out (rules §8.3.2).
 pub static IN_SEASON_FA_EXTENSION_MINUTES: i64 = 30;
 /// A bid this close to the week's *original* 8pm all-bid deadline extends it (§8.3.2's "Sunday 7:00 PM-8:00 PM CT").
