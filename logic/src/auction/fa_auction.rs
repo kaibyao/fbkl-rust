@@ -11,7 +11,7 @@ use fbkl_constants::league_rules::{
 };
 use fbkl_entity::{
     auction::{self, AuctionKind, AuctionStatus},
-    auction_queries,
+    auction_queries::{self, NewAuction},
     contract::{self, ContractKind},
     contract_queries,
     deadline::{self, DeadlineKind},
@@ -21,7 +21,10 @@ use fbkl_entity::{
 };
 use tracing::instrument;
 
-use super::{AuctionCloseOutcome, auction_close_outcome, sign_auction_contract_to_team};
+use super::{
+    AuctionCloseOutcome, auction_close_at, auction_close_outcome, auction_quiet_window,
+    find_auction_hard_deadline, sign_auction_contract_to_team,
+};
 
 /// Ends a free agent auction and creates the associated transaction + team contract OR expires the associated contract.
 #[instrument]
@@ -138,13 +141,30 @@ where
             .await?;
     let minimum_bid_amount = in_season_fa_minimum_bid(&pooled_contract, db).await?;
 
-    auction_queries::insert_new_auction(
-        pooled_contract.id,
+    let hard_deadline = find_auction_hard_deadline(
         AuctionKind::InSeasonFreeAgent,
-        minimum_bid_amount,
+        league_id,
+        end_of_season_year,
         now,
-        Some(all_bid_deadline),
-        None,
+        db,
+    )
+    .await?;
+
+    auction_queries::insert_new_auction(
+        NewAuction {
+            contract_id: pooled_contract.id,
+            kind: AuctionKind::InSeasonFreeAgent,
+            minimum_bid_amount,
+            start_timestamp: now,
+            close_at_timestamp: auction_close_at(
+                now,
+                auction_quiet_window(),
+                Some(all_bid_deadline),
+                hard_deadline,
+            )?,
+            all_bid_deadline_timestamp: Some(all_bid_deadline),
+            original_owner_team_id: None,
+        },
         db,
     )
     .await

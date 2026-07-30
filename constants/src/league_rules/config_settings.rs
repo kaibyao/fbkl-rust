@@ -25,6 +25,8 @@ pub static POST_SEASON_TOTAL_SALARY_LIMIT: i16 = 230;
 /// The floor for an in-season free agent auction's opening bid (rules §8.3.3), used unless the
 /// player was already owned earlier in the same season.
 pub static IN_SEASON_FA_MINIMUM_BID: i16 = 1;
+/// How long after its last bid an auction stays open (rules §6.4.4 / §8.3.1).
+pub static AUCTION_QUIET_WINDOW_HOURS: i64 = 24;
 /// The number of veteran auction players released for bidding each day (rules §6.3.3). The rules set
 /// this per season; this is the default until per-season schedule config exists.
 pub static VETERAN_AUCTION_PLAYERS_RELEASED_PER_DAY: usize = 15;

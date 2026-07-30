@@ -8,17 +8,17 @@
 
 use std::fmt::Debug;
 
-use chrono::TimeDelta;
-use color_eyre::{Result, eyre::eyre};
+use color_eyre::Result;
 use fbkl_constants::league_rules::PRE_SEASON_CONTRACTS_PER_ROSTER_LIMIT;
 use fbkl_entity::{
-    auction::{self, AuctionKind, AuctionStatus},
-    auction_bid, auction_queries, contract_queries,
+    auction::{self, AuctionStatus},
+    auction_bid, auction_queries, contract, contract_queries,
     sea_orm::{ConnectionTrait, TransactionTrait, prelude::DateTimeWithTimeZone},
     team_user_queries,
 };
 use tracing::instrument;
 
+use super::{auction_close_at, auction_quiet_window, find_auction_hard_deadline};
 use crate::roster;
 
 /// Why a bid was refused. Each variant is a distinct user-facing rejection reason.
@@ -80,20 +80,11 @@ where
         }
         .into());
     }
+    // One comparison: the all-bid deadline and the hard deadline are both folded into close_at.
     if now >= auction_model.close_at_timestamp {
         return Err(BidRejection::BiddingWindowElapsed {
             auction_id,
             deadline: auction_model.close_at_timestamp,
-        }
-        .into());
-    }
-    // In-season FA only; the preseason auctions have no all-bid deadline (rules §8.2.2).
-    if let Some(all_bid_deadline) = auction_model.all_bid_deadline_timestamp
-        && now >= all_bid_deadline
-    {
-        return Err(BidRejection::BiddingWindowElapsed {
-            auction_id,
-            deadline: all_bid_deadline,
         }
         .into());
     }
@@ -111,8 +102,10 @@ where
         maybe_latest_bid.as_ref().map(|bid| bid.bid_amount),
     )?;
 
+    let auctioned_contract = auction_model.get_contract(&db_txn).await?;
     validate_bid_cap_and_roster(
         &auction_model,
+        &auctioned_contract,
         bidding_team_user.team_id,
         bid_amount,
         now,
@@ -129,10 +122,20 @@ where
     )
     .await?;
 
-    // The §8.3.2 last-hour reprieve is a close condition, not a close-time mutation.
-    let new_close_at = now
-        .checked_add_signed(TimeDelta::hours(24))
-        .ok_or_else(|| eyre!("bid time + 24h overflowed: {now}"))?;
+    let hard_deadline = find_auction_hard_deadline(
+        auction_model.kind,
+        auctioned_contract.league_id,
+        auctioned_contract.end_of_season_year,
+        now,
+        &db_txn,
+    )
+    .await?;
+    let new_close_at = auction_close_at(
+        now,
+        auction_quiet_window(),
+        auction_model.all_bid_deadline_timestamp,
+        hard_deadline,
+    )?;
     auction_queries::set_auction_close_at(auction_id, new_close_at, &db_txn).await?;
 
     db_txn.commit().await?;
@@ -169,6 +172,7 @@ const fn validate_bid_amount(
 #[instrument]
 async fn validate_bid_cap_and_roster<C>(
     auction_model: &auction::Model,
+    auctioned_contract: &contract::Model,
     bidding_team_id: i64,
     bid_amount: i16,
     now: DateTimeWithTimeZone,
@@ -177,11 +181,10 @@ async fn validate_bid_cap_and_roster<C>(
 where
     C: ConnectionTrait + Debug,
 {
-    if !requires_cap_and_roster_check(auction_model.kind) {
+    if !auction_model.kind.is_preseason() {
         return Ok(());
     }
 
-    let auctioned_contract = auction_model.get_contract(db).await?;
     let winning_bids = auction_queries::find_winning_bids_for_team(
         bidding_team_id,
         auctioned_contract.league_id,
@@ -226,10 +229,6 @@ where
     Ok(())
 }
 
-const fn requires_cap_and_roster_check(kind: AuctionKind) -> bool {
-    matches!(kind, AuctionKind::PreseasonVeteranAuction)
-}
-
 /// Salary the bidder would be committed to if this bid wins. Re-bidding on an auction the team
 /// already leads swaps the old amount for the new one instead of counting both.
 fn committed_salary(
@@ -263,10 +262,7 @@ fn roster_spots_used(
 mod tests {
     use fbkl_entity::auction::AuctionKind;
 
-    use super::{
-        BidRejection, committed_salary, requires_cap_and_roster_check, roster_spots_used,
-        validate_bid_amount,
-    };
+    use super::{BidRejection, committed_salary, roster_spots_used, validate_bid_amount};
 
     #[test]
     fn rebidding_on_your_own_winning_auction_swaps_the_amount() {
@@ -281,12 +277,8 @@ mod tests {
 
     #[test]
     fn in_season_free_agency_is_not_cap_gated() {
-        assert!(!requires_cap_and_roster_check(
-            AuctionKind::InSeasonFreeAgent
-        ));
-        assert!(requires_cap_and_roster_check(
-            AuctionKind::PreseasonVeteranAuction
-        ));
+        assert!(!AuctionKind::InSeasonFreeAgent.is_preseason());
+        assert!(AuctionKind::PreseasonVeteranAuction.is_preseason());
     }
 
     #[test]

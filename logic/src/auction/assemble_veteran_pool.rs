@@ -20,7 +20,8 @@ use fbkl_constants::league_rules::{
 };
 use fbkl_entity::{
     auction::{self, AuctionKind},
-    auction_queries, auction_schedule,
+    auction_queries::{self, NewAuction},
+    auction_schedule,
     auction_schedule_queries::{self, NewAuctionScheduleRow},
     contract::{self, ContractKind, RelatedPlayer},
     contract_queries,
@@ -33,7 +34,10 @@ use fbkl_entity::{
 };
 use tracing::instrument;
 
-use super::get_or_create_player_contract_for_veteran_auction;
+use super::{
+    auction_close_at, auction_quiet_window, find_auction_hard_deadline,
+    get_or_create_player_contract_for_veteran_auction,
+};
 use crate::eligibility::build_veteran_auction_pool;
 
 /// Contract kinds that open at their carry salary instead of a tier value (rules §15.3.1, §16).
@@ -221,13 +225,25 @@ where
             None
         };
 
-    let auction_model = auction_queries::insert_new_auction(
-        pooled_contract.id,
+    // With no bids the §6.3.4 tier ladder is the clock; the daily slide pushes this close time out.
+    let hard_deadline = find_auction_hard_deadline(
         AuctionKind::PreseasonVeteranAuction,
-        minimum_bid_amount,
+        schedule_row.league_id,
+        schedule_row.end_of_season_year,
         now,
-        None,
-        maybe_original_owner_team_id,
+        db,
+    )
+    .await?;
+    let auction_model = auction_queries::insert_new_auction(
+        NewAuction {
+            contract_id: pooled_contract.id,
+            kind: AuctionKind::PreseasonVeteranAuction,
+            minimum_bid_amount,
+            start_timestamp: now,
+            close_at_timestamp: auction_close_at(now, auction_quiet_window(), None, hard_deadline)?,
+            all_bid_deadline_timestamp: None,
+            original_owner_team_id: maybe_original_owner_team_id,
+        },
         db,
     )
     .await?;

@@ -100,6 +100,18 @@ pub enum AuctionKind {
     // PreseasonFreeAgent,
 }
 
+impl AuctionKind {
+    /// Whether the auction runs in the preseason, which decides both its clocks (the crunch window
+    /// bounds it, not an all-bid deadline — rules §6.4.4) and whether bids are cap- and
+    /// roster-gated (§6.4.1; §8.3.5 exempts in-season free agency alone).
+    ///
+    /// `PreseasonFreeAgent` joins this arm when that mode lands (spec 01).
+    #[must_use]
+    pub const fn is_preseason(self) -> bool {
+        matches!(self, Self::PreseasonVeteranAuction)
+    }
+}
+
 /// Lifecycle of an auction. Replaces the old "open if now < `close_at`" inference.
 #[derive(
     Debug,

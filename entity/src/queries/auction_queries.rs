@@ -1,9 +1,8 @@
 use std::fmt::Debug;
 
-use chrono::{Days, TimeDelta};
 use color_eyre::{Result, eyre::eyre};
 use sea_orm::{
-    ActiveModelTrait, ActiveValue, ColumnTrait, Condition, ConnectionTrait, EntityTrait, JoinType,
+    ActiveModelTrait, ActiveValue, ColumnTrait, ConnectionTrait, EntityTrait, JoinType,
     QueryFilter, QueryOrder, QuerySelect, RelationTrait, prelude::DateTimeWithTimeZone,
 };
 use tracing::instrument;
@@ -109,27 +108,11 @@ where
     Ok(auction_models)
 }
 
-/// Whether an open auction's bidding is over: the close time has passed with no bid in the last
-/// hour (rules §6.4.4 / §8.3.1 / §8.3.2), or its all-bid deadline has passed.
+/// `Open` auctions whose bidding is over, with the contract they auction.
 ///
-/// The last-hour reprieve is why a lapsed close time alone is not enough: bids landing within an
-/// hour of each other keep an auction alive past it. Only in-season FA auctions have an all-bid
-/// deadline; it closes the auction on its own.
-pub fn is_due_for_close(
-    now: DateTimeWithTimeZone,
-    close_at: DateTimeWithTimeZone,
-    maybe_all_bid_deadline: Option<DateTimeWithTimeZone>,
-    maybe_last_bid_at: Option<DateTimeWithTimeZone>,
-) -> bool {
-    if maybe_all_bid_deadline.is_some_and(|all_bid_deadline| all_bid_deadline <= now) {
-        return true;
-    }
-    let quiet_for_an_hour =
-        maybe_last_bid_at.is_none_or(|last_bid_at| now - last_bid_at >= TimeDelta::hours(1));
-    close_at <= now && quiet_for_an_hour
-}
-
-/// `Open` auctions whose bidding is over per [`is_due_for_close`], with the contract they auction.
+/// One indexed `close_at <= now` scan, no per-row bid lookup: the quiet window, the all-bid deadline
+/// and the hard deadline are all folded into `close_at` by whoever last wrote it
+/// (`logic::auction::auction_close_at`).
 #[instrument]
 pub async fn find_auctions_due_for_close<C>(
     now: DateTimeWithTimeZone,
@@ -138,38 +121,20 @@ pub async fn find_auctions_due_for_close<C>(
 where
     C: ConnectionTrait + Debug,
 {
-    // Either timestamp can trigger a close, so both are candidates to narrow in the database.
     let rows = auction::Entity::find()
         .find_also_related(contract::Entity)
         .filter(auction::Column::Status.eq(AuctionStatus::Open))
-        .filter(
-            Condition::any()
-                .add(auction::Column::CloseAtTimestamp.lte(now))
-                .add(auction::Column::AllBidDeadlineTimestamp.lte(now)),
-        )
+        .filter(auction::Column::CloseAtTimestamp.lte(now))
         .order_by_asc(auction::Column::CloseAtTimestamp)
         .all(db)
         .await?;
 
-    let mut due_auctions = Vec::new();
-    for (auction_model, maybe_contract) in rows {
-        let Some(contract_model) = maybe_contract else {
-            continue;
-        };
-        let maybe_last_bid_at = auction_model
-            .get_latest_bid(db)
-            .await?
-            .map(|bid| bid.created_at);
-        if is_due_for_close(
-            now,
-            auction_model.close_at_timestamp,
-            auction_model.all_bid_deadline_timestamp,
-            maybe_last_bid_at,
-        ) {
-            due_auctions.push((auction_model, contract_model));
-        }
-    }
-    Ok(due_auctions)
+    Ok(rows
+        .into_iter()
+        .filter_map(|(auction_model, maybe_contract)| {
+            maybe_contract.map(|contract_model| (auction_model, contract_model))
+        })
+        .collect())
 }
 
 /// The distinct `(league_id, end_of_season_year)` pairs that currently have an `Open` auction of
@@ -308,34 +273,37 @@ where
     Ok(auction_to_update.update(db).await?)
 }
 
-/// Creates & inserts a new auction with given arguments.
+/// An auction to open. Timing is the caller's to compute — `close_at` comes from
+/// `logic::auction::auction_close_at` so every write site folds in the same clocks.
+#[derive(Clone, Copy, Debug)]
+pub struct NewAuction {
+    pub contract_id: i64,
+    pub kind: AuctionKind,
+    pub minimum_bid_amount: i16,
+    pub start_timestamp: DateTimeWithTimeZone,
+    pub close_at_timestamp: DateTimeWithTimeZone,
+    /// In-season FA only; NULL for the preseason auctions (rules §8.2.2).
+    pub all_bid_deadline_timestamp: Option<DateTimeWithTimeZone>,
+    /// RFA/UFA only: the team that may not bid (rules §6.2.2.3 / §15.3.1).
+    pub original_owner_team_id: Option<i64>,
+}
+
+/// Creates & inserts a new auction, open for bids.
 #[instrument]
-pub async fn insert_new_auction<C>(
-    contract_id: i64,
-    kind: AuctionKind,
-    minimum_bid_amount: i16,
-    start_datetime: DateTimeWithTimeZone,
-    maybe_all_bid_deadline: Option<DateTimeWithTimeZone>,
-    maybe_original_owner_team_id: Option<i64>,
-    db: &C,
-) -> Result<auction::Model>
+pub async fn insert_new_auction<C>(new_auction: NewAuction, db: &C) -> Result<auction::Model>
 where
     C: ConnectionTrait + Debug,
 {
-    let close_at_timestamp = start_datetime
-        .checked_add_days(Days::new(1))
-        .ok_or_else(|| eyre!("auction start_datetime + 1 day overflowed: {start_datetime}"))?;
-
     let auction_model_to_insert = auction::ActiveModel {
         id: ActiveValue::NotSet,
-        kind: ActiveValue::Set(kind),
+        kind: ActiveValue::Set(new_auction.kind),
         status: ActiveValue::Set(AuctionStatus::Open),
-        minimum_bid_amount: ActiveValue::Set(minimum_bid_amount),
-        start_timestamp: ActiveValue::Set(start_datetime),
-        close_at_timestamp: ActiveValue::Set(close_at_timestamp),
-        all_bid_deadline_timestamp: ActiveValue::Set(maybe_all_bid_deadline),
-        contract_id: ActiveValue::Set(contract_id),
-        original_owner_team_id: ActiveValue::Set(maybe_original_owner_team_id),
+        minimum_bid_amount: ActiveValue::Set(new_auction.minimum_bid_amount),
+        start_timestamp: ActiveValue::Set(new_auction.start_timestamp),
+        close_at_timestamp: ActiveValue::Set(new_auction.close_at_timestamp),
+        all_bid_deadline_timestamp: ActiveValue::Set(new_auction.all_bid_deadline_timestamp),
+        contract_id: ActiveValue::Set(new_auction.contract_id),
+        original_owner_team_id: ActiveValue::Set(new_auction.original_owner_team_id),
         transaction_id: ActiveValue::NotSet,
         created_at: ActiveValue::NotSet,
         updated_at: ActiveValue::NotSet,
@@ -368,60 +336,4 @@ where
     };
     let inserted_auction_bid = auction_bid_to_insert.insert(db).await?;
     Ok(inserted_auction_bid)
-}
-
-#[cfg(test)]
-mod tests {
-    use super::{DateTimeWithTimeZone, is_due_for_close};
-
-    fn at(time: &str) -> DateTimeWithTimeZone {
-        format!("2024-11-17T{time}:00-06:00").parse().unwrap()
-    }
-
-    #[test]
-    fn a_quiet_auction_closes_once_its_close_time_passes() {
-        assert!(is_due_for_close(
-            at("20:00"),
-            at("19:30"),
-            Some(at("23:00")),
-            Some(at("18:00"))
-        ));
-    }
-
-    #[test]
-    fn an_auction_still_taking_bids_outlives_its_close_time() {
-        assert!(!is_due_for_close(
-            at("20:00"),
-            at("19:30"),
-            Some(at("23:00")),
-            Some(at("19:40"))
-        ));
-    }
-
-    #[test]
-    fn an_hour_of_quiet_after_a_late_bid_closes_it() {
-        assert!(is_due_for_close(
-            at("20:40"),
-            at("19:30"),
-            Some(at("23:00")),
-            Some(at("19:40"))
-        ));
-    }
-
-    #[test]
-    fn the_all_bid_deadline_closes_an_auction_even_mid_flurry() {
-        // A bid a minute ago rolled the close time past the deadline; without this it never ends.
-        assert!(is_due_for_close(
-            at("23:00"),
-            at("23:59"),
-            Some(at("23:00")),
-            Some(at("22:59"))
-        ));
-    }
-
-    #[test]
-    fn an_auction_without_an_all_bid_deadline_closes_on_its_close_time() {
-        assert!(is_due_for_close(at("20:00"), at("19:30"), None, None));
-        assert!(!is_due_for_close(at("19:00"), at("19:30"), None, None));
-    }
 }

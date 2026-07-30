@@ -121,9 +121,17 @@ where
         trade_model.league_id,
         trade_model.end_of_season_year,
         *trade_datetime,
+        None,
         db,
     )
-    .await?;
+    .await?
+    .ok_or_else(|| {
+        eyre!(
+            "Could not find a deadline for league (id = {}) season {} after {trade_datetime}.",
+            trade_model.league_id,
+            trade_model.end_of_season_year
+        )
+    })?;
     let traded_trade_assets = trade_model.get_trade_assets(db).await?;
     let mut all_team_ids = HashSet::new();
     for traded_trade_asset in &traded_trade_assets {
