@@ -40,9 +40,10 @@ pub async fn process_event<C>(db: &C, event: ProcessableEvent) -> Result<Process
 ```
 
 - `ProcessableEvent` covers things that are *not* a row in the `deadline` table but are still
-  time-triggered: an individual FA-auction 24h-no-bid close, an FA all-bid 30-min extension expiry
-  (§8.3.2, spec 01), and an RFA 48h raise / 48h match window expiry (§15.3.2, spec 03). These derive
-  their fire-time from `auction` / RFA-state rows, not from `deadline`.
+  time-triggered: an auction close (its `close_at` lapsed — spec 01) and an RFA 48h raise / 48h match
+  window expiry (§15.3.2, spec 03). These derive their fire-time from `auction` / RFA-state rows, not
+  from `deadline`. Note `close_at` already folds in the §8.3.2 all-bid extension chain, so a rolled
+  deadline is not a separate event kind.
 - **One DB transaction per deadline/event.** Follow `logic/CLAUDE.md` convention #2: `db.begin()` →
   run handler (which itself inserts the `transaction` audit row + `team_update`s per convention #1) →
   insert/upsert a `job_run` outcome row → `commit()`. A handler failure must roll the whole thing back
@@ -64,8 +65,10 @@ pub async fn process_event<C>(db: &C, event: ProcessableEvent) -> Result<Process
   TODO at ~lines 87–112). Each tick:
   1. Query `deadline` for rows with `date_time <= now()` that lack a `Succeeded` `job_run`
      (a new `deadline_queries::find_due_unprocessed_deadlines(now)` joining against `job_run`).
-  2. Query open `auction`s whose last bid is >24h old, or whose all-bid/extension window has expired,
-     to synthesize `ProcessableEvent`s (cross-ref spec 01 for the timer model).
+  2. Query open `auction`s with `close_at <= now` to synthesize `ProcessableEvent`s (cross-ref spec
+     01 for the timer model). Run the veteran tier slide *before* this step — an unbid veteran
+     auction's slide and its close both become due at the same instant, and closing first disables
+     the tier ladder.
   3. Query pending RFA windows whose 48h timer has elapsed (cross-ref spec 03).
   4. For each, call `transaction_processor::process_deadline / process_event`.
 - **Discovery is across all leagues** (multi-league, see edge cases) — `deadline.league_id` scopes each
@@ -159,9 +162,8 @@ New table **`job_run`** (+ migration in `migration/`, +`entity/src/queries/job_r
 | `FreeAgentAuctionEnd` | FA-freeze handler — stop new FA nominations + apply $20 cap bump | §8.1.3 / §4.2.3. Cap bump is implicit in `get_salary_cap` (see Cap section) |
 | `TradeDeadlineAndPlayoffStart` | trade-freeze handler | §12.3 no trades after; cap stays $230 |
 | `SeasonEnd` | season-end handler — remove cap (§4.2.4), flip to offseason roster limits | enables `get_salary_cap` uncapped window |
-| *sub-event* `FaAuctionClose` | `auction::end_fa_auction` | fired when open FA auction is 24h no-bid (§8.3.1, spec 01) |
-| *sub-event* `FaExtensionExpiry` | `auction::end_fa_auction` | fired after the §8.3.2 30-min extension chain ends (spec 01) |
-| *sub-event* veteran auction close | `auction::end_veteran_auction` | 24h no-bid close (§6.4.4, spec 01) |
+| *sub-event* `FaAuctionClose` | `auction::end_fa_auction` | fired when the auction's `close_at` lapses — 24h quiet, or the Sun 8pm all-bid deadline plus any §8.3.2 rolls (spec 01) |
+| *sub-event* veteran auction close | `auction::end_veteran_auction` | same `close_at` rule; unbid auctions instead expire at the bottom tier (spec 01) |
 | *sub-event* `RfaRaiseWindow` / `RfaMatchWindow` | RFA resolution (spec 03) | 48h winner-raise then 48h owner-match (§15.3.2) |
 
 ## Frontend (commissioner ops console)
@@ -183,7 +185,9 @@ IMPLEMENTED.md §server), so this depends on that surface coming online.
 
 ## Edge cases & open questions
 
-- **Timezone:** rules are written in **CT** (§8.2 opening bids Fri 11:59 PM CT, all bids Sun 8:00 PM CT).
+- **Timezone:** rules are written in **CT** (§8.2 opening bids Fri 11:59 PM CT, all bids Sun 8:00 PM
+  CT; the preseason auction crunch window must open between 8:00 AM and midnight CT — see spec 01's
+  timing rules).
   `deadline.date_time` is `DateTimeWithTimeZone`; all comparisons must be tz-aware and the poller must
   use absolute instants. Decide a canonical storage tz (UTC) and render CT in the console; account for
   DST when generating weekly `InSeasonRosterLock` / FA deadlines.
