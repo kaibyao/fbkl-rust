@@ -256,11 +256,15 @@ where
     Ok(auction_model)
 }
 
-/// Drops every unbid open veteran auction to the next-lower min-bid tier (rules §6.3.4-.5).
+/// Drops every unbid open veteran auction to the next-lower min-bid tier (rules §6.3.4-.5) and gives
+/// it another day of clock.
 ///
-/// Run by the daily release tick. The slide is a single per-auction tier lookup, never a cascade:
-/// moving a player into a tier does not push that tier's existing players down (§6.3.5). Auctions
-/// opened within the last day are skipped so a fresh open does not slide the same day.
+/// Run by the daily release tick, which must run *before* the close tick: the ladder is the only
+/// clock an unbid veteran auction has, so a close tick running first expires it the moment it becomes
+/// slide-eligible. The slide is a single per-auction tier lookup, never a cascade: moving a player
+/// into a tier does not push that tier's existing players down (§6.3.5). Auctions opened within the
+/// last day are skipped so a fresh open does not slide the same day; the day the slide finds no lower
+/// tier, the auction's lapsed close time expires it and the player becomes a $1 FA (§6.1.2).
 #[instrument(skip(db))]
 pub async fn slide_unbid_auctions_down_a_tier<C>(
     league_id: i64,
@@ -290,17 +294,34 @@ where
             .map(|tier| tier.min_bid_amount)
             .collect();
 
+    let mode_deadlines = find_auction_mode_deadlines(
+        AuctionKind::PreseasonVeteranAuction,
+        league_id,
+        end_of_season_year,
+        now,
+        db,
+    )
+    .await?;
+    // An unbid auction has no bid to measure a reprieve from, so its day of clock is the ladder step.
+    let next_close_at = auction_close_at(
+        now,
+        auction_quiet_window(now, None),
+        None,
+        mode_deadlines.hard_deadline,
+    )?;
+
     let db_txn = db.begin().await?;
     let mut slid_auctions = Vec::new();
     for unbid_auction in unbid_auctions {
-        // No lower tier means the auction already sits at the bottom tier.
+        // No lower tier means the ladder has run out, so the close tick expires it after this.
         if let Some(next_min_bid_amount) =
             next_lower_min_bid_amount(&tier_min_bid_amounts, unbid_auction.minimum_bid_amount)
         {
             slid_auctions.push(
-                auction_queries::update_auction_minimum_bid(
+                auction_queries::slide_auction_to_next_tier(
                     unbid_auction.id,
                     next_min_bid_amount,
+                    next_close_at,
                     &db_txn,
                 )
                 .await?,
@@ -376,9 +397,17 @@ fn release_date(first_date: Date, position: usize, players_per_day: usize) -> Re
 
 #[cfg(test)]
 mod tests {
-    use chrono::NaiveDate;
+    use chrono::{Days, NaiveDate};
+    use fbkl_entity::sea_orm::prelude::DateTimeWithTimeZone;
 
-    use super::{next_lower_min_bid_amount, release_date, tier_slot};
+    use super::{
+        auction_close_at, auction_quiet_window, next_lower_min_bid_amount, release_date, tier_slot,
+    };
+
+    /// A veteran auction never has an all-bid deadline, and the ladder step ignores the crunch window.
+    fn ladder_step(now: DateTimeWithTimeZone) -> DateTimeWithTimeZone {
+        auction_close_at(now, auction_quiet_window(now, None), None, None).unwrap()
+    }
 
     #[test]
     fn tier_slide_is_one_step_per_auction_and_never_cascades() {
@@ -389,6 +418,34 @@ mod tests {
         assert_eq!(next_lower_min_bid_amount(&tiers, 15), Some(10));
         // Bottom tier stays put.
         assert_eq!(next_lower_min_bid_amount(&tiers, 5), None);
+    }
+
+    /// Rules §6.3.4-.5 + §6.1.2, with the tick order the scheduler uses: slide, then close.
+    #[test]
+    fn an_unbid_auction_walks_down_every_tier_before_it_expires() {
+        let tiers = [20, 15, 10, 5];
+        let opened_at: DateTimeWithTimeZone = "2025-09-01T12:00:00-06:00".parse().unwrap();
+        let mut minimum_bid_amount = tiers[0];
+        let mut close_at = ladder_step(opened_at);
+        let mut minimums_walked = Vec::new();
+
+        for day in 1..=tiers.len() {
+            let tick = opened_at + Days::new(u64::try_from(day).unwrap());
+            match next_lower_min_bid_amount(&tiers, minimum_bid_amount) {
+                Some(next_minimum) => {
+                    minimum_bid_amount = next_minimum;
+                    close_at = ladder_step(tick);
+                    minimums_walked.push(next_minimum);
+                    // The slide moved the clock, so the close tick that follows finds nothing due.
+                    assert!(close_at > tick);
+                }
+                // Bottom tier: nothing renews the clock, so the close tick expires it as a $1 FA.
+                None => assert!(close_at <= tick),
+            }
+        }
+
+        assert_eq!(minimums_walked, vec![15, 10, 5]);
+        assert_eq!(minimum_bid_amount, 5);
     }
 
     #[test]

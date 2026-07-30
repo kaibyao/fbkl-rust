@@ -110,8 +110,9 @@ pub async fn run_scheduler_tick(db: &DatabaseConnection) -> Result<TickSummary> 
         }
     }
 
-    summary.merge(run_auction_close_tick(db, now).await?);
+    // Slide first: it is an unbid auction's only clock, so closing first expires it (rules §6.3.4).
     summary.merge(run_veteran_auction_release_tick(db, now).await?);
+    summary.merge(run_auction_close_tick(db, now).await?);
 
     // TODO(fbkl-rust-1dk, spec 03): synthesize RFA 48h raise/match window expiries.
 
@@ -125,11 +126,11 @@ pub async fn run_scheduler_tick(db: &DatabaseConnection) -> Result<TickSummary> 
     Ok(summary)
 }
 
-/// Closes every auction whose bidding window has elapsed (rules §6.4.4 / §8.3.1-.2).
+/// Closes every auction whose `close_at` has passed (rules §6.4.4 / §8.3.1-.2).
 ///
-/// Runs on every tick: a veteran auction is due 24h after its last bid, a free agent auction once
-/// both that and its (possibly rolled-forward) all-bid deadline have passed. Each close goes
-/// through `process_event`, so the `job_run` claim is the double-fire guard.
+/// Runs on every tick, after the release/slide tick so the tier ladder gets to move an unbid
+/// auction's clock first. Each close goes through `process_event`, so the `job_run` claim is the
+/// double-fire guard.
 #[instrument(skip(db))]
 pub async fn run_auction_close_tick(
     db: &DatabaseConnection,

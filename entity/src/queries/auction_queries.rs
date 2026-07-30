@@ -264,11 +264,16 @@ where
     Ok(auction_to_update.update(db).await?)
 }
 
-/// Lowers an unbid veteran auction's minimum bid to the next tier (rules §6.3.4).
+/// Drops an unbid veteran auction to the next minimum-bid tier and gives it another day on the clock
+/// (rules §6.3.4).
+///
+/// One write for both, because the tier ladder *is* the auction's clock: a slid tier without a
+/// pushed-out close time leaves the auction due for close on the very tick that saved it.
 #[instrument]
-pub async fn update_auction_minimum_bid<C>(
+pub async fn slide_auction_to_next_tier<C>(
     auction_id: i64,
     new_minimum_bid_amount: i16,
+    new_close_at: DateTimeWithTimeZone,
     db: &C,
 ) -> Result<auction::Model>
 where
@@ -277,6 +282,7 @@ where
     let mut auction_to_update: auction::ActiveModel =
         find_auction_by_id(auction_id, db).await?.into();
     auction_to_update.minimum_bid_amount = ActiveValue::Set(new_minimum_bid_amount);
+    auction_to_update.close_at_timestamp = ActiveValue::Set(new_close_at);
     Ok(auction_to_update.update(db).await?)
 }
 

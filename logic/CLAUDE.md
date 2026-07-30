@@ -70,8 +70,14 @@ values from there; do not duplicate literals into logic.
   WITHOUT signing (the raise/match flow completes it), anything else signs the winning bid.
 - Auction opens/closes/tier slides are driven by `fbkl_jobs::{run_auction_close_tick,
   run_veteran_auction_release_tick}` on every scheduler tick, so both must stay idempotent:
-  `open_scheduled_auction` returns an existing auction rather than opening a second one, and the
-  tier slide only touches auctions untouched for a day.
+  `open_scheduled_auction` returns an existing auction rather than opening a second one, the
+  tier slide only touches auctions untouched for a day, and the crunch sweep only moves close times
+  earlier. **The release/slide tick must keep running before the close tick** — the tier ladder is
+  an unbid veteran auction's only clock, so closing first expires it the day it becomes
+  slide-eligible (rules §6.3.4).
+- Every write of `auction.close_at_timestamp` goes through `logic::auction::auction_close_at`, which
+  folds in the quiet window, the all-bid deadline and the hard deadline. Compute it there rather than
+  writing a close time directly, or a write site quietly drops one of those clocks.
 - `auction_queries::insert_auction_bid` is a pure insert — all bid validation (minimum, $1
   increment, cap/roster, original-owner guard) lives in `logic::auction::place_auction_bid`.
 - Future-draft-pick generation failure inside `lock_rosters` propagates — the wrapping DB
