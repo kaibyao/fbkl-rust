@@ -15,6 +15,7 @@ tracing = "0.1.36"
 [dev-dependencies]
 dotenvy = "0.15.7"
 fbkl-migration = {path = "../migration"}
+tracing-subscriber = "0.3.23"
 
 [lints]
 workspace = true

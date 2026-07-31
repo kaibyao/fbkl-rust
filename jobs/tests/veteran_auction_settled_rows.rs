@@ -4,13 +4,18 @@
 
 mod common;
 
-use chrono::NaiveDate;
+use std::{
+    io::Write,
+    sync::{Arc, Mutex},
+};
+
+use chrono::{NaiveDate, TimeDelta, Utc};
 use common::{TestLeague, central};
 use fbkl_entity::{
     auction::{self, AuctionStatus},
     auction_queries,
     deadline::DeadlineKind,
-    sea_orm::{ConnectionTrait, EntityTrait},
+    sea_orm::{ConnectionTrait, EntityTrait, prelude::DateTimeWithTimeZone},
 };
 use fbkl_jobs::run_veteran_auction_release_tick;
 use fbkl_logic::auction::end_veteran_auction;
@@ -132,6 +137,7 @@ async fn a_failing_schedule_row_is_skipped_rather_than_fatal() {
         .add_schedule_row(good_player_id, release_day(1), TOP_TIER_INDEX)
         .await;
 
+    let captured_logs = CapturedLogs::start();
     let summary = run_veteran_auction_release_tick(&league.db, central("2025-09-01T12:00:00"))
         .await
         .expect("run the release tick");
@@ -146,6 +152,78 @@ async fn a_failing_schedule_row_is_skipped_rather_than_fatal() {
             .find_veteran_auction(broken_player_id)
             .await
             .is_none()
+    );
+    // Swallowing the row is only acceptable because the commissioner can still find it in the logs.
+    let logged = captured_logs.text();
+    assert!(
+        logged.contains("Failed to open scheduled veteran auction"),
+        "the skipped row was not logged: {logged}"
+    );
+    assert!(
+        logged.contains(&format!("player id = {broken_player_id}")),
+        "the log does not name the skipped player: {logged}"
+    );
+}
+
+/// §6.4.4's crunch sweep runs after every row, so a row that cannot open must not cost the league's
+/// live auctions their shortened reprieve.
+#[tokio::test]
+async fn a_failing_row_still_leaves_the_crunch_sweep_to_run() {
+    let now: DateTimeWithTimeZone = Utc::now().into();
+    // Bid timestamps come from the database clock, so this league's deadlines hang off wall-clock now.
+    let hard_deadline = now + TimeDelta::hours(6);
+    let Some(league) =
+        TestLeague::create("vet_auction_crunch_after_failure", END_OF_SEASON_YEAR).await
+    else {
+        return;
+    };
+    league
+        .add_deadline(
+            DeadlineKind::PreseasonVeteranAuctionStart,
+            now - TimeDelta::days(1),
+        )
+        .await;
+    league
+        .add_deadline(DeadlineKind::PreseasonFinalRosterLock, hard_deadline)
+        .await;
+    league.add_min_bid_tiers(&TIER_MIN_BID_AMOUNTS).await;
+
+    let bid_player_id = league.add_veteran_player("Contested Vet").await;
+    let broken_player_id = league.add_veteran_player("Bad Tier").await;
+    league
+        .add_schedule_row(bid_player_id, now.date_naive(), TOP_TIER_INDEX)
+        .await;
+    league
+        .add_schedule_row(broken_player_id, now.date_naive(), 99)
+        .await;
+
+    run_veteran_auction_release_tick(&league.db, now)
+        .await
+        .expect("run the opening tick");
+    let opened_auction = auction_for(&league, bid_player_id).await;
+    assert_eq!(opened_auction.close_at_timestamp, hard_deadline);
+    auction_queries::insert_auction_bid(
+        opened_auction.id,
+        league.add_team_user().await,
+        TIER_MIN_BID_AMOUNTS[0],
+        None,
+        &league.db,
+    )
+    .await
+    .expect("place a bid inside the crunch window");
+
+    let summary = run_veteran_auction_release_tick(&league.db, now)
+        .await
+        .expect("run the crunch-window tick");
+    assert_eq!((summary.errors, summary.failed), (0, 1));
+    // One hour of reprieve, not the usual 24, and well short of the hard deadline it opened on.
+    let crunched_auction = auction_for(&league, bid_player_id).await;
+    assert!(
+        crunched_auction.close_at_timestamp < opened_auction.close_at_timestamp,
+        "the crunch sweep did not shorten the auction"
+    );
+    assert!(
+        crunched_auction.close_at_timestamp <= now + TimeDelta::hours(1) + TimeDelta::minutes(5)
     );
 }
 
@@ -183,6 +261,49 @@ async fn auction_for(league: &TestLeague, player_id: i64) -> auction::Model {
         .find_veteran_auction(player_id)
         .await
         .unwrap_or_else(|| panic!("player {player_id} has no auction"))
+}
+
+/// Everything logged on this thread while it is alive, so a test can assert on a swallowed error.
+struct CapturedLogs {
+    buffer: LogBuffer,
+    _subscriber_guard: tracing::subscriber::DefaultGuard,
+}
+
+impl CapturedLogs {
+    fn start() -> Self {
+        let buffer = LogBuffer(Arc::new(Mutex::new(Vec::new())));
+        let writer = buffer.clone();
+        let subscriber = tracing_subscriber::fmt()
+            .with_ansi(false)
+            .with_writer(move || writer.clone())
+            .finish();
+        Self {
+            buffer,
+            _subscriber_guard: tracing::subscriber::set_default(subscriber),
+        }
+    }
+
+    fn text(&self) -> String {
+        String::from_utf8(self.buffer.0.lock().expect("read captured logs").clone())
+            .expect("logs are utf-8")
+    }
+}
+
+#[derive(Clone)]
+struct LogBuffer(Arc<Mutex<Vec<u8>>>);
+
+impl Write for LogBuffer {
+    fn write(&mut self, buf: &[u8]) -> std::io::Result<usize> {
+        self.0
+            .lock()
+            .expect("write captured logs")
+            .extend_from_slice(buf);
+        Ok(buf.len())
+    }
+
+    fn flush(&mut self) -> std::io::Result<()> {
+        Ok(())
+    }
 }
 
 /// Timestamp columns default to wall-clock now, so an auction opened at a historical test date is
