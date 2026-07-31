@@ -3,6 +3,7 @@
 
 mod common;
 
+use chrono::Days;
 use common::{TestLeague, central};
 use fbkl_entity::{
     auction::AuctionStatus,
@@ -67,12 +68,14 @@ async fn the_start_deadline_assembles_the_pool_and_the_tick_opens_rfa_week() {
         rfa_row.scheduled_release_date,
         central(AUCTION_START).date_naive()
     );
+    // RFA week is a full seven days, so the first non-RFA release is exactly a week out.
+    let first_other_release_date = rfa_row.scheduled_release_date + Days::new(7);
     for other_row in schedule_rows
         .iter()
         .filter(|row| row.player_id != rfa_player_id)
     {
         assert!(!other_row.is_rfa_week);
-        assert!(other_row.scheduled_release_date > rfa_row.scheduled_release_date);
+        assert_eq!(other_row.scheduled_release_date, first_other_release_date);
     }
 
     // A retried deadline re-runs the handler, so the pool guard - not the job_run - is what must hold.
@@ -109,6 +112,25 @@ async fn the_start_deadline_assembles_the_pool_and_the_tick_opens_rfa_week() {
             .await
             .is_none()
     );
+
+    let week_later_summary =
+        run_veteran_auction_release_tick(&league.db, central("2025-09-08T13:00:00"))
+            .await
+            .expect("run the release tick a week later");
+    assert_eq!(
+        (week_later_summary.errors, week_later_summary.failed),
+        (0, 0)
+    );
+    for player_id in [first_other_player_id, second_other_player_id] {
+        assert_eq!(
+            league
+                .find_veteran_auction(player_id)
+                .await
+                .expect("the non-RFA auction opened once RFA week ended")
+                .status,
+            AuctionStatus::Open
+        );
+    }
 }
 
 async fn start_deadline(league: &TestLeague) -> deadline::Model {
