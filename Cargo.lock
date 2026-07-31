@@ -1390,8 +1390,10 @@ version = "0.1.0"
 dependencies = [
  "chrono",
  "color-eyre",
+ "dotenvy",
  "fbkl-entity",
  "fbkl-logic",
+ "fbkl-migration",
  "fbkl-transaction-processor",
  "tokio",
  "tracing",

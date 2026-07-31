@@ -12,5 +12,9 @@ fbkl-transaction-processor = {path = "../transaction-processor"}
 tokio = {version = "1.52.3", features = ["macros", "rt", "time"]}
 tracing = "0.1.36"
 
+[dev-dependencies]
+dotenvy = "0.15.7"
+fbkl-migration = {path = "../migration"}
+
 [lints]
 workspace = true
