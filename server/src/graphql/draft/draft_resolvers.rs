@@ -309,7 +309,7 @@ impl DraftQuery {
                 };
 
                 EligibleRookie {
-                    player: LeagueOrRealPlayer::from_related_player(related_player),
+                    player: LeagueOrRealPlayer::from_related_player(related_player, season),
                     banned: banned_reason.is_some(),
                     banned_reason,
                 }

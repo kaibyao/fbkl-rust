@@ -1,9 +1,9 @@
 //! Starting the live rookie draft (§7.2).
 //!
-//! The scheduler runs this at the `PreseasonRookieDraftStart` deadline, and a commissioner can run
-//! it manually if the scheduler missed. Both paths reach the same function, so every step is
-//! idempotent: an existing slate short-circuits, and [`run_lottery`] replays a stored draw instead
-//! of re-rolling it.
+//! Today only the commissioner's `startRookieDraft` mutation reaches this; wiring the scheduler's
+//! `PreseasonRookieDraftStart` deadline to it is fbkl-rust-z2c. Every step is already idempotent
+//! for that future second caller: an existing slate short-circuits, and [`run_lottery`] replays a
+//! stored draw instead of re-rolling it.
 
 use std::fmt::Debug;
 

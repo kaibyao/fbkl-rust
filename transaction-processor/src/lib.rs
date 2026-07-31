@@ -258,10 +258,10 @@ async fn dispatch_deadline(
             );
             Ok(())
         }
-        // Rookie draft engine is spec 02 (fbkl-rust-2jq).
+        // Scheduler wiring to `start_rookie_draft` is fbkl-rust-z2c; today only the commissioner mutation starts the draft.
         DeadlineKind::PreseasonRookieDraftStart => {
             info!(
-                "Deadline {:?} (id = {}) recorded; rookie draft engine is spec 02",
+                "Deadline {:?} (id = {}) recorded; rookie draft starts via commissioner mutation",
                 deadline_model.kind, deadline_model.id
             );
             Ok(())
