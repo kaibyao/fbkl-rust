@@ -124,6 +124,55 @@ async fn the_commissioner_enters_a_season_of_tiers_and_rankings() {
     );
 }
 
+#[tokio::test]
+async fn season_config_is_locked_once_the_pool_is_assembled() {
+    let Some(league) = TestLeague::create("vet_auction_config_locked", END_OF_SEASON_YEAR).await
+    else {
+        return;
+    };
+    league
+        .add_deadline(
+            DeadlineKind::PreseasonVeteranAuctionStart,
+            central("2025-09-01T12:00:00"),
+        )
+        .await;
+    let commissioner = league.add_team_user(LeagueRole::LeagueCommissioner).await;
+    let player_id = league.add_veteran_player("Locked Vet").await;
+
+    let schema = build_graphql_schema(league.db.clone());
+    let session = session_for(commissioner.user_id, league.league_id).await;
+
+    run(
+        &schema,
+        "mutation { setVeteranAuctionMinBidTiers(minBidAmounts: [20, 10]) }",
+        &session,
+    )
+    .await
+    .expect("enter the tiers before the auction starts");
+
+    // A schedule row is what pool assembly writes, so its existence marks the auction as started.
+    league
+        .add_schedule_row(player_id, central("2025-09-02T00:00:00").date_naive(), 20)
+        .await;
+
+    let locked_tiers = run(
+        &schema,
+        "mutation { setVeteranAuctionMinBidTiers(minBidAmounts: [30, 12]) }",
+        &session,
+    )
+    .await;
+    assert_eq!(locked_tiers, Err("VETERAN_AUCTION_STARTED".to_owned()));
+    let locked_ranking = run(
+        &schema,
+        &format!("mutation {{ setVeteranAuctionRanking(playerIds: [{player_id}]) }}"),
+        &session,
+    )
+    .await;
+    assert_eq!(locked_ranking, Err("VETERAN_AUCTION_STARTED".to_owned()));
+    assert_eq!(entered_tiers(&league).await, vec![20, 10]);
+    assert_eq!(entered_ranking(&league).await, Vec::<i64>::new());
+}
+
 /// Runs one mutation as the session's user, returning its field value or the error's stable code.
 async fn run(schema: &AppSchema, mutation: &str, session: &Session) -> Result<Value, String> {
     let response = schema

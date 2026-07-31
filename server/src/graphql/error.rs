@@ -39,6 +39,8 @@ pub enum ErrorCode {
     BidNoRosterSpace,
     /// The player's previous team may not bid on that player's own auction (rules §6.2.2.3).
     BidOriginalOwner,
+    /// Season config (tiers, ranked list) is locked because the veteran auction pool is assembled (rules §6.3.6).
+    VeteranAuctionStarted,
     /// Server-side fault; message is deliberately generic.
     Internal,
 }
@@ -59,6 +61,7 @@ impl ErrorCode {
             Self::BidInsufficientCap => "BID_INSUFFICIENT_CAP",
             Self::BidNoRosterSpace => "BID_NO_ROSTER_SPACE",
             Self::BidOriginalOwner => "BID_ORIGINAL_OWNER",
+            Self::VeteranAuctionStarted => "VETERAN_AUCTION_STARTED",
             Self::Internal => "INTERNAL",
         }
     }
@@ -80,6 +83,9 @@ impl ErrorCode {
             Self::BidInsufficientCap => "bid would exceed your salary cap",
             Self::BidNoRosterSpace => "bid would exceed your roster limit",
             Self::BidOriginalOwner => "you cannot bid on your own former player's auction",
+            Self::VeteranAuctionStarted => {
+                "the veteran auction has started, so this season's config is locked"
+            }
             Self::Internal => "internal server error",
         }
     }

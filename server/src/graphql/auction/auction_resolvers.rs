@@ -15,7 +15,8 @@ use fbkl_entity::{
         find_winning_bids_for_team,
     },
     auction_schedule_queries::{
-        set_min_bid_tiers, set_veteran_auction_ranking, validate_min_bid_tiers,
+        find_auction_schedule_rows_for_season, set_min_bid_tiers, set_veteran_auction_ranking,
+        validate_min_bid_tiers,
     },
     deadline::DeadlineKind,
     deadline_queries::find_sorted_deadlines_for_league_season,
@@ -266,6 +267,7 @@ impl AuctionMutation {
         let db = ctx.data_unchecked::<DatabaseConnection>();
         let (_, caller_team) = require_league_role(ctx, RoleRequirement::Commissioner).await?;
         let season = current_season(ctx, caller_team.league_id).await?;
+        ensure_veteran_auction_not_started(caller_team.league_id, season, db).await?;
 
         let tiers = set_min_bid_tiers(caller_team.league_id, season, &min_bid_amounts, db)
             .await
@@ -295,6 +297,7 @@ impl AuctionMutation {
         let db = ctx.data_unchecked::<DatabaseConnection>();
         let (_, caller_team) = require_league_role(ctx, RoleRequirement::Commissioner).await?;
         let season = current_season(ctx, caller_team.league_id).await?;
+        ensure_veteran_auction_not_started(caller_team.league_id, season, db).await?;
 
         set_veteran_auction_ranking(caller_team.league_id, season, &player_ids, db)
             .await
@@ -302,6 +305,27 @@ impl AuctionMutation {
                 tracing::error!(error = ?err, "failed to set the veteran auction ranking");
                 code_error(ErrorCode::Internal)
             })
+    }
+}
+
+/// §6.3.6 config is set before the auction starts; assembled schedule rows already carry tier
+/// assignments, so a late rewrite would desync them.
+async fn ensure_veteran_auction_not_started(
+    league_id: i64,
+    season: i16,
+    db: &DatabaseConnection,
+) -> Result<()> {
+    let schedule_rows = find_auction_schedule_rows_for_season(league_id, season, db)
+        .await
+        .map_err(|err| {
+            tracing::error!(error = ?err, "failed to check the veteran auction schedule");
+            code_error(ErrorCode::Internal)
+        })?;
+
+    if schedule_rows.is_empty() {
+        Ok(())
+    } else {
+        Err(code_error(ErrorCode::VeteranAuctionStarted))
     }
 }
 
