@@ -55,6 +55,8 @@ pub struct Auction {
     pub close_at_timestamp: String,
     /// In-season FA only: the week's all-bid cutoff, which a late bid rolls +30min (rules §8.3.2). Null for preseason auctions.
     pub all_bid_deadline_timestamp: Option<String>,
+    /// RFA/UFA only: the team barred from bidding (rules §6.2.2.3) — disable their bid input.
+    pub original_owner_team_id: Option<i64>,
     pub contract_id: i64,
     pub transaction_id: Option<i64>,
 }
@@ -71,6 +73,7 @@ impl Auction {
             all_bid_deadline_timestamp: model
                 .all_bid_deadline_timestamp
                 .map(|deadline| deadline.to_rfc3339()),
+            original_owner_team_id: model.original_owner_team_id,
             contract_id: model.contract_id,
             transaction_id: model.transaction_id,
         }
