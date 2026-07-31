@@ -22,3 +22,33 @@ pub static REGULAR_SEASON_VET_OR_ROOKIE_CONTRACTS_PER_ROSTER_LIMIT: i16 = 22;
 pub static REGULAR_SEASON_TOTAL_SALARY_LIMIT: i16 = 210;
 /// The sum of contract values retained by a team for a roster lock taking place at or after the auction deadline must be at or below this value.
 pub static POST_SEASON_TOTAL_SALARY_LIMIT: i16 = 230;
+/// The floor for an in-season free agent auction's opening bid (rules §8.3.3), used unless the
+/// player was already owned earlier in the same season.
+pub static IN_SEASON_FA_MINIMUM_BID: i16 = 1;
+/// How long after its last bid an auction stays open (rules §6.4.4 / §8.3.1).
+pub static AUCTION_QUIET_WINDOW_HOURS: i64 = 24;
+/// How long before a preseason auction's hard deadline the crunch window opens (spec 01 timing rules).
+pub static AUCTION_CRUNCH_WINDOW_HOURS: i64 = 24;
+/// The quiet period a bid buys once the preseason crunch window has opened (rules §6.4.4).
+pub static AUCTION_CRUNCH_QUIET_WINDOW_HOURS: i64 = 1;
+/// The crunch window never opens before this hour CT — owners are asleep before it.
+pub static AUCTION_CRUNCH_EARLIEST_START_HOUR: u32 = 8;
+/// How far a qualifying late bid pushes the in-season all-bid deadline out (rules §8.3.2).
+pub static IN_SEASON_FA_EXTENSION_MINUTES: i64 = 30;
+/// A bid this close to the week's *original* 8pm all-bid deadline extends it (§8.3.2's "Sunday 7:00 PM-8:00 PM CT").
+pub static IN_SEASON_FA_FIRST_EXTENSION_TRIGGER_MINUTES: i64 = 60;
+/// Once extended, a bid this close to the current deadline extends it again, until that many quiet minutes pass (§8.3.2).
+pub static IN_SEASON_FA_LATER_EXTENSION_TRIGGER_MINUTES: i64 = 30;
+/// The number of veteran auction players released for bidding each day (rules §6.3.3). The rules set
+/// this per season; this is the default until per-season schedule config exists.
+pub static VETERAN_AUCTION_PLAYERS_RELEASED_PER_DAY: usize = 15;
+/// Length of the RFA-only first week of the veteran auction (rules §6.3.1), after which the rest of
+/// the pool starts being released.
+pub static VETERAN_AUCTION_RFA_WEEK_DAYS: u64 = 7;
+/// UTC offset of the league's wall clock (US Central), which the rules state deadlines in.
+// ponytail: fixed standard-time offset, swap for chrono-tz if DST-exact deadlines start mattering.
+pub static LEAGUE_TIME_ZONE_UTC_OFFSET_SECONDS: i32 = -6 * 3600;
+/// Friday 11:59pm CT: the weekly cutoff for nominating new in-season FA auctions (rules §8.2).
+pub static IN_SEASON_FA_OPENING_BID_DEADLINE_HOUR_MINUTE: (u32, u32) = (23, 59);
+/// Sunday 8pm CT: the weekly all-bid deadline every open in-season FA auction ends at (rules §8.2).
+pub static IN_SEASON_FA_ALL_BID_DEADLINE_HOUR_MINUTE: (u32, u32) = (20, 0);

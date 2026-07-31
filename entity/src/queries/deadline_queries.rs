@@ -77,27 +77,36 @@ where
     Ok(maybe_deadline_model)
 }
 
-/// Attempts to retrieve the deadline immediately on or after the the given datetime within a league season.
+/// The league season's first deadline at or after `datetime`, optionally narrowed to one kind.
+///
+/// Ordered like [`find_sorted_deadlines_for_league_season`], so "next" is the earliest match and
+/// same-instant deadlines resolve in their intended processing order.
 #[instrument]
 pub async fn find_next_deadline_for_season_by_datetime<C>(
     league_id: i64,
     end_of_season_year: i16,
     datetime: DateTimeWithTimeZone,
+    maybe_kind: Option<DeadlineKind>,
     db: &C,
-) -> Result<deadline::Model>
+) -> Result<Option<deadline::Model>>
 where
     C: ConnectionTrait + Debug,
 {
-    let maybe_deadline_model = deadline::Entity::find()
-        .filter(
-            deadline::Column::LeagueId
-                .eq(league_id)
-                .and(deadline::Column::EndOfSeasonYear.eq(end_of_season_year))
-                .and(deadline::Column::DateTime.gte(datetime)),
-        )
+    let mut query = deadline::Entity::find().filter(
+        deadline::Column::LeagueId
+            .eq(league_id)
+            .and(deadline::Column::EndOfSeasonYear.eq(end_of_season_year))
+            .and(deadline::Column::DateTime.gte(datetime)),
+    );
+    if let Some(kind) = maybe_kind {
+        query = query.filter(deadline::Column::Kind.eq(kind));
+    }
+
+    let maybe_deadline_model = query
+        .order_by(deadline::Column::DateTime, Order::Asc)
+        .order_by(deadline::Column::Id, Order::Asc)
         .one(db)
-        .await?
-        .ok_or_else(|| eyre!("Could not find a deadline for league (id = {}) and end-of-season year ({}) after: {}.", league_id, end_of_season_year, datetime.to_string()))?;
+        .await?;
     Ok(maybe_deadline_model)
 }
 

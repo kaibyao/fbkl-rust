@@ -7,9 +7,14 @@ edition = "2024"
 chrono = "0.4"
 color-eyre = "0.6.2"
 fbkl-entity = {path = "../entity"}
+fbkl-logic = {path = "../logic"}
 fbkl-transaction-processor = {path = "../transaction-processor"}
 tokio = {version = "1.52.3", features = ["macros", "rt", "time"]}
 tracing = "0.1.36"
+
+[dev-dependencies]
+fbkl-test-support = {path = "../test-support"}
+tracing-subscriber = "0.3.23"
 
 [lints]
 workspace = true

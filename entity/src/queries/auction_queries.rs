@@ -1,10 +1,6 @@
 use std::fmt::Debug;
 
-use chrono::Days;
-use color_eyre::{
-    Result,
-    eyre::{bail, eyre},
-};
+use color_eyre::{Result, eyre::eyre};
 use sea_orm::{
     ActiveModelTrait, ActiveValue, ColumnTrait, ConnectionTrait, EntityTrait, JoinType,
     QueryFilter, QueryOrder, QuerySelect, RelationTrait, prelude::DateTimeWithTimeZone,
@@ -12,9 +8,10 @@ use sea_orm::{
 use tracing::instrument;
 
 use crate::{
-    auction::{self, AuctionKind},
+    auction::{self, AuctionKind, AuctionStatus},
     auction_bid, contract,
     queries::pagination::{Paged, fetch_page},
+    team_user,
 };
 
 #[instrument]
@@ -30,12 +27,185 @@ where
     Ok(maybe_auction_model)
 }
 
-/// Auctions in the league/season that have not settled yet — `transaction_id` is NULL until a
-/// winning bid is signed. The league scope comes from the auctioned contract.
+/// Same as [`find_auction_by_id`] but takes a row lock, so racing bids on one auction serialize.
+/// Only meaningful inside a db transaction.
+#[instrument]
+pub async fn find_auction_by_id_for_update<C>(auction_id: i64, db: &C) -> Result<auction::Model>
+where
+    C: ConnectionTrait + Debug,
+{
+    auction::Entity::find_by_id(auction_id)
+        .lock_exclusive()
+        .one(db)
+        .await?
+        .ok_or_else(|| eyre!("Could not find auction with id: {}", auction_id))
+}
+
+/// The team's currently-winning bids (`(auction_id, bid_amount)`) across the league/season's `Open`
+/// auctions — the commitments rules §6.4.1 counts against a new bid.
+#[instrument]
+pub async fn find_winning_bids_for_team<C>(
+    team_id: i64,
+    league_id: i64,
+    end_of_season_year: i16,
+    db: &C,
+) -> Result<Vec<(i64, i16)>>
+where
+    C: ConnectionTrait + Debug,
+{
+    let bids: Vec<(i64, i16, i64)> = auction_bid::Entity::find()
+        .join(JoinType::InnerJoin, auction_bid::Relation::Auction.def())
+        .join(JoinType::InnerJoin, auction::Relation::Contract.def())
+        .join(JoinType::InnerJoin, auction_bid::Relation::TeamUser.def())
+        .filter(auction::Column::Status.eq(AuctionStatus::Open))
+        .filter(contract::Column::LeagueId.eq(league_id))
+        .filter(contract::Column::EndOfSeasonYear.eq(end_of_season_year))
+        .select_only()
+        .column(auction_bid::Column::AuctionId)
+        .column(auction_bid::Column::BidAmount)
+        .column(team_user::Column::TeamId)
+        .order_by_asc(auction_bid::Column::AuctionId)
+        .order_by_desc(auction_bid::Column::CreatedAt)
+        .order_by_desc(auction_bid::Column::Id)
+        .into_tuple()
+        .all(db)
+        .await?;
+
+    // rows are grouped per auction with the latest bid first, so the first row per auction wins it
+    let mut winning_bids = Vec::new();
+    let mut previous_auction_id = None;
+    for (auction_id, bid_amount, bidding_team_id) in bids {
+        if previous_auction_id == Some(auction_id) {
+            continue;
+        }
+        previous_auction_id = Some(auction_id);
+        if bidding_team_id == team_id {
+            winning_bids.push((auction_id, bid_amount));
+        }
+    }
+    Ok(winning_bids)
+}
+
+/// Auctions in the league/season still taking bids, soonest close first, optionally of one kind
+/// only. The league scope comes from the auctioned contract.
 #[instrument]
 pub async fn find_open_auctions_in_league<C>(
     league_id: i64,
     end_of_season_year: i16,
+    maybe_kind: Option<AuctionKind>,
+    db: &C,
+) -> Result<Vec<auction::Model>>
+where
+    C: ConnectionTrait + Debug,
+{
+    let mut query = auction::Entity::find()
+        .join(JoinType::InnerJoin, auction::Relation::Contract.def())
+        .filter(auction::Column::Status.eq(AuctionStatus::Open))
+        .filter(contract::Column::LeagueId.eq(league_id))
+        .filter(contract::Column::EndOfSeasonYear.eq(end_of_season_year));
+    if let Some(kind) = maybe_kind {
+        query = query.filter(auction::Column::Kind.eq(kind));
+    }
+
+    let auction_models = query
+        .order_by_asc(auction::Column::CloseAtTimestamp)
+        .all(db)
+        .await?;
+    Ok(auction_models)
+}
+
+/// `Open` auctions whose bidding is over, with the contract they auction.
+///
+/// One indexed `close_at <= now` scan, no per-row bid lookup: the quiet window, the all-bid deadline
+/// and the hard deadline are all folded into `close_at` by whoever last wrote it
+/// (`logic::auction::auction_close_at`).
+#[instrument]
+pub async fn find_auctions_due_for_close<C>(
+    now: DateTimeWithTimeZone,
+    db: &C,
+) -> Result<Vec<(auction::Model, contract::Model)>>
+where
+    C: ConnectionTrait + Debug,
+{
+    let rows = auction::Entity::find()
+        .find_also_related(contract::Entity)
+        .filter(auction::Column::Status.eq(AuctionStatus::Open))
+        .filter(auction::Column::CloseAtTimestamp.lte(now))
+        .order_by_asc(auction::Column::CloseAtTimestamp)
+        .all(db)
+        .await?;
+
+    Ok(rows
+        .into_iter()
+        .filter_map(|(auction_model, maybe_contract)| {
+            maybe_contract.map(|contract_model| (auction_model, contract_model))
+        })
+        .collect())
+}
+
+/// The distinct `(league_id, end_of_season_year)` pairs that currently have an `Open` auction of
+/// the given kind — the leagues a periodic auction tick has work for.
+#[instrument]
+pub async fn find_league_seasons_with_open_auctions<C>(
+    kind: AuctionKind,
+    db: &C,
+) -> Result<Vec<(i64, i16)>>
+where
+    C: ConnectionTrait + Debug,
+{
+    let league_seasons = auction::Entity::find()
+        .join(JoinType::InnerJoin, auction::Relation::Contract.def())
+        .filter(auction::Column::Status.eq(AuctionStatus::Open))
+        .filter(auction::Column::Kind.eq(kind))
+        .select_only()
+        .column(contract::Column::LeagueId)
+        .column(contract::Column::EndOfSeasonYear)
+        .distinct()
+        .into_tuple()
+        .all(db)
+        .await?;
+    Ok(league_seasons)
+}
+
+/// The auction of the given kind already opened for this player in the league/season, whatever
+/// state it has since reached.
+///
+/// Keyed off the auctioned contract's player rather than the pooled contract's id: settling an
+/// auction advances the player's contract chain past the pooled contract, so a caller holding only
+/// a player id can no longer find the pooled contract to look the auction up by.
+#[instrument]
+pub async fn find_auction_for_player_in_season<C>(
+    league_id: i64,
+    end_of_season_year: i16,
+    player_id: i64,
+    kind: AuctionKind,
+    db: &C,
+) -> Result<Option<auction::Model>>
+where
+    C: ConnectionTrait + Debug,
+{
+    let auction_model = auction::Entity::find()
+        .join(JoinType::InnerJoin, auction::Relation::Contract.def())
+        .filter(auction::Column::Kind.eq(kind))
+        .filter(contract::Column::LeagueId.eq(league_id))
+        .filter(contract::Column::EndOfSeasonYear.eq(end_of_season_year))
+        .filter(contract::Column::PlayerId.eq(player_id))
+        .one(db)
+        .await?;
+    Ok(auction_model)
+}
+
+/// `Open` auctions of the given kind that have no bids yet and were last touched before
+/// `unchanged_before`.
+///
+/// The timestamp bound keeps a freshly-opened auction from sliding a tier on its first day, and
+/// keeps an auction already slid today from sliding again on the next tick (rules §6.3.4).
+#[instrument]
+pub async fn find_unbid_open_auctions<C>(
+    league_id: i64,
+    end_of_season_year: i16,
+    kind: AuctionKind,
+    unchanged_before: DateTimeWithTimeZone,
     db: &C,
 ) -> Result<Vec<auction::Model>>
 where
@@ -43,10 +213,14 @@ where
 {
     let auction_models = auction::Entity::find()
         .join(JoinType::InnerJoin, auction::Relation::Contract.def())
-        .filter(auction::Column::TransactionId.is_null())
+        .join(JoinType::LeftJoin, auction::Relation::AuctionBid.def())
+        .filter(auction::Column::Status.eq(AuctionStatus::Open))
+        .filter(auction::Column::Kind.eq(kind))
+        .filter(auction::Column::StartTimestamp.lte(unchanged_before))
+        .filter(auction::Column::UpdatedAt.lte(unchanged_before))
+        .filter(auction_bid::Column::Id.is_null())
         .filter(contract::Column::LeagueId.eq(league_id))
         .filter(contract::Column::EndOfSeasonYear.eq(end_of_season_year))
-        .order_by_asc(auction::Column::FixedEndTimestamp)
         .all(db)
         .await?;
     Ok(auction_models)
@@ -70,37 +244,106 @@ where
     fetch_page(query, page, page_size, db).await
 }
 
-/// Creates & inserts a new auction with given arguments.
+/// Rewrites when an auction stops taking bids (rules §6.4.4 / §8.3.1).
 #[instrument]
-pub async fn insert_new_auction<C>(
-    contract_id: i64,
-    kind: AuctionKind,
-    minimum_bid_amount: i16,
-    start_datetime: DateTimeWithTimeZone,
-    fixed_end_datetime: Option<DateTimeWithTimeZone>,
+pub async fn set_auction_close_at<C>(
+    auction_id: i64,
+    new_close_at: DateTimeWithTimeZone,
     db: &C,
 ) -> Result<auction::Model>
 where
     C: ConnectionTrait + Debug,
 {
-    let soft_end_timestamp = start_datetime
-        .checked_add_days(Days::new(1))
-        .ok_or_else(|| eyre!("auction start_datetime + 1 day overflowed: {start_datetime}"))?;
-    let fixed_end_timestamp = match fixed_end_datetime {
-        Some(fixed_end) => fixed_end,
-        None => start_datetime
-            .checked_add_days(Days::new(2))
-            .ok_or_else(|| eyre!("auction start_datetime + 2 days overflowed: {start_datetime}"))?,
-    };
+    let mut auction_to_update: auction::ActiveModel =
+        find_auction_by_id(auction_id, db).await?.into();
+    auction_to_update.close_at_timestamp = ActiveValue::Set(new_close_at);
+    Ok(auction_to_update.update(db).await?)
+}
 
+/// Pushes an in-season FA auction's all-bid deadline out for a late bid (rules §8.3.2).
+#[instrument]
+pub async fn roll_auction_all_bid_deadline<C>(
+    auction_id: i64,
+    new_all_bid_deadline: DateTimeWithTimeZone,
+    db: &C,
+) -> Result<auction::Model>
+where
+    C: ConnectionTrait + Debug,
+{
+    let mut auction_to_update: auction::ActiveModel =
+        find_auction_by_id(auction_id, db).await?.into();
+    auction_to_update.all_bid_deadline_timestamp = ActiveValue::Set(Some(new_all_bid_deadline));
+    Ok(auction_to_update.update(db).await?)
+}
+
+/// Drops an unbid veteran auction to the next minimum-bid tier and gives it another day on the clock
+/// (rules §6.3.4).
+///
+/// One write for both, because the tier ladder *is* the auction's clock: a slid tier without a
+/// pushed-out close time leaves the auction due for close on the very tick that saved it.
+#[instrument]
+pub async fn slide_auction_to_next_tier<C>(
+    auction_id: i64,
+    new_minimum_bid_amount: i16,
+    new_close_at: DateTimeWithTimeZone,
+    db: &C,
+) -> Result<auction::Model>
+where
+    C: ConnectionTrait + Debug,
+{
+    let mut auction_to_update: auction::ActiveModel =
+        find_auction_by_id(auction_id, db).await?.into();
+    auction_to_update.minimum_bid_amount = ActiveValue::Set(new_minimum_bid_amount);
+    auction_to_update.close_at_timestamp = ActiveValue::Set(new_close_at);
+    Ok(auction_to_update.update(db).await?)
+}
+
+#[instrument]
+pub async fn update_auction_status<C>(
+    auction_id: i64,
+    new_status: AuctionStatus,
+    db: &C,
+) -> Result<auction::Model>
+where
+    C: ConnectionTrait + Debug,
+{
+    let mut auction_to_update: auction::ActiveModel =
+        find_auction_by_id(auction_id, db).await?.into();
+    auction_to_update.status = ActiveValue::Set(new_status);
+    Ok(auction_to_update.update(db).await?)
+}
+
+/// An auction to open. Timing is the caller's to compute — `close_at` comes from
+/// `logic::auction::auction_close_at` so every write site folds in the same clocks.
+#[derive(Clone, Copy, Debug)]
+pub struct NewAuction {
+    pub contract_id: i64,
+    pub kind: AuctionKind,
+    pub minimum_bid_amount: i16,
+    pub start_timestamp: DateTimeWithTimeZone,
+    pub close_at_timestamp: DateTimeWithTimeZone,
+    /// In-season FA only; NULL for the preseason auctions (rules §8.2.2).
+    pub all_bid_deadline_timestamp: Option<DateTimeWithTimeZone>,
+    /// RFA/UFA only: the team that may not bid (rules §6.2.2.3 / §15.3.1).
+    pub original_owner_team_id: Option<i64>,
+}
+
+/// Creates & inserts a new auction, open for bids.
+#[instrument]
+pub async fn insert_new_auction<C>(new_auction: NewAuction, db: &C) -> Result<auction::Model>
+where
+    C: ConnectionTrait + Debug,
+{
     let auction_model_to_insert = auction::ActiveModel {
         id: ActiveValue::NotSet,
-        kind: ActiveValue::Set(kind),
-        minimum_bid_amount: ActiveValue::Set(minimum_bid_amount),
-        start_timestamp: ActiveValue::Set(start_datetime),
-        soft_end_timestamp: ActiveValue::Set(soft_end_timestamp),
-        fixed_end_timestamp: ActiveValue::Set(fixed_end_timestamp),
-        contract_id: ActiveValue::Set(contract_id),
+        kind: ActiveValue::Set(new_auction.kind),
+        status: ActiveValue::Set(AuctionStatus::Open),
+        minimum_bid_amount: ActiveValue::Set(new_auction.minimum_bid_amount),
+        start_timestamp: ActiveValue::Set(new_auction.start_timestamp),
+        close_at_timestamp: ActiveValue::Set(new_auction.close_at_timestamp),
+        all_bid_deadline_timestamp: ActiveValue::Set(new_auction.all_bid_deadline_timestamp),
+        contract_id: ActiveValue::Set(new_auction.contract_id),
+        original_owner_team_id: ActiveValue::Set(new_auction.original_owner_team_id),
         transaction_id: ActiveValue::NotSet,
         created_at: ActiveValue::NotSet,
         updated_at: ActiveValue::NotSet,
@@ -110,6 +353,7 @@ where
     Ok(inserted_model)
 }
 
+/// Pure insert — `logic::auction::place_auction_bid` owns every bid rule (rules §6.4, §8.3).
 #[instrument]
 pub async fn insert_auction_bid<C>(
     auction_id: i64,
@@ -121,31 +365,6 @@ pub async fn insert_auction_bid<C>(
 where
     C: ConnectionTrait + Debug,
 {
-    let auction_model = find_auction_by_id(auction_id, db).await?;
-    let maybe_latest_bid = auction_model.get_latest_bid(db).await?;
-
-    // validate bid amount
-    match maybe_latest_bid {
-        None => {
-            if bid_amount < auction_model.minimum_bid_amount {
-                bail!(
-                    "Auction bid amount ({}) must be greater than the starting price ({}).",
-                    bid_amount,
-                    auction_model.minimum_bid_amount
-                );
-            }
-        }
-        Some(latest_auction_bid) => {
-            if bid_amount <= latest_auction_bid.bid_amount {
-                bail!(
-                    "Auction bid amount ({}) must be greater than the previous bid ({}).",
-                    bid_amount,
-                    latest_auction_bid.bid_amount
-                );
-            }
-        }
-    }
-
     let auction_bid_to_insert = auction_bid::ActiveModel {
         id: ActiveValue::NotSet,
         bid_amount: ActiveValue::Set(bid_amount),

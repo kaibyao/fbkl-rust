@@ -2,6 +2,7 @@
 
 pub mod auction;
 pub mod auction_bid;
+pub mod auction_schedule;
 pub mod contract;
 pub mod deadline;
 pub mod draft_pick;
@@ -10,6 +11,7 @@ pub mod draft_pick_option;
 pub mod job_run;
 pub mod league;
 pub mod league_player;
+pub mod min_bid_tier_config;
 pub mod player;
 pub mod position;
 pub mod real_team;
@@ -25,3 +27,4 @@ pub mod trade_asset;
 pub mod transaction;
 pub mod user;
 pub mod user_registration;
+pub mod veteran_auction_ranking;

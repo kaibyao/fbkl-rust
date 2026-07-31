@@ -2,6 +2,10 @@ use sea_orm::ActiveValue;
 
 use crate::contract::{self, ContractKind, ContractStatus};
 
+/// The unowned placeholder contract an auction is attached to.
+///
+/// `FreeAgent`, not `Veteran`: the pool re-reads this row on every release tick and only accepts
+/// the FA kinds (`VALID_VETERAN_AUCTION_FA_TYPES`); the winning bid turns it into a `Veteran`.
 pub const fn new_contract_for_auction(
     league_id: i64,
     end_of_season_year: i16,
@@ -12,7 +16,7 @@ pub const fn new_contract_for_auction(
         created_at: ActiveValue::NotSet,
         updated_at: ActiveValue::NotSet,
         year_number: ActiveValue::Set(1),
-        kind: ActiveValue::Set(ContractKind::Veteran),
+        kind: ActiveValue::Set(ContractKind::FreeAgent),
         is_ir: ActiveValue::Set(false),
         salary: ActiveValue::Set(1),
         end_of_season_year: ActiveValue::Set(end_of_season_year),

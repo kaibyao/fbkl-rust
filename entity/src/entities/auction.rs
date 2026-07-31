@@ -16,11 +16,16 @@ pub struct Model {
     #[sea_orm(primary_key)]
     pub id: i64,
     pub kind: AuctionKind,
+    pub status: AuctionStatus,
     pub minimum_bid_amount: i16,
     pub start_timestamp: DateTimeWithTimeZone,
-    pub soft_end_timestamp: DateTimeWithTimeZone,
-    pub fixed_end_timestamp: DateTimeWithTimeZone,
+    /// When the auction stops taking bids: `min(last_bid + quiet_window, all_bid_deadline)` clamped to the hard deadline (rules §6.4.4 / §8.3.1-.2). Mutable — rewritten on each bid, each veteran tier slide, and by the crunch-window sweep.
+    pub close_at_timestamp: DateTimeWithTimeZone,
+    /// In-season FA only: the week's Sunday 8pm CT cutoff, rolled +30min per §8.3.2. NULL for the preseason auctions, which the crunch window bounds instead.
+    pub all_bid_deadline_timestamp: Option<DateTimeWithTimeZone>,
     pub contract_id: i64,
+    /// The team that held the player before the auction (RFA/UFA only, rules §6.2.2.3 / §15.3.1). NULL otherwise. That team may not bid.
+    pub original_owner_team_id: Option<i64>,
     /// The auction-completed transaction, set once a winning bid is signed (1:1). NULL while the auction is still open.
     pub transaction_id: Option<i64>,
     pub created_at: DateTimeWithTimeZone,
@@ -93,6 +98,52 @@ pub enum AuctionKind {
     // /// Represents a free agent auction that happens during the league preseason. This is either during the open nomination period that immediately follows the veteran auction, or the week 1 free agent period.
     // #[sea_orm(string_value = "2")]
     // PreseasonFreeAgent,
+}
+
+impl AuctionKind {
+    /// Whether the auction runs in the preseason, which decides both its clocks (the crunch window
+    /// bounds it, not an all-bid deadline — rules §6.4.4) and whether bids are cap- and
+    /// roster-gated (§6.4.1; §8.3.5 exempts in-season free agency alone).
+    ///
+    /// `PreseasonFreeAgent` joins this arm when that mode lands (spec 01).
+    #[must_use]
+    pub const fn is_preseason(self) -> bool {
+        matches!(self, Self::PreseasonVeteranAuction)
+    }
+}
+
+/// Lifecycle of an auction. Replaces the old "open if now < `close_at`" inference.
+#[derive(
+    Debug,
+    Default,
+    Clone,
+    Copy,
+    Eq,
+    PartialEq,
+    Enum,
+    EnumIter,
+    DeriveActiveEnum,
+    Serialize,
+    Deserialize,
+)]
+#[sea_orm(rs_type = "String", db_type = "String(StringLen::None)")]
+pub enum AuctionStatus {
+    /// Scheduled, not yet open for bids.
+    #[sea_orm(string_value = "Pending")]
+    Pending,
+    /// Taking bids.
+    #[default]
+    #[sea_orm(string_value = "Open")]
+    Open,
+    /// Timer elapsed, awaiting `end_*_auction`. RFA auctions also park here for the spec 03 raise/match flow.
+    #[sea_orm(string_value = "Closed")]
+    Closed,
+    /// Winning bid signed to a team.
+    #[sea_orm(string_value = "Completed")]
+    Completed,
+    /// Closed with no bids; the player went back to the free agent pool.
+    #[sea_orm(string_value = "Expired")]
+    Expired,
 }
 
 #[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]

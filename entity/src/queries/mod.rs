@@ -1,4 +1,5 @@
 pub mod auction_queries;
+pub mod auction_schedule_queries;
 pub mod contract_queries;
 pub mod deadline_queries;
 pub mod draft_pick_queries;

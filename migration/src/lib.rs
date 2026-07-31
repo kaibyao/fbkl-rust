@@ -24,6 +24,10 @@ mod m20230217_011454_create_team_update;
 mod m20260609_000001_create_job_run;
 mod m20260722_000001_collapse_transaction_fk_columns;
 mod m20260725_000001_add_player_eligibility_fields;
+mod m20260725_000002_alter_auction_add_status_and_owner;
+mod m20260725_000003_create_auction_schedule_tables;
+mod m20260730_000001_rename_auction_close_timestamps;
+mod m20260731_000001_create_veteran_auction_ranking;
 
 pub struct Migrator;
 
@@ -48,6 +52,10 @@ impl MigratorTrait for Migrator {
             Box::new(m20260609_000001_create_job_run::Migration),
             Box::new(m20260722_000001_collapse_transaction_fk_columns::Migration),
             Box::new(m20260725_000001_add_player_eligibility_fields::Migration),
+            Box::new(m20260725_000002_alter_auction_add_status_and_owner::Migration),
+            Box::new(m20260725_000003_create_auction_schedule_tables::Migration),
+            Box::new(m20260730_000001_rename_auction_close_timestamps::Migration),
+            Box::new(m20260731_000001_create_veteran_auction_ranking::Migration),
         ]
     }
 }
