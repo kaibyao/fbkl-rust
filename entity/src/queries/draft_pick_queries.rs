@@ -1,6 +1,6 @@
 use std::fmt::Debug;
 
-use color_eyre::Result;
+use color_eyre::eyre::{Result, eyre};
 use sea_orm::{
     ActiveModelTrait, ColumnTrait, ConnectionTrait, EntityTrait, LoaderTrait, QueryFilter,
     QueryOrder, TransactionTrait,
@@ -50,6 +50,17 @@ where
         .collect();
 
     Ok(related_draft_picks)
+}
+
+#[instrument]
+pub async fn find_draft_pick_by_id<C>(draft_pick_id: i64, db: &C) -> Result<draft_pick::Model>
+where
+    C: ConnectionTrait + Debug,
+{
+    draft_pick::Entity::find_by_id(draft_pick_id)
+        .one(db)
+        .await?
+        .ok_or_else(|| eyre!("Could not find draft pick ({draft_pick_id})."))
 }
 
 #[instrument]

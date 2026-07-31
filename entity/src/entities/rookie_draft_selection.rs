@@ -14,6 +14,9 @@ pub struct Model {
     pub contract_id: Option<i64>,
     pub draft_pick_id: i64,
     pub league_id: i64,
+    /// Denormalized from `draft_pick.current_owner_team_id` when the slate is built, so a traded
+    /// pick is made by the acquirer (rules §7.2.1 orders by original owner, §12.4 allows trading).
+    pub current_owner_team_id: i64,
     /// The rookie-draft-selection transaction, set when the pick is recorded (1:1).
     pub transaction_id: Option<i64>,
 }
@@ -23,6 +26,7 @@ impl Model {
         league_id: i64,
         contract_id: i64,
         draft_pick_id: i64,
+        current_owner_team_id: i64,
         order: i16,
     ) -> ActiveModel {
         ActiveModel {
@@ -32,6 +36,7 @@ impl Model {
             contract_id: ActiveValue::Set(Some(contract_id)),
             draft_pick_id: ActiveValue::Set(draft_pick_id),
             league_id: ActiveValue::Set(league_id),
+            current_owner_team_id: ActiveValue::Set(current_owner_team_id),
             transaction_id: ActiveValue::NotSet,
         }
     }

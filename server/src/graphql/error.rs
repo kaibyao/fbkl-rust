@@ -41,6 +41,20 @@ pub enum ErrorCode {
     BidOriginalOwner,
     /// Season config (tiers, ranked list) is locked because the veteran auction pool is assembled (rules §6.3.6).
     VeteranAuctionStarted,
+    /// The rookie draft has not been started for this league season.
+    DraftNotStarted,
+    /// The referenced selection is not the one on the clock.
+    DraftNotOnTheClock,
+    /// The referenced selection was already used or passed.
+    DraftSelectionResolved,
+    /// The player is not in the rookie draft eligible pool (rules §7.5).
+    DraftPlayerNotEligible,
+    /// The player was dropped during this draft and cannot be re-drafted (rules §7.3.4).
+    DraftReDraftBanned,
+    /// Drafting would leave the picking team over its roster limit (rules §7.3.2).
+    DraftNoRosterSpace,
+    /// The season's lottery has already been drawn and cannot be re-rolled (rules §7.2.5).
+    DraftLotteryAlreadyRun,
     /// Server-side fault; message is deliberately generic.
     Internal,
 }
@@ -62,6 +76,13 @@ impl ErrorCode {
             Self::BidNoRosterSpace => "BID_NO_ROSTER_SPACE",
             Self::BidOriginalOwner => "BID_ORIGINAL_OWNER",
             Self::VeteranAuctionStarted => "VETERAN_AUCTION_STARTED",
+            Self::DraftNotStarted => "DRAFT_NOT_STARTED",
+            Self::DraftNotOnTheClock => "DRAFT_NOT_ON_THE_CLOCK",
+            Self::DraftSelectionResolved => "DRAFT_SELECTION_RESOLVED",
+            Self::DraftPlayerNotEligible => "DRAFT_PLAYER_NOT_ELIGIBLE",
+            Self::DraftReDraftBanned => "DRAFT_RE_DRAFT_BANNED",
+            Self::DraftNoRosterSpace => "DRAFT_NO_ROSTER_SPACE",
+            Self::DraftLotteryAlreadyRun => "DRAFT_LOTTERY_ALREADY_RUN",
             Self::Internal => "INTERNAL",
         }
     }
@@ -86,6 +107,13 @@ impl ErrorCode {
             Self::VeteranAuctionStarted => {
                 "the veteran auction has started, so this season's config is locked"
             }
+            Self::DraftNotStarted => "the rookie draft has not started",
+            Self::DraftNotOnTheClock => "that pick is not on the clock",
+            Self::DraftSelectionResolved => "that pick has already been used or passed",
+            Self::DraftPlayerNotEligible => "that player is not eligible for the rookie draft",
+            Self::DraftReDraftBanned => "that player was dropped during this draft",
+            Self::DraftNoRosterSpace => "drafting would exceed your roster limit",
+            Self::DraftLotteryAlreadyRun => "this season's lottery has already been drawn",
             Self::Internal => "internal server error",
         }
     }

@@ -18,6 +18,7 @@ chrono = "0.4"
 color-eyre = "0.6.5"
 dotenv = "0.15.0"
 fbkl-auth = {path = "../auth"}
+fbkl-constants = {path = "../constants"}
 fbkl-entity = {path = "../entity"}
 fbkl-jobs = {path = "../jobs"}
 fbkl-logic = {path = "../logic"}
