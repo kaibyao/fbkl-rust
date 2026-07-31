@@ -45,19 +45,20 @@ No `todo!()`/`unimplemented!()`/empty bodies anywhere in `logic/`. Rule values p
 - `external_trade_invalidation` — other active trades referencing any just-traded asset (same league + season) set to `InvalidatedByExternalTrade`; affected options invalidated too.
 - **Gaps:** No salary-cap / roster-size validation at trade time (validation is asset-ownership only). `insert_team_updates_from_completed_trade` returns an error if a team's pre-trade salary is missing.
 
-### auction ✅ (🟡 close timing being reworked — spec 01)
+### auction ✅
 - `place_auction_bid` (`place_bid.rs`) — row-locked bid entry point: status/time gates, RFA original-owner guard, opening-minimum + $1-increment, and the §6.4.1 cap/roster "null and void" check (`validate_bid_cap_and_roster`, veteran-only per §8.3.5, with the self-counting swap for re-bids). Rejections are typed (`BidRejection`) so GraphQL maps each to its own error code.
-- `assemble_veteran_auction_pool` / `open_scheduled_auction` / `slide_unbid_auctions_down_a_tier` (`assemble_veteran_pool.rs`) — builds `auction_schedule` + tier assignments from `eligibility::build_veteran_auction_pool`, opens rows idempotently on their release date, slides unbid auctions one tier per day. Its two per-season inputs (§6.3.6) are commissioner-entered via `setVeteranAuctionMinBidTiers` / `setVeteranAuctionRanking` and read back from `min_bid_tier_config` + `veteran_auction_ranking`; re-entry replaces a season's list rather than appending. Assembly is dispatched by the `PreseasonVeteranAuctionStart` deadline and returns an already-assembled season's rows untouched, so a retried deadline cannot build a second pool.
+- `assemble_veteran_auction_pool` / `open_scheduled_auction` / `slide_unbid_auctions_down_a_tier` (`assemble_veteran_pool.rs`) — builds `auction_schedule` + tier assignments from `eligibility::build_veteran_auction_pool`, opens rows idempotently on their release date, slides unbid auctions one tier per day. Its two per-season inputs (§6.3.6) are commissioner-entered via `setVeteranAuctionMinBidTiers` / `setVeteranAuctionRanking` and read back from `min_bid_tier_config` + `veteran_auction_ranking`; re-entry replaces a season's list rather than appending, and both lock once the pool is assembled. Assembly is dispatched by the `PreseasonVeteranAuctionStart` deadline and returns an already-assembled season's rows untouched, so a retried deadline cannot build a second pool.
 - FA auction (`end_fa_auction`, `open_in_season_fa_auction`, `in_season_fa_minimum_bid`, `get_or_create_player_contract_for_fa_auction`) — opens on nomination (min bid = $1 or previous in-season salary, §8.3.3), gated on the Friday opening-bid deadline; close routes through `auction_close_outcome`.
 - Preseason veteran auction (`end_veteran_auction`, `get_or_create_player_contract_for_veteran_auction`) — closes through the same `auction_close_outcome`: no bid ⇒ expire contract (player → $1 FA), RFA ⇒ `Closed` awaiting spec 03, else sign. Valid FA types: FreeAgent, RFA, UFA-OriginalTeam, UFA-Veteran.
 - `sign_auction_contract_to_team` — signs winning contract, inserts Auction `transaction` + a `team_update` (status Pending, `AddViaAuction`).
-- **Known gaps (spec 01 "Timing rules"):** close timing becomes one `close_at_timestamp` (clamped)
-  plus a nullable, mutable `all_bid_deadline_timestamp`. Today: `fixed_end` is NOT NULL and defaults
-  to start+48h, so it cuts off live veteran bidding; unbid veteran auctions expire at 24h before the
-  tier slide can ever run; the §8.3.2 in-season extension chain was removed in `5c67a1c` and needs
-  restoring with its two trigger widths (the `59e607c` version used a flat 30 min and its test hid
-  that); the preseason crunch window (1h quiet before `PreseasonFinalRosterLock`) is absent and the 1h
-  term in `is_due_for_close` is vacuous. `AuctionKind::PreseasonFreeAgent` is unbuilt.
+- Close timing (spec 01 "Timing rules"): one clamped `close_at_timestamp` computed everywhere by
+  `auction_close_at()`, plus a nullable `all_bid_deadline_timestamp` (in-season FA only, rolled
+  +30min by the §8.3.2 extension chain with its two trigger widths). The tier slide runs before the
+  close tick and renews the clock; the preseason crunch window (1h quiet before
+  `PreseasonFinalRosterLock`, opening no earlier than 8am CT) shortens open auctions per tick.
+- **Known gaps:** `AuctionKind::PreseasonFreeAgent` is unbuilt (fbkl-rust-etg);
+  `open_in_season_fa_auction` has no production caller and does not insert the nomination bid
+  (fbkl-rust-wa8); league time is a fixed UTC-6, one hour off during DST (fbkl-rust-6qt).
 
 ### annual_contract_advancement ✅
 - `advance_league_contracts` — at PreseasonStart: expire FreeAgent contracts, advance all other kinds; inserts a `PreseasonStart` transaction + per-team `team_update`s (status Done). Requires PreseasonStart deadline.
