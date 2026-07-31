@@ -1,10 +1,7 @@
 //! The `PreseasonVeteranAuctionStart` deadline is what puts the veteran auction in motion (§6.3.1):
 //! processing it assembles the pool, and the release tick then opens each row on its date.
 
-mod common;
-
 use chrono::Days;
-use common::{TestLeague, central};
 use fbkl_entity::{
     auction::AuctionStatus,
     auction_schedule_queries,
@@ -14,6 +11,7 @@ use fbkl_entity::{
 };
 use fbkl_jobs::run_veteran_auction_release_tick;
 use fbkl_logic::auction::assemble_veteran_auction_pool;
+use fbkl_test_support::{TestLeague, central};
 use fbkl_transaction_processor::{ProcessOutcome, process_deadline};
 
 const END_OF_SEASON_YEAR: i16 = 2026;

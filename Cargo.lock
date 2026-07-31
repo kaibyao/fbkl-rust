@@ -1390,10 +1390,9 @@ version = "0.1.0"
 dependencies = [
  "chrono",
  "color-eyre",
- "dotenvy",
  "fbkl-entity",
  "fbkl-logic",
- "fbkl-migration",
+ "fbkl-test-support",
  "fbkl-transaction-processor",
  "tokio",
  "tracing",
@@ -1453,6 +1452,7 @@ dependencies = [
  "fbkl-entity",
  "fbkl-jobs",
  "fbkl-logic",
+ "fbkl-test-support",
  "fbkl-transaction-processor",
  "serde",
  "serde_json",
@@ -1465,6 +1465,15 @@ dependencies = [
  "tower-sessions-sqlx-store",
  "tracing",
  "tracing-subscriber",
+]
+
+[[package]]
+name = "fbkl-test-support"
+version = "0.1.0"
+dependencies = [
+ "dotenvy",
+ "fbkl-entity",
+ "fbkl-migration",
 ]
 
 [[package]]

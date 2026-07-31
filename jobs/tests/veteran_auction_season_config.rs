@@ -4,14 +4,12 @@
 //! Both are stored per league season and read by pool assembly, so entry has to be re-runnable —
 //! a commissioner fixing a typo must not end up with two overlapping lists.
 
-mod common;
-
-use common::{TestLeague, central};
 use fbkl_entity::{
     auction_schedule_queries::{find_min_bid_tiers, find_veteran_auction_ranked_player_ids},
     deadline::DeadlineKind,
 };
 use fbkl_logic::auction::assemble_veteran_auction_pool;
+use fbkl_test_support::{TestLeague, central};
 
 const END_OF_SEASON_YEAR: i16 = 2026;
 const TIER_MIN_BID_AMOUNTS: [i16; 4] = [20, 15, 10, 5];

@@ -1,0 +1,13 @@
+[package]
+name = "fbkl-test-support"
+version = "0.1.0"
+edition = "2024"
+publish = false
+
+[dependencies]
+dotenvy = "0.15.7"
+fbkl-entity = {path = "../entity"}
+fbkl-migration = {path = "../migration"}
+
+[lints]
+workspace = true

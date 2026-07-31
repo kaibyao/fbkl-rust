@@ -1,9 +1,6 @@
 //! End-to-end cover for the veteran auction's assemble -> release path (rules §6.3), the part no
 //! pure-function test can reach: the pooled contract is written by one call and re-read by the next.
 
-mod common;
-
-use common::{TestLeague, central};
 use fbkl_entity::{
     auction::{self, AuctionStatus},
     contract::ContractKind,
@@ -11,6 +8,7 @@ use fbkl_entity::{
 };
 use fbkl_jobs::run_veteran_auction_release_tick;
 use fbkl_logic::auction::assemble_veteran_auction_pool;
+use fbkl_test_support::{TestLeague, central};
 
 const END_OF_SEASON_YEAR: i16 = 2026;
 const TIER_MIN_BID_AMOUNTS: [i16; 4] = [20, 15, 10, 5];

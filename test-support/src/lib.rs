@@ -6,8 +6,6 @@
 //! is unset the harness returns `None` and the test skips, so the suite still passes without a
 //! database.
 
-#![allow(dead_code)] // Shared across test binaries; not every binary uses every helper.
-
 use fbkl_entity::{
     auction::{self, AuctionKind},
     auction_queries,
@@ -19,7 +17,7 @@ use fbkl_entity::{
     player::{self, NbaRosterSource, PlayerStatus},
     position, real_team,
     sea_orm::{
-        ActiveValue, ConnectionTrait, Database, DatabaseConnection, EntityTrait,
+        ActiveModelTrait, ActiveValue, ConnectionTrait, Database, DatabaseConnection, EntityTrait,
         prelude::{Date, DateTimeWithTimeZone},
     },
     team,
@@ -133,10 +131,13 @@ impl TestLeague {
         .expect("set veteran auction ranking");
     }
 
-    /// An owner of the test team, i.e. the `team_user_id` an auction bid is placed under.
-    pub async fn add_team_user(&self) -> i64 {
+    /// A member of the test team in the given league role, i.e. who acts on the team's behalf.
+    ///
+    /// One member per role: the user's email is derived from the role so a second call with the
+    /// same one fails loudly instead of silently seeding a duplicate owner.
+    pub async fn add_team_user(&self, league_role: LeagueRole) -> team_user::Model {
         let user_id = user::Entity::insert(user::ActiveModel {
-            email: ActiveValue::Set(format!("owner{}@example.com", self.team_id)),
+            email: ActiveValue::Set(format!("{league_role:?}-{}@example.com", self.team_id)),
             hashed_password: ActiveValue::Set("not-a-real-hash".to_owned()),
             ..Default::default()
         })
@@ -145,18 +146,17 @@ impl TestLeague {
         .expect("insert user")
         .last_insert_id;
 
-        team_user::Entity::insert(team_user::ActiveModel {
-            league_role: ActiveValue::Set(LeagueRole::TeamOwner),
-            nickname: ActiveValue::Set("Test owner".to_owned()),
+        team_user::ActiveModel {
+            league_role: ActiveValue::Set(league_role),
+            nickname: ActiveValue::Set(format!("Test {league_role:?}")),
             first_end_of_season_year: ActiveValue::Set(self.end_of_season_year),
             team_id: ActiveValue::Set(self.team_id),
             user_id: ActiveValue::Set(user_id),
             ..Default::default()
-        })
-        .exec(&self.db)
+        }
+        .insert(&self.db)
         .await
         .expect("insert team user")
-        .last_insert_id
     }
 
     /// The veteran auction opened for `player_id`, whatever state it has since reached.

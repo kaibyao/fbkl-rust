@@ -10,6 +10,7 @@ members = [
   "logic",
   "migration",
   "server",
+  "test-support",
   "transaction-processor"
 ]
 

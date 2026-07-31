@@ -2,23 +2,22 @@
 //! tick re-processes rows whose auction has already settled. These cover what that must not do:
 //! re-open a settled player's auction, or let one bad row cost the league the rest of its tick.
 
-mod common;
-
 use std::{
     io::Write,
     sync::{Arc, Mutex},
 };
 
 use chrono::{NaiveDate, TimeDelta, Utc};
-use common::{TestLeague, central};
 use fbkl_entity::{
     auction::{self, AuctionStatus},
     auction_queries,
     deadline::DeadlineKind,
     sea_orm::{ConnectionTrait, EntityTrait, prelude::DateTimeWithTimeZone},
+    team_user::LeagueRole,
 };
 use fbkl_jobs::run_veteran_auction_release_tick;
 use fbkl_logic::auction::end_veteran_auction;
+use fbkl_test_support::{TestLeague, central};
 
 const END_OF_SEASON_YEAR: i16 = 2026;
 const TIER_MIN_BID_AMOUNTS: [i16; 4] = [20, 15, 10, 5];
@@ -31,7 +30,7 @@ async fn a_completed_auction_does_not_stall_the_rest_of_the_league_tick() {
     let Some(league) = seeded_league("vet_auction_completed_row").await else {
         return;
     };
-    let team_user_id = league.add_team_user().await;
+    let team_user_id = league.add_team_user(LeagueRole::TeamOwner).await.id;
     let signed_player_id = league.add_veteran_player("Signed Vet").await;
     let unbid_player_id = league.add_veteran_player("Unbid Vet").await;
     let later_player_id = league.add_veteran_player("Later Vet").await;
@@ -204,7 +203,7 @@ async fn a_failing_row_still_leaves_the_crunch_sweep_to_run() {
     assert_eq!(opened_auction.close_at_timestamp, hard_deadline);
     auction_queries::insert_auction_bid(
         opened_auction.id,
-        league.add_team_user().await,
+        league.add_team_user(LeagueRole::TeamOwner).await.id,
         TIER_MIN_BID_AMOUNTS[0],
         None,
         &league.db,
