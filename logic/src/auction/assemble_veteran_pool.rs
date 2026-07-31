@@ -52,32 +52,29 @@ static CARRY_SALARY_CONTRACT_KINDS: &[ContractKind] = &[
 /// Creates the pooled contract for every eligible unkept veteran and writes the `auction_schedule`
 /// rows that the daily release tick consumes. Both per-season commissioner inputs come from the
 /// database: pooled players outside the ranked top-150 (§6.3.2) are open-nomination.
+///
+/// Idempotent: a season whose schedule already exists is returned as-is, so a retried
+/// `PreseasonVeteranAuctionStart` cannot assemble a second pool.
 #[instrument(skip(db))]
 pub async fn assemble_veteran_auction_pool<C>(
     league_id: i64,
     end_of_season_year: i16,
     db: &C,
-) -> Result<Vec<NewAuctionScheduleRow>>
+) -> Result<Vec<auction_schedule::Model>>
 where
     C: ConnectionTrait + TransactionTrait + Debug,
 {
-    let ranked_player_ids = auction_schedule_queries::find_veteran_auction_ranked_player_ids(
+    let existing_schedule_rows = auction_schedule_queries::find_auction_schedule_rows_for_season(
         league_id,
         end_of_season_year,
         db,
     )
     .await?;
-    if ranked_player_ids.is_empty() {
-        bail!(
-            "League {league_id} has no ranked veteran auction list for season {end_of_season_year}."
-        );
+    if !existing_schedule_rows.is_empty() {
+        return Ok(existing_schedule_rows);
     }
 
-    let tiers = auction_schedule_queries::find_min_bid_tiers(league_id, end_of_season_year, db)
-        .await?
-        .into_iter()
-        .map(|tier_model| tier_model.tier_index)
-        .collect::<Vec<_>>();
+    let (ranked_player_ids, tiers) = find_season_inputs(league_id, end_of_season_year, db).await?;
     let Some(&bottom_tier) = tiers.last() else {
         bail!(
             "League {league_id} has no configured minimum bid tiers for season {end_of_season_year}."
@@ -160,7 +157,41 @@ where
 
     persist_pool(league_id, end_of_season_year, &rows, db).await?;
 
-    Ok(rows)
+    auction_schedule_queries::find_auction_schedule_rows_for_season(
+        league_id,
+        end_of_season_year,
+        db,
+    )
+    .await
+}
+
+/// The season's two commissioner inputs (§6.3.6): the ranked nomination list and the tier indexes.
+async fn find_season_inputs<C>(
+    league_id: i64,
+    end_of_season_year: i16,
+    db: &C,
+) -> Result<(Vec<i64>, Vec<i16>)>
+where
+    C: ConnectionTrait + Debug,
+{
+    let ranked_player_ids = auction_schedule_queries::find_veteran_auction_ranked_player_ids(
+        league_id,
+        end_of_season_year,
+        db,
+    )
+    .await?;
+    if ranked_player_ids.is_empty() {
+        bail!(
+            "League {league_id} has no ranked veteran auction list for season {end_of_season_year}."
+        );
+    }
+
+    let tiers = auction_schedule_queries::find_min_bid_tiers(league_id, end_of_season_year, db)
+        .await?
+        .into_iter()
+        .map(|tier_model| tier_model.tier_index)
+        .collect();
+    Ok((ranked_player_ids, tiers))
 }
 
 /// Writes the pooled contracts and their schedule rows as one unit, so a half-built pool never

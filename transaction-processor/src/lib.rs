@@ -29,7 +29,7 @@ use fbkl_entity::{
 };
 use fbkl_logic::{
     annual_contract_advancement::advance_league_contracts,
-    auction::{end_fa_auction, end_veteran_auction},
+    auction::{assemble_veteran_auction_pool, end_fa_auction, end_veteran_auction},
     deadline_processing::{lock_rosters, process_keeper_deadline_transaction},
 };
 use tracing::{error, info, instrument};
@@ -237,9 +237,18 @@ async fn dispatch_deadline(
         DeadlineKind::PreseasonFinalRosterLock
         | DeadlineKind::Week1RosterLock
         | DeadlineKind::InSeasonRosterLock => lock_rosters(deadline_model, txn).await,
+        // §6.3.1: this deadline builds the season's release schedule; the tick then opens each row on its date.
+        DeadlineKind::PreseasonVeteranAuctionStart => {
+            assemble_veteran_auction_pool(
+                deadline_model.league_id,
+                deadline_model.end_of_season_year,
+                txn,
+            )
+            .await?;
+            Ok(())
+        }
         // Auction opens/closes/tier slides run off `fbkl_jobs`' per-tick auction discovery, and the §8.2 weekly nomination window is enforced at read time in `open_in_season_fa_auction`.
-        DeadlineKind::PreseasonVeteranAuctionStart
-        | DeadlineKind::PreseasonFaAuctionStart
+        DeadlineKind::PreseasonFaAuctionStart
         | DeadlineKind::PreseasonFaAuctionEnd
         | DeadlineKind::Week1FreeAgentAuctionStart
         | DeadlineKind::Week1FreeAgentAuctionEnd => {

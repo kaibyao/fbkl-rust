@@ -151,7 +151,7 @@ New table **`job_run`** (+ migration in `migration/`, +`entity/src/queries/job_r
 |---------|---------------------|-------|
 | `PreseasonStart` | `annual_contract_advancement::advance_league_contracts` | expire FAs, advance all other contracts a year (§14.2) |
 | `PreseasonKeeper` | `deadline_processing::keeper_deadline::process_keeper_deadline_transaction` | §14.4; also announces RFAs/UFAs. Replaces stub `jobs::process_keepers` |
-| `PreseasonVeteranAuctionStart` | (auction engine open, spec 01) | begin veteran auction; RFA week first (§6.3.1, spec 03) |
+| `PreseasonVeteranAuctionStart` | `auction::assemble_veteran_auction_pool` | writes the season's release schedule; RFA week first (§6.3.1, spec 03). The tick then opens each row on its date |
 | `PreseasonFaAuctionStart` | (open FA bidding, spec 01) | open nominations begin after last predetermined player (§6.3.2) |
 | `PreseasonFaAuctionEnd` | (close preseason FA nominations) | §6 preseason close |
 | `PreseasonRookieDraftStart` | rookie-draft start; unlocks +2yr pick trading (§12.4) | rookie draft engine (out of scope here / spec TBD) |

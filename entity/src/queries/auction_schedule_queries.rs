@@ -58,6 +58,26 @@ where
     Ok(())
 }
 
+/// One season's whole release schedule in release order; empty until the pool is assembled.
+#[instrument]
+pub async fn find_auction_schedule_rows_for_season<C>(
+    league_id: i64,
+    end_of_season_year: i16,
+    db: &C,
+) -> Result<Vec<auction_schedule::Model>>
+where
+    C: ConnectionTrait + Debug,
+{
+    let schedule_models = auction_schedule::Entity::find()
+        .filter(auction_schedule::Column::LeagueId.eq(league_id))
+        .filter(auction_schedule::Column::EndOfSeasonYear.eq(end_of_season_year))
+        .order_by_asc(auction_schedule::Column::ScheduledReleaseDate)
+        .order_by_asc(auction_schedule::Column::NominationRank)
+        .all(db)
+        .await?;
+    Ok(schedule_models)
+}
+
 /// Schedule rows across all leagues whose release date has arrived, ranked players first (§6.3.3).
 ///
 /// Rows stay due once their date passes; opening a row whose auction already exists — open or
