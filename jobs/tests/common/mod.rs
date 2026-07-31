@@ -9,6 +9,9 @@
 #![allow(dead_code)] // Shared across test binaries; not every binary uses every helper.
 
 use fbkl_entity::{
+    auction::{self, AuctionKind},
+    auction_queries,
+    auction_schedule_queries::{self, NewAuctionScheduleRow},
     contract::{self, ContractKind, ContractStatus},
     contract_queries,
     deadline::{self, DeadlineKind},
@@ -17,9 +20,11 @@ use fbkl_entity::{
     position, real_team,
     sea_orm::{
         ActiveValue, ConnectionTrait, Database, DatabaseConnection, EntityTrait,
-        prelude::DateTimeWithTimeZone,
+        prelude::{Date, DateTimeWithTimeZone},
     },
     team,
+    team_user::{self, LeagueRole},
+    user,
 };
 use fbkl_migration::{Migrator, MigratorTrait};
 
@@ -118,6 +123,68 @@ impl TestLeague {
             .await
             .expect("insert min bid tier");
         }
+    }
+
+    /// An owner of the test team, i.e. the `team_user_id` an auction bid is placed under.
+    pub async fn add_team_user(&self) -> i64 {
+        let user_id = user::Entity::insert(user::ActiveModel {
+            email: ActiveValue::Set(format!("owner{}@example.com", self.team_id)),
+            hashed_password: ActiveValue::Set("not-a-real-hash".to_owned()),
+            ..Default::default()
+        })
+        .exec(&self.db)
+        .await
+        .expect("insert user")
+        .last_insert_id;
+
+        team_user::Entity::insert(team_user::ActiveModel {
+            league_role: ActiveValue::Set(LeagueRole::TeamOwner),
+            nickname: ActiveValue::Set("Test owner".to_owned()),
+            first_end_of_season_year: ActiveValue::Set(self.end_of_season_year),
+            team_id: ActiveValue::Set(self.team_id),
+            user_id: ActiveValue::Set(user_id),
+            ..Default::default()
+        })
+        .exec(&self.db)
+        .await
+        .expect("insert team user")
+        .last_insert_id
+    }
+
+    /// The veteran auction opened for `player_id`, whatever state it has since reached.
+    pub async fn find_veteran_auction(&self, player_id: i64) -> Option<auction::Model> {
+        auction_queries::find_auction_for_player_in_season(
+            self.league_id,
+            self.end_of_season_year,
+            player_id,
+            AuctionKind::PreseasonVeteranAuction,
+            &self.db,
+        )
+        .await
+        .expect("find veteran auction")
+    }
+
+    /// One veteran-auction release, as pool assembly would have written it (rules §6.3.3).
+    pub async fn add_schedule_row(
+        &self,
+        player_id: i64,
+        scheduled_release_date: Date,
+        min_bid_tier: i16,
+    ) {
+        auction_schedule_queries::insert_auction_schedule_rows(
+            self.league_id,
+            self.end_of_season_year,
+            vec![NewAuctionScheduleRow {
+                player_id,
+                scheduled_release_date,
+                nomination_rank: None,
+                min_bid_tier,
+                is_rfa_week: false,
+            }],
+            &self.db,
+        )
+        .await
+        .expect("insert auction schedule row");
     }
 
     /// A player who has played in an earlier NBA season, i.e. veteran-auction-eligible (§3.1.2).

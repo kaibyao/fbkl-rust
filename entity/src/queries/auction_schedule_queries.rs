@@ -53,8 +53,10 @@ where
     Ok(())
 }
 
-/// Schedule rows across all leagues whose release date has arrived, ranked players first
-/// (rules §6.3.3). Rows stay due once their date passes; opening an already-opened row is a no-op.
+/// Schedule rows across all leagues whose release date has arrived, ranked players first (§6.3.3).
+///
+/// Rows stay due once their date passes; opening a row whose auction already exists — open or
+/// settled — is a no-op, so there is no consumed state to filter on here.
 #[instrument]
 pub async fn find_auction_schedule_rows_due_for_release<C>(
     today: Date,

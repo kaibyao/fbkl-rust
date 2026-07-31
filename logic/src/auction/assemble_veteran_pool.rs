@@ -172,8 +172,10 @@ where
 /// Opens the auction for one released schedule row (rules §6.3.3). RFA/UFA auctions carry their
 /// original owner so bids from that team are rejected and their close routes to RFA resolution.
 ///
-/// Idempotent: a schedule row stays due after its release date passes, so an already-opened row
-/// returns its existing auction instead of opening a second one.
+/// Idempotent: a schedule row stays due after its release date passes, so a row whose auction was
+/// already opened returns that auction instead of opening a second one. The lookup is by player
+/// rather than by pooled contract so it survives the contract chain advancing when the auction
+/// settles — signing replaces the pooled contract, expiring leaves no active one at all.
 #[instrument(skip(db))]
 pub async fn open_scheduled_auction<C>(
     schedule_row: &auction_schedule::Model,
@@ -183,6 +185,18 @@ pub async fn open_scheduled_auction<C>(
 where
     C: ConnectionTrait + Debug,
 {
+    if let Some(existing_auction) = auction_queries::find_auction_for_player_in_season(
+        schedule_row.league_id,
+        schedule_row.end_of_season_year,
+        schedule_row.player_id,
+        AuctionKind::PreseasonVeteranAuction,
+        db,
+    )
+    .await?
+    {
+        return Ok(existing_auction);
+    }
+
     let pooled_contract = get_or_create_player_contract_for_veteran_auction(
         schedule_row.league_id,
         schedule_row.end_of_season_year,
@@ -190,12 +204,6 @@ where
         db,
     )
     .await?;
-
-    if let Some(existing_auction) =
-        auction_queries::find_auction_by_contract_id(pooled_contract.id, db).await?
-    {
-        return Ok(existing_auction);
-    }
 
     let minimum_bid_amount = if CARRY_SALARY_CONTRACT_KINDS.contains(&pooled_contract.kind) {
         pooled_contract.salary

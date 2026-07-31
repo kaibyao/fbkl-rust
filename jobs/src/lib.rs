@@ -207,7 +207,10 @@ pub async fn run_veteran_auction_release_tick(
         match run_preseason_auction_tick(db, &schedule_rows, league_id, end_of_season_year, now)
             .await
         {
-            Ok(()) => summary.processed += 1,
+            Ok(failed_rows) => {
+                summary.processed += 1;
+                summary.failed += failed_rows;
+            }
             Err(release_error) => {
                 summary.errors += 1;
                 error!(
@@ -225,9 +228,17 @@ async fn run_preseason_auction_tick(
     league_id: i64,
     end_of_season_year: i16,
     now: DateTimeWithTimeZone,
-) -> Result<()> {
+) -> Result<usize> {
+    // One unopenable row must not cost the league its tier slide, an unbid auction's only clock.
+    let mut failed_rows = 0;
     for schedule_row in schedule_rows {
-        open_scheduled_auction(schedule_row, now, db).await?;
+        if let Err(open_error) = open_scheduled_auction(schedule_row, now, db).await {
+            failed_rows += 1;
+            error!(
+                "Failed to open scheduled veteran auction (schedule row id = {}, player id = {}): {open_error:?}",
+                schedule_row.id, schedule_row.player_id
+            );
+        }
     }
     slide_unbid_auctions_down_a_tier(league_id, end_of_season_year, now, db).await?;
     shorten_open_auctions_for_crunch_window(
@@ -238,7 +249,7 @@ async fn run_preseason_auction_tick(
         db,
     )
     .await?;
-    Ok(())
+    Ok(failed_rows)
 }
 
 /// Spawns the scheduler loop on the tokio runtime. Tick errors are logged, never fatal —

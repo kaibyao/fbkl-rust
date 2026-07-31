@@ -6,9 +6,7 @@ mod common;
 use common::{TestLeague, central};
 use fbkl_entity::{
     auction::{self, AuctionStatus},
-    auction_queries,
     contract::ContractKind,
-    contract_queries,
     deadline::DeadlineKind,
 };
 use fbkl_jobs::run_veteran_auction_release_tick;
@@ -92,18 +90,9 @@ async fn a_pooled_never_owned_veteran_opens_at_his_tier_minimum() {
     );
 }
 
-/// The one open auction whose pooled contract belongs to `player_id`.
 async fn open_auction_for(league: &TestLeague, player_id: i64) -> auction::Model {
-    let pooled_contract =
-        contract_queries::find_active_contracts_in_league(league.league_id, &league.db)
-            .await
-            .expect("find active contracts")
-            .into_iter()
-            .find(|contract_model| contract_model.player_id == Some(player_id))
-            .unwrap_or_else(|| panic!("player {player_id} has no pooled contract"));
-
-    auction_queries::find_auction_by_contract_id(pooled_contract.id, &league.db)
+    league
+        .find_veteran_auction(player_id)
         .await
-        .expect("find auction")
         .unwrap_or_else(|| panic!("player {player_id} has no open auction"))
 }

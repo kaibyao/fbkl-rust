@@ -167,17 +167,29 @@ where
     Ok(league_seasons)
 }
 
-/// The auction for a given pooled contract, if one was already opened.
+/// The auction of the given kind already opened for this player in the league/season, whatever
+/// state it has since reached.
+///
+/// Keyed off the auctioned contract's player rather than the pooled contract's id: settling an
+/// auction advances the player's contract chain past the pooled contract, so a caller holding only
+/// a player id can no longer find the pooled contract to look the auction up by.
 #[instrument]
-pub async fn find_auction_by_contract_id<C>(
-    contract_id: i64,
+pub async fn find_auction_for_player_in_season<C>(
+    league_id: i64,
+    end_of_season_year: i16,
+    player_id: i64,
+    kind: AuctionKind,
     db: &C,
 ) -> Result<Option<auction::Model>>
 where
     C: ConnectionTrait + Debug,
 {
     let auction_model = auction::Entity::find()
-        .filter(auction::Column::ContractId.eq(contract_id))
+        .join(JoinType::InnerJoin, auction::Relation::Contract.def())
+        .filter(auction::Column::Kind.eq(kind))
+        .filter(contract::Column::LeagueId.eq(league_id))
+        .filter(contract::Column::EndOfSeasonYear.eq(end_of_season_year))
+        .filter(contract::Column::PlayerId.eq(player_id))
         .one(db)
         .await?;
     Ok(auction_model)
