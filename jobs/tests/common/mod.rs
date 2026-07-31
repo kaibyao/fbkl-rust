@@ -15,7 +15,7 @@ use fbkl_entity::{
     contract::{self, ContractKind, ContractStatus},
     contract_queries,
     deadline::{self, DeadlineKind},
-    league, min_bid_tier_config,
+    league,
     player::{self, NbaRosterSource, PlayerStatus},
     position, real_team,
     sea_orm::{
@@ -111,18 +111,26 @@ impl TestLeague {
 
     /// Minimum-bid tiers in the given order, top tier first (rules §6.3.6).
     pub async fn add_min_bid_tiers(&self, min_bid_amounts: &[i16]) {
-        for (tier_index, min_bid_amount) in min_bid_amounts.iter().enumerate() {
-            min_bid_tier_config::Entity::insert(min_bid_tier_config::ActiveModel {
-                league_id: ActiveValue::Set(self.league_id),
-                end_of_season_year: ActiveValue::Set(self.end_of_season_year),
-                tier_index: ActiveValue::Set(i16::try_from(tier_index).expect("tier index fits")),
-                min_bid_amount: ActiveValue::Set(*min_bid_amount),
-                ..Default::default()
-            })
-            .exec(&self.db)
-            .await
-            .expect("insert min bid tier");
-        }
+        auction_schedule_queries::set_min_bid_tiers(
+            self.league_id,
+            self.end_of_season_year,
+            min_bid_amounts,
+            &self.db,
+        )
+        .await
+        .expect("set min bid tiers");
+    }
+
+    /// The season's ranked nomination list, best player first (rules §6.3.2).
+    pub async fn add_ranked_players(&self, ranked_player_ids: &[i64]) {
+        auction_schedule_queries::set_veteran_auction_ranking(
+            self.league_id,
+            self.end_of_season_year,
+            ranked_player_ids,
+            &self.db,
+        )
+        .await
+        .expect("set veteran auction ranking");
     }
 
     /// An owner of the test team, i.e. the `team_user_id` an auction bid is placed under.

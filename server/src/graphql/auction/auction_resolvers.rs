@@ -1,5 +1,8 @@
 //! Auction reads plus bidding. Auctions open and settle on the scheduler tick, never as a direct
 //! mutation — the only auction mutation an owner has is `placeBid`.
+//!
+//! The commissioner's two per-season veteran-auction inputs (§6.3.6) also live here, since they are
+//! what pool assembly reads when the auction-start deadline fires.
 
 use async_graphql::{Context, Error as GraphQlError, Object, Result, SimpleObject};
 use chrono::Utc;
@@ -10,6 +13,9 @@ use fbkl_entity::{
     auction_queries::{
         find_auction_bids, find_auction_by_id, find_open_auctions_in_league,
         find_winning_bids_for_team,
+    },
+    auction_schedule_queries::{
+        set_min_bid_tiers, set_veteran_auction_ranking, validate_min_bid_tiers,
     },
     deadline::DeadlineKind,
     deadline_queries::find_sorted_deadlines_for_league_season,
@@ -244,6 +250,58 @@ impl AuctionMutation {
         .map_err(|err| bid_error(&err))?;
 
         Ok(AuctionBid::from_model(&bid))
+    }
+
+    /// Sets the current season's veteran-auction minimum-bid tiers, top tier first (rules §6.3.6).
+    /// Replaces any tiers already entered, so re-entry is idempotent.
+    #[graphql(guard = "LeagueRoleGuard(RoleRequirement::Commissioner)")]
+    async fn set_veteran_auction_min_bid_tiers(
+        &self,
+        ctx: &Context<'_>,
+        min_bid_amounts: Vec<i16>,
+    ) -> Result<Vec<i16>> {
+        validate_min_bid_tiers(&min_bid_amounts)
+            .map_err(|err| graphql_error(ErrorCode::BadRequest, err.to_string()))?;
+
+        let db = ctx.data_unchecked::<DatabaseConnection>();
+        let (_, caller_team) = require_league_role(ctx, RoleRequirement::Commissioner).await?;
+        let season = current_season(ctx, caller_team.league_id).await?;
+
+        let tiers = set_min_bid_tiers(caller_team.league_id, season, &min_bid_amounts, db)
+            .await
+            .map_err(|err| {
+                tracing::error!(error = ?err, "failed to set the minimum bid tiers");
+                code_error(ErrorCode::Internal)
+            })?;
+
+        Ok(tiers.iter().map(|tier| tier.min_bid_amount).collect())
+    }
+
+    /// Sets the current season's ranked veteran-auction nomination list, best player first
+    /// (rules §6.3.2). Replaces any list already entered, so re-entry is idempotent.
+    #[graphql(guard = "LeagueRoleGuard(RoleRequirement::Commissioner)")]
+    async fn set_veteran_auction_ranking(
+        &self,
+        ctx: &Context<'_>,
+        player_ids: Vec<i64>,
+    ) -> Result<Vec<i64>> {
+        if player_ids.is_empty() {
+            return Err(graphql_error(
+                ErrorCode::BadRequest,
+                "a ranked veteran auction list needs at least one player",
+            ));
+        }
+
+        let db = ctx.data_unchecked::<DatabaseConnection>();
+        let (_, caller_team) = require_league_role(ctx, RoleRequirement::Commissioner).await?;
+        let season = current_season(ctx, caller_team.league_id).await?;
+
+        set_veteran_auction_ranking(caller_team.league_id, season, &player_ids, db)
+            .await
+            .map_err(|err| {
+                tracing::error!(error = ?err, "failed to set the veteran auction ranking");
+                code_error(ErrorCode::Internal)
+            })
     }
 }
 

@@ -4,9 +4,9 @@
 //! that membership into pooled contracts plus `auction_schedule` rows (release date, nomination
 //! rank, min-bid tier), then opens an auction per row when its release date arrives.
 //!
-//! The ranked top-150 list, the players-per-day count, and the tier values are all per-season
-//! commissioner/import inputs (§6.3.6): the ranking is passed in, the tiers are read from
-//! `min_bid_tier_config`.
+//! The ranked top-150 list and the tier values are per-season commissioner inputs (§6.3.6), read
+//! from `veteran_auction_ranking` and `min_bid_tier_config`. The players-per-day count stays a
+//! league-rule constant until a season actually needs a different one.
 
 use std::{collections::HashMap, fmt::Debug};
 
@@ -50,18 +50,29 @@ static CARRY_SALARY_CONTRACT_KINDS: &[ContractKind] = &[
 /// Assembles the season's veteran auction pool at/after the keeper deadline.
 ///
 /// Creates the pooled contract for every eligible unkept veteran and writes the `auction_schedule`
-/// rows that the daily release tick consumes. `ranked_player_ids` is the season's ranked top-150
-/// (§6.3.2) in rank order; pooled players outside it are open-nomination.
+/// rows that the daily release tick consumes. Both per-season commissioner inputs come from the
+/// database: pooled players outside the ranked top-150 (§6.3.2) are open-nomination.
 #[instrument(skip(db))]
 pub async fn assemble_veteran_auction_pool<C>(
     league_id: i64,
     end_of_season_year: i16,
-    ranked_player_ids: &[i64],
     db: &C,
 ) -> Result<Vec<NewAuctionScheduleRow>>
 where
     C: ConnectionTrait + TransactionTrait + Debug,
 {
+    let ranked_player_ids = auction_schedule_queries::find_veteran_auction_ranked_player_ids(
+        league_id,
+        end_of_season_year,
+        db,
+    )
+    .await?;
+    if ranked_player_ids.is_empty() {
+        bail!(
+            "League {league_id} has no ranked veteran auction list for season {end_of_season_year}."
+        );
+    }
+
     let tiers = auction_schedule_queries::find_min_bid_tiers(league_id, end_of_season_year, db)
         .await?
         .into_iter()
@@ -147,8 +158,24 @@ where
         });
     }
 
+    persist_pool(league_id, end_of_season_year, &rows, db).await?;
+
+    Ok(rows)
+}
+
+/// Writes the pooled contracts and their schedule rows as one unit, so a half-built pool never
+/// reaches the release tick.
+async fn persist_pool<C>(
+    league_id: i64,
+    end_of_season_year: i16,
+    rows: &[NewAuctionScheduleRow],
+    db: &C,
+) -> Result<()>
+where
+    C: ConnectionTrait + TransactionTrait + Debug,
+{
     let db_txn = db.begin().await?;
-    for row in &rows {
+    for row in rows {
         get_or_create_player_contract_for_veteran_auction(
             league_id,
             end_of_season_year,
@@ -160,13 +187,13 @@ where
     auction_schedule_queries::insert_auction_schedule_rows(
         league_id,
         end_of_season_year,
-        rows.clone(),
+        rows.to_vec(),
         &db_txn,
     )
     .await?;
     db_txn.commit().await?;
 
-    Ok(rows)
+    Ok(())
 }
 
 /// Opens the auction for one released schedule row (rules §6.3.3). RFA/UFA auctions carry their

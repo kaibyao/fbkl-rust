@@ -27,3 +27,4 @@ pub mod trade_asset;
 pub mod transaction;
 pub mod user;
 pub mod user_registration;
+pub mod veteran_auction_ranking;

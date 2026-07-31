@@ -308,8 +308,12 @@ Spec 06 owns wiring; this engine needs:
   roster-gated like the veteran auction (§6.4.1), so it must be added to
   `requires_cap_and_roster_check` — its cap is the post-auction $210 (§4.2.2), which
   `deadline::get_salary_cap` already returns for that window.
-- **Open question:** where does the per-season ranked player list + tier config get entered —
-  import-data CLI, commissioner GraphQL mutation, or seed? Likely import-data; confirm in spec 09/10.
+- **Resolved (2026-07-30):** the per-season ranked list + tier config are entered by the commissioner
+  through `setVeteranAuctionRanking` / `setVeteranAuctionMinBidTiers`, matching the existing
+  commissioner mutations rather than import-data (this is recurring human input, not a one-off
+  historical backfill). Each replaces the season's rows, so re-entry is idempotent.
+  `VETERAN_AUCTION_PLAYERS_RELEASED_PER_DAY` stays a constant: there is no per-season scalar config
+  table to put it in, and the value has never varied. Add one when a season needs a different count.
 - **Open question:** the crunch window's 24h/8am-CT shape is an implementation choice, not a voted
   rule. Confirm it in the rules amendment, and decide whether the 24h max belongs in per-season
   league config alongside the §6.3.6 tier values rather than in `constants/`.

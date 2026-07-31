@@ -38,6 +38,7 @@ async fn a_pooled_never_owned_veteran_opens_at_his_tier_minimum() {
     league.add_min_bid_tiers(&TIER_MIN_BID_AMOUNTS).await;
 
     let never_owned_player_id = league.add_veteran_player("Never Owned").await;
+    league.add_ranked_players(&[never_owned_player_id]).await;
     let rfa_player_id = league.add_veteran_player("Restricted Vet").await;
     let ufa_player_id = league.add_veteran_player("Unrestricted Vet").await;
     league
@@ -51,14 +52,10 @@ async fn a_pooled_never_owned_veteran_opens_at_his_tier_minimum() {
         )
         .await;
 
-    let schedule_rows = assemble_veteran_auction_pool(
-        league.league_id,
-        END_OF_SEASON_YEAR,
-        &[never_owned_player_id],
-        &league.db,
-    )
-    .await
-    .expect("assemble the veteran auction pool");
+    let schedule_rows =
+        assemble_veteran_auction_pool(league.league_id, END_OF_SEASON_YEAR, &league.db)
+            .await
+            .expect("assemble the veteran auction pool");
     assert_eq!(schedule_rows.len(), 3);
 
     // Past RFA week, so every row in this three-player pool is due at once.
