@@ -63,11 +63,7 @@ pub fn verify_password_against_hash(
 }
 
 fn get_argon2_params() -> Result<Params, Argon2Error> {
-    let mut argon2_params = ParamsBuilder::new();
-
-    argon2_params.m_cost(16777)?.p_cost(2)?;
-
-    argon2_params.params()
+    ParamsBuilder::new().m_cost(16777).p_cost(2).build()
 }
 
 #[cfg(test)]
