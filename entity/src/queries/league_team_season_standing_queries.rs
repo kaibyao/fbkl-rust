@@ -22,14 +22,14 @@ pub struct NewLeagueTeamSeasonStanding {
 }
 
 /// Every team's standings row for the season, best final rank first.
-#[instrument]
+#[instrument(skip(db))]
 pub async fn find_standings_for_league_season<C>(
     league_id: i64,
     end_of_season_year: i16,
     db: &C,
 ) -> Result<Vec<league_team_season_standing::Model>>
 where
-    C: ConnectionTrait + Debug,
+    C: ConnectionTrait,
 {
     let standing_models = league_team_season_standing::Entity::find()
         .filter(league_team_season_standing::Column::LeagueId.eq(league_id))
@@ -44,7 +44,7 @@ where
 ///
 /// Re-entry is allowed until the draft starts (the commissioner may fix a typo); once the lottery
 /// has run the draft order is already persisted, so later edits do not move picks.
-#[instrument(skip(rows))]
+#[instrument(skip(rows, db))]
 pub async fn upsert_standings_for_league_season<C>(
     league_id: i64,
     end_of_season_year: i16,
@@ -52,7 +52,7 @@ pub async fn upsert_standings_for_league_season<C>(
     db: &C,
 ) -> Result<()>
 where
-    C: ConnectionTrait + Debug,
+    C: ConnectionTrait,
 {
     if rows.is_empty() {
         return Ok(());

@@ -1,5 +1,3 @@
-use std::fmt::Debug;
-
 use color_eyre::eyre::Result;
 use fbkl_entity::{
     contract, deadline,
@@ -14,7 +12,7 @@ use tracing::instrument;
 
 use crate::roster::{SalarySnapshot, calculate_team_contract_salary};
 
-#[instrument]
+#[instrument(skip(db))]
 pub async fn create_ir_team_update<C>(
     ir_contract_model: &contract::Model,
     deadline_model: &deadline::Model,
@@ -25,7 +23,7 @@ pub async fn create_ir_team_update<C>(
     db: &C,
 ) -> Result<team_update::Model>
 where
-    C: ConnectionTrait + Debug,
+    C: ConnectionTrait,
 {
     let team_active_contracts = team_model.get_active_contracts(db).await?;
     let related_player_data =

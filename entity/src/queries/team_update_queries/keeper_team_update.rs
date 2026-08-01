@@ -1,7 +1,6 @@
 use color_eyre::Result;
 use fbkl_constants::league_rules::KEEPER_CONTRACT_TOTAL_SALARY_LIMIT;
 use sea_orm::{ActiveModelTrait, ActiveValue, ConnectionTrait};
-use std::fmt::Debug;
 use tracing::instrument;
 
 use crate::{
@@ -19,14 +18,14 @@ static IGNORE_CONTRACT_TYPES_FOR_KEEPERS: [ContractKind; 3] = [
     ContractKind::UnrestrictedFreeAgentVeteran,
 ];
 
-#[instrument]
+#[instrument(skip(db))]
 async fn generate_keeper_team_update_data<C>(
     team_model: &team::Model,
     keeper_contracts: &[contract::Model],
     db: &C,
 ) -> Result<TeamUpdateData>
 where
-    C: ConnectionTrait + Debug,
+    C: ConnectionTrait,
 {
     let all_active_team_contracts = team_model.get_active_contracts(db).await?;
 
@@ -70,7 +69,7 @@ where
 }
 
 /// Inserts & returns a new team update containing keeper contracts for a specific team.
-#[instrument]
+#[instrument(skip(db))]
 pub async fn insert_keeper_team_update<C>(
     team_model: &team::Model,
     keeper_contracts: &[contract::Model],
@@ -78,7 +77,7 @@ pub async fn insert_keeper_team_update<C>(
     db: &C,
 ) -> Result<team_update::Model>
 where
-    C: ConnectionTrait + Debug,
+    C: ConnectionTrait,
 {
     let team_update_data =
         generate_keeper_team_update_data(team_model, keeper_contracts, db).await?;
@@ -102,7 +101,7 @@ where
     Ok(team_update)
 }
 
-#[instrument]
+#[instrument(skip(db))]
 pub async fn update_keeper_team_update<C>(
     team_model: &team::Model,
     keeper_team_update: team_update::Model,
@@ -110,7 +109,7 @@ pub async fn update_keeper_team_update<C>(
     db: &C,
 ) -> Result<team_update::Model>
 where
-    C: ConnectionTrait + Debug,
+    C: ConnectionTrait,
 {
     let mut keeper_team_update_to_edit: team_update::ActiveModel = keeper_team_update.into();
     let team_update_data =

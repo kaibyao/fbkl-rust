@@ -1,5 +1,3 @@
-use std::fmt::Debug;
-
 use color_eyre::{Result, eyre::eyre};
 use fbkl_entity::{
     contract, draft_pick,
@@ -17,14 +15,14 @@ use tracing::instrument;
 use super::process_trade::TradeAssetRelatedModelCache;
 
 /// Invalidates other trades involving assets that were just traded.
-#[instrument]
+#[instrument(skip(db))]
 pub async fn invalidate_external_trades_with_traded_assets<C>(
     completed_trade: &trade::Model,
     trade_asset_related_models: &TradeAssetRelatedModelCache,
     db: &C,
 ) -> Result<()>
 where
-    C: ConnectionTrait + Debug,
+    C: ConnectionTrait,
 {
     /*
     Relational paths for getting to the external trades affected by assets traded:
@@ -101,10 +99,10 @@ where
     invalidate_external_trades(all_active_external_trades_affected_by_traded_assets, db).await
 }
 
-#[instrument]
+#[instrument(skip(db))]
 async fn invalidate_external_trades<C>(external_trades: Vec<trade::Model>, db: &C) -> Result<()>
 where
-    C: ConnectionTrait + Debug,
+    C: ConnectionTrait,
 {
     let external_trade_ids = external_trades.iter().map(|trade| trade.id);
 
@@ -122,13 +120,13 @@ where
     Ok(())
 }
 
-#[instrument]
+#[instrument(skip(db))]
 async fn invalidate_external_trade_assets<C>(
     external_trades: Vec<trade::Model>,
     db: &C,
 ) -> Result<()>
 where
-    C: ConnectionTrait + Debug,
+    C: ConnectionTrait,
 {
     let external_trade_assets =
         trade_asset_queries::get_trade_assets_for_trades(&external_trades, db).await?;
@@ -146,13 +144,13 @@ where
     invalidate_external_trade_draft_pick_options(external_draft_pick_option_trade_assets, db).await
 }
 
-#[instrument]
+#[instrument(skip(db))]
 async fn invalidate_external_trade_draft_pick_options<C>(
     external_draft_pick_option_trade_assets: Vec<trade_asset::Model>,
     db: &C,
 ) -> Result<()>
 where
-    C: ConnectionTrait + Debug,
+    C: ConnectionTrait,
 {
     let affected_draft_pick_option_ids = external_draft_pick_option_trade_assets.iter().map(|draft_pick_option_trade_asset| draft_pick_option_trade_asset.draft_pick_option_id.ok_or_else(|| eyre!("Couldn't get draft pick option id of supposed draft pick option trade asset (id = {})", draft_pick_option_trade_asset.id))).collect::<Result<Vec<i64>>>()?;
     draft_pick_option::Entity::update_many()

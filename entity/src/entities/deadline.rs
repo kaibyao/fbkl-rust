@@ -37,10 +37,10 @@ impl Model {
     /// limit — league state stays frozen at end-of-season values until advancement runs.
     /// The $210→$230 bump of §8.1/§4.2.3 is applied here implicitly: `FreeAgentAuctionEnd`
     /// itself and any `InSeasonRosterLock` dated after it resolve to the post-season limit.
-    #[instrument]
+    #[instrument(skip(db))]
     pub async fn get_salary_cap<C>(&self, db: &C) -> Result<Option<i16>>
     where
-        C: ConnectionTrait + Debug,
+        C: ConnectionTrait,
     {
         let salary_cap = match self.kind {
             DeadlineKind::InSeasonRosterLock => {

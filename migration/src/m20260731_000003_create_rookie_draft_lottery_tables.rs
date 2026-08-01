@@ -25,7 +25,7 @@ pub struct Migration;
 async fn run_sql(manager: &SchemaManager<'_>, sql: &str) -> Result<(), DbErr> {
     manager
         .get_connection()
-        .execute(Statement::from_string(DatabaseBackend::Postgres, sql))
+        .execute_raw(Statement::from_string(DatabaseBackend::Postgres, sql))
         .await
         .map(|_| ())
 }

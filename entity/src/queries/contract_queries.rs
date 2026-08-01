@@ -6,8 +6,8 @@ use color_eyre::{
 };
 use multimap::MultiMap;
 use sea_orm::{
-    ActiveModelTrait, ActiveValue, ColumnTrait, ConnectionTrait, EntityTrait, JoinType, ModelTrait,
-    QueryFilter, QueryOrder, QuerySelect, RelationTrait, prelude::Expr,
+    ActiveModelTrait, ActiveValue, ColumnTrait, ConnectionTrait, EntityTrait, ExprTrait, JoinType,
+    ModelTrait, QueryFilter, QueryOrder, QuerySelect, RelationTrait, prelude::Expr,
 };
 use tracing::instrument;
 
@@ -25,7 +25,7 @@ pub async fn activate_contract_from_ir<C>(
     db: &C,
 ) -> Result<contract::Model>
 where
-    C: ConnectionTrait + Debug,
+    C: ConnectionTrait,
 {
     let contract_to_insert = contract_model.activate_from_ir();
     let updated_contract =
@@ -35,13 +35,13 @@ where
 }
 
 /// Activates a rookie development (+ international) contract
-#[instrument]
+#[instrument(skip(db))]
 pub async fn activate_rookie_development_contract<C>(
     contract_model: contract::Model,
     db: &C,
 ) -> Result<contract::Model>
 where
-    C: ConnectionTrait + Debug,
+    C: ConnectionTrait,
 {
     let activated_contract_to_insert = contract_model.activate_rookie()?;
     let activated_contract =
@@ -51,26 +51,26 @@ where
 }
 
 /// Inserts the new/advanced contract and sets the status of the old one appropriately.
-#[instrument]
+#[instrument(skip(db))]
 pub async fn advance_contract<C>(
     current_contract_model: contract::Model,
     db: &C,
 ) -> Result<contract::Model>
 where
-    C: ConnectionTrait + Debug,
+    C: ConnectionTrait,
 {
     let contract_to_advance = current_contract_model.create_annual_contract_advancement()?;
     add_replacement_contract_to_chain(current_contract_model, contract_to_advance, db).await
 }
 
 /// This is needed in order to set the `original_contract_id` after creating a new contract.
-#[instrument]
+#[instrument(skip(db))]
 pub async fn create_new_contract<C>(
     contract_to_insert: contract::ActiveModel,
     db: &C,
 ) -> Result<contract::Model>
 where
-    C: ConnectionTrait + Debug,
+    C: ConnectionTrait,
 {
     let inserted_contract = contract_to_insert.insert(db).await?;
     let inserted_contract_id = inserted_contract.id;
@@ -90,14 +90,14 @@ pub enum PreseasonKeeperTiming {
 }
 
 /// Inserts the "Dropped" contract as the next contract in the contract chain.
-#[instrument]
+#[instrument(skip(db))]
 pub async fn drop_contract<C>(
     current_contract_model: contract::Model,
     keeper_timing: PreseasonKeeperTiming,
     db: &C,
 ) -> Result<contract::Model>
 where
-    C: ConnectionTrait + Debug,
+    C: ConnectionTrait,
 {
     let contract_to_drop = if keeper_timing == PreseasonKeeperTiming::Before {
         current_contract_model.create_dropped_contract_before_preseason_keeper_deadline()?
@@ -109,19 +109,19 @@ where
 }
 
 /// Expires the given contract.
-#[instrument]
+#[instrument(skip(db))]
 pub async fn expire_contract<C>(contract_model: contract::Model, db: &C) -> Result<contract::Model>
 where
-    C: ConnectionTrait + Debug,
+    C: ConnectionTrait,
 {
     let contract_to_expire = contract_model.create_expired_contract()?;
     add_replacement_contract_to_chain(contract_model, contract_to_expire, db).await
 }
 
-#[instrument]
+#[instrument(skip(db))]
 pub async fn find_contract_by_id<C>(contract_id: i64, db: &C) -> Result<contract::Model>
 where
-    C: ConnectionTrait + Debug,
+    C: ConnectionTrait,
 {
     contract::Entity::find_by_id(contract_id)
         .one(db)
@@ -130,10 +130,10 @@ where
 }
 
 /// Returns every contract in the given contract's history chain, oldest first.
-#[instrument]
+#[instrument(skip(db))]
 pub async fn find_contract_chain<C>(contract_id: i64, db: &C) -> Result<Vec<contract::Model>>
 where
-    C: ConnectionTrait + Debug,
+    C: ConnectionTrait,
 {
     let contract_model = find_contract_by_id(contract_id, db).await?;
     let chain = contract::Entity::find()
@@ -146,13 +146,13 @@ where
 }
 
 /// Retrieves all contracts currently active in a league. Note that this includes Free Agent contracts where the player had been signed onto a team at some point but ended the season as a free agent.
-#[instrument]
+#[instrument(skip(db))]
 pub async fn find_active_contracts_in_league<C>(
     league_id: i64,
     db: &C,
 ) -> Result<Vec<contract::Model>>
 where
-    C: ConnectionTrait + Debug,
+    C: ConnectionTrait,
 {
     let contracts = contract::Entity::find()
         .filter(
@@ -168,14 +168,14 @@ where
 
 /// `find_active_contracts_in_league` narrowed to one season. This is the league's current roster +
 /// free-agency snapshot, which the eligibility pools read to exclude rostered players.
-#[instrument]
+#[instrument(skip(db))]
 pub async fn find_active_contracts_in_league_for_season<C>(
     league_id: i64,
     end_of_season_year: i16,
     db: &C,
 ) -> Result<Vec<contract::Model>>
 where
-    C: ConnectionTrait + Debug,
+    C: ConnectionTrait,
 {
     let contracts = contract::Entity::find()
         .filter(contract::Column::LeagueId.eq(league_id))
@@ -188,13 +188,13 @@ where
 }
 
 /// Finds active contracts that belong to the given teams.
-#[instrument]
+#[instrument(skip(db))]
 pub async fn find_active_contracts_by_teams<C>(
     team_ids: Vec<i64>,
     db: &C,
 ) -> Result<MultiMap<i64, contract::Model>>
 where
-    C: ConnectionTrait + Debug,
+    C: ConnectionTrait,
 {
     let all_contracts = contract::Entity::find()
         .filter(
@@ -220,10 +220,10 @@ where
 }
 
 /// Finds active contracts that belong to the given team.
-#[instrument]
+#[instrument(skip(db))]
 pub async fn find_active_contracts_for_team<C>(team_id: i64, db: &C) -> Result<Vec<contract::Model>>
 where
-    C: ConnectionTrait + Debug,
+    C: ConnectionTrait,
 {
     let all_contracts = contract::Entity::find()
         .filter(
@@ -237,14 +237,14 @@ where
     Ok(all_contracts)
 }
 
-#[instrument]
+#[instrument(skip(db))]
 pub async fn find_active_team_contract_by_player_name<C>(
     team_id: i64,
     player_name: &str,
     db: &C,
 ) -> Result<contract::Model>
 where
-    C: ConnectionTrait + Debug,
+    C: ConnectionTrait,
 {
     let mut matching_contracts = contract::Entity::find()
         .join(JoinType::LeftJoin, contract::Relation::Player.def())
@@ -270,14 +270,14 @@ where
 }
 
 /// Retrieves all contracts currently in the given league that match the given list of player names.
-#[instrument]
+#[instrument(skip(db))]
 pub async fn find_active_league_contracts_by_player_names<C>(
     player_names: &[&str],
     league_id: i64,
     db: &C,
 ) -> Result<HashMap<String, contract::Model>>
 where
-    C: ConnectionTrait + Debug,
+    C: ConnectionTrait,
 {
     let player_names_vec: Vec<String> = player_names
         .iter()
@@ -323,13 +323,13 @@ where
     Ok(contracts_by_player_name)
 }
 
-#[instrument]
+#[instrument(skip(db))]
 pub async fn find_contracts_by_ids<C>(
     contract_ids: Vec<i64>,
     db: &C,
 ) -> Result<Vec<contract::Model>>
 where
-    C: ConnectionTrait + Debug,
+    C: ConnectionTrait,
 {
     let contracts = contract::Entity::find()
         .filter(contract::Column::Id.is_in(contract_ids))
@@ -338,14 +338,14 @@ where
     Ok(contracts)
 }
 
-#[instrument]
+#[instrument(skip(db))]
 pub async fn find_contracts_dropped_by_team_in_regular_season<C>(
     team_id: i64,
     end_of_season_year: i16,
     db: &C,
 ) -> Result<Vec<contract::Model>>
 where
-    C: ConnectionTrait + Debug,
+    C: ConnectionTrait,
 {
     let dropped_team_contracts = contract::Entity::find()
         .join(
@@ -374,7 +374,7 @@ pub async fn move_contract_to_ir<C>(
     db: &C,
 ) -> Result<contract::Model>
 where
-    C: ConnectionTrait + Debug,
+    C: ConnectionTrait,
 {
     let contract_to_insert = contract_model.move_to_ir();
     let updated_contract =
@@ -389,7 +389,7 @@ pub async fn move_rd_contract_to_rdi<C>(
     db: &C,
 ) -> Result<contract::Model>
 where
-    C: ConnectionTrait + Debug,
+    C: ConnectionTrait,
 {
     let contract_to_insert = rd_contract_model.move_rd_to_international(db).await?;
     let updated_contract =
@@ -404,7 +404,7 @@ pub async fn move_rdi_contract_to_rd<C>(
     db: &C,
 ) -> Result<contract::Model>
 where
-    C: ConnectionTrait + Debug,
+    C: ConnectionTrait,
 {
     let contract_to_insert = rdi_contract_model.move_rdi_to_rd()?;
     let updated_contract =
@@ -421,7 +421,7 @@ pub async fn sign_auction_contract_to_team<C>(
     db: &C,
 ) -> Result<contract::Model>
 where
-    C: ConnectionTrait + Debug,
+    C: ConnectionTrait,
 {
     let contract_model = auction_model.get_contract(db).await?;
 
@@ -451,7 +451,7 @@ pub async fn trade_contract_to_team<C>(
     db: &C,
 ) -> Result<contract::Model>
 where
-    C: ConnectionTrait + Debug,
+    C: ConnectionTrait,
 {
     let new_contract: contract::ActiveModel = contract_model.trade_contract_to_team(new_team_id);
     add_replacement_contract_to_chain(contract_model, new_contract, db).await
@@ -459,14 +459,14 @@ where
 
 /// Used to replace an existing contract with a new one. The new one refers to the original as its `original_contract_id`, and the old one's status is set to `Replaced`.
 /// Returns the new replacement contract.
-#[instrument]
+#[instrument(skip(db))]
 async fn add_replacement_contract_to_chain<C>(
     current_contract_model: contract::Model,
     replacement_contract_model: contract::ActiveModel,
     db: &C,
 ) -> Result<contract::Model>
 where
-    C: ConnectionTrait + Debug,
+    C: ConnectionTrait,
 {
     let mut original_contract_model_to_update: contract::ActiveModel =
         current_contract_model.into();
@@ -478,13 +478,13 @@ where
     Ok(inserted_replacement_contract)
 }
 
-#[instrument]
+#[instrument(skip(db))]
 pub async fn validate_contract_is_latest_in_chain<C>(
     contract_model: &contract::Model,
     db: &C,
 ) -> Result<()>
 where
-    C: ConnectionTrait + Debug,
+    C: ConnectionTrait,
 {
     let is_latest = contract_model.is_latest_in_chain(db).await?;
 

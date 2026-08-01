@@ -1,5 +1,3 @@
-use std::fmt::Debug;
-
 use color_eyre::eyre::{Result, ensure, eyre};
 use fbkl_entity::{
     contract, contract_queries, deadline,
@@ -14,14 +12,14 @@ use crate::roster::{SalarySnapshot, calculate_team_contract_salary_with_model};
 
 use super::ir_team_update::create_ir_team_update;
 
-#[instrument]
+#[instrument(skip(db))]
 pub async fn activate_contract_from_ir<C>(
     contract_model: contract::Model,
     deadline_model: &deadline::Model,
     db: &C,
 ) -> Result<contract::Model>
 where
-    C: ConnectionTrait + Debug,
+    C: ConnectionTrait,
 {
     validate_contract_eligibility(&contract_model)?;
 

@@ -1,4 +1,4 @@
-use std::{collections::HashMap, fmt::Debug};
+use std::collections::HashMap;
 
 use chrono::Utc;
 use color_eyre::{Result, eyre::eyre};
@@ -10,13 +10,13 @@ use tracing::instrument;
 
 use crate::league_player;
 
-#[instrument]
+#[instrument(skip(db))]
 pub async fn find_all_league_players_in_league<C>(
     league_id: i64,
     db: &C,
 ) -> Result<HashMap<String, league_player::Model>>
 where
-    C: ConnectionTrait + Debug,
+    C: ConnectionTrait,
 {
     let league_players_by_name = league_player::Entity::find()
         .filter(league_player::Column::LeagueId.eq(league_id))
@@ -30,13 +30,13 @@ where
 
 /// Every league player in a league, name-ordered. Unlike `find_all_league_players_in_league` this
 /// keeps duplicates-by-name and preserves order, which the eligibility pools need.
-#[instrument]
+#[instrument(skip(db))]
 pub async fn find_league_players_in_league<C>(
     league_id: i64,
     db: &C,
 ) -> Result<Vec<league_player::Model>>
 where
-    C: ConnectionTrait + Debug,
+    C: ConnectionTrait,
 {
     let league_players = league_player::Entity::find()
         .filter(league_player::Column::LeagueId.eq(league_id))
@@ -47,7 +47,7 @@ where
 }
 
 /// Case- and accent-insensitive substring search on league player names, scoped to one league.
-#[instrument]
+#[instrument(skip(db))]
 pub async fn search_league_players_by_name<C>(
     name_query: &str,
     league_id: i64,
@@ -55,7 +55,7 @@ pub async fn search_league_players_by_name<C>(
     db: &C,
 ) -> Result<Vec<league_player::Model>>
 where
-    C: ConnectionTrait + Debug,
+    C: ConnectionTrait,
 {
     let name_condition = Expr::cust_with_values(
         "unaccent(name) ILIKE unaccent($1)",
@@ -72,23 +72,23 @@ where
     Ok(league_player_models)
 }
 
-#[instrument]
+#[instrument(skip(db))]
 pub async fn find_league_player_by_id<C>(id: i64, db: &C) -> Result<league_player::Model>
 where
-    C: ConnectionTrait + Debug,
+    C: ConnectionTrait,
 {
     let league_player = league_player::Entity::find_by_id(id).one(db).await?;
     league_player.ok_or_else(|| eyre!("League player not found"))
 }
 
-#[instrument]
+#[instrument(skip(db))]
 pub async fn insert_league_player_with_name<C>(
     name: String,
     league_id: i64,
     db: &C,
 ) -> Result<league_player::Model>
 where
-    C: ConnectionTrait + Debug,
+    C: ConnectionTrait,
 {
     let league_player_to_insert = league_player::ActiveModel {
         name: ActiveValue::Set(name),

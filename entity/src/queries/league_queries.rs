@@ -1,7 +1,7 @@
 use color_eyre::eyre::Result;
 use sea_orm::{
     ActiveModelTrait, ActiveValue, ColumnTrait, ConnectionTrait, EntityTrait, ModelTrait,
-    QueryFilter, TransactionTrait,
+    QueryFilter, TransactionSession, TransactionTrait,
 };
 
 use crate::{

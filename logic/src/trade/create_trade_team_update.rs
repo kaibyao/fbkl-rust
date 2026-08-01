@@ -44,7 +44,7 @@ impl std::fmt::Display for MissingPreTradeSalary {
 impl std::error::Error for MissingPreTradeSalary {}
 
 /// Generates the data needed to create the team updates related to a trade. Returns a `MultiMap` w/ `team_id`s as its key and Team Update Assets as its values.
-#[instrument]
+#[instrument(skip(db))]
 pub async fn generate_team_update_assets_data_for_trade<C>(
     trade_asset_contracts: &[(trade_asset::Model, contract::Model)],
     trade_asset_draft_picks: &[(trade_asset::Model, draft_pick::Model)],
@@ -53,7 +53,7 @@ pub async fn generate_team_update_assets_data_for_trade<C>(
     db: &C,
 ) -> Result<MultiMap<i64, TeamUpdateAsset>>
 where
-    C: ConnectionTrait + Debug,
+    C: ConnectionTrait,
 {
     // Iterate through traded assets and append team asset updates to each team's update data.
     let team_update_contract_assets_by_team_id = get_team_update_contract_updates(
@@ -83,7 +83,7 @@ where
 }
 
 /// Creates & inserts a team update from a completed trade.
-#[instrument]
+#[instrument(skip(db))]
 pub async fn insert_team_updates_from_completed_trade<C>(
     team_update_assets_by_team_id: MultiMap<i64, TeamUpdateAsset>,
     trade_datetime: &DateTimeWithTimeZone,
@@ -94,7 +94,7 @@ pub async fn insert_team_updates_from_completed_trade<C>(
     db: &C,
 ) -> Result<()>
 where
-    C: ConnectionTrait + Debug,
+    C: ConnectionTrait,
 {
     // get all contracts + draft picks per team; the new contracts have already been created by this point
     let active_contracts_by_team_id =
@@ -145,14 +145,14 @@ where
     Ok(())
 }
 
-#[instrument]
+#[instrument(skip(db))]
 async fn get_team_update_contract_updates<C>(
     trade_asset_contracts: &[(trade_asset::Model, contract::Model)],
     updated_contracts_by_trade_asset_id: &HashMap<i64, contract::Model>,
     db: &C,
 ) -> Result<MultiMap<i64, ContractUpdate>>
 where
-    C: ConnectionTrait + Debug,
+    C: ConnectionTrait,
 {
     let mut team_update_contract_assets_by_team_id: MultiMap<i64, ContractUpdate> = MultiMap::new();
 
@@ -203,14 +203,14 @@ where
     Ok(team_update_contract_assets_by_team_id)
 }
 
-#[instrument]
+#[instrument(skip(db))]
 async fn get_team_update_draft_pick_updates<C>(
     trade_asset_draft_picks: &[(trade_asset::Model, draft_pick::Model)],
     trade_asset_draft_pick_options: &[(trade_asset::Model, draft_pick_option::Model)],
     db: &C,
 ) -> Result<MultiMap<i64, DraftPickUpdate>>
 where
-    C: ConnectionTrait + Debug,
+    C: ConnectionTrait,
 {
     let mut team_update_draft_pick_assets_by_team_id: MultiMap<i64, DraftPickUpdate> =
         MultiMap::new();

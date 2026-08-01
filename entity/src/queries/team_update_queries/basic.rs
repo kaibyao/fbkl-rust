@@ -3,7 +3,6 @@ use sea_orm::{
     ActiveModelTrait, ActiveValue, ColumnTrait, ConnectionTrait, EntityTrait, ModelTrait,
     QueryFilter, QueryOrder, sea_query::Expr,
 };
-use std::fmt::Debug;
 use tracing::instrument;
 
 use crate::{
@@ -12,13 +11,13 @@ use crate::{
 };
 
 /// Finds the `team_updates` related to the given deadline.
-#[instrument]
+#[instrument(skip(db))]
 pub async fn find_team_updates_for_deadline<C>(
     deadline_model: &deadline::Model,
     db: &C,
 ) -> Result<Vec<team_update::Model>>
 where
-    C: ConnectionTrait + Debug,
+    C: ConnectionTrait,
 {
     let team_updates = deadline_model
         .find_related(team_update::Entity)
@@ -28,13 +27,13 @@ where
 }
 
 /// Finds the `team_updates` related to the given transaction id.
-#[instrument]
+#[instrument(skip(db))]
 pub async fn find_team_updates_by_transaction<C>(
     transaction_id: i64,
     db: &C,
 ) -> Result<Vec<team_update::Model>>
 where
-    C: ConnectionTrait + Debug,
+    C: ConnectionTrait,
 {
     let team_updates = team_update::Entity::find()
         .filter(team_update::Column::TransactionId.eq(transaction_id))
@@ -44,14 +43,14 @@ where
 }
 
 /// Finds a team's `team_updates` newest-first, optionally narrowed to one status.
-#[instrument]
+#[instrument(skip(db))]
 pub async fn find_team_updates_by_team<C>(
     team_id: i64,
     maybe_status: Option<TeamUpdateStatus>,
     db: &C,
 ) -> Result<Vec<team_update::Model>>
 where
-    C: ConnectionTrait + Debug,
+    C: ConnectionTrait,
 {
     let mut query = team_update::Entity::find().filter(team_update::Column::TeamId.eq(team_id));
 
@@ -63,26 +62,26 @@ where
     Ok(team_updates)
 }
 
-#[instrument]
+#[instrument(skip(db))]
 pub async fn insert_team_update<C>(
     team_update_to_insert: team_update::ActiveModel,
     db: &C,
 ) -> Result<team_update::Model>
 where
-    C: ConnectionTrait + Debug,
+    C: ConnectionTrait,
 {
     let inserted_team_update = team_update_to_insert.insert(db).await?;
     Ok(inserted_team_update)
 }
 
-#[instrument]
+#[instrument(skip(db))]
 pub async fn update_team_update_status<C>(
     team_update_model: team_update::Model,
     status: TeamUpdateStatus,
     db: &C,
 ) -> Result<team_update::Model>
 where
-    C: ConnectionTrait + Debug,
+    C: ConnectionTrait,
 {
     let mut setting_status_to_in_progress: team_update::ActiveModel = team_update_model.into();
     setting_status_to_in_progress.status = ActiveValue::Set(status);
@@ -90,14 +89,14 @@ where
     Ok(status_set_to_in_progress)
 }
 
-#[instrument]
+#[instrument(skip(db))]
 pub async fn update_team_updates_with_status<C>(
     team_update_model_ids: Vec<i64>,
     status: TeamUpdateStatus,
     db: &C,
 ) -> Result<Vec<team_update::Model>>
 where
-    C: ConnectionTrait + Debug,
+    C: ConnectionTrait,
 {
     let updated_models = team_update::Entity::update_many()
         .col_expr(team_update::Column::Status, Expr::value(status))

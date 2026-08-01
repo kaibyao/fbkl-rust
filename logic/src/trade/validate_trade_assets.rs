@@ -1,5 +1,3 @@
-use std::fmt::Debug;
-
 use color_eyre::{Result, eyre::ensure};
 use fbkl_entity::{
     contract, contract_queries, draft_pick,
@@ -11,14 +9,14 @@ use tracing::instrument;
 
 use super::process_trade::TradeAssetRelatedModelCache;
 
-#[instrument]
+#[instrument(skip(db))]
 pub async fn validate_trade_assets<C>(
     trade_asset_related_models: &TradeAssetRelatedModelCache,
     trade_id: i64,
     db: &C,
 ) -> Result<()>
 where
-    C: ConnectionTrait + Debug,
+    C: ConnectionTrait,
 {
     ensure!(
         !trade_asset_related_models
@@ -55,7 +53,7 @@ where
     Ok(())
 }
 
-#[instrument]
+#[instrument(skip(db))]
 async fn validate_contract_trade_asset<C>(
     trade_asset_model: &trade_asset::Model,
     contract_model: &contract::Model,
@@ -63,7 +61,7 @@ async fn validate_contract_trade_asset<C>(
     db: &C,
 ) -> Result<()>
 where
-    C: ConnectionTrait + Debug,
+    C: ConnectionTrait,
 {
     // Ensure it's still the latest contract.
     contract_queries::validate_contract_is_latest_in_chain(contract_model, db).await?;

@@ -10,8 +10,6 @@
 //! is judged on what was true entering 2021, not on the player's career to date. §11.3.5's
 //! mid-season grace period is why "before the season" is strict — see `was_on_nba_roster_before`.
 
-use std::fmt::Debug;
-
 use color_eyre::eyre::{Result, ensure};
 use fbkl_entity::{
     contract::{self, ContractKind},
@@ -28,14 +26,14 @@ use super::{PlayerEligibilityFacts, classify_player};
 /// Rules §11.3.1, judged entering the contract's season: the player must be rookie-draft-eligible,
 /// must not have been on an NBA roster in an earlier season (broader than the pool pivot — see the
 /// module docs), and must not have already been an RD contract at/after an in-season legalization.
-#[instrument]
+#[instrument(skip(db))]
 pub async fn validate_rdi_eligible<C>(
     contract_model: &contract::Model,
     player_facts: PlayerEligibilityFacts,
     db: &C,
 ) -> Result<()>
 where
-    C: ConnectionTrait + Debug,
+    C: ConnectionTrait,
 {
     let season = contract_model.end_of_season_year;
     ensure!(

@@ -1,8 +1,9 @@
-use std::fmt::Debug;
-
 use color_eyre::{Result, eyre::eyre};
 use fbkl_entity::{
-    sea_orm::{ActiveModelTrait, ActiveValue, ConnectionTrait, ModelTrait, TransactionTrait},
+    sea_orm::{
+        ActiveModelTrait, ActiveValue, ConnectionTrait, ModelTrait, TransactionSession,
+        TransactionTrait,
+    },
     team, team_trade, team_user, trade,
     trade_action::TradeActionType,
     trade_action_queries, trade_asset, trade_queries,
@@ -13,7 +14,7 @@ use tracing::instrument;
 ///
 /// Inserts the following entities: The (proposed) trade, the `team_trades` involved, the trade assets involved, and the proposal trade action.
 /// Trades have to be created w/ this method in order to set the `original_trade_id` after insertion.
-#[instrument]
+#[instrument(skip(db))]
 pub async fn propose_trade<C>(
     league_id: i64,
     end_of_season_year: i16,
@@ -23,7 +24,7 @@ pub async fn propose_trade<C>(
     db: &C,
 ) -> Result<trade::Model>
 where
-    C: ConnectionTrait + TransactionTrait + Debug,
+    C: ConnectionTrait + TransactionTrait,
 {
     let db_txn = db.begin().await?;
 

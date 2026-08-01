@@ -23,14 +23,14 @@ pub struct NewRookieDraftLotteryPick {
 }
 
 /// The league season's lottery row, if one has been created.
-#[instrument]
+#[instrument(skip(db))]
 pub async fn find_lottery_for_league_season<C>(
     league_id: i64,
     end_of_season_year: i16,
     db: &C,
 ) -> Result<Option<rookie_draft_lottery::Model>>
 where
-    C: ConnectionTrait + Debug,
+    C: ConnectionTrait,
 {
     let lottery_model = rookie_draft_lottery::Entity::find()
         .filter(rookie_draft_lottery::Column::LeagueId.eq(league_id))
@@ -41,13 +41,13 @@ where
 }
 
 /// The drawn slots for a lottery, pick 1 first.
-#[instrument]
+#[instrument(skip(db))]
 pub async fn find_lottery_picks<C>(
     rookie_draft_lottery_id: i64,
     db: &C,
 ) -> Result<Vec<rookie_draft_lottery_pick::Model>>
 where
-    C: ConnectionTrait + Debug,
+    C: ConnectionTrait,
 {
     let pick_models = rookie_draft_lottery_pick::Entity::find()
         .filter(rookie_draft_lottery_pick::Column::RookieDraftLotteryId.eq(rookie_draft_lottery_id))
@@ -58,7 +58,7 @@ where
 }
 
 /// Commits the seed for a league season's lottery, or returns the existing row if already committed.
-#[instrument]
+#[instrument(skip(db))]
 pub async fn insert_lottery_seed<C>(
     league_id: i64,
     end_of_season_year: i16,
@@ -66,7 +66,7 @@ pub async fn insert_lottery_seed<C>(
     db: &C,
 ) -> Result<rookie_draft_lottery::Model>
 where
-    C: ConnectionTrait + Debug,
+    C: ConnectionTrait,
 {
     let lottery_to_insert = rookie_draft_lottery::ActiveModel {
         id: ActiveValue::NotSet,
@@ -102,7 +102,7 @@ where
 }
 
 /// Reveals a committed lottery: stores the drawn slots and the per-draw audit log.
-#[instrument(skip(drawn_picks))]
+#[instrument(skip(drawn_picks, db))]
 pub async fn save_lottery_draw<C>(
     rookie_draft_lottery_id: i64,
     drawn_picks: Vec<NewRookieDraftLotteryPick>,
@@ -110,7 +110,7 @@ pub async fn save_lottery_draw<C>(
     db: &C,
 ) -> Result<()>
 where
-    C: ConnectionTrait + Debug,
+    C: ConnectionTrait,
 {
     if drawn_picks.is_empty() {
         return Ok(());

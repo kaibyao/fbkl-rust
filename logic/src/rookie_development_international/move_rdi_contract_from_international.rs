@@ -1,5 +1,3 @@
-use std::fmt::Debug;
-
 use color_eyre::eyre::{Result, eyre};
 use fbkl_entity::{
     contract::{self, ContractKind},
@@ -13,14 +11,14 @@ use tracing::instrument;
 
 use super::{rdi_team_update::create_rdi_move_team_update, validate_contract_kind};
 
-#[instrument]
+#[instrument(skip(db))]
 pub async fn move_rookie_development_international_contract_to_stateside<C>(
     contract_model: contract::Model,
     deadline_model: &deadline::Model,
     db: &C,
 ) -> Result<contract::Model>
 where
-    C: ConnectionTrait + Debug,
+    C: ConnectionTrait,
 {
     // §11.3.1 forced transition: leaving international is always legal, so kind is the only gate.
     validate_contract_kind(

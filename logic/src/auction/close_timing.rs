@@ -132,7 +132,7 @@ pub struct AuctionModeDeadlines {
 }
 
 /// Looks up the deadlines an auction of this kind runs against.
-#[instrument]
+#[instrument(skip(db))]
 pub async fn find_auction_mode_deadlines<C>(
     kind: AuctionKind,
     league_id: i64,
@@ -141,7 +141,7 @@ pub async fn find_auction_mode_deadlines<C>(
     db: &C,
 ) -> Result<AuctionModeDeadlines>
 where
-    C: ConnectionTrait + Debug,
+    C: ConnectionTrait,
 {
     if kind.is_preseason() {
         let final_roster_lock = deadline_queries::find_deadline_for_season_by_type(

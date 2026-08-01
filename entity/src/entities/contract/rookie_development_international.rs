@@ -1,5 +1,3 @@
-use std::fmt::Debug;
-
 use color_eyre::eyre::{Result, ensure};
 use contract_entity::ContractKind;
 use sea_orm::{ActiveValue, ConnectionTrait};
@@ -24,7 +22,7 @@ pub async fn create_rdi_contract_from_rd<C>(
     db: &C,
 ) -> Result<contract_entity::ActiveModel>
 where
-    C: ConnectionTrait + Debug,
+    C: ConnectionTrait,
 {
     validate_contract_type_for_rd_to_rdi(rd_contract)?;
     validate_player_eligibility(rd_contract, db).await?;
@@ -59,7 +57,7 @@ fn validate_contract_type_for_rdi_to_rd(rdi_contract: &contract_entity::Model) -
 
 async fn validate_player_eligibility<C>(rd_contract: &contract_entity::Model, db: &C) -> Result<()>
 where
-    C: ConnectionTrait + Debug,
+    C: ConnectionTrait,
 {
     let related_player = rd_contract.get_player(db).await?;
 

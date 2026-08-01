@@ -1,5 +1,3 @@
-use std::fmt::Debug;
-
 use chrono::{DateTime, FixedOffset};
 use color_eyre::Result;
 use fbkl_entity::{
@@ -13,7 +11,7 @@ use tracing::instrument;
 use super::{auction_close_at, auction_quiet_window};
 
 /// Creates a new veteran auction for a given player + league.
-#[instrument]
+#[instrument(skip(db))]
 pub async fn start_new_auction_for_nba_player<C>(
     player_contract: &contract::Model,
     league_id: i64,
@@ -24,7 +22,7 @@ pub async fn start_new_auction_for_nba_player<C>(
     db: &C,
 ) -> Result<auction::Model>
 where
-    C: ConnectionTrait + Debug,
+    C: ConnectionTrait,
 {
     // Historical replay opens and closes an auction in one go, so the quiet window is all it needs.
     let close_at_timestamp = auction_close_at(

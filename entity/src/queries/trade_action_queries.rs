@@ -1,5 +1,3 @@
-use std::fmt::Debug;
-
 use color_eyre::Result;
 use sea_orm::{ActiveModelTrait, ConnectionTrait, TransactionTrait};
 use tracing::instrument;
@@ -7,7 +5,7 @@ use tracing::instrument;
 use crate::trade_action::{self, TradeActionType};
 
 /// Inserts a new trade (contract) asset for a trade.
-#[instrument]
+#[instrument(skip(db))]
 pub async fn insert_trade_action<C>(
     trade_action_type: TradeActionType,
     trade_id: i64,
@@ -15,7 +13,7 @@ pub async fn insert_trade_action<C>(
     db: &C,
 ) -> Result<trade_action::Model>
 where
-    C: ConnectionTrait + TransactionTrait + Debug,
+    C: ConnectionTrait + TransactionTrait,
 {
     let trade_action_to_insert =
         trade_action::Model::new_active_model(trade_action_type, trade_id, team_user_id);

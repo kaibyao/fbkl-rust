@@ -12,7 +12,7 @@ use fbkl_entity::{
     contract_queries,
     deadline::DeadlineKind,
     deadline_queries,
-    sea_orm::{ConnectionTrait, TransactionTrait},
+    sea_orm::{ConnectionTrait, TransactionSession, TransactionTrait},
     team_update_queries,
 };
 use tracing::instrument;
@@ -51,14 +51,14 @@ pub const fn auction_close_outcome(
 }
 
 /// Ends a veteran auction and creates the associated transaction + team contract OR expires the associated contract.
-#[instrument]
+#[instrument(skip(db))]
 pub async fn end_veteran_auction<C>(
     auction_id: i64,
     maybe_override_effective_date: Option<NaiveDate>,
     db: &C,
 ) -> Result<contract::Model>
 where
-    C: ConnectionTrait + TransactionTrait + Debug,
+    C: ConnectionTrait + TransactionTrait,
 {
     let auction_model = auction_queries::find_auction_by_id(auction_id, db).await?;
     let auction_contract_model = auction_model.get_contract(db).await?;
@@ -137,7 +137,7 @@ where
 }
 
 /// Either retrieves + validates an existing player contract that can be used for a new veteran auction, or creates one based on given arguments.
-#[instrument]
+#[instrument(skip(db))]
 pub async fn get_or_create_player_contract_for_veteran_auction<C>(
     league_id: i64,
     end_of_season_year: i16,
@@ -145,7 +145,7 @@ pub async fn get_or_create_player_contract_for_veteran_auction<C>(
     db: &C,
 ) -> Result<contract::Model>
 where
-    C: ConnectionTrait + Debug,
+    C: ConnectionTrait,
 {
     let maybe_existing_contract = contract_queries::find_active_contracts_in_league(league_id, db)
         .await?

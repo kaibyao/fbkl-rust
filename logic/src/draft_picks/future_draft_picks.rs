@@ -1,5 +1,3 @@
-use std::fmt::Debug;
-
 use color_eyre::eyre::Result;
 use fbkl_constants::league_rules::{DRAFT_PICK_ROUNDS, FUTURE_DRAFT_PICK_SEASONS_LIMIT};
 use fbkl_entity::{
@@ -9,14 +7,14 @@ use fbkl_entity::{
 };
 use tracing::instrument;
 
-#[instrument]
+#[instrument(skip(db))]
 pub async fn generate_future_draft_picks<C>(
     league_id: i64,
     end_of_season_year: i16,
     db: &C,
 ) -> Result<()>
 where
-    C: ConnectionTrait + TransactionTrait + Debug,
+    C: ConnectionTrait + TransactionTrait,
 {
     let end_of_season_year_for_future_draft_picks =
         end_of_season_year + FUTURE_DRAFT_PICK_SEASONS_LIMIT;

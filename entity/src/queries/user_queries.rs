@@ -5,7 +5,7 @@ use crate::{
 use color_eyre::eyre::Result;
 use sea_orm::{
     ActiveModelTrait, ColumnTrait, ConnectionTrait, EntityTrait, JoinType, QueryFilter,
-    QuerySelect, RelationTrait, Set, TransactionTrait,
+    QuerySelect, RelationTrait, Set, TransactionSession, TransactionTrait,
 };
 
 /// Inserts a new user + registration. Requires a token that's used for registration confirmation.

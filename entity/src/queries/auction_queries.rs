@@ -14,10 +14,10 @@ use crate::{
     team_user,
 };
 
-#[instrument]
+#[instrument(skip(db))]
 pub async fn find_auction_by_id<C>(auction_id: i64, db: &C) -> Result<auction::Model>
 where
-    C: ConnectionTrait + Debug,
+    C: ConnectionTrait,
 {
     let maybe_auction_model = auction::Entity::find()
         .filter(auction::Column::Id.eq(auction_id))
@@ -29,10 +29,10 @@ where
 
 /// Same as [`find_auction_by_id`] but takes a row lock, so racing bids on one auction serialize.
 /// Only meaningful inside a db transaction.
-#[instrument]
+#[instrument(skip(db))]
 pub async fn find_auction_by_id_for_update<C>(auction_id: i64, db: &C) -> Result<auction::Model>
 where
-    C: ConnectionTrait + Debug,
+    C: ConnectionTrait,
 {
     auction::Entity::find_by_id(auction_id)
         .lock_exclusive()
@@ -43,7 +43,7 @@ where
 
 /// The team's currently-winning bids (`(auction_id, bid_amount)`) across the league/season's `Open`
 /// auctions — the commitments rules §6.4.1 counts against a new bid.
-#[instrument]
+#[instrument(skip(db))]
 pub async fn find_winning_bids_for_team<C>(
     team_id: i64,
     league_id: i64,
@@ -51,7 +51,7 @@ pub async fn find_winning_bids_for_team<C>(
     db: &C,
 ) -> Result<Vec<(i64, i16)>>
 where
-    C: ConnectionTrait + Debug,
+    C: ConnectionTrait,
 {
     let bids: Vec<(i64, i16, i64)> = auction_bid::Entity::find()
         .join(JoinType::InnerJoin, auction_bid::Relation::Auction.def())
@@ -88,7 +88,7 @@ where
 
 /// Auctions in the league/season still taking bids, soonest close first, optionally of one kind
 /// only. The league scope comes from the auctioned contract.
-#[instrument]
+#[instrument(skip(db))]
 pub async fn find_open_auctions_in_league<C>(
     league_id: i64,
     end_of_season_year: i16,
@@ -96,7 +96,7 @@ pub async fn find_open_auctions_in_league<C>(
     db: &C,
 ) -> Result<Vec<auction::Model>>
 where
-    C: ConnectionTrait + Debug,
+    C: ConnectionTrait,
 {
     let mut query = auction::Entity::find()
         .join(JoinType::InnerJoin, auction::Relation::Contract.def())
@@ -119,13 +119,13 @@ where
 /// One indexed `close_at <= now` scan, no per-row bid lookup: the quiet window, the all-bid deadline
 /// and the hard deadline are all folded into `close_at` by whoever last wrote it
 /// (`logic::auction::auction_close_at`).
-#[instrument]
+#[instrument(skip(db))]
 pub async fn find_auctions_due_for_close<C>(
     now: DateTimeWithTimeZone,
     db: &C,
 ) -> Result<Vec<(auction::Model, contract::Model)>>
 where
-    C: ConnectionTrait + Debug,
+    C: ConnectionTrait,
 {
     let rows = auction::Entity::find()
         .find_also_related(contract::Entity)
@@ -145,13 +145,13 @@ where
 
 /// The distinct `(league_id, end_of_season_year)` pairs that currently have an `Open` auction of
 /// the given kind — the leagues a periodic auction tick has work for.
-#[instrument]
+#[instrument(skip(db))]
 pub async fn find_league_seasons_with_open_auctions<C>(
     kind: AuctionKind,
     db: &C,
 ) -> Result<Vec<(i64, i16)>>
 where
-    C: ConnectionTrait + Debug,
+    C: ConnectionTrait,
 {
     let league_seasons = auction::Entity::find()
         .join(JoinType::InnerJoin, auction::Relation::Contract.def())
@@ -173,7 +173,7 @@ where
 /// Keyed off the auctioned contract's player rather than the pooled contract's id: settling an
 /// auction advances the player's contract chain past the pooled contract, so a caller holding only
 /// a player id can no longer find the pooled contract to look the auction up by.
-#[instrument]
+#[instrument(skip(db))]
 pub async fn find_auction_for_player_in_season<C>(
     league_id: i64,
     end_of_season_year: i16,
@@ -182,7 +182,7 @@ pub async fn find_auction_for_player_in_season<C>(
     db: &C,
 ) -> Result<Option<auction::Model>>
 where
-    C: ConnectionTrait + Debug,
+    C: ConnectionTrait,
 {
     let auction_model = auction::Entity::find()
         .join(JoinType::InnerJoin, auction::Relation::Contract.def())
@@ -200,7 +200,7 @@ where
 ///
 /// The timestamp bound keeps a freshly-opened auction from sliding a tier on its first day, and
 /// keeps an auction already slid today from sliding again on the next tick (rules §6.3.4).
-#[instrument]
+#[instrument(skip(db))]
 pub async fn find_unbid_open_auctions<C>(
     league_id: i64,
     end_of_season_year: i16,
@@ -209,7 +209,7 @@ pub async fn find_unbid_open_auctions<C>(
     db: &C,
 ) -> Result<Vec<auction::Model>>
 where
-    C: ConnectionTrait + Debug,
+    C: ConnectionTrait,
 {
     let auction_models = auction::Entity::find()
         .join(JoinType::InnerJoin, auction::Relation::Contract.def())
@@ -227,7 +227,7 @@ where
 }
 
 /// One page of an auction's bid history, newest bid first.
-#[instrument]
+#[instrument(skip(db))]
 pub async fn find_auction_bids<C>(
     auction_id: i64,
     page: u64,
@@ -235,7 +235,7 @@ pub async fn find_auction_bids<C>(
     db: &C,
 ) -> Result<Paged<auction_bid::Model>>
 where
-    C: ConnectionTrait + Debug,
+    C: ConnectionTrait,
 {
     let query = auction_bid::Entity::find()
         .filter(auction_bid::Column::AuctionId.eq(auction_id))
@@ -245,14 +245,14 @@ where
 }
 
 /// Rewrites when an auction stops taking bids (rules §6.4.4 / §8.3.1).
-#[instrument]
+#[instrument(skip(db))]
 pub async fn set_auction_close_at<C>(
     auction_id: i64,
     new_close_at: DateTimeWithTimeZone,
     db: &C,
 ) -> Result<auction::Model>
 where
-    C: ConnectionTrait + Debug,
+    C: ConnectionTrait,
 {
     let mut auction_to_update: auction::ActiveModel =
         find_auction_by_id(auction_id, db).await?.into();
@@ -261,14 +261,14 @@ where
 }
 
 /// Pushes an in-season FA auction's all-bid deadline out for a late bid (rules §8.3.2).
-#[instrument]
+#[instrument(skip(db))]
 pub async fn roll_auction_all_bid_deadline<C>(
     auction_id: i64,
     new_all_bid_deadline: DateTimeWithTimeZone,
     db: &C,
 ) -> Result<auction::Model>
 where
-    C: ConnectionTrait + Debug,
+    C: ConnectionTrait,
 {
     let mut auction_to_update: auction::ActiveModel =
         find_auction_by_id(auction_id, db).await?.into();
@@ -281,7 +281,7 @@ where
 ///
 /// One write for both, because the tier ladder *is* the auction's clock: a slid tier without a
 /// pushed-out close time leaves the auction due for close on the very tick that saved it.
-#[instrument]
+#[instrument(skip(db))]
 pub async fn slide_auction_to_next_tier<C>(
     auction_id: i64,
     new_minimum_bid_amount: i16,
@@ -289,7 +289,7 @@ pub async fn slide_auction_to_next_tier<C>(
     db: &C,
 ) -> Result<auction::Model>
 where
-    C: ConnectionTrait + Debug,
+    C: ConnectionTrait,
 {
     let mut auction_to_update: auction::ActiveModel =
         find_auction_by_id(auction_id, db).await?.into();
@@ -298,14 +298,14 @@ where
     Ok(auction_to_update.update(db).await?)
 }
 
-#[instrument]
+#[instrument(skip(db))]
 pub async fn update_auction_status<C>(
     auction_id: i64,
     new_status: AuctionStatus,
     db: &C,
 ) -> Result<auction::Model>
 where
-    C: ConnectionTrait + Debug,
+    C: ConnectionTrait,
 {
     let mut auction_to_update: auction::ActiveModel =
         find_auction_by_id(auction_id, db).await?.into();
@@ -329,10 +329,10 @@ pub struct NewAuction {
 }
 
 /// Creates & inserts a new auction, open for bids.
-#[instrument]
+#[instrument(skip(db))]
 pub async fn insert_new_auction<C>(new_auction: NewAuction, db: &C) -> Result<auction::Model>
 where
-    C: ConnectionTrait + Debug,
+    C: ConnectionTrait,
 {
     let auction_model_to_insert = auction::ActiveModel {
         id: ActiveValue::NotSet,
@@ -354,7 +354,7 @@ where
 }
 
 /// Pure insert — `logic::auction::place_auction_bid` owns every bid rule (rules §6.4, §8.3).
-#[instrument]
+#[instrument(skip(db))]
 pub async fn insert_auction_bid<C>(
     auction_id: i64,
     team_user_id: i64,
@@ -363,7 +363,7 @@ pub async fn insert_auction_bid<C>(
     db: &C,
 ) -> Result<auction_bid::Model>
 where
-    C: ConnectionTrait + Debug,
+    C: ConnectionTrait,
 {
     let auction_bid_to_insert = auction_bid::ActiveModel {
         id: ActiveValue::NotSet,

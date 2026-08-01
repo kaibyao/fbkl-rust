@@ -33,28 +33,28 @@ pub struct Model {
 }
 
 impl Model {
-    #[instrument]
+    #[instrument(skip(db))]
     pub async fn get_trade_actions<C>(&self, db: &C) -> Result<Vec<super::trade_action::Model>>
     where
-        C: ConnectionTrait + Debug,
+        C: ConnectionTrait,
     {
         let trade_actions = self.find_related(trade_action::Entity).all(db).await?;
         Ok(trade_actions)
     }
 
-    #[instrument]
+    #[instrument(skip(db))]
     pub async fn get_trade_assets<C>(&self, db: &C) -> Result<Vec<super::trade_asset::Model>>
     where
-        C: ConnectionTrait + Debug,
+        C: ConnectionTrait,
     {
         let trade_assets = self.find_related(trade_asset::Entity).all(db).await?;
         Ok(trade_assets)
     }
 
-    #[instrument]
+    #[instrument(skip(db))]
     pub async fn get_teams<C>(&self, db: &C) -> Result<Vec<super::team::Model>>
     where
-        C: ConnectionTrait + Debug,
+        C: ConnectionTrait,
     {
         let teams = self.find_related(team::Entity).all(db).await?;
         Ok(teams)
@@ -64,10 +64,10 @@ impl Model {
         self.status == TradeStatus::Proposed || self.status == TradeStatus::Counteroffered
     }
 
-    #[instrument]
+    #[instrument(skip(db))]
     pub async fn is_latest_in_chain<C>(&self, db: &C) -> Result<bool>
     where
-        C: ConnectionTrait + Debug,
+        C: ConnectionTrait,
     {
         let mut all_trades_in_chain = Entity::find()
             .filter(Column::OriginalTradeId.eq(self.original_trade_id))

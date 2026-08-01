@@ -117,7 +117,7 @@ async fn setup_contract(manager: &SchemaManager<'_>) -> Result<(), DbErr> {
     // Only 1 active contract per player is allowed for any given league & season
     manager
         .get_connection()
-        .execute(Statement::from_string(
+        .execute_raw(Statement::from_string(
             DatabaseBackend::Postgres,
             "CREATE UNIQUE INDEX contract_unique_active_contract_per_player_per_league ON contract (league_id, end_of_season_year, player_id, status) WHERE status = 'Active'".to_string(),
         ))

@@ -1,5 +1,3 @@
-use std::fmt::Debug;
-
 use color_eyre::{
     Result,
     eyre::{ensure, eyre},
@@ -19,10 +17,10 @@ use crate::{
 const ACTIVE_TRADE_STATUSES: [TradeStatus; 2] =
     [TradeStatus::Proposed, TradeStatus::Counteroffered];
 
-#[instrument]
+#[instrument(skip(db))]
 pub async fn find_trade_by_id<C>(trade_id: i64, db: &C) -> Result<trade::Model>
 where
-    C: ConnectionTrait + Debug,
+    C: ConnectionTrait,
 {
     trade::Entity::find_by_id(trade_id)
         .one(db)
@@ -31,10 +29,10 @@ where
 }
 
 /// Every still-actionable trade in a league, newest first.
-#[instrument]
+#[instrument(skip(db))]
 pub async fn find_active_trades_in_league<C>(league_id: i64, db: &C) -> Result<Vec<trade::Model>>
 where
-    C: ConnectionTrait + Debug,
+    C: ConnectionTrait,
 {
     let trades = trade::Entity::find()
         .filter(trade::Column::LeagueId.eq(league_id))
@@ -47,10 +45,10 @@ where
 }
 
 /// Every still-actionable trade a team is involved in (as proposer or recipient), newest first.
-#[instrument]
+#[instrument(skip(db))]
 pub async fn find_active_trades_for_team<C>(team_id: i64, db: &C) -> Result<Vec<trade::Model>>
 where
-    C: ConnectionTrait + Debug,
+    C: ConnectionTrait,
 {
     let trades = trade::Entity::find()
         .join(JoinType::InnerJoin, team_trade::Relation::Trade.def().rev())
@@ -64,14 +62,14 @@ where
     Ok(trades)
 }
 
-#[instrument]
+#[instrument(skip(db))]
 pub async fn insert_new_trade<C>(
     league_id: i64,
     end_of_season_year: i16,
     db: &C,
 ) -> Result<trade::Model>
 where
-    C: ConnectionTrait + Debug,
+    C: ConnectionTrait,
 {
     let trade_model_to_insert = trade::ActiveModel {
         id: ActiveValue::NotSet,
@@ -95,10 +93,10 @@ where
     Ok(updated_trade)
 }
 
-#[instrument]
+#[instrument(skip(db))]
 pub async fn validate_trade_is_latest_in_chain<C>(trade_model: &trade::Model, db: &C) -> Result<()>
 where
-    C: ConnectionTrait + Debug,
+    C: ConnectionTrait,
 {
     let is_latest = trade_model.is_latest_in_chain(db).await?;
 

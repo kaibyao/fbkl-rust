@@ -105,10 +105,10 @@ impl Model {
     }
 
     /// Retrieves the player model related to this contract.
-    #[instrument]
+    #[instrument(skip(db))]
     pub async fn get_player<C>(&self, db: &C) -> Result<RelatedPlayer>
     where
-        C: ConnectionTrait + Debug,
+        C: ConnectionTrait,
     {
         match self.find_related(player::Entity).one(db).await? {
             Some(player_model) => Ok(RelatedPlayer::Player(player_model)),
@@ -123,10 +123,10 @@ impl Model {
     }
 
     /// Retrieves the team model related to this contract.
-    #[instrument]
+    #[instrument(skip(db))]
     pub async fn get_team<C>(&self, db: &C) -> Result<Option<team::Model>>
     where
-        C: ConnectionTrait + Debug,
+        C: ConnectionTrait,
     {
         let maybe_team_model = self.find_related(team::Entity).one(db).await?;
         Ok(maybe_team_model)
@@ -135,7 +135,7 @@ impl Model {
     /// Retrieves the latest contract in the contract history chain.
     pub async fn get_latest_in_chain<C>(&self, db: &C) -> Result<Self>
     where
-        C: ConnectionTrait + Debug,
+        C: ConnectionTrait,
     {
         Entity::find()
             .filter(Column::OriginalContractId.eq(self.original_contract_id))
@@ -154,7 +154,7 @@ impl Model {
     /// Checks whether this contract is the most recent in the contract history chain.
     pub async fn is_latest_in_chain<C>(&self, db: &C) -> Result<bool>
     where
-        C: ConnectionTrait + Debug,
+        C: ConnectionTrait,
     {
         let last_contract_in_history_chain = self.get_latest_in_chain(db).await?;
         Ok(last_contract_in_history_chain.id == self.id)
@@ -172,7 +172,7 @@ impl Model {
     /// Returns a new contract (not yet inserted) where the RD player has been moved to an RDI contract.
     pub async fn move_rd_to_international<C>(&self, db: &C) -> Result<ActiveModel>
     where
-        C: ConnectionTrait + Debug,
+        C: ConnectionTrait,
     {
         create_rdi_contract_from_rd(self, db).await
     }

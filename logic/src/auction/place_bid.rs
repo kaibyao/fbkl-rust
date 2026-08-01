@@ -13,7 +13,9 @@ use fbkl_constants::league_rules::PRE_SEASON_CONTRACTS_PER_ROSTER_LIMIT;
 use fbkl_entity::{
     auction::{self, AuctionStatus},
     auction_bid, auction_queries, contract, contract_queries,
-    sea_orm::{ConnectionTrait, TransactionTrait, prelude::DateTimeWithTimeZone},
+    sea_orm::{
+        ConnectionTrait, TransactionSession, TransactionTrait, prelude::DateTimeWithTimeZone,
+    },
     team_user_queries,
 };
 use tracing::instrument;
@@ -61,7 +63,7 @@ pub enum BidRejection {
 }
 
 /// Places a bid on an open auction, rolling its 24h close time forward (§6.4.4 / §8.3.1).
-#[instrument]
+#[instrument(skip(db))]
 pub async fn place_auction_bid<C>(
     auction_id: i64,
     bidding_team_user_id: i64,
@@ -71,7 +73,7 @@ pub async fn place_auction_bid<C>(
     db: &C,
 ) -> Result<auction_bid::Model>
 where
-    C: ConnectionTrait + TransactionTrait + Debug,
+    C: ConnectionTrait + TransactionTrait,
 {
     let db_txn = db.begin().await?;
 
@@ -191,7 +193,7 @@ const fn validate_bid_amount(
 ///
 /// Only the preseason veteran auction is gated — §8.3.5 lets in-season FA bidders exceed their free
 /// cap and accommodate the win via drops/trades.
-#[instrument]
+#[instrument(skip(db))]
 async fn validate_bid_cap_and_roster<C>(
     auction_model: &auction::Model,
     auctioned_contract: &contract::Model,
@@ -201,7 +203,7 @@ async fn validate_bid_cap_and_roster<C>(
     db: &C,
 ) -> Result<()>
 where
-    C: ConnectionTrait + Debug,
+    C: ConnectionTrait,
 {
     if !auction_model.kind.is_preseason() {
         return Ok(());

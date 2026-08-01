@@ -7,15 +7,13 @@
 //! The passed row stays in the slate as `Skipped`, so it keeps consuming its `order` slot and the
 //! draft moves on to the next `Unused` row rather than snaking back — same as the importer.
 
-use std::fmt::Debug;
-
 use color_eyre::Result;
 use fbkl_entity::{
     deadline::DeadlineKind,
     deadline_queries, draft_pick_queries,
     rookie_draft_selection::{self, RookieDraftSelectionStatus},
     rookie_draft_selection_queries,
-    sea_orm::{ConnectionTrait, TransactionTrait},
+    sea_orm::{ConnectionTrait, TransactionSession, TransactionTrait},
     transaction_queries,
 };
 use tracing::instrument;
@@ -26,7 +24,7 @@ use super::make_pick::{PickRejection, assert_on_the_clock};
 #[instrument(skip(db))]
 pub async fn pass_pick<C>(selection_id: i64, db: &C) -> Result<rookie_draft_selection::Model>
 where
-    C: ConnectionTrait + TransactionTrait + Debug,
+    C: ConnectionTrait + TransactionTrait,
 {
     let db_txn = db.begin().await?;
 

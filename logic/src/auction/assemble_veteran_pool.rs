@@ -8,7 +8,7 @@
 //! from `veteran_auction_ranking` and `min_bid_tier_config`. The players-per-day count stays a
 //! league-rule constant until a season actually needs a different one.
 
-use std::{collections::HashMap, fmt::Debug};
+use std::collections::HashMap;
 
 use chrono::Days;
 use color_eyre::{
@@ -28,7 +28,7 @@ use fbkl_entity::{
     deadline::DeadlineKind,
     deadline_queries,
     sea_orm::{
-        ConnectionTrait, TransactionTrait,
+        ConnectionTrait, TransactionSession, TransactionTrait,
         prelude::{Date, DateTimeWithTimeZone},
     },
 };
@@ -62,7 +62,7 @@ pub async fn assemble_veteran_auction_pool<C>(
     db: &C,
 ) -> Result<Vec<auction_schedule::Model>>
 where
-    C: ConnectionTrait + TransactionTrait + Debug,
+    C: ConnectionTrait + TransactionTrait,
 {
     let existing_schedule_rows = auction_schedule_queries::find_auction_schedule_rows_for_season(
         league_id,
@@ -172,7 +172,7 @@ async fn find_season_inputs<C>(
     db: &C,
 ) -> Result<(Vec<i64>, Vec<i16>)>
 where
-    C: ConnectionTrait + Debug,
+    C: ConnectionTrait,
 {
     let ranked_player_ids = auction_schedule_queries::find_veteran_auction_ranked_player_ids(
         league_id,
@@ -203,7 +203,7 @@ async fn persist_pool<C>(
     db: &C,
 ) -> Result<()>
 where
-    C: ConnectionTrait + TransactionTrait + Debug,
+    C: ConnectionTrait + TransactionTrait,
 {
     let db_txn = db.begin().await?;
     for row in rows {
@@ -241,7 +241,7 @@ pub async fn open_scheduled_auction<C>(
     db: &C,
 ) -> Result<auction::Model>
 where
-    C: ConnectionTrait + Debug,
+    C: ConnectionTrait,
 {
     if let Some(existing_auction) = auction_queries::find_auction_for_player_in_season(
         schedule_row.league_id,
@@ -339,7 +339,7 @@ pub async fn slide_unbid_auctions_down_a_tier<C>(
     db: &C,
 ) -> Result<Vec<auction::Model>>
 where
-    C: ConnectionTrait + TransactionTrait + Debug,
+    C: ConnectionTrait + TransactionTrait,
 {
     let opened_before = now
         .checked_sub_days(Days::new(1))
@@ -405,7 +405,7 @@ async fn find_original_owner_team_id<C>(
     db: &C,
 ) -> Result<Option<i64>>
 where
-    C: ConnectionTrait + Debug,
+    C: ConnectionTrait,
 {
     let Some(previous_contract_id) = pooled_contract.previous_contract_id else {
         return Ok(None);

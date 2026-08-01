@@ -1,5 +1,3 @@
-use std::fmt::Debug;
-
 use color_eyre::Result;
 use fbkl_entity::{
     contract::{self},
@@ -14,14 +12,14 @@ use tracing::instrument;
 use super::create_team_contracts_for_annual_advancement::create_team_updates_for_advanced_team_contracts;
 
 /// Advances the contracts tied to teams in a league and expires the ones that ended the season as free agents.
-#[instrument]
+#[instrument(skip(db))]
 pub async fn advance_league_contracts<C>(
     league_id: i64,
     end_of_season_year: i16,
     db: &C,
 ) -> Result<Vec<contract::Model>>
 where
-    C: ConnectionTrait + Debug,
+    C: ConnectionTrait,
 {
     let active_league_contracts =
         contract_queries::find_active_contracts_in_league(league_id, db).await?;

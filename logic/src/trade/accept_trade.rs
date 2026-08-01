@@ -1,8 +1,10 @@
-use std::{collections::HashSet, fmt::Debug};
+use std::collections::HashSet;
 
 use color_eyre::Result;
 use fbkl_entity::{
-    sea_orm::{ConnectionTrait, TransactionTrait, prelude::DateTimeWithTimeZone},
+    sea_orm::{
+        ConnectionTrait, TransactionSession, TransactionTrait, prelude::DateTimeWithTimeZone,
+    },
     team_queries, team_user, trade,
     trade_action::TradeActionType,
     trade_action_queries, trade_queries,
@@ -14,7 +16,7 @@ use super::process_trade;
 /// Accepts a trade by a `team_user`. Also processes the trade if the other teams involved in the trade have already accepted the trade proposal.
 ///
 /// Returns an option containing the updated trade if it's been processed, and None otherwise.
-#[instrument]
+#[instrument(skip(db))]
 pub async fn accept_trade<C>(
     trade_model: trade::Model,
     accepting_team_user_model: &team_user::Model,
@@ -22,7 +24,7 @@ pub async fn accept_trade<C>(
     db: &C,
 ) -> Result<Option<trade::Model>>
 where
-    C: ConnectionTrait + TransactionTrait + Debug,
+    C: ConnectionTrait + TransactionTrait,
 {
     trade_queries::validate_trade_is_latest_in_chain(&trade_model, db).await?;
 
@@ -51,7 +53,7 @@ where
 
 async fn has_trade_been_accepted_by_all_teams<C>(trade_model: &trade::Model, db: &C) -> Result<bool>
 where
-    C: ConnectionTrait + Debug,
+    C: ConnectionTrait,
 {
     let all_trade_actions = trade_model.get_trade_actions(db).await?;
     let all_actions_are_accept_or_propose = all_trade_actions.iter().all(|trade_action| {

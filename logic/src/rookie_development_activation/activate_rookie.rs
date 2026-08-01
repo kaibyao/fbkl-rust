@@ -1,5 +1,3 @@
-use std::fmt::Debug;
-
 use color_eyre::eyre::{Result, ensure, eyre};
 use fbkl_entity::{
     contract::{self, ContractKind, ContractStatus},
@@ -14,14 +12,14 @@ use crate::roster::{SalarySnapshot, calculate_team_contract_salary_with_model};
 
 use super::rookie_activation_team_update::create_rookie_activation_team_update;
 
-#[instrument]
+#[instrument(skip(db))]
 pub async fn activate_rookie_development_contract<C>(
     contract_model: contract::Model,
     deadline_model: &deadline::Model,
     db: &C,
 ) -> Result<contract::Model>
 where
-    C: ConnectionTrait + Debug,
+    C: ConnectionTrait,
 {
     validate_contract_is_activatable(&contract_model)?;
     contract_queries::validate_contract_is_latest_in_chain(&contract_model, db).await?;
