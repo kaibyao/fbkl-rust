@@ -3,7 +3,7 @@ use std::fmt::Debug;
 use chrono::{Duration, Utc};
 use color_eyre::{Result, eyre::eyre};
 use sea_orm::{
-    ActiveValue, ColumnTrait, ConnectionTrait, DbErr, EntityTrait, QueryFilter,
+    ActiveValue, ColumnTrait, ConnectionTrait, DbErr, EntityTrait, ExprTrait, QueryFilter,
     sea_query::{Expr, OnConflict},
 };
 use tracing::instrument;
@@ -65,13 +65,13 @@ pub fn deadline_idempotency_key(deadline_model: &deadline::Model) -> String {
 /// Historical replay (`import-data`) runs `fbkl_logic` handlers directly instead of going through the scheduler;
 /// without this, replayed deadlines look unprocessed and the live scheduler reprocesses them on
 /// every tick. Idempotent: if a job run for this deadline already exists, it is left untouched.
-#[instrument]
+#[instrument(skip(db))]
 pub async fn record_succeeded_deadline_job_run<C>(
     deadline_model: &deadline::Model,
     db: &C,
 ) -> Result<()>
 where
-    C: ConnectionTrait + Debug,
+    C: ConnectionTrait,
 {
     let insert_result = job_run::Entity::insert(job_run::ActiveModel {
         id: ActiveValue::NotSet,
@@ -106,10 +106,10 @@ where
 ///
 /// The unique index on `idempotency_key` guarantees concurrent ticks cannot both claim the same event; the
 /// loser of the insert race observes the winner's row and skips.
-#[instrument]
+#[instrument(skip(db))]
 pub async fn claim_job_run<C>(new_job_run: NewJobRun, db: &C) -> Result<ClaimOutcome>
 where
-    C: ConnectionTrait + Debug,
+    C: ConnectionTrait,
 {
     let insert_result = job_run::Entity::insert(job_run::ActiveModel {
         id: ActiveValue::NotSet,
@@ -153,7 +153,7 @@ where
 /// exists, so decide based on its status whether it can be (re)claimed.
 async fn claim_existing_job_run<C>(idempotency_key: &str, db: &C) -> Result<ClaimOutcome>
 where
-    C: ConnectionTrait + Debug,
+    C: ConnectionTrait,
 {
     let existing = find_job_run_by_idempotency_key(idempotency_key, db)
         .await?
@@ -204,7 +204,7 @@ async fn reclaim_with_filter<C>(
     db: &C,
 ) -> Result<ClaimOutcome>
 where
-    C: ConnectionTrait + Debug,
+    C: ConnectionTrait,
 {
     let update_result = job_run::Entity::update_many()
         .col_expr(job_run::Column::Status, Expr::value(JobRunStatus::Running))
@@ -228,13 +228,13 @@ where
     Ok(ClaimOutcome::Claimed(reclaimed))
 }
 
-#[instrument]
+#[instrument(skip(db))]
 pub async fn find_job_run_by_idempotency_key<C>(
     idempotency_key: &str,
     db: &C,
 ) -> Result<Option<job_run::Model>>
 where
-    C: ConnectionTrait + Debug,
+    C: ConnectionTrait,
 {
     let maybe_job_run = job_run::Entity::find()
         .filter(job_run::Column::IdempotencyKey.eq(idempotency_key))
@@ -243,14 +243,14 @@ where
     Ok(maybe_job_run)
 }
 
-#[instrument]
+#[instrument(skip(db))]
 pub async fn mark_job_run_succeeded<C>(
     job_run_id: i64,
     transaction_id: Option<i64>,
     db: &C,
 ) -> Result<()>
 where
-    C: ConnectionTrait + Debug,
+    C: ConnectionTrait,
 {
     job_run::Entity::update_many()
         .col_expr(
@@ -265,10 +265,10 @@ where
     Ok(())
 }
 
-#[instrument]
+#[instrument(skip(db))]
 pub async fn mark_job_run_failed<C>(job_run_id: i64, error: &str, db: &C) -> Result<()>
 where
-    C: ConnectionTrait + Debug,
+    C: ConnectionTrait,
 {
     job_run::Entity::update_many()
         .col_expr(job_run::Column::Status, Expr::value(JobRunStatus::Failed))
@@ -280,14 +280,14 @@ where
 }
 
 /// Lists job runs for a league season, most recent first — the commissioner console's audit view.
-#[instrument]
+#[instrument(skip(db))]
 pub async fn find_job_runs_for_league_season<C>(
     league_id: i64,
     end_of_season_year: i16,
     db: &C,
 ) -> Result<Vec<job_run::Model>>
 where
-    C: ConnectionTrait + Debug,
+    C: ConnectionTrait,
 {
     use sea_orm::QueryOrder;
 

@@ -25,7 +25,7 @@ use tracing::instrument;
 ///
 /// Already-run lotteries are replayed from the stored draw rather than re-rolled, so a second call
 /// from the scheduler or a commissioner cannot change the order.
-#[instrument(skip(standings))]
+#[instrument(skip(standings, db))]
 pub async fn run_lottery<C>(
     league_id: i64,
     end_of_season_year: i16,
@@ -33,7 +33,7 @@ pub async fn run_lottery<C>(
     db: &C,
 ) -> Result<Vec<i64>>
 where
-    C: ConnectionTrait + std::fmt::Debug,
+    C: ConnectionTrait,
 {
     if let Some(existing_lottery) = rookie_draft_lottery_queries::find_lottery_for_league_season(
         league_id,

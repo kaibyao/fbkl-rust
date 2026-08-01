@@ -103,7 +103,7 @@ async fn build_pool<C>(
     db: &C,
 ) -> Result<(Vec<(PlayerRef, RelatedPlayer)>, RosterSnapshot)>
 where
-    C: ConnectionTrait + Debug,
+    C: ConnectionTrait,
 {
     let contracts = contract_queries::find_active_contracts_in_league_for_season(
         league_id,
@@ -160,7 +160,7 @@ pub async fn build_veteran_auction_pool<C>(
     db: &C,
 ) -> Result<VeteranAuctionPool>
 where
-    C: ConnectionTrait + Debug,
+    C: ConnectionTrait,
 {
     let (members, snapshot) = build_pool(
         league_id,
@@ -190,7 +190,7 @@ pub async fn build_rookie_draft_eligible_pool<C>(
     db: &C,
 ) -> Result<Vec<RelatedPlayer>>
 where
-    C: ConnectionTrait + Debug,
+    C: ConnectionTrait,
 {
     let (members, _) = build_pool(
         league_id,
@@ -211,7 +211,7 @@ pub async fn build_in_season_fa_pool<C>(
     db: &C,
 ) -> Result<Vec<RelatedPlayer>>
 where
-    C: ConnectionTrait + Debug,
+    C: ConnectionTrait,
 {
     let (members, _) = build_pool(
         league_id,

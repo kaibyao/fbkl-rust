@@ -24,10 +24,10 @@ pub struct Model {
 }
 
 impl Model {
-    #[instrument]
+    #[instrument(skip(db))]
     pub async fn get_team<C>(&self, db: &C) -> Result<team::Model>
     where
-        C: ConnectionTrait + Debug,
+        C: ConnectionTrait,
     {
         let related_team_model = self
             .find_linked(AuctionBidToTeam)

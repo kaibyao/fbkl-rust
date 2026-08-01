@@ -9,7 +9,7 @@ use std::fmt::Debug;
 use color_eyre::{Result, eyre::bail};
 use sea_orm::{
     ActiveValue, ColumnTrait, ConnectionTrait, EntityTrait, QueryFilter, QueryOrder, QuerySelect,
-    TransactionTrait, prelude::Date,
+    TransactionSession, TransactionTrait, prelude::Date,
 };
 use tracing::instrument;
 
@@ -25,7 +25,7 @@ pub struct NewAuctionScheduleRow {
     pub is_rfa_week: bool,
 }
 
-#[instrument(skip(rows))]
+#[instrument(skip(rows, db))]
 pub async fn insert_auction_schedule_rows<C>(
     league_id: i64,
     end_of_season_year: i16,
@@ -33,7 +33,7 @@ pub async fn insert_auction_schedule_rows<C>(
     db: &C,
 ) -> Result<()>
 where
-    C: ConnectionTrait + Debug,
+    C: ConnectionTrait,
 {
     if rows.is_empty() {
         return Ok(());
@@ -59,14 +59,14 @@ where
 }
 
 /// One season's whole release schedule in release order; empty until the pool is assembled.
-#[instrument]
+#[instrument(skip(db))]
 pub async fn find_auction_schedule_rows_for_season<C>(
     league_id: i64,
     end_of_season_year: i16,
     db: &C,
 ) -> Result<Vec<auction_schedule::Model>>
 where
-    C: ConnectionTrait + Debug,
+    C: ConnectionTrait,
 {
     let schedule_models = auction_schedule::Entity::find()
         .filter(auction_schedule::Column::LeagueId.eq(league_id))
@@ -82,13 +82,13 @@ where
 ///
 /// Rows stay due once their date passes; opening a row whose auction already exists — open or
 /// settled — is a no-op, so there is no consumed state to filter on here.
-#[instrument]
+#[instrument(skip(db))]
 pub async fn find_auction_schedule_rows_due_for_release<C>(
     today: Date,
     db: &C,
 ) -> Result<Vec<auction_schedule::Model>>
 where
-    C: ConnectionTrait + Debug,
+    C: ConnectionTrait,
 {
     let schedule_models = auction_schedule::Entity::find()
         .filter(auction_schedule::Column::ScheduledReleaseDate.lte(today))
@@ -118,7 +118,7 @@ pub fn validate_min_bid_tiers(min_bid_amounts: &[i16]) -> Result<()> {
 }
 
 /// Replaces the season's minimum-bid tiers with `min_bid_amounts`, top tier first (rules §6.3.6).
-#[instrument]
+#[instrument(skip(db))]
 pub async fn set_min_bid_tiers<C>(
     league_id: i64,
     end_of_season_year: i16,
@@ -126,7 +126,7 @@ pub async fn set_min_bid_tiers<C>(
     db: &C,
 ) -> Result<Vec<min_bid_tier_config::Model>>
 where
-    C: ConnectionTrait + TransactionTrait + Debug,
+    C: ConnectionTrait + TransactionTrait,
 {
     validate_min_bid_tiers(min_bid_amounts)?;
 
@@ -160,7 +160,7 @@ where
 }
 
 /// Replaces the season's ranked nomination list, best player first (rules §6.3.2, §6.3.6).
-#[instrument]
+#[instrument(skip(db))]
 pub async fn set_veteran_auction_ranking<C>(
     league_id: i64,
     end_of_season_year: i16,
@@ -168,7 +168,7 @@ pub async fn set_veteran_auction_ranking<C>(
     db: &C,
 ) -> Result<Vec<i64>>
 where
-    C: ConnectionTrait + TransactionTrait + Debug,
+    C: ConnectionTrait + TransactionTrait,
 {
     if ranked_player_ids.is_empty() {
         bail!("A season's ranked veteran auction list cannot be empty.");
@@ -204,14 +204,14 @@ where
 }
 
 /// The season's ranked nomination list in rank order, empty when the commissioner has not set one.
-#[instrument]
+#[instrument(skip(db))]
 pub async fn find_veteran_auction_ranked_player_ids<C>(
     league_id: i64,
     end_of_season_year: i16,
     db: &C,
 ) -> Result<Vec<i64>>
 where
-    C: ConnectionTrait + Debug,
+    C: ConnectionTrait,
 {
     let ranked_player_ids = veteran_auction_ranking::Entity::find()
         .filter(veteran_auction_ranking::Column::LeagueId.eq(league_id))
@@ -226,14 +226,14 @@ where
 }
 
 /// The season's tiers, top tier first.
-#[instrument]
+#[instrument(skip(db))]
 pub async fn find_min_bid_tiers<C>(
     league_id: i64,
     end_of_season_year: i16,
     db: &C,
 ) -> Result<Vec<min_bid_tier_config::Model>>
 where
-    C: ConnectionTrait + Debug,
+    C: ConnectionTrait,
 {
     let tier_models = min_bid_tier_config::Entity::find()
         .filter(min_bid_tier_config::Column::LeagueId.eq(league_id))
@@ -244,7 +244,7 @@ where
     Ok(tier_models)
 }
 
-#[instrument]
+#[instrument(skip(db))]
 pub async fn find_min_bid_tier_by_index<C>(
     league_id: i64,
     end_of_season_year: i16,
@@ -252,7 +252,7 @@ pub async fn find_min_bid_tier_by_index<C>(
     db: &C,
 ) -> Result<Option<min_bid_tier_config::Model>>
 where
-    C: ConnectionTrait + Debug,
+    C: ConnectionTrait,
 {
     let maybe_tier_model = min_bid_tier_config::Entity::find()
         .filter(min_bid_tier_config::Column::LeagueId.eq(league_id))

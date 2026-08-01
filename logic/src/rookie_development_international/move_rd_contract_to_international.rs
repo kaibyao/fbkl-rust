@@ -1,5 +1,3 @@
-use std::fmt::Debug;
-
 use color_eyre::eyre::{Result, eyre};
 use fbkl_entity::{
     contract::{self, ContractKind, RelatedPlayer},
@@ -15,14 +13,14 @@ use crate::eligibility::{PlayerEligibilityFacts, validate_rdi_eligible};
 
 use super::{rdi_team_update::create_rdi_move_team_update, validate_contract_kind};
 
-#[instrument]
+#[instrument(skip(db))]
 pub async fn move_rookie_development_contract_to_international<C>(
     contract_model: contract::Model,
     deadline_model: &deadline::Model,
     db: &C,
 ) -> Result<contract::Model>
 where
-    C: ConnectionTrait + Debug,
+    C: ConnectionTrait,
 {
     validate_contract_kind(&contract_model, ContractKind::RookieDevelopment)?;
     let player_facts = match contract_model.get_player(db).await? {

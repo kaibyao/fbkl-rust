@@ -1,5 +1,3 @@
-use std::fmt::Debug;
-
 use color_eyre::{
     Result,
     eyre::{bail, eyre},
@@ -17,13 +15,13 @@ use crate::{
     trade_asset::{self, FromTeamId, ToTeamId, TradeAssetType},
 };
 
-#[instrument]
+#[instrument(skip(db))]
 pub async fn get_trade_assets_related_to_contracts<C>(
     contracts: &[contract::Model],
     db: &C,
 ) -> Result<impl Iterator<Item = trade_asset::Model>>
 where
-    C: ConnectionTrait + Debug,
+    C: ConnectionTrait,
 {
     let trade_assets_with_contracts = contracts
         .load_many(trade_asset::Entity, db)
@@ -34,13 +32,13 @@ where
     Ok(trade_assets_with_contracts)
 }
 
-#[instrument]
+#[instrument(skip(db))]
 pub async fn get_trade_assets_related_to_draft_picks<C>(
     draft_picks: Vec<draft_pick::Model>,
     db: &C,
 ) -> Result<impl Iterator<Item = trade_asset::Model>>
 where
-    C: ConnectionTrait + Debug,
+    C: ConnectionTrait,
 {
     let trade_assets_with_draft_picks = draft_picks
         .load_many(trade_asset::Entity, db)
@@ -51,13 +49,13 @@ where
     Ok(trade_assets_with_draft_picks)
 }
 
-#[instrument]
+#[instrument(skip(db))]
 pub async fn get_trade_assets_for_trades<C>(
     trades: &[trade::Model],
     db: &C,
 ) -> Result<Vec<trade_asset::Model>>
 where
-    C: ConnectionTrait + Debug,
+    C: ConnectionTrait,
 {
     let trade_assets = trades
         .load_many(trade_asset::Entity, db)
@@ -71,7 +69,7 @@ where
 
 /// Creates a new, not-yet-inserted trade asset from an asset id, deriving the *sending* team from
 /// the asset's current owner in the database so a caller can never trade away another team's asset.
-#[instrument]
+#[instrument(skip(db))]
 pub async fn new_trade_asset_active_model_by_id<C>(
     asset_type: TradeAssetType,
     asset_id: i64,
@@ -79,7 +77,7 @@ pub async fn new_trade_asset_active_model_by_id<C>(
     db: &C,
 ) -> Result<trade_asset::ActiveModel>
 where
-    C: ConnectionTrait + Debug,
+    C: ConnectionTrait,
 {
     match asset_type {
         TradeAssetType::Contract => {
@@ -145,7 +143,7 @@ pub fn new_trade_asset_active_model_from_contract(
 }
 
 /// Inserts a new trade (contract) asset for a trade.
-#[instrument]
+#[instrument(skip(db))]
 pub async fn insert_trade_asset_from_contract<C>(
     trade_model: &trade::Model,
     contract_model: &contract::Model,
@@ -154,7 +152,7 @@ pub async fn insert_trade_asset_from_contract<C>(
     db: &C,
 ) -> Result<trade_asset::Model>
 where
-    C: ConnectionTrait + TransactionTrait + Debug,
+    C: ConnectionTrait + TransactionTrait,
 {
     let trade_asset_model_to_insert =
         new_trade_asset_active_model_from_contract(contract_model, from_team_id, to_team_id)?;

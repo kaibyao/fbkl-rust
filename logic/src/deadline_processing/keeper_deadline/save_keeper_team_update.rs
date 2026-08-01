@@ -14,7 +14,7 @@ use fbkl_entity::{
 use tracing::instrument;
 
 /// Saves the contracts to keep on a team for the season's Keeper Deadline, while also dropping non-keeper contracts.
-#[instrument]
+#[instrument(skip(db))]
 pub async fn save_keeper_team_update<C>(
     team_model: &team::Model,
     keeper_contracts: Vec<contract::Model>,
@@ -22,7 +22,7 @@ pub async fn save_keeper_team_update<C>(
     db: &C,
 ) -> Result<team_update::Model>
 where
-    C: ConnectionTrait + Debug,
+    C: ConnectionTrait,
 {
     validate_team_keepers(&keeper_contracts)?;
 
@@ -144,7 +144,7 @@ pub fn validate_team_keepers(contracts: &[contract::Model]) -> Result<(), Keeper
 }
 
 /// If this is the first time this team is keeping contracts, create new team update + set team update contracts
-#[instrument]
+#[instrument(skip(db))]
 async fn create_new_keeper_team_update<C>(
     team: &team::Model,
     keeper_contracts: &[contract::Model],
@@ -152,14 +152,14 @@ async fn create_new_keeper_team_update<C>(
     db: &C,
 ) -> Result<team_update::Model>
 where
-    C: ConnectionTrait + Debug,
+    C: ConnectionTrait,
 {
     team_update_queries::insert_keeper_team_update(team, keeper_contracts, keeper_transaction, db)
         .await
 }
 
 /// If owner previously set keepers, remove previously-saved contracts from team update and save new ones.
-#[instrument]
+#[instrument(skip(db))]
 async fn update_existing_keeper_team_update<C>(
     team_model: &team::Model,
     keeper_team_update: team_update::Model,
@@ -167,7 +167,7 @@ async fn update_existing_keeper_team_update<C>(
     db: &C,
 ) -> Result<team_update::Model>
 where
-    C: ConnectionTrait + Debug,
+    C: ConnectionTrait,
 {
     let updated_keeper_team_update = team_update_queries::update_keeper_team_update(
         team_model,

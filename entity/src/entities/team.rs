@@ -24,10 +24,10 @@ pub struct Model {
 }
 
 impl Model {
-    #[instrument]
+    #[instrument(skip(db))]
     pub async fn get_league<C>(&self, db: &C) -> Result<league::Model>
     where
-        C: ConnectionTrait + Debug,
+        C: ConnectionTrait,
     {
         let league_model = self.find_related(league::Entity).one(db).await?;
         league_model.ok_or_else(|| {
@@ -40,7 +40,7 @@ impl Model {
 
     pub async fn get_team_users<C>(&self, db: &C) -> Result<Vec<team_user::Model>>
     where
-        C: ConnectionTrait + Debug,
+        C: ConnectionTrait,
     {
         let team_user_models = self.find_related(team_user::Entity).all(db).await?;
         Ok(team_user_models)
@@ -49,7 +49,7 @@ impl Model {
     /// Retrieves all active contracts for a given team.
     pub async fn get_active_contracts<C>(&self, db: &C) -> Result<Vec<contract::Model>>
     where
-        C: ConnectionTrait + Debug,
+        C: ConnectionTrait,
     {
         let active_team_contracts = self
             .find_related(contract::Entity)

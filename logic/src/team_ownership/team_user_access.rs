@@ -1,5 +1,3 @@
-use std::fmt::Debug;
-
 use color_eyre::eyre::Result;
 use fbkl_entity::{
     sea_orm::ConnectionTrait, team, team_user::LeagueRole,
@@ -12,7 +10,7 @@ pub async fn get_team_user_access_for_user_in_league<C>(
     db: &C,
 ) -> Result<Option<team::Model>>
 where
-    C: ConnectionTrait + Debug,
+    C: ConnectionTrait,
 {
     let all_league_team_users_for_user =
         get_all_team_users_by_user_and_league(&user_id, &league_id, db).await?;

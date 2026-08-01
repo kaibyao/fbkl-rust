@@ -1,4 +1,4 @@
-use std::{collections::HashMap, fmt::Debug};
+use std::collections::HashMap;
 
 use color_eyre::{Result, eyre::eyre};
 use sea_orm::{
@@ -9,10 +9,10 @@ use tracing::instrument;
 
 use crate::{team, team_user, trade_action};
 
-#[instrument]
+#[instrument(skip(db))]
 pub async fn find_teams_in_league<C>(league_id: i64, db: &C) -> Result<Vec<team::Model>>
 where
-    C: ConnectionTrait + Debug,
+    C: ConnectionTrait,
 {
     let team_models = team::Entity::find()
         .join(JoinType::LeftJoin, team::Relation::League.def())
@@ -24,14 +24,14 @@ where
 
 /// Looks up a single team, scoped to `league_id` so a caller cannot read a team outside the
 /// league its session has selected.
-#[instrument]
+#[instrument(skip(db))]
 pub async fn find_team_by_id_in_league<C>(
     team_id: i64,
     league_id: i64,
     db: &C,
 ) -> Result<team::Model>
 where
-    C: ConnectionTrait + Debug,
+    C: ConnectionTrait,
 {
     team::Entity::find_by_id(team_id)
         .filter(team::Column::LeagueId.eq(league_id))
@@ -40,13 +40,13 @@ where
         .ok_or_else(|| eyre!("Could not find team {team_id} in league {league_id}."))
 }
 
-#[instrument]
+#[instrument(skip(db))]
 pub async fn find_teams_by_name_in_league<C>(
     league_id: i64,
     db: &C,
 ) -> Result<HashMap<String, team::Model>>
 where
-    C: ConnectionTrait + Debug,
+    C: ConnectionTrait,
 {
     let teams_by_name = find_teams_in_league(league_id, db)
         .await?
@@ -57,13 +57,13 @@ where
 }
 
 /// Finds the teams related to the given trade actions and returns a map of `trade_action` id to its related team.
-#[instrument]
+#[instrument(skip(db))]
 pub async fn find_teams_by_trade_actions<C>(
     trade_actions: &[trade_action::Model],
     db: &C,
 ) -> Result<HashMap<i64, team::Model>>
 where
-    C: ConnectionTrait + Debug,
+    C: ConnectionTrait,
 {
     let trade_action_teams = trade_actions
         .load_many_to_many(team::Entity, team_user::Entity, db)

@@ -70,7 +70,7 @@ pub async fn set_auto_updated_at_on_table(
 ) -> Result<(), DbErr> {
     manager
         .get_connection()
-        .execute(Statement::from_string(
+        .execute_raw(Statement::from_string(
             DatabaseBackend::Postgres,
             format!("SELECT set_auto_updated_at_on_table('{table}')"),
         ))

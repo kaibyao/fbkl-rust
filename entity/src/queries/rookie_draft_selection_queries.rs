@@ -1,4 +1,4 @@
-use std::{collections::HashMap, fmt::Debug};
+use std::collections::HashMap;
 
 use color_eyre::eyre::{Result, eyre};
 use sea_orm::{
@@ -17,14 +17,14 @@ use crate::{
 
 /// Rookie draft selections made in a league's season, in draft order. The season comes from the
 /// selection's draft pick.
-#[instrument]
+#[instrument(skip(db))]
 pub async fn find_rookie_draft_selections_for_league_season<C>(
     league_id: i64,
     end_of_season_year: i16,
     db: &C,
 ) -> Result<Vec<rookie_draft_selection::Model>>
 where
-    C: ConnectionTrait + Debug,
+    C: ConnectionTrait,
 {
     let selections = rookie_draft_selection::Entity::find()
         .join(
@@ -45,14 +45,14 @@ pub use find_rookie_draft_selections_for_league_season as get_selections_for_dra
 
 /// The selection that is on the clock: the lowest-`order` `Unused` row. `None` once every pick is
 /// used or skipped.
-#[instrument]
+#[instrument(skip(db))]
 pub async fn get_on_the_clock_selection<C>(
     league_id: i64,
     end_of_season_year: i16,
     db: &C,
 ) -> Result<Option<rookie_draft_selection::Model>>
 where
-    C: ConnectionTrait + Debug,
+    C: ConnectionTrait,
 {
     let selection = rookie_draft_selection::Entity::find()
         .join(
@@ -71,13 +71,13 @@ where
 
 /// A slate row by id, row-locked so two clients cannot resolve the same pick. Only meaningful
 /// inside a db transaction.
-#[instrument]
+#[instrument(skip(db))]
 pub async fn find_selection_by_id_for_update<C>(
     selection_id: i64,
     db: &C,
 ) -> Result<rookie_draft_selection::Model>
 where
-    C: ConnectionTrait + Debug,
+    C: ConnectionTrait,
 {
     rookie_draft_selection::Entity::find_by_id(selection_id)
         .lock_exclusive()
@@ -88,7 +88,7 @@ where
 
 /// Resolves a pre-created slate row to its outcome — the live-draft counterpart of
 /// [`insert_used_rookie_draft_selection`], which the importer needs only because it has no slate.
-#[instrument]
+#[instrument(skip(db))]
 pub async fn record_selection_result<C>(
     selection_model: rookie_draft_selection::Model,
     status: RookieDraftSelectionStatus,
@@ -96,7 +96,7 @@ pub async fn record_selection_result<C>(
     db: &C,
 ) -> Result<rookie_draft_selection::Model>
 where
-    C: ConnectionTrait + Debug,
+    C: ConnectionTrait,
 {
     let mut selection_to_update: rookie_draft_selection::ActiveModel = selection_model.into();
     selection_to_update.status = ActiveValue::Set(status);
@@ -108,7 +108,7 @@ where
 /// clock before any pick is made (the importer instead back-fills `order` per imported pick).
 ///
 /// No-op if the slate already exists, which is what makes `start_rookie_draft` safe to call twice.
-#[instrument(skip(ordered_draft_pick_ids))]
+#[instrument(skip(ordered_draft_pick_ids, db))]
 pub async fn build_draft_slate<C>(
     league_id: i64,
     end_of_season_year: i16,
@@ -116,7 +116,7 @@ pub async fn build_draft_slate<C>(
     db: &C,
 ) -> Result<()>
 where
-    C: ConnectionTrait + Debug,
+    C: ConnectionTrait,
 {
     if ordered_draft_pick_ids.is_empty()
         || !get_selections_for_draft(league_id, end_of_season_year, db)
@@ -162,14 +162,14 @@ where
 /// The draft window is the `PreseasonRookieDraftStart` deadline through the following
 /// `PreseasonFinalRosterLock`, both inclusive — §7.3.3 allows drops in that window, §7.3.4 bans
 /// re-drafting those players.
-#[instrument]
+#[instrument(skip(db))]
 pub async fn find_players_dropped_during_draft<C>(
     league_id: i64,
     end_of_season_year: i16,
     db: &C,
 ) -> Result<Vec<contract::Model>>
 where
-    C: ConnectionTrait + Debug,
+    C: ConnectionTrait,
 {
     let draft_start_deadline = deadline_queries::find_deadline_for_season_by_type(
         league_id,
@@ -204,7 +204,7 @@ where
     Ok(dropped_contracts)
 }
 
-#[instrument]
+#[instrument(skip(db))]
 pub async fn insert_used_rookie_draft_selection<C>(
     signed_rookie_contract: &contract::Model,
     draft_pick_id: i64,
@@ -212,7 +212,7 @@ pub async fn insert_used_rookie_draft_selection<C>(
     db: &C,
 ) -> Result<rookie_draft_selection::Model>
 where
-    C: ConnectionTrait + Debug,
+    C: ConnectionTrait,
 {
     let rookie_draft_selection_to_insert = rookie_draft_selection::Model::from_rookie_contract(
         signed_rookie_contract.league_id,
@@ -225,7 +225,7 @@ where
     Ok(inserted_rookie_draft_selection)
 }
 
-#[instrument]
+#[instrument(skip(db))]
 pub async fn insert_skipped_rookie_draft_selection<C>(
     league_id: i64,
     draft_pick_id: i64,
@@ -233,7 +233,7 @@ pub async fn insert_skipped_rookie_draft_selection<C>(
     db: &C,
 ) -> Result<rookie_draft_selection::Model>
 where
-    C: ConnectionTrait + Debug,
+    C: ConnectionTrait,
 {
     let rookie_draft_selection_to_insert = rookie_draft_selection::ActiveModel {
         order: ActiveValue::Set(overall_draft_rank),
@@ -252,10 +252,10 @@ where
 
 /// Keeps the lazily-inserted (importer) paths filling the denormalized owner column without
 /// needing the caller to hand over a draft pick model.
-#[instrument]
+#[instrument(skip(db))]
 async fn current_owner_team_id_for_draft_pick<C>(draft_pick_id: i64, db: &C) -> Result<i64>
 where
-    C: ConnectionTrait + Debug,
+    C: ConnectionTrait,
 {
     let draft_pick_model = draft_pick::Entity::find_by_id(draft_pick_id)
         .one(db)

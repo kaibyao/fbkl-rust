@@ -25,7 +25,7 @@ use fbkl_entity::{
         ClaimOutcome, NewJobRun, claim_job_run, deadline_idempotency_key, mark_job_run_failed,
         mark_job_run_succeeded,
     },
-    sea_orm::{ActiveEnum, ConnectionTrait, DatabaseTransaction, TransactionTrait},
+    sea_orm::{ActiveEnum, ConnectionTrait, TransactionSession, TransactionTrait},
 };
 use fbkl_logic::{
     annual_contract_advancement::advance_league_contracts,
@@ -111,7 +111,7 @@ pub enum ProcessOutcome {
 #[instrument(skip(db))]
 pub async fn process_deadline<C>(db: &C, deadline_model: &deadline::Model) -> Result<ProcessOutcome>
 where
-    C: ConnectionTrait + TransactionTrait + Debug,
+    C: ConnectionTrait + TransactionTrait,
 {
     let new_job_run = NewJobRun {
         league_id: deadline_model.league_id,
@@ -129,7 +129,7 @@ where
 #[instrument(skip(db))]
 pub async fn process_event<C>(db: &C, event: ProcessableEvent) -> Result<ProcessOutcome>
 where
-    C: ConnectionTrait + TransactionTrait + Debug,
+    C: ConnectionTrait + TransactionTrait,
 {
     let new_job_run = NewJobRun {
         league_id: event.league_id,
@@ -157,7 +157,7 @@ async fn run_claimed<C>(
     task: DispatchTask<'_>,
 ) -> Result<ProcessOutcome>
 where
-    C: ConnectionTrait + TransactionTrait + Debug,
+    C: ConnectionTrait + TransactionTrait,
 {
     let dispatch_target = new_job_run.dispatch_target.clone();
     let job_run_model = match claim_job_run(new_job_run, db).await? {
@@ -212,10 +212,10 @@ where
 /// effects are either implicit (e.g. the §4.2.3 cap bump lives in
 /// `deadline::Model::get_salary_cap`) or owned by unbuilt engines (specs 01/02), and recording
 /// success keeps the scheduler from retrying them forever.
-async fn dispatch_deadline(
-    deadline_model: &deadline::Model,
-    txn: &DatabaseTransaction,
-) -> Result<()> {
+async fn dispatch_deadline<C>(deadline_model: &deadline::Model, txn: &C) -> Result<()>
+where
+    C: ConnectionTrait + TransactionTrait,
+{
     match deadline_model.kind {
         DeadlineKind::PreseasonStart => {
             advance_league_contracts(
@@ -282,7 +282,10 @@ async fn dispatch_deadline(
 }
 
 /// Maps a sub-event to its `fbkl_logic` handler.
-async fn dispatch_event(event: ProcessableEvent, txn: &DatabaseTransaction) -> Result<()> {
+async fn dispatch_event<C>(event: ProcessableEvent, txn: &C) -> Result<()>
+where
+    C: ConnectionTrait + TransactionTrait,
+{
     let ProcessableEvent {
         league_id,
         auction_id,

@@ -1,20 +1,19 @@
 use chrono::{NaiveDate, Utc};
 use color_eyre::Result;
 use sea_orm::{ActiveModelTrait, ActiveValue, ConnectionTrait};
-use std::fmt::Debug;
 use tracing::instrument;
 
 use crate::team_update::{self, TeamUpdateStatus};
 
 /// Updates the given `team_update` (generated via auction processing) to be finished, along with an optional effective date (defaults to `now()` otherwise).
-#[instrument]
+#[instrument(skip(db))]
 pub async fn update_team_update_for_auction<C>(
     team_update_model: &team_update::Model,
     maybe_override_effective_date: Option<NaiveDate>,
     db: &C,
 ) -> Result<team_update::Model>
 where
-    C: ConnectionTrait + Debug,
+    C: ConnectionTrait,
 {
     let mut update_team_update_date_and_status: team_update::ActiveModel =
         team_update_model.clone().into();

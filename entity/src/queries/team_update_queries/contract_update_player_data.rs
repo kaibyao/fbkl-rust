@@ -1,7 +1,6 @@
 use color_eyre::Result;
 use fbkl_constants::FREE_AGENCY_TEAM;
 use sea_orm::ConnectionTrait;
-use std::fmt::Debug;
 use tracing::instrument;
 
 use crate::contract::{self, RelatedPlayer};
@@ -13,10 +12,10 @@ pub struct ContractUpdatePlayerData {
 }
 
 impl ContractUpdatePlayerData {
-    #[instrument]
+    #[instrument(skip(db))]
     pub async fn from_contract_model<C>(contract_model: &contract::Model, db: &C) -> Result<Self>
     where
-        C: ConnectionTrait + Debug,
+        C: ConnectionTrait,
     {
         let player_model = contract_model.get_player(db).await?;
 

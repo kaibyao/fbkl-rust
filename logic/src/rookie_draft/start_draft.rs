@@ -5,14 +5,12 @@
 //! for that future second caller: an existing slate short-circuits, and [`run_lottery`] replays a
 //! stored draw instead of re-rolling it.
 
-use std::fmt::Debug;
-
 use color_eyre::Result;
 use fbkl_entity::{
     deadline::DeadlineKind,
     deadline_queries, draft_pick_queries, league_team_season_standing_queries,
     rookie_draft_selection_queries,
-    sea_orm::{ConnectionTrait, TransactionTrait},
+    sea_orm::{ConnectionTrait, TransactionSession, TransactionTrait},
 };
 use tracing::instrument;
 
@@ -21,10 +19,10 @@ use super::{compute_draft_order, run_lottery};
 /// Runs the lottery and persists the full ordered slate of unused selections (§7.2).
 ///
 /// Returns `false` when the draft had already been started and nothing was written.
-#[instrument]
+#[instrument(skip(db))]
 pub async fn start_rookie_draft<C>(league_id: i64, end_of_season_year: i16, db: &C) -> Result<bool>
 where
-    C: ConnectionTrait + TransactionTrait + Debug,
+    C: ConnectionTrait + TransactionTrait,
 {
     // Errors when the deadline is missing, so a league without a scheduled draft cannot start one.
     deadline_queries::find_deadline_for_season_by_type(

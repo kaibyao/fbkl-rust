@@ -1,5 +1,3 @@
-use std::fmt::Debug;
-
 use chrono::NaiveDate;
 use color_eyre::Result;
 use fbkl_entity::{
@@ -18,7 +16,7 @@ use crate::roster::{
 };
 
 /// Signs a contract to the team that submitted the last/winning bid to a preseason veteran auction before it ended. Creates + inserts the contract, transaction, and team update.
-#[instrument]
+#[instrument(skip(db))]
 pub async fn sign_auction_contract_to_team<C>(
     auction_model: &auction::Model,
     winning_auction_bid_model: &auction_bid::Model,
@@ -27,7 +25,7 @@ pub async fn sign_auction_contract_to_team<C>(
     db: &C,
 ) -> Result<(contract::Model, transaction::Model, team_update::Model)>
 where
-    C: ConnectionTrait + TransactionTrait + Debug,
+    C: ConnectionTrait + TransactionTrait,
 {
     // Sign contract to team
     let winning_team_model = winning_auction_bid_model.get_team(db).await?;
@@ -68,7 +66,7 @@ where
 }
 
 /// Creates & inserts a team update from a completed auction.
-#[instrument]
+#[instrument(skip(db))]
 async fn insert_team_update_from_auction_won<C>(
     winning_auction_bid_model: &auction_bid::Model,
     auction_transaction_model: &transaction::Model,
@@ -79,7 +77,7 @@ async fn insert_team_update_from_auction_won<C>(
     db: &C,
 ) -> Result<team_update::Model>
 where
-    C: ConnectionTrait + Debug,
+    C: ConnectionTrait,
 {
     let contract_update_player_data =
         ContractUpdatePlayerData::from_contract_model(signed_contract_model, db).await?;

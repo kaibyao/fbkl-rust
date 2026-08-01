@@ -30,8 +30,9 @@ thiserror = "2.0.12"
 time = "0.3.47"
 tokio = {version = "1.52.3", features = ["full"]}
 tower-cookies = "0.11.0"
-tower-sessions = {version = "0.14.0", features = ["private"]}
-tower-sessions-sqlx-store = {version = "0.15.0", features = ["postgres"]}
+tower-sessions = {version = "0.15.0", features = ["private"]}
+# Unreleased: first revision on sqlx 0.9, so the store shares sea-orm 2's pool.
+tower-sessions-sqlx-store = {git = "https://github.com/maxcountryman/tower-sessions-stores.git", rev = "75cb75792d0a8d9231723b07e7524897201ef73b", features = ["postgres"]}
 tracing = "0.1.44"
 tracing-subscriber = {version = "0.3.23", features = ["env-filter", "fmt"]}
 

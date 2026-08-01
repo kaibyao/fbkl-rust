@@ -1,5 +1,3 @@
-use std::fmt::Debug;
-
 use color_eyre::eyre::{Result, eyre};
 use sea_orm::{
     ColumnTrait, ConnectionTrait, EntityTrait, JoinType, ModelTrait, QueryFilter, QuerySelect,
@@ -10,14 +8,14 @@ use tracing::instrument;
 use crate::{league, team, team_user, user};
 
 /// Retrieves the default team user for a team in a given season
-#[instrument]
+#[instrument(skip(db))]
 pub async fn find_default_team_user_for_team<C>(
     team_model: &team::Model,
     end_of_season_year: i16,
     db: &C,
 ) -> Result<team_user::Model>
 where
-    C: ConnectionTrait + Debug,
+    C: ConnectionTrait,
 {
     let team_user_models = team_model.get_team_users(db).await?;
     let default_team_user = team_user_models
@@ -32,10 +30,10 @@ where
     Ok(default_team_user)
 }
 
-#[instrument]
+#[instrument(skip(db))]
 pub async fn get_team_users_by_team<C>(team_id: i64, db: &C) -> Result<Vec<team_user::Model>>
 where
-    C: ConnectionTrait + Debug,
+    C: ConnectionTrait,
 {
     let team_users = team_user::Entity::find()
         .join(JoinType::LeftJoin, team_user::Relation::Team.def())
@@ -46,23 +44,23 @@ where
     Ok(team_users)
 }
 
-#[instrument]
+#[instrument(skip(db))]
 pub async fn get_team_users_by_user<C>(user: &user::Model, db: &C) -> Result<Vec<team_user::Model>>
 where
-    C: ConnectionTrait + Debug,
+    C: ConnectionTrait,
 {
     let team_users = user.find_related(team_user::Entity).all(db).await?;
     Ok(team_users)
 }
 
-#[instrument]
+#[instrument(skip(db))]
 pub async fn get_team_user_by_user_and_league<C>(
     user_id: &i64,
     league_id: &i64,
     db: &C,
 ) -> Result<Option<(team_user::Model, Option<team::Model>)>>
 where
-    C: ConnectionTrait + Debug,
+    C: ConnectionTrait,
 {
     let team_users = team_user::Entity::find()
         .find_also_related(team::Entity)
@@ -74,14 +72,14 @@ where
     Ok(team_users)
 }
 
-#[instrument]
+#[instrument(skip(db))]
 pub async fn get_all_team_users_by_user_and_league<C>(
     user_id: &i64,
     league_id: &i64,
     db: &C,
 ) -> Result<Vec<(team_user::Model, Option<team::Model>)>>
 where
-    C: ConnectionTrait + Debug,
+    C: ConnectionTrait,
 {
     let team_users = team_user::Entity::find()
         .find_also_related(team::Entity)
@@ -93,10 +91,10 @@ where
     Ok(team_users)
 }
 
-#[instrument]
+#[instrument(skip(db))]
 pub async fn find_team_user_by_id<C>(team_user_id: i64, db: &C) -> Result<team_user::Model>
 where
-    C: ConnectionTrait + Debug,
+    C: ConnectionTrait,
 {
     team_user::Entity::find_by_id(team_user_id)
         .one(db)

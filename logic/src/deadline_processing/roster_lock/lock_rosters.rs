@@ -1,5 +1,3 @@
-use std::fmt::Debug;
-
 use color_eyre::eyre::Result;
 use fbkl_entity::{
     deadline::{self},
@@ -11,10 +9,10 @@ use tracing::instrument;
 
 use super::validate_league_rosters;
 
-#[instrument]
+#[instrument(skip(db))]
 pub async fn lock_rosters<C>(deadline_model: &deadline::Model, db: &C) -> Result<()>
 where
-    C: ConnectionTrait + TransactionTrait + Debug,
+    C: ConnectionTrait + TransactionTrait,
 {
     validate_league_rosters(deadline_model, db).await?;
 

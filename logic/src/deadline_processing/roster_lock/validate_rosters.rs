@@ -1,5 +1,3 @@
-use std::fmt::Debug;
-
 use color_eyre::eyre::{Result, bail};
 use fbkl_constants::league_rules::{
     PRE_SEASON_CONTRACTS_PER_ROSTER_LIMIT,
@@ -20,13 +18,13 @@ use tracing::instrument;
 use crate::roster::{SalarySnapshot, calculate_team_contract_salary};
 
 /// Validate if a roster is ready for a lock.
-#[instrument]
+#[instrument(skip(db))]
 pub async fn validate_league_rosters<C>(
     roster_lock_deadline: &deadline::Model,
     db: &C,
 ) -> Result<()>
 where
-    C: ConnectionTrait + Debug,
+    C: ConnectionTrait,
 {
     if roster_lock_deadline.kind == DeadlineKind::PreseasonKeeper {
         // Reason being that the keeper lock uses rules that are so different from the regular season that it made sense for it to have its own validation functions.
@@ -67,7 +65,7 @@ where
 /// sorted by contract kind.
 async fn format_team_contracts<C>(team_contracts: &[contract::Model], db: &C) -> Result<String>
 where
-    C: ConnectionTrait + Debug,
+    C: ConnectionTrait,
 {
     let mut contract_lines = Vec::with_capacity(team_contracts.len());
     for c in team_contracts {
@@ -98,7 +96,7 @@ async fn validate_roster_cap_not_exceeded<C>(
     db: &C,
 ) -> Result<()>
 where
-    C: ConnectionTrait + Debug,
+    C: ConnectionTrait,
 {
     let SalarySnapshot {
         salary: total_contract_amount,
@@ -129,7 +127,7 @@ async fn validate_roster_contract_type_limits_not_exceeded<C>(
     db: &C,
 ) -> Result<()>
 where
-    C: ConnectionTrait + Debug,
+    C: ConnectionTrait,
 {
     let mut num_rd_contracts = 0;
     let mut num_intl_rd_contracts = 0;
@@ -218,7 +216,7 @@ async fn validate_roster_ir_slot_limits<C>(
     db: &C,
 ) -> Result<()>
 where
-    C: ConnectionTrait + Debug,
+    C: ConnectionTrait,
 {
     // roster IR counts are far below i16::MAX
     #[allow(clippy::cast_possible_truncation, clippy::cast_possible_wrap)]

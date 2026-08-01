@@ -48,10 +48,10 @@ pub struct Model {
 }
 
 impl Model {
-    #[instrument]
+    #[instrument(skip(db))]
     pub async fn get_real_team<C>(&self, db: &C) -> Result<real_team::Model>
     where
-        C: ConnectionTrait + Debug,
+        C: ConnectionTrait,
     {
         let real_team_model = self
             .find_related(real_team::Entity)

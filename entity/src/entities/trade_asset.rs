@@ -95,10 +95,10 @@ impl Model {
     }
 
     /// Retrieves the contract related to the trade asset, assuming that its `TradeAssetType` is `Contract`.
-    #[instrument]
+    #[instrument(skip(db))]
     pub async fn get_contract<C>(&self, db: &C) -> Result<contract::Model>
     where
-        C: ConnectionTrait + Debug,
+        C: ConnectionTrait,
     {
         ensure!(
             self.asset_type == TradeAssetType::Contract,
@@ -118,10 +118,10 @@ impl Model {
     }
 
     /// Retrieves the draft pick related to the trade asset, assuming that its `TradeAssetType` is `DraftPick`.
-    #[instrument]
+    #[instrument(skip(db))]
     pub async fn get_draft_pick<C>(&self, db: &C) -> Result<draft_pick::Model>
     where
-        C: ConnectionTrait + Debug,
+        C: ConnectionTrait,
     {
         ensure!(
             self.asset_type == TradeAssetType::DraftPick,
@@ -141,10 +141,10 @@ impl Model {
     }
 
     /// Retrieves the draft pick option related to the trade asset, assuming that its `TradeAssetType` is `DraftPickOption`.
-    #[instrument]
+    #[instrument(skip(db))]
     pub async fn get_draft_pick_option<C>(&self, db: &C) -> Result<draft_pick_option::Model>
     where
-        C: ConnectionTrait + Debug,
+        C: ConnectionTrait,
     {
         ensure!(
             self.asset_type == TradeAssetType::DraftPickOption,

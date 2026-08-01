@@ -18,7 +18,7 @@ use fbkl_entity::{
     deadline_queries, draft_pick_queries,
     rookie_draft_selection::{self, RookieDraftSelectionStatus},
     rookie_draft_selection_queries,
-    sea_orm::{ActiveValue, ConnectionTrait, TransactionTrait},
+    sea_orm::{ActiveValue, ConnectionTrait, TransactionSession, TransactionTrait},
     team_update::{
         self, ContractUpdate, ContractUpdateType, TeamUpdateAsset, TeamUpdateData, TeamUpdateStatus,
     },
@@ -97,7 +97,7 @@ pub async fn re_draft_ban_check<C>(
     db: &C,
 ) -> Result<ReDraftBan>
 where
-    C: ConnectionTrait + Debug,
+    C: ConnectionTrait,
 {
     let dropped_contracts = rookie_draft_selection_queries::find_players_dropped_during_draft(
         league_id,
@@ -120,7 +120,7 @@ pub async fn make_pick<C>(
     db: &C,
 ) -> Result<rookie_draft_selection::Model>
 where
-    C: ConnectionTrait + TransactionTrait + Debug,
+    C: ConnectionTrait + TransactionTrait,
 {
     let db_txn = db.begin().await?;
 
@@ -240,7 +240,7 @@ async fn insert_team_update_for_pick<C>(
     db: &C,
 ) -> Result<()>
 where
-    C: ConnectionTrait + Debug,
+    C: ConnectionTrait,
 {
     let contract_update_player_data =
         ContractUpdatePlayerData::from_contract_model(rookie_contract_model, db).await?;
@@ -293,7 +293,7 @@ pub(super) async fn assert_on_the_clock<C>(
     db: &C,
 ) -> Result<()>
 where
-    C: ConnectionTrait + Debug,
+    C: ConnectionTrait,
 {
     let maybe_on_the_clock = rookie_draft_selection_queries::get_on_the_clock_selection(
         selection_model.league_id,

@@ -11,18 +11,18 @@ use fbkl_entity::{
     team_update_queries,
     transaction::{self, TransactionKind},
 };
-use std::{collections::HashMap, fmt::Debug};
+use std::collections::HashMap;
 use tracing::instrument;
 
 /// Processes the `team_updates` that have been created for the Keeper Deadline and sets the status for them.
-#[instrument]
+#[instrument(skip(db))]
 pub async fn process_keeper_deadline_transaction<C>(
     league_id: i64,
     end_of_season_year: i16,
     db: &C,
 ) -> Result<()>
 where
-    C: ConnectionTrait + Debug,
+    C: ConnectionTrait,
 {
     let (keeper_team_updates, mut active_league_contracts_by_id) =
         validate_and_get_process_keeper_deadline_data(league_id, end_of_season_year, db).await?;
@@ -65,14 +65,14 @@ where
 }
 
 /// Processes the `team_updates` that have been created for the Keeper Deadline. Returns a tuple containing the number of contracts kept and dropped.
-#[instrument]
+#[instrument(skip(db))]
 async fn process_keeper_deadline_transaction_inner<C>(
     team_update_model: team_update::Model,
     active_league_contracts_by_id: &mut HashMap<i64, contract::Model>,
     db: &C,
 ) -> Result<()>
 where
-    C: ConnectionTrait + Debug,
+    C: ConnectionTrait,
 {
     let team_update_data = team_update_model.get_data()?;
     match team_update_data {
@@ -115,14 +115,14 @@ where
     Ok(())
 }
 
-#[instrument]
+#[instrument(skip(db))]
 async fn validate_and_get_process_keeper_deadline_data<C>(
     league_id: i64,
     end_of_season_year: i16,
     db: &C,
 ) -> Result<(Vec<team_update::Model>, HashMap<i64, contract::Model>)>
 where
-    C: ConnectionTrait + Debug,
+    C: ConnectionTrait,
 {
     let deadline_model = deadline_queries::find_deadline_for_season_by_type(
         league_id,

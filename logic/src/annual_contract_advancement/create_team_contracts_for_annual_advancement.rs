@@ -1,5 +1,3 @@
-use std::fmt::Debug;
-
 use color_eyre::eyre::{Result, eyre};
 use fbkl_entity::{
     contract, deadline,
@@ -12,7 +10,7 @@ use fbkl_entity::{
 use multimap::MultiMap;
 use tracing::instrument;
 
-#[instrument]
+#[instrument(skip(db))]
 pub async fn create_team_updates_for_advanced_team_contracts<C>(
     advanced_team_contracts: &[contract::Model],
     preseason_start_deadline_model: &deadline::Model,
@@ -20,7 +18,7 @@ pub async fn create_team_updates_for_advanced_team_contracts<C>(
     db: &C,
 ) -> Result<()>
 where
-    C: ConnectionTrait + Debug,
+    C: ConnectionTrait,
 {
     let contracts_by_team: MultiMap<i64, &contract::Model> = advanced_team_contracts
         .iter()

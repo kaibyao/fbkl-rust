@@ -2,7 +2,9 @@ use std::collections::HashSet;
 
 use color_eyre::{Result, eyre::eyre};
 use sea_orm::sea_query::Expr;
-use sea_orm::{ColumnTrait, ConnectionTrait, EntityTrait, QueryFilter, QueryOrder, QuerySelect};
+use sea_orm::{
+    ColumnTrait, ConnectionTrait, EntityTrait, ExprTrait, QueryFilter, QueryOrder, QuerySelect,
+};
 
 use crate::player;
 

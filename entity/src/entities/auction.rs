@@ -33,10 +33,10 @@ pub struct Model {
 }
 
 impl Model {
-    #[instrument]
+    #[instrument(skip(db))]
     pub async fn get_bids<C>(&self, db: &C) -> Result<Vec<auction_bid::Model>>
     where
-        C: ConnectionTrait + Debug,
+        C: ConnectionTrait,
     {
         let related_bids = self
             .find_related(auction_bid::Entity)
@@ -48,7 +48,7 @@ impl Model {
 
     pub async fn get_latest_bid<C>(&self, db: &C) -> Result<Option<auction_bid::Model>>
     where
-        C: ConnectionTrait + Debug,
+        C: ConnectionTrait,
     {
         let maybe_latest_bid = self
             .find_related(auction_bid::Entity)
@@ -58,10 +58,10 @@ impl Model {
         Ok(maybe_latest_bid)
     }
 
-    #[instrument]
+    #[instrument(skip(db))]
     pub async fn get_contract<C>(&self, db: &C) -> Result<contract::Model>
     where
-        C: ConnectionTrait + Debug,
+        C: ConnectionTrait,
     {
         let related_contract = self
             .find_related(contract::Entity)

@@ -8,13 +8,13 @@
 //! Nothing needs re-deriving afterwards and nothing guards against re-firing: the sweep only ever
 //! moves a close time earlier, so a second run over the same auctions is a no-op.
 
-use std::fmt::Debug;
-
 use color_eyre::Result;
 use fbkl_entity::{
     auction::{self, AuctionKind},
     auction_queries,
-    sea_orm::{ConnectionTrait, TransactionTrait, prelude::DateTimeWithTimeZone},
+    sea_orm::{
+        ConnectionTrait, TransactionSession, TransactionTrait, prelude::DateTimeWithTimeZone,
+    },
 };
 use tracing::instrument;
 
@@ -33,7 +33,7 @@ pub async fn shorten_open_auctions_for_crunch_window<C>(
     db: &C,
 ) -> Result<Vec<auction::Model>>
 where
-    C: ConnectionTrait + TransactionTrait + Debug,
+    C: ConnectionTrait + TransactionTrait,
 {
     let mode_deadlines =
         find_auction_mode_deadlines(kind, league_id, end_of_season_year, now, db).await?;

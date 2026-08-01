@@ -25,21 +25,21 @@ pub struct SalarySnapshot {
     pub cap: i16,
 }
 
-#[instrument]
+#[instrument(skip(db))]
 pub async fn calculate_team_contract_salary_with_model<C>(
     team_model: &team::Model,
     deadline_model: &deadline::Model,
     db: &C,
 ) -> Result<SalarySnapshot>
 where
-    C: ConnectionTrait + Debug,
+    C: ConnectionTrait,
 {
     let team_active_contracts = team_model.get_active_contracts(db).await?;
 
     calculate_team_contract_salary(team_model.id, &team_active_contracts, deadline_model, db).await
 }
 
-#[instrument]
+#[instrument(skip(db))]
 pub async fn calculate_team_contract_salary_at_datetime<C>(
     league_id: i64,
     team_id: i64,
@@ -47,7 +47,7 @@ pub async fn calculate_team_contract_salary_at_datetime<C>(
     db: &C,
 ) -> Result<SalarySnapshot>
 where
-    C: ConnectionTrait + Debug,
+    C: ConnectionTrait,
 {
     let deadline = find_most_recent_deadline_by_datetime(league_id, datetime, db).await?;
     let contract_models = find_active_contracts_for_team(team_id, db).await?;
@@ -55,7 +55,7 @@ where
     calculate_team_contract_salary(team_id, &contract_models, &deadline, db).await
 }
 
-#[instrument]
+#[instrument(skip(db))]
 pub async fn calculate_team_contract_salary<C>(
     team_id: i64,
     team_active_contracts: &[contract::Model],
@@ -63,7 +63,7 @@ pub async fn calculate_team_contract_salary<C>(
     db: &C,
 ) -> Result<SalarySnapshot>
 where
-    C: ConnectionTrait + Debug,
+    C: ConnectionTrait,
 {
     // `None` = §4.2.4 uncapped window (PreseasonStart → keeper deadline); i16::MAX makes cap comparisons trivially pass.
     let max_salary_cap_for_deadline = deadline_model.get_salary_cap(db).await?.unwrap_or(i16::MAX);

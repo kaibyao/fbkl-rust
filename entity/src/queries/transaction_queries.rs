@@ -1,9 +1,7 @@
-use std::fmt::Debug;
-
 use color_eyre::{Result, eyre::eyre};
 use sea_orm::{
-    ActiveModelTrait, ColumnTrait, ConnectionTrait, EntityTrait, JoinType, QueryFilter, QueryOrder,
-    QuerySelect, RelationTrait, sea_query::Expr,
+    ActiveModelTrait, ColumnTrait, ConnectionTrait, EntityTrait, ExprTrait, JoinType, QueryFilter,
+    QueryOrder, QuerySelect, RelationTrait, sea_query::Expr,
 };
 use tracing::instrument;
 
@@ -15,10 +13,10 @@ use crate::{
     transaction::{self, TransactionKind},
 };
 
-#[instrument]
+#[instrument(skip(db))]
 pub async fn find_transaction_by_id<C>(transaction_id: i64, db: &C) -> Result<transaction::Model>
 where
-    C: ConnectionTrait + Debug,
+    C: ConnectionTrait,
 {
     transaction::Entity::find_by_id(transaction_id)
         .one(db)
@@ -31,7 +29,7 @@ where
 ///
 /// The team filter joins `team_update` (a transaction carries no `team_id` of its own), which is
 /// why the select is `DISTINCT` — a transaction touching both sides of a trade has two updates.
-#[instrument]
+#[instrument(skip(db))]
 pub async fn find_transactions_in_league<C>(
     league_id: i64,
     maybe_team_id: Option<i64>,
@@ -41,7 +39,7 @@ pub async fn find_transactions_in_league<C>(
     db: &C,
 ) -> Result<Paged<transaction::Model>>
 where
-    C: ConnectionTrait + Debug,
+    C: ConnectionTrait,
 {
     let mut query = transaction::Entity::find()
         .filter(transaction::Column::LeagueId.eq(league_id))
@@ -62,14 +60,14 @@ where
 }
 
 /// The league's keeper transaction for a season, if keepers have been touched at all yet.
-#[instrument]
+#[instrument(skip(db))]
 pub async fn find_keeper_deadline_transaction<C>(
     league_id: i64,
     end_of_season_year: i16,
     db: &C,
 ) -> Result<Option<transaction::Model>>
 where
-    C: ConnectionTrait + Debug,
+    C: ConnectionTrait,
 {
     let found = transaction::Entity::find()
         .filter(
@@ -84,14 +82,14 @@ where
     Ok(found)
 }
 
-#[instrument]
+#[instrument(skip(db))]
 pub async fn get_or_create_keeper_deadline_transaction<C>(
     league_id: i64,
     end_of_season_year: i16,
     db: &C,
 ) -> Result<transaction::Model>
 where
-    C: ConnectionTrait + Debug,
+    C: ConnectionTrait,
 {
     let maybe_existing_keeper_deadline_transaction =
         find_keeper_deadline_transaction(league_id, end_of_season_year, db).await?;
@@ -117,14 +115,14 @@ where
 }
 
 /// Creates & inserts a transaction tied to the end of an auction, then points the auction's 1:1 `transaction_id` FK back at it.
-#[instrument]
+#[instrument(skip(db))]
 pub async fn insert_auction_transaction<C>(
     deadline_model: &deadline::Model,
     auction_id: i64,
     db: &C,
 ) -> Result<transaction::Model>
 where
-    C: ConnectionTrait + Debug,
+    C: ConnectionTrait,
 {
     let transaction_model = insert_transaction(
         transaction::Model::new_auction_transaction(deadline_model),
@@ -143,14 +141,14 @@ where
 }
 
 /// Creates & inserts a transaction tied to a completed trade, then points the trade's 1:1 `transaction_id` FK back at it.
-#[instrument]
+#[instrument(skip(db))]
 pub async fn insert_trade_transaction<C>(
     deadline_model: &deadline::Model,
     trade_id: i64,
     db: &C,
 ) -> Result<transaction::Model>
 where
-    C: ConnectionTrait + Debug,
+    C: ConnectionTrait,
 {
     let transaction_model = insert_transaction(
         transaction::Model::new_trade_transaction(deadline_model),
@@ -169,14 +167,14 @@ where
 }
 
 /// Creates & inserts a transaction tied to a rookie draft selection, then points the selection's 1:1 `transaction_id` FK back at it.
-#[instrument]
+#[instrument(skip(db))]
 pub async fn insert_rookie_draft_selection_transaction<C>(
     deadline_model: &deadline::Model,
     rookie_draft_selection_id: i64,
     db: &C,
 ) -> Result<transaction::Model>
 where
-    C: ConnectionTrait + Debug,
+    C: ConnectionTrait,
 {
     let transaction_model = insert_transaction(
         transaction::Model::new_rookie_draft_selection_transaction(deadline_model),
@@ -194,13 +192,13 @@ where
     Ok(transaction_model)
 }
 
-#[instrument]
+#[instrument(skip(db))]
 pub async fn insert_transaction<C>(
     transaction_to_insert: transaction::ActiveModel,
     db: &C,
 ) -> Result<transaction::Model>
 where
-    C: ConnectionTrait + Debug,
+    C: ConnectionTrait,
 {
     let inserted_transaction = transaction_to_insert.insert(db).await?;
     Ok(inserted_transaction)

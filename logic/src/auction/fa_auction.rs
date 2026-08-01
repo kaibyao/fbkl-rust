@@ -1,5 +1,3 @@
-use std::fmt::Debug;
-
 use chrono::{Datelike, Days, FixedOffset, NaiveDate};
 use color_eyre::{
     Result,
@@ -16,7 +14,9 @@ use fbkl_entity::{
     contract_queries,
     deadline::{self, DeadlineKind},
     deadline_queries,
-    sea_orm::{ConnectionTrait, TransactionTrait, prelude::DateTimeWithTimeZone},
+    sea_orm::{
+        ConnectionTrait, TransactionSession, TransactionTrait, prelude::DateTimeWithTimeZone,
+    },
     team_update_queries,
 };
 use tracing::instrument;
@@ -27,7 +27,7 @@ use super::{
 };
 
 /// Ends a free agent auction and creates the associated transaction + team contract OR expires the associated contract.
-#[instrument]
+#[instrument(skip(db))]
 pub async fn end_fa_auction<C>(
     deadline_model: &deadline::Model,
     auction_id: i64,
@@ -35,7 +35,7 @@ pub async fn end_fa_auction<C>(
     db: &C,
 ) -> Result<contract::Model>
 where
-    C: ConnectionTrait + TransactionTrait + Debug,
+    C: ConnectionTrait + TransactionTrait,
 {
     let auction_model = auction_queries::find_auction_by_id(auction_id, db).await?;
     let auction_contract_model = auction_model.get_contract(db).await?;
@@ -107,7 +107,7 @@ where
 ///
 /// Only allowed up to the week's Friday opening-bid deadline (§8.2); the auction's all-bid
 /// deadline is that week's Sunday 8pm CT, which bids may still roll forward (§8.3.2).
-#[instrument]
+#[instrument(skip(db))]
 pub async fn open_in_season_fa_auction<C>(
     league_id: i64,
     end_of_season_year: i16,
@@ -116,7 +116,7 @@ pub async fn open_in_season_fa_auction<C>(
     db: &C,
 ) -> Result<auction::Model>
 where
-    C: ConnectionTrait + Debug,
+    C: ConnectionTrait,
 {
     let (opening_bid_deadline, all_bid_deadline) = fa_auction_week_deadlines(now)?;
     ensure!(
@@ -201,10 +201,10 @@ pub fn fa_auction_week_deadlines(
 ///
 /// $1 unless the player was already owned this season — then their previous in-season salary is the
 /// floor, RD/RDI contracts included.
-#[instrument]
+#[instrument(skip(db))]
 pub async fn in_season_fa_minimum_bid<C>(pooled_contract: &contract::Model, db: &C) -> Result<i16>
 where
-    C: ConnectionTrait + Debug,
+    C: ConnectionTrait,
 {
     let contract_chain = contract_queries::find_contract_chain(pooled_contract.id, db).await?;
     Ok(
@@ -229,7 +229,7 @@ fn previous_in_season_salary(
 }
 
 /// Either retrieves + validates an existing player contract that can be used for a new free agent auction, or creates one based on given arguments.
-#[instrument]
+#[instrument(skip(db))]
 pub async fn get_or_create_player_contract_for_fa_auction<C>(
     league_id: i64,
     end_of_season_year: i16,
@@ -237,7 +237,7 @@ pub async fn get_or_create_player_contract_for_fa_auction<C>(
     db: &C,
 ) -> Result<contract::Model>
 where
-    C: ConnectionTrait + Debug,
+    C: ConnectionTrait,
 {
     let maybe_existing_contract = contract_queries::find_active_contracts_in_league(league_id, db)
         .await?

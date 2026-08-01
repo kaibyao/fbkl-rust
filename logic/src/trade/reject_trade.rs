@@ -1,8 +1,8 @@
-use std::fmt::Debug;
-
 use color_eyre::Result;
 use fbkl_entity::{
-    sea_orm::{ActiveModelTrait, ActiveValue, ConnectionTrait, TransactionTrait},
+    sea_orm::{
+        ActiveModelTrait, ActiveValue, ConnectionTrait, TransactionSession, TransactionTrait,
+    },
     team_user,
     trade::{self, TradeStatus},
     trade_action::TradeActionType,
@@ -14,14 +14,14 @@ use tracing::instrument;
 ///
 /// Draft-pick options carried by the trade are left as-is; cancelling them
 /// (`DraftPickOptionStatus::CancelledViaTradeRejection`) belongs with the draft work in spec 02.
-#[instrument]
+#[instrument(skip(db))]
 pub async fn reject_trade<C>(
     trade_model: trade::Model,
     rejecting_team_user_model: &team_user::Model,
     db: &C,
 ) -> Result<trade::Model>
 where
-    C: ConnectionTrait + TransactionTrait + Debug,
+    C: ConnectionTrait + TransactionTrait,
 {
     trade_queries::validate_trade_is_latest_in_chain(&trade_model, db).await?;
 

@@ -25,7 +25,7 @@ impl MigrationTrait for Migration {
         let transaction = manager.get_connection().begin().await?;
 
         transaction
-            .execute(Statement::from_string(
+            .execute_raw(Statement::from_string(
                 DatabaseBackend::Postgres,
                 // lets us use the unaccent function to search for players with accents in their names (Like "Luka Dončić")
                 r"
@@ -36,7 +36,7 @@ impl MigrationTrait for Migration {
             .await?;
 
         transaction
-            .execute(Statement::from_string(
+            .execute_raw(Statement::from_string(
                 DatabaseBackend::Postgres,
                 r"
 CREATE OR REPLACE FUNCTION set_auto_updated_at_on_table(_tbl regclass) RETURNS VOID AS $$
@@ -51,7 +51,7 @@ $$ LANGUAGE plpgsql;
             .await?;
 
         transaction
-            .execute(Statement::from_string(
+            .execute_raw(Statement::from_string(
                 DatabaseBackend::Postgres,
                 r"
 CREATE OR REPLACE FUNCTION on_update_set_updated_at() RETURNS trigger AS $$
@@ -76,7 +76,7 @@ $$ LANGUAGE plpgsql;
     async fn down(&self, manager: &SchemaManager) -> Result<(), DbErr> {
         manager
             .get_connection()
-            .execute(Statement::from_string(
+            .execute_raw(Statement::from_string(
                 DatabaseBackend::Postgres,
                 r"
 DROP FUNCTION IF EXISTS on_update_set_updated_at();"
@@ -86,7 +86,7 @@ DROP FUNCTION IF EXISTS on_update_set_updated_at();"
 
         manager
             .get_connection()
-            .execute(Statement::from_string(
+            .execute_raw(Statement::from_string(
                 DatabaseBackend::Postgres,
                 r"
 DROP FUNCTION IF EXISTS set_auto_updated_at_on_table(_tbl regclass);"

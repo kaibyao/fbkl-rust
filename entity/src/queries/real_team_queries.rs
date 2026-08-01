@@ -1,5 +1,3 @@
-use std::fmt::Debug;
-
 use color_eyre::eyre::{Result, eyre};
 use sea_orm::{ColumnTrait, ConnectionTrait, EntityTrait, QueryFilter};
 use tracing::instrument;
@@ -14,10 +12,10 @@ where
     real_team_model.ok_or_else(|| eyre!("Real Team not found"))
 }
 
-#[instrument]
+#[instrument(skip(db))]
 pub async fn get_all_real_teams<C>(db: &C) -> Result<Vec<real_team::Model>>
 where
-    C: ConnectionTrait + Debug,
+    C: ConnectionTrait,
 {
     let real_team_models = real_team::Entity::find().all(db).await?;
     Ok(real_team_models)

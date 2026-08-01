@@ -1,8 +1,6 @@
-use std::fmt::Debug;
-
 use color_eyre::{Result, eyre::eyre};
 use sea_orm::{
-    ColumnTrait, ConnectionTrait, EntityTrait, Order, QueryFilter, QueryOrder,
+    ColumnTrait, ConnectionTrait, EntityTrait, ExprTrait, Order, QueryFilter, QueryOrder,
     prelude::DateTimeWithTimeZone,
 };
 use tracing::instrument;
@@ -20,14 +18,14 @@ use crate::{
 /// same-instant deadlines (e.g. a roster lock and a same-timestamp auction boundary), and `id`
 /// is assigned in that order, so `(date_time, id)` reproduces it. Returning a `Vec` rather than a
 /// datetime-keyed map is deliberate: a map silently drops one of two deadlines sharing a `date_time`.
-#[instrument]
+#[instrument(skip(db))]
 pub async fn find_sorted_deadlines_for_league_season<C>(
     league_id: i64,
     end_of_season_year: i16,
     db: &C,
 ) -> Result<Vec<deadline::Model>>
 where
-    C: ConnectionTrait + Debug,
+    C: ConnectionTrait,
 {
     let deadlines = deadline::Entity::find()
         .filter(
@@ -43,10 +41,10 @@ where
     Ok(deadlines)
 }
 
-#[instrument]
+#[instrument(skip(db))]
 pub async fn find_deadline_by_id<C>(deadline_id: i64, db: &C) -> Result<deadline::Model>
 where
-    C: ConnectionTrait + Debug,
+    C: ConnectionTrait,
 {
     deadline::Entity::find_by_id(deadline_id)
         .one(db)
@@ -54,7 +52,7 @@ where
         .ok_or_else(|| eyre!("Could not find a deadline with id = {}.", deadline_id))
 }
 
-#[instrument]
+#[instrument(skip(db))]
 pub async fn find_deadline_for_season_by_type<C>(
     league_id: i64,
     end_of_season_year: i16,
@@ -62,7 +60,7 @@ pub async fn find_deadline_for_season_by_type<C>(
     db: &C,
 ) -> Result<deadline::Model>
 where
-    C: ConnectionTrait + Debug,
+    C: ConnectionTrait,
 {
     let maybe_deadline_model = deadline::Entity::find()
         .filter(
@@ -81,7 +79,7 @@ where
 ///
 /// Ordered like [`find_sorted_deadlines_for_league_season`], so "next" is the earliest match and
 /// same-instant deadlines resolve in their intended processing order.
-#[instrument]
+#[instrument(skip(db))]
 pub async fn find_next_deadline_for_season_by_datetime<C>(
     league_id: i64,
     end_of_season_year: i16,
@@ -90,7 +88,7 @@ pub async fn find_next_deadline_for_season_by_datetime<C>(
     db: &C,
 ) -> Result<Option<deadline::Model>>
 where
-    C: ConnectionTrait + Debug,
+    C: ConnectionTrait,
 {
     let mut query = deadline::Entity::find().filter(
         deadline::Column::LeagueId
@@ -114,13 +112,13 @@ where
 ///
 /// I.e. work the scheduler still needs to dispatch. Ordered oldest
 /// first so deadlines within a league season process in chronological order.
-#[instrument]
+#[instrument(skip(db))]
 pub async fn find_due_unprocessed_deadlines<C>(
     now: DateTimeWithTimeZone,
     db: &C,
 ) -> Result<Vec<deadline::Model>>
 where
-    C: ConnectionTrait + Debug,
+    C: ConnectionTrait,
 {
     let deadlines = deadline::Entity::find()
         .filter(deadline::Column::DateTime.lte(now))
@@ -141,14 +139,14 @@ where
     Ok(deadlines)
 }
 
-#[instrument]
+#[instrument(skip(db))]
 pub async fn find_most_recent_deadline_by_datetime<C>(
     league_id: i64,
     datetime: DateTimeWithTimeZone,
     db: &C,
 ) -> Result<deadline::Model>
 where
-    C: ConnectionTrait + Debug,
+    C: ConnectionTrait,
 {
     let maybe_deadline_model = deadline::Entity::find()
         .filter(

@@ -18,13 +18,13 @@ pub struct UpdatedTradeAssetModelCache {
     // pub draft_pick_options_by_trade_asset_id: HashMap<i64, draft_pick_option::Model>,
 }
 
-#[instrument]
+#[instrument(skip(db))]
 pub async fn process_trade_assets<C>(
     trade_asset_related_models: &TradeAssetRelatedModelCache,
     db: &C,
 ) -> Result<UpdatedTradeAssetModelCache>
 where
-    C: ConnectionTrait + Debug,
+    C: ConnectionTrait,
 {
     let mut updated_contracts: HashMap<i64, contract::Model> = HashMap::new();
     for (trade_asset_id, (trade_asset_model, contract_model)) in
@@ -69,14 +69,14 @@ where
     })
 }
 
-#[instrument]
+#[instrument(skip(db))]
 async fn update_trade_asset_draft_pick<C>(
     draft_pick_model: &draft_pick::Model,
     new_team_id: i64,
     db: &C,
 ) -> Result<draft_pick::Model>
 where
-    C: ConnectionTrait + Debug,
+    C: ConnectionTrait,
 {
     let mut draft_pick_to_update: draft_pick::ActiveModel = draft_pick_model.clone().into();
     draft_pick_to_update.current_owner_team_id = ActiveValue::Set(new_team_id);
@@ -85,13 +85,13 @@ where
     Ok(updated_draft_pick)
 }
 
-#[instrument]
+#[instrument(skip(db))]
 async fn update_trade_asset_draft_pick_option<C>(
     draft_pick_option_model: &draft_pick_option::Model,
     db: &C,
 ) -> Result<draft_pick_option::Model>
 where
-    C: ConnectionTrait + Debug,
+    C: ConnectionTrait,
 {
     let mut draft_pick_option_to_update: draft_pick_option::ActiveModel =
         draft_pick_option_model.clone().into();
