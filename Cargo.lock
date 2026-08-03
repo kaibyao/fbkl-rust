@@ -1617,7 +1617,7 @@ dependencies = [
  "chrono",
  "color-eyre",
  "fbkl-constants",
- "multimap 0.10.1",
+ "multimap",
  "rust_decimal",
  "rust_decimal_macros",
  "sea-orm",
@@ -1672,7 +1672,7 @@ dependencies = [
  "color-eyre",
  "fbkl-constants",
  "fbkl-entity",
- "multimap 0.9.1",
+ "multimap",
  "once_cell",
  "rand 0.8.6",
  "thiserror",
@@ -2799,15 +2799,6 @@ dependencies = [
  "mime",
  "spin",
  "version_check",
-]
-
-[[package]]
-name = "multimap"
-version = "0.9.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e1a5d38b9b352dbd913288736af36af41c48d61b1a8cd34bcecd727561b7d511"
-dependencies = [
- "serde",
 ]
 
 [[package]]
