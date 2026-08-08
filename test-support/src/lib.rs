@@ -7,7 +7,7 @@
 //! database.
 
 use fbkl_entity::{
-    auction::{self, AuctionKind},
+    auction::{self, AuctionKind, AuctionStatus},
     auction_queries,
     auction_schedule_queries::{self, NewAuctionScheduleRow},
     contract::{self, ContractKind, ContractStatus},
@@ -17,8 +17,9 @@ use fbkl_entity::{
     player::{self, NbaRosterSource, PlayerStatus},
     position, real_team,
     sea_orm::{
-        ActiveModelTrait, ActiveValue, ConnectionTrait, Database, DatabaseConnection, EntityTrait,
-        prelude::{Date, DateTimeWithTimeZone},
+        ActiveModelTrait, ActiveValue, ColumnTrait, ConnectionTrait, Database, DatabaseConnection,
+        EntityTrait, QueryFilter,
+        prelude::{Date, DateTimeWithTimeZone, Expr},
     },
     team,
     team_user::{self, LeagueRole},
@@ -157,6 +158,23 @@ impl TestLeague {
         .insert(&self.db)
         .await
         .expect("insert team user")
+    }
+
+    /// Rewinds every open auction's start and update timestamps, i.e. simulates a day passing with
+    /// nobody touching them.
+    ///
+    /// `auction.updated_at` is stamped by the database clock, so a test driving ticks from
+    /// simulated timestamps can never otherwise satisfy the tier slide's untouched-for-a-day bound.
+    /// The write sets `updated_at` itself, which is what keeps the `set_updated_at` trigger from
+    /// stamping the row back to the wall clock.
+    pub async fn backdate_open_auctions(&self, timestamp: DateTimeWithTimeZone) {
+        auction::Entity::update_many()
+            .col_expr(auction::Column::StartTimestamp, Expr::value(timestamp))
+            .col_expr(auction::Column::UpdatedAt, Expr::value(timestamp))
+            .filter(auction::Column::Status.eq(AuctionStatus::Open))
+            .exec(&self.db)
+            .await
+            .expect("backdate open auctions");
     }
 
     /// The veteran auction opened for `player_id`, whatever state it has since reached.

@@ -85,6 +85,82 @@ async fn a_pooled_never_owned_veteran_opens_at_his_tier_minimum() {
     );
 }
 
+/// Rules §6.3.4-.5 vs §15.3.1: the daily tier slide is the ladder's clock for the scheduled tier
+/// pool only. An RFA opens at his 4th-year salary, so sliding him would price him under that floor.
+#[tokio::test]
+async fn the_tier_slide_leaves_an_unbid_rfa_at_his_carry_salary() {
+    const RFA_CARRY_SALARY: i16 = 7;
+
+    let Some(league) = TestLeague::create("veteran_auction_tier_slide", END_OF_SEASON_YEAR).await
+    else {
+        return;
+    };
+    league
+        .add_deadline(
+            DeadlineKind::PreseasonVeteranAuctionStart,
+            central("2025-09-01T12:00:00"),
+        )
+        .await;
+    league
+        .add_deadline(
+            DeadlineKind::PreseasonFinalRosterLock,
+            central("2025-10-20T18:00:00"),
+        )
+        .await;
+    league.add_min_bid_tiers(&TIER_MIN_BID_AMOUNTS).await;
+
+    let ranked_player_id = league.add_veteran_player("Ranked Vet").await;
+    league.add_ranked_players(&[ranked_player_id]).await;
+    let rfa_player_id = league.add_veteran_player("Restricted Vet").await;
+    league
+        .add_unowned_contract(
+            rfa_player_id,
+            ContractKind::RestrictedFreeAgent,
+            RFA_CARRY_SALARY,
+        )
+        .await;
+
+    assemble_veteran_auction_pool(league.league_id, END_OF_SEASON_YEAR, &league.db)
+        .await
+        .expect("assemble the veteran auction pool");
+
+    // Past RFA week, so both rows open at once.
+    let open_tick = central("2025-09-10T12:00:00");
+    let summary = run_veteran_auction_release_tick(&league.db, open_tick)
+        .await
+        .expect("run the release tick");
+    assert_eq!(summary.errors, 0);
+    assert_eq!(
+        open_auction_for(&league, ranked_player_id)
+            .await
+            .minimum_bid_amount,
+        TIER_MIN_BID_AMOUNTS[0]
+    );
+
+    // A day later both auctions are still unbid, so the slide tick is eligible to move them.
+    league.backdate_open_auctions(open_tick).await;
+    let slide_tick = central("2025-09-11T12:00:00");
+    let summary = run_veteran_auction_release_tick(&league.db, slide_tick)
+        .await
+        .expect("run the slide tick");
+    assert_eq!(summary.errors, 0);
+
+    assert_eq!(
+        open_auction_for(&league, ranked_player_id)
+            .await
+            .minimum_bid_amount,
+        TIER_MIN_BID_AMOUNTS[1],
+        "a plain pooled auction slides one tier"
+    );
+    assert_eq!(
+        open_auction_for(&league, rfa_player_id)
+            .await
+            .minimum_bid_amount,
+        RFA_CARRY_SALARY,
+        "the RFA minimum is his 4th-year salary, not the tier below it"
+    );
+}
+
 async fn open_auction_for(league: &TestLeague, player_id: i64) -> auction::Model {
     league
         .find_veteran_auction(player_id)

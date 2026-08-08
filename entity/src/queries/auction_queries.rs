@@ -9,7 +9,8 @@ use tracing::instrument;
 
 use crate::{
     auction::{self, AuctionKind, AuctionStatus},
-    auction_bid, contract,
+    auction_bid,
+    contract::{self, ContractKind},
     queries::pagination::{Paged, fetch_page},
     team_user,
 };
@@ -196,16 +197,18 @@ where
 }
 
 /// `Open` auctions of the given kind that have no bids yet and were last touched before
-/// `unchanged_before`.
+/// `unchanged_before`, skipping any whose contract kind is in `excluded_contract_kinds`.
 ///
 /// The timestamp bound keeps a freshly-opened auction from sliding a tier on its first day, and
-/// keeps an auction already slid today from sliding again on the next tick (rules §6.3.4).
+/// keeps an auction already slid today from sliding again on the next tick (rules §6.3.4). Which
+/// contract kinds sit out the ladder is a league rule, so the caller supplies them.
 #[instrument(skip(db))]
 pub async fn find_unbid_open_auctions<C>(
     league_id: i64,
     end_of_season_year: i16,
     kind: AuctionKind,
     unchanged_before: DateTimeWithTimeZone,
+    excluded_contract_kinds: &[ContractKind],
     db: &C,
 ) -> Result<Vec<auction::Model>>
 where
@@ -221,6 +224,7 @@ where
         .filter(auction_bid::Column::Id.is_null())
         .filter(contract::Column::LeagueId.eq(league_id))
         .filter(contract::Column::EndOfSeasonYear.eq(end_of_season_year))
+        .filter(contract::Column::Kind.is_not_in(excluded_contract_kinds.iter().copied()))
         .all(db)
         .await?;
     Ok(auction_models)
