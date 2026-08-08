@@ -30,6 +30,7 @@ jobs:
               - 'logic/**'
               - 'migration/**'
               - 'server/**'
+              - 'test-support/**'
               - 'transaction-processor/**'
               - 'Cargo.toml'
               - 'Cargo.lock'
