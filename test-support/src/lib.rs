@@ -5,6 +5,18 @@
 //! connection string comes from `DATABASE_URL` (the repo `.env` is loaded automatically); when it
 //! is unset the harness returns `None` and the test skips, so the suite still passes without a
 //! database.
+//!
+//! # Simulated time vs `created_at`/`updated_at`
+//!
+//! Tests drive the scheduler by passing a simulated `now` into a tick, but `created_at` and
+//! `updated_at` are stamped by the database clock — `updated_at` by the `set_updated_at` trigger on
+//! every table. So any tick that compares a row's own timestamps against `now` sees a row written
+//! "today" no matter which season the test is simulating, and the tick silently finds nothing to do.
+//! A test that only asserts `summary.errors == 0` passes while covering none of the path.
+//!
+//! Rewind those columns before the tick that should act on them; `backdate_open_auctions` does it
+//! for the veteran auction tier slide. The trigger only stamps the wall clock when the UPDATE did
+//! not set `updated_at` itself, so writing it explicitly is what makes the rewind stick.
 
 use fbkl_entity::{
     auction::{self, AuctionKind, AuctionStatus},
