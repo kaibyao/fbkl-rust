@@ -47,6 +47,12 @@ static CARRY_SALARY_CONTRACT_KINDS: &[ContractKind] = &[
     ContractKind::UnrestrictedFreeAgentVeteran,
 ];
 
+/// Whether the auction for this contract is priced by carry salary rather than the §6.3.4 tier
+/// ladder — which also means the daily tier slide must leave its minimum alone.
+fn opens_at_carry_salary(kind: ContractKind) -> bool {
+    CARRY_SALARY_CONTRACT_KINDS.contains(&kind)
+}
+
 /// Assembles the season's veteran auction pool at/after the keeper deadline.
 ///
 /// Creates the pooled contract for every eligible unkept veteran and writes the `auction_schedule`
@@ -263,7 +269,7 @@ where
     )
     .await?;
 
-    let minimum_bid_amount = if CARRY_SALARY_CONTRACT_KINDS.contains(&pooled_contract.kind) {
+    let minimum_bid_amount = if opens_at_carry_salary(pooled_contract.kind) {
         pooled_contract.salary
     } else {
         auction_schedule_queries::find_min_bid_tier_by_index(
@@ -284,12 +290,11 @@ where
         .min_bid_amount
     };
 
-    let maybe_original_owner_team_id =
-        if CARRY_SALARY_CONTRACT_KINDS.contains(&pooled_contract.kind) {
-            find_original_owner_team_id(&pooled_contract, db).await?
-        } else {
-            None
-        };
+    let maybe_original_owner_team_id = if opens_at_carry_salary(pooled_contract.kind) {
+        find_original_owner_team_id(&pooled_contract, db).await?
+    } else {
+        None
+    };
 
     // With no bids the §6.3.4 tier ladder is the clock; the daily slide pushes this close time out.
     let mode_deadlines = find_auction_mode_deadlines(
@@ -331,6 +336,10 @@ where
 /// into a tier does not push that tier's existing players down (§6.3.5). Auctions opened within the
 /// last day are skipped so a fresh open does not slide the same day; the day the slide finds no lower
 /// tier, the auction's lapsed close time expires it and the player becomes a $1 FA (§6.1.2).
+///
+/// Carry-salary auctions sit out the ladder entirely: an RFA opens at the player's 4th-year salary
+/// (§15.3.1) and a UFA at his carry salary (§16), so sliding one would price him under the rules.
+/// Their clock is the RFA week plus the hard deadline, not the tier ladder.
 #[instrument(skip(db))]
 pub async fn slide_unbid_auctions_down_a_tier<C>(
     league_id: i64,
@@ -349,6 +358,7 @@ where
         end_of_season_year,
         AuctionKind::PreseasonVeteranAuction,
         opened_before,
+        CARRY_SALARY_CONTRACT_KINDS,
         db,
     )
     .await?;
@@ -464,10 +474,11 @@ fn release_date(first_date: Date, position: usize, players_per_day: usize) -> Re
 #[cfg(test)]
 mod tests {
     use chrono::{Days, NaiveDate};
-    use fbkl_entity::sea_orm::prelude::DateTimeWithTimeZone;
+    use fbkl_entity::{contract::ContractKind, sea_orm::prelude::DateTimeWithTimeZone};
 
     use super::{
-        auction_close_at, auction_quiet_window, next_lower_min_bid_amount, release_date, tier_slot,
+        auction_close_at, auction_quiet_window, next_lower_min_bid_amount, opens_at_carry_salary,
+        release_date, tier_slot,
     };
 
     /// A veteran auction never has an all-bid deadline, and the ladder step ignores the crunch window.
@@ -512,6 +523,22 @@ mod tests {
 
         assert_eq!(minimums_walked, vec![15, 10, 5]);
         assert_eq!(minimum_bid_amount, 5);
+    }
+
+    /// Rules §15.3.1 / §16: the ladder prices the scheduled tier pool, never a carry-salary auction.
+    /// `slide_unbid_auctions_down_a_tier` passes these kinds to the query as the exclusion list.
+    #[test]
+    fn carry_salary_auctions_sit_out_the_tier_ladder() {
+        assert!(opens_at_carry_salary(ContractKind::RestrictedFreeAgent));
+        assert!(opens_at_carry_salary(
+            ContractKind::UnrestrictedFreeAgentOriginalTeam
+        ));
+        assert!(opens_at_carry_salary(
+            ContractKind::UnrestrictedFreeAgentVeteran
+        ));
+        // A pooled non-carry contract opens at its tier value, so the ladder still moves it.
+        assert!(!opens_at_carry_salary(ContractKind::FreeAgent));
+        assert!(!opens_at_carry_salary(ContractKind::Veteran));
     }
 
     #[test]
