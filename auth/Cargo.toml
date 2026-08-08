@@ -12,7 +12,7 @@ rand = { version = "0.8.5", features = ["getrandom"] }
 thiserror = "2.0.12"
 
 [dev-dependencies]
-criterion = "0.4"
+criterion = "0.8"
 
 [[bench]]
 name = "benchmarks"
