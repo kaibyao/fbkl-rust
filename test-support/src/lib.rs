@@ -17,7 +17,33 @@
 //! Rewind those columns before the tick that should act on them; `backdate_open_auctions` does it
 //! for the veteran auction tier slide. The trigger only stamps the wall clock when the UPDATE did
 //! not set `updated_at` itself, so writing it explicitly is what makes the rewind stick.
+//!
+//! # Growing the harness
+//!
+//! New helpers default to methods on [`TestLeague`]. When the impl block gets long, split it across
+//! modules (`impl TestLeague` can live in more than one file) rather than inventing a type to hold
+//! the overflow.
+//!
+//! A separate fixture struct earns its place only when it carries state `TestLeague` cannot — its
+//! own ids or invariants — not merely because it covers a different domain. A struct that wraps
+//! `TestLeague` and forwards every call is one implementation behind one interface, and costs a
+//! layer of indirection for nothing. Trades are the case that will actually qualify: `team_id` here
+//! is singular, so a two-team fixture needs a shape this struct cannot express.
+//!
+//! When that happens, borrow rather than rebuild — reach the new fixture through an accessor so it
+//! shares the already-migrated database:
+//!
+//! ```ignore
+//! pub struct TestTrade<'a> { league: &'a TestLeague, team_a: i64, team_b: i64 }
+//!
+//! impl TestLeague {
+//!     pub fn trade(&self, team_a: i64, team_b: i64) -> TestTrade<'_> { .. }
+//! }
+//! ```
 
+mod scratch_db;
+
+use crate::scratch_db::scratch_db;
 use fbkl_entity::{
     auction::{self, AuctionKind, AuctionStatus},
     auction_queries,
@@ -29,15 +55,13 @@ use fbkl_entity::{
     player::{self, NbaRosterSource, PlayerStatus},
     position, real_team,
     sea_orm::{
-        ActiveModelTrait, ActiveValue, ColumnTrait, ConnectionTrait, Database, DatabaseConnection,
-        EntityTrait, QueryFilter,
+        ActiveModelTrait, ActiveValue, ColumnTrait, DatabaseConnection, EntityTrait, QueryFilter,
         prelude::{Date, DateTimeWithTimeZone, Expr},
     },
     team,
     team_user::{self, LeagueRole},
     user,
 };
-use fbkl_migration::{Migrator, MigratorTrait};
 
 /// A migrated scratch database holding one league, one team, and one real NBA team to hang
 /// players off.
@@ -277,41 +301,4 @@ pub fn central(timestamp: &str) -> DateTimeWithTimeZone {
     format!("{timestamp}-06:00")
         .parse()
         .expect("parse timestamp")
-}
-
-/// Drops and recreates `fbkl_test_<test_name>` next to `DATABASE_URL`, then migrates it.
-async fn scratch_db(test_name: &str) -> Option<DatabaseConnection> {
-    dotenvy::dotenv().ok();
-    let Ok(base_url) = std::env::var("DATABASE_URL") else {
-        eprintln!("skipping {test_name}: DATABASE_URL not set");
-        return None;
-    };
-
-    let (host_url, _) = base_url
-        .trim_end_matches('/')
-        .rsplit_once('/')
-        .expect("DATABASE_URL must end in a database name");
-    let scratch_name = format!("fbkl_test_{test_name}");
-
-    let admin_db = Database::connect(format!("{host_url}/postgres"))
-        .await
-        .expect("connect to the postgres maintenance database");
-    admin_db
-        .execute_unprepared(&format!(
-            "DROP DATABASE IF EXISTS {scratch_name} WITH (FORCE)"
-        ))
-        .await
-        .expect("drop scratch database");
-    admin_db
-        .execute_unprepared(&format!("CREATE DATABASE {scratch_name}"))
-        .await
-        .expect("create scratch database");
-
-    let db = Database::connect(format!("{host_url}/{scratch_name}"))
-        .await
-        .expect("connect to scratch database");
-    Migrator::up(&db, None)
-        .await
-        .expect("migrate scratch database");
-    Some(db)
 }
