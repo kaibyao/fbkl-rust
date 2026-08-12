@@ -1,11 +1,14 @@
-use chrono::{Datelike, Days, FixedOffset, NaiveDate};
+use chrono::{Datelike, Days, NaiveDate};
 use color_eyre::{
     Result,
     eyre::{ensure, eyre},
 };
-use fbkl_constants::league_rules::{
-    IN_SEASON_FA_ALL_BID_DEADLINE_HOUR_MINUTE, IN_SEASON_FA_MINIMUM_BID,
-    IN_SEASON_FA_OPENING_BID_DEADLINE_HOUR_MINUTE, LEAGUE_TIME_ZONE_UTC_OFFSET_SECONDS,
+use fbkl_constants::{
+    date::{LEAGUE_TIME_ZONE, league_wall_clock},
+    league_rules::{
+        IN_SEASON_FA_ALL_BID_DEADLINE_HOUR_MINUTE, IN_SEASON_FA_MINIMUM_BID,
+        IN_SEASON_FA_OPENING_BID_DEADLINE_HOUR_MINUTE,
+    },
 };
 use fbkl_entity::{
     auction::{self, AuctionKind, AuctionStatus},
@@ -178,17 +181,15 @@ where
 pub fn fa_auction_week_deadlines(
     now: DateTimeWithTimeZone,
 ) -> Result<(DateTimeWithTimeZone, DateTimeWithTimeZone)> {
-    let league_offset = FixedOffset::east_opt(LEAGUE_TIME_ZONE_UTC_OFFSET_SECONDS)
-        .ok_or_else(|| eyre!("Invalid league time zone offset."))?;
-    let league_now = now.with_timezone(&league_offset);
+    let league_now = now.with_timezone(&LEAGUE_TIME_ZONE);
     let monday =
         league_now.date_naive() - Days::new(u64::from(league_now.weekday().num_days_from_monday()));
 
     let deadline_at = |day_offset: u64, (hour, minute): (u32, u32)| {
         (monday + Days::new(day_offset))
             .and_hms_opt(hour, minute, 0)
-            .and_then(|naive| naive.and_local_timezone(league_offset).single())
             .ok_or_else(|| eyre!("Could not build the §8.2 weekly deadline for {monday}."))
+            .and_then(league_wall_clock)
     };
 
     Ok((
@@ -287,6 +288,21 @@ mod tests {
         assert_eq!(saturday_all_bid, all_bid_deadline);
         assert!(saturday > saturday_opening);
         assert!(saturday < saturday_all_bid);
+    }
+
+    #[test]
+    fn weekly_deadlines_hold_their_central_wall_clock_across_both_dst_transitions() {
+        // Mar 2-8 2026 straddles spring forward: Friday is still CST, Sunday is already CDT.
+        let spring = DateTimeWithTimeZone::parse_from_rfc3339("2026-03-04T16:00:00Z").unwrap();
+        let (spring_opening, spring_all_bid) = fa_auction_week_deadlines(spring).unwrap();
+        assert_eq!(spring_opening.to_rfc3339(), "2026-03-06T23:59:00-06:00");
+        assert_eq!(spring_all_bid.to_rfc3339(), "2026-03-08T20:00:00-05:00");
+
+        // Oct 26 - Nov 1 2026 straddles fall back the other way: Friday CDT, Sunday CST.
+        let fall = DateTimeWithTimeZone::parse_from_rfc3339("2026-10-28T16:00:00Z").unwrap();
+        let (fall_opening, fall_all_bid) = fa_auction_week_deadlines(fall).unwrap();
+        assert_eq!(fall_opening.to_rfc3339(), "2026-10-30T23:59:00-05:00");
+        assert_eq!(fall_all_bid.to_rfc3339(), "2026-11-01T20:00:00-06:00");
     }
 
     fn contract(id: i64, end_of_season_year: i16, team_id: Option<i64>, salary: i16) -> Model {
