@@ -3,11 +3,11 @@ use std::fmt::Debug;
 use chrono::NaiveDate;
 use color_eyre::{
     Result,
-    eyre::{bail, eyre},
+    eyre::{bail, ensure, eyre},
 };
 use fbkl_entity::{
-    auction::AuctionStatus,
-    auction_queries,
+    auction::{self, AuctionStatus},
+    auction_bid, auction_queries,
     contract::{self, ContractKind},
     contract_queries,
     deadline::DeadlineKind,
@@ -93,47 +93,106 @@ where
                     eyre!("Expected a winning bid for auction {}", auction_model.id)
                 })?;
 
-                // Find preseason FA auction start deadline model, as that only starts at the end of the veteran auction
-                let preseason_fa_auction_start_deadline_model =
-                    deadline_queries::find_deadline_for_season_by_type(
-                        auction_contract_model.league_id,
-                        auction_contract_model.end_of_season_year,
-                        DeadlineKind::PreseasonFaAuctionStart,
-                        &db_txn,
-                    )
-                    .await?;
-
-                let (signed_contract_model, _, team_update_model) = sign_auction_contract_to_team(
+                sign_winning_bid(
                     &auction_model,
+                    &auction_contract_model,
                     &winning_bid_model,
-                    &preseason_fa_auction_start_deadline_model,
-                    None,
-                    &db_txn,
-                )
-                .await?;
-
-                // Update the team_update's effective date + status, as they happen immediately.
-                team_update_queries::update_team_update_for_auction(
-                    &team_update_model,
                     maybe_override_effective_date,
                     &db_txn,
                 )
-                .await?;
-
-                auction_queries::update_auction_status(
-                    auction_model.id,
-                    AuctionStatus::Completed,
-                    &db_txn,
-                )
-                .await?;
-
-                signed_contract_model
+                .await?
             }
         };
 
     db_txn.commit().await?;
 
     Ok(final_contract_model)
+}
+
+/// Hands a closed auction's pooled contract to the winning bidder, with its transaction and
+/// `team_update`.
+async fn sign_winning_bid<C>(
+    auction_model: &auction::Model,
+    auction_contract_model: &contract::Model,
+    winning_bid_model: &auction_bid::Model,
+    maybe_override_effective_date: Option<NaiveDate>,
+    db: &C,
+) -> Result<contract::Model>
+where
+    C: ConnectionTrait + TransactionTrait,
+{
+    // A veteran signing takes effect when the preseason FA auction opens, which is when the veteran auction ends.
+    let preseason_fa_auction_start_deadline_model =
+        deadline_queries::find_deadline_for_season_by_type(
+            auction_contract_model.league_id,
+            auction_contract_model.end_of_season_year,
+            DeadlineKind::PreseasonFaAuctionStart,
+            db,
+        )
+        .await?;
+
+    let (signed_contract_model, _, team_update_model) = sign_auction_contract_to_team(
+        auction_model,
+        winning_bid_model,
+        &preseason_fa_auction_start_deadline_model,
+        None,
+        db,
+    )
+    .await?;
+
+    // Update the team_update's effective date + status, as they happen immediately.
+    team_update_queries::update_team_update_for_auction(
+        &team_update_model,
+        maybe_override_effective_date,
+        db,
+    )
+    .await?;
+
+    auction_queries::update_auction_status(auction_model.id, AuctionStatus::Completed, db).await?;
+
+    Ok(signed_contract_model)
+}
+
+/// Completes a closed RFA auction the way the original team declining to match completes it: the
+/// winning bidder signs the player (rules §6.5).
+///
+/// [`end_veteran_auction`] leaves an RFA auction `Closed` with its pooled contract untouched,
+/// because the raise/match exchange decides who signs. That exchange is not implemented yet, so
+/// this no-match path is currently the only way an RFA auction reaches a signed contract, and
+/// nothing calls it on the live path — without it a closed RFA auction never produces one.
+#[instrument(skip(db))]
+pub async fn resolve_rfa_auction_to_winning_bid<C>(
+    auction_id: i64,
+    maybe_override_effective_date: Option<NaiveDate>,
+    db: &C,
+) -> Result<contract::Model>
+where
+    C: ConnectionTrait + TransactionTrait,
+{
+    let auction_model = auction_queries::find_auction_by_id(auction_id, db).await?;
+    let auction_contract_model = auction_model.get_contract(db).await?;
+    ensure!(
+        auction_contract_model.kind == ContractKind::RestrictedFreeAgent,
+        "Only an RFA auction awaits resolution; auction {auction_id} pooled a {:?} contract.",
+        auction_contract_model.kind
+    );
+
+    let db_txn = db.begin().await?;
+    let winning_bid_model = auction_model
+        .get_latest_bid(&db_txn)
+        .await?
+        .ok_or_else(|| eyre!("Expected a winning bid for RFA auction {auction_id}."))?;
+    let signed_contract_model = sign_winning_bid(
+        &auction_model,
+        &auction_contract_model,
+        &winning_bid_model,
+        maybe_override_effective_date,
+        &db_txn,
+    )
+    .await?;
+    db_txn.commit().await?;
+
+    Ok(signed_contract_model)
 }
 
 /// Either retrieves + validates an existing player contract that can be used for a new veteran auction, or creates one based on given arguments.

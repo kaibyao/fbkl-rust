@@ -17,13 +17,15 @@
 
 use std::fmt::Debug;
 
-use chrono::{FixedOffset, TimeDelta, Timelike};
+use chrono::{TimeDelta, Timelike};
 use color_eyre::{Result, eyre::eyre};
-use fbkl_constants::league_rules::{
-    AUCTION_CRUNCH_EARLIEST_START_HOUR, AUCTION_CRUNCH_QUIET_WINDOW_HOURS,
-    AUCTION_CRUNCH_WINDOW_HOURS, AUCTION_QUIET_WINDOW_HOURS, IN_SEASON_FA_EXTENSION_MINUTES,
-    IN_SEASON_FA_FIRST_EXTENSION_TRIGGER_MINUTES, IN_SEASON_FA_LATER_EXTENSION_TRIGGER_MINUTES,
-    LEAGUE_TIME_ZONE_UTC_OFFSET_SECONDS,
+use fbkl_constants::{
+    date::{LEAGUE_TIME_ZONE, league_wall_clock},
+    league_rules::{
+        AUCTION_CRUNCH_EARLIEST_START_HOUR, AUCTION_CRUNCH_QUIET_WINDOW_HOURS,
+        AUCTION_CRUNCH_WINDOW_HOURS, AUCTION_QUIET_WINDOW_HOURS, IN_SEASON_FA_EXTENSION_MINUTES,
+        IN_SEASON_FA_FIRST_EXTENSION_TRIGGER_MINUTES, IN_SEASON_FA_LATER_EXTENSION_TRIGGER_MINUTES,
+    },
 };
 use fbkl_entity::{
     auction::AuctionKind,
@@ -102,21 +104,19 @@ pub fn rolled_all_bid_deadline(
 /// Inside it a bid's reprieve drops from 24h to 1h, which is what ends a preseason bidding war
 /// before the roster lock — in-season the §8.3.2 chain does that job instead.
 pub fn crunch_window_start(hard_deadline: DateTimeWithTimeZone) -> Result<DateTimeWithTimeZone> {
-    let league_offset = FixedOffset::east_opt(LEAGUE_TIME_ZONE_UTC_OFFSET_SECONDS)
-        .ok_or_else(|| eyre!("Invalid league time zone offset."))?;
     let window_start = hard_deadline
         .checked_sub_signed(TimeDelta::hours(AUCTION_CRUNCH_WINDOW_HOURS))
         .ok_or_else(|| eyre!("crunch window start underflowed from {hard_deadline}"))?
-        .with_timezone(&league_offset);
+        .with_timezone(&LEAGUE_TIME_ZONE);
     if window_start.hour() >= AUCTION_CRUNCH_EARLIEST_START_HOUR {
-        return Ok(window_start);
+        return Ok(window_start.fixed_offset());
     }
 
     window_start
         .date_naive()
         .and_hms_opt(AUCTION_CRUNCH_EARLIEST_START_HOUR, 0, 0)
-        .and_then(|naive| naive.and_local_timezone(league_offset).single())
         .ok_or_else(|| eyre!("Could not move the crunch window start to 8:00am on {window_start}."))
+        .and_then(league_wall_clock)
 }
 
 /// The clocks an auction's *mode* imposes, as opposed to the ones its own bids set.
@@ -182,8 +182,9 @@ mod tests {
         format!("2024-11-17T{time}:00-06:00").parse().unwrap()
     }
 
-    fn on(date: &str, time: &str) -> DateTimeWithTimeZone {
-        format!("{date}T{time}:00-06:00").parse().unwrap()
+    /// A Central instant written with its own offset, so DST cases read as the wall clock they are.
+    fn ct(rfc3339: &str) -> DateTimeWithTimeZone {
+        rfc3339.parse().unwrap()
     }
 
     fn quiet_window() -> TimeDelta {
@@ -286,8 +287,8 @@ mod tests {
     #[test]
     fn the_crunch_window_opens_a_day_before_the_hard_deadline() {
         assert_eq!(
-            crunch_window_start(on("2024-10-18", "19:00")).unwrap(),
-            on("2024-10-17", "19:00")
+            crunch_window_start(ct("2024-10-18T19:00:00-05:00")).unwrap(),
+            ct("2024-10-17T19:00:00-05:00")
         );
     }
 
@@ -295,13 +296,26 @@ mod tests {
     fn a_crunch_window_that_would_open_overnight_waits_for_8am() {
         // A 3:00am hard deadline puts the window at 3:00am the day before; owners are asleep.
         assert_eq!(
-            crunch_window_start(on("2024-10-18", "03:00")).unwrap(),
-            on("2024-10-17", "08:00")
+            crunch_window_start(ct("2024-10-18T03:00:00-05:00")).unwrap(),
+            ct("2024-10-17T08:00:00-05:00")
         );
-        // 8:00am exactly is late enough to stand.
         assert_eq!(
-            crunch_window_start(on("2024-10-18", "08:00")).unwrap(),
-            on("2024-10-17", "08:00")
+            crunch_window_start(ct("2024-10-18T08:00:00-05:00")).unwrap(),
+            ct("2024-10-17T08:00:00-05:00")
+        );
+    }
+
+    #[test]
+    fn the_crunch_window_reads_8am_off_the_central_clock_across_dst() {
+        // Spring forward (2026-03-08): a CDT deadline backs up into a Saturday still on CST.
+        assert_eq!(
+            crunch_window_start(ct("2026-03-08T06:00:00-05:00")).unwrap(),
+            ct("2026-03-07T08:00:00-06:00")
+        );
+        // Fall back (2026-11-01): 24h before a CST deadline is 10am CDT, past the floor.
+        assert_eq!(
+            crunch_window_start(ct("2026-11-01T09:00:00-06:00")).unwrap(),
+            ct("2026-10-31T10:00:00-05:00")
         );
     }
 

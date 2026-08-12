@@ -44,6 +44,7 @@
 mod scratch_db;
 
 use crate::scratch_db::scratch_db;
+use fbkl_constants::date::league_wall_clock;
 use fbkl_entity::{
     auction::{self, AuctionKind, AuctionStatus},
     auction_queries,
@@ -296,9 +297,8 @@ impl TestLeague {
     }
 }
 
-/// Parses a CT timestamp written as `YYYY-MM-DDTHH:MM:SS`, the timezone every league deadline uses.
+/// Parses a CT wall clock written as `YYYY-MM-DDTHH:MM:SS`, the timezone every league deadline
+/// uses. DST included, so a September timestamp lands on CDT and a January one on CST.
 pub fn central(timestamp: &str) -> DateTimeWithTimeZone {
-    format!("{timestamp}-06:00")
-        .parse()
-        .expect("parse timestamp")
+    league_wall_clock(timestamp.parse().expect("parse timestamp")).expect("central wall clock")
 }
