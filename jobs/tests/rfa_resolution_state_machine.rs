@@ -16,6 +16,7 @@ use fbkl_entity::{
     rfa_resolution_queries,
     team_user::LeagueRole,
 };
+use fbkl_jobs::{TickSummary, run_rfa_window_tick};
 use fbkl_logic::{
     auction::{
         BidRejection, end_veteran_auction, place_auction_bid, start_new_auction_for_nba_player,
@@ -465,4 +466,74 @@ async fn an_unresolved_rfa_win_holds_the_winners_cap_space() {
     )
     .await
     .expect("the match ends the hold and frees the winner's cap");
+}
+
+#[tokio::test]
+async fn the_scheduler_tick_expires_both_handshake_windows() {
+    let Some(handshake) = closed_rfa_auction("rfa_state_window_ticks", &[2, 3]).await else {
+        return;
+    };
+    let db = &handshake.league.db.clone();
+    let rfa_resolution_id = handshake.rfa_resolution.id;
+
+    let raise_expiry = run_rfa_window_tick(db, central("2025-09-14T12:00:00"))
+        .await
+        .expect("expire the raise window");
+    assert_eq!(raise_expiry.processed, 1);
+    let handshake = reread(handshake).await;
+    assert_eq!(
+        handshake.rfa_resolution.status,
+        RfaResolutionStatus::AwaitingMatch,
+        "an unraised bid stands, which opens the original owner's window"
+    );
+
+    // The tick set the match deadline 48 hours out from the real clock, so backdate it.
+    rfa_resolution_queries::open_rfa_match_window(
+        rfa_resolution_id,
+        None,
+        central("2025-09-15T12:00:00"),
+        db,
+    )
+    .await
+    .expect("backdate the match deadline");
+
+    let after_match_window = central("2025-09-16T12:00:00");
+    let match_expiry = run_rfa_window_tick(db, after_match_window)
+        .await
+        .expect("expire the match window");
+    assert_eq!(match_expiry.processed, 1);
+    assert_eq!(
+        run_rfa_window_tick(db, after_match_window)
+            .await
+            .expect("re-run the tick"),
+        TickSummary::default(),
+        "the resolution is settled, so a later tick has nothing to do"
+    );
+
+    let handshake = reread(handshake).await;
+    assert_eq!(
+        handshake.rfa_resolution.status,
+        RfaResolutionStatus::Declined
+    );
+    let compensation =
+        rfa_resolution_queries::find_rfa_compensation_pick_for_resolution(rfa_resolution_id, db)
+            .await
+            .expect("read the compensation row")
+            .expect("an expired match window owes a pick");
+    let forfeited_pick = draft_pick_queries::find_draft_pick_by_id(
+        compensation
+            .forfeited_draft_pick_id
+            .expect("the pick is chosen"),
+        db,
+    )
+    .await
+    .expect("read the forfeited pick");
+    assert_eq!(
+        forfeited_pick.round, 3,
+        "nobody named a pick, so the cheapest eligible one goes"
+    );
+    assert_eq!(
+        forfeited_pick.current_owner_team_id,
+        handshake.owner_team_id
+    );
 }

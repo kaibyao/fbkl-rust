@@ -16,7 +16,7 @@
 
 use std::fmt::Debug;
 
-use color_eyre::eyre::{Result, bail};
+use color_eyre::eyre::{Result, eyre};
 use fbkl_entity::{
     deadline::{self, DeadlineKind},
     deadline_queries,
@@ -25,12 +25,16 @@ use fbkl_entity::{
         ClaimOutcome, NewJobRun, claim_job_run, deadline_idempotency_key, mark_job_run_failed,
         mark_job_run_succeeded,
     },
+    rfa_resolution_queries,
     sea_orm::{ActiveEnum, ConnectionTrait, TransactionSession, TransactionTrait},
 };
 use fbkl_logic::{
     annual_contract_advancement::advance_league_contracts,
     auction::{assemble_veteran_auction_pool, end_fa_auction, end_veteran_auction},
-    deadline_processing::{lock_rosters, process_keeper_deadline_transaction},
+    deadline_processing::{
+        RfaMatchDecision, decline_to_raise, lock_rosters, match_or_decline,
+        process_keeper_deadline_transaction,
+    },
 };
 use tracing::{error, info, instrument};
 
@@ -42,11 +46,13 @@ use tracing::{error, info, instrument};
 pub struct ProcessableEvent {
     pub league_id: i64,
     pub end_of_season_year: i16,
-    pub auction_id: i64,
+    /// The row the event is about: an `auction` id for the close events, an `rfa_resolution` id for
+    /// the two RFA window expiries. `kind` says which table it points to.
+    pub subject_id: i64,
     pub kind: ProcessableEventKind,
 }
 
-/// Which synthesized sub-event fired; all share `{league_id, end_of_season_year, auction_id}`.
+/// Which synthesized sub-event fired; all share `{league_id, end_of_season_year, subject_id}`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ProcessableEventKind {
     /// An open FA auction reached 24h with no new bids (§8.3.1).
@@ -71,6 +77,14 @@ impl ProcessableEventKind {
             Self::RfaMatchWindowExpiry => JobEventKind::RfaMatchWindow,
         }
     }
+
+    /// Which table `ProcessableEvent::subject_id` points to, spelled out in the idempotency key.
+    const fn subject_label(self) -> &'static str {
+        match self {
+            Self::FaAuctionClose | Self::FaExtensionExpiry | Self::VeteranAuctionClose => "auction",
+            Self::RfaRaiseWindowExpiry | Self::RfaMatchWindowExpiry => "rfa-resolution",
+        }
+    }
 }
 
 impl ProcessableEvent {
@@ -78,15 +92,16 @@ impl ProcessableEvent {
         self.kind.event_kind()
     }
 
-    /// Stable idempotency key: `(league_id, end_of_season_year, kind, auction_id)`.
+    /// Stable idempotency key: `(league_id, end_of_season_year, kind, subject row)`.
     pub fn idempotency_key(&self) -> String {
         // `to_value()` is the persisted string_value contract, unlike Debug which drifts on rename.
         format!(
-            "{}:{}:{}:auction-{}",
+            "{}:{}:{}:{}-{}",
             self.league_id,
             self.end_of_season_year,
             self.event_kind().to_value(),
-            self.auction_id
+            self.kind.subject_label(),
+            self.subject_id
         )
     }
 }
@@ -288,34 +303,49 @@ where
 {
     let ProcessableEvent {
         league_id,
-        auction_id,
+        subject_id,
         kind,
         ..
     } = event;
+    let now = chrono::Utc::now().fixed_offset();
     match kind {
         ProcessableEventKind::FaAuctionClose | ProcessableEventKind::FaExtensionExpiry => {
-            // The deadline supplies the effective date for the signed contract — use the most
-            // recently passed deadline at close time.
-            let deadline_model = deadline_queries::find_most_recent_deadline_by_datetime(
-                league_id,
-                chrono::Utc::now().fixed_offset(),
-                txn,
-            )
-            .await?;
-            end_fa_auction(&deadline_model, auction_id, None, txn).await?;
+            // The most recently passed deadline supplies the signed contract's effective date.
+            let deadline_model =
+                deadline_queries::find_most_recent_deadline_by_datetime(league_id, now, txn)
+                    .await?;
+            end_fa_auction(&deadline_model, subject_id, None, txn).await?;
             Ok(())
         }
         ProcessableEventKind::VeteranAuctionClose => {
-            end_veteran_auction(auction_id, None, txn).await?;
+            end_veteran_auction(subject_id, None, txn).await?;
             Ok(())
         }
-        ProcessableEventKind::RfaRaiseWindowExpiry | ProcessableEventKind::RfaMatchWindowExpiry => {
-            // RFA resolution is spec 03 (fbkl-rust-1dk). Bail (terminal failure) rather than
-            // silently succeed: these events should not be synthesized until that engine lands.
-            bail!(
-                "RFA window processing is not implemented (spec 03); auction_id = {}",
-                auction_id
+        // §15.3.2.1: no raise inside 48h counts as standing pat, which opens the owner's window.
+        ProcessableEventKind::RfaRaiseWindowExpiry => {
+            let rfa_resolution_model =
+                rfa_resolution_queries::find_rfa_resolution_by_id(subject_id, txn).await?;
+            let winning_team_id = rfa_resolution_model.winning_team_id.ok_or_else(|| {
+                eyre!("RFA resolution {subject_id} has no winning bidder to stand pat for.")
+            })?;
+            decline_to_raise(subject_id, winning_team_id, now, txn).await?;
+            Ok(())
+        }
+        // §15.3.2.2: no match inside 48h counts as declining, so the winner signs and forfeits.
+        ProcessableEventKind::RfaMatchWindowExpiry => {
+            let rfa_resolution_model =
+                rfa_resolution_queries::find_rfa_resolution_by_id(subject_id, txn).await?;
+            // Nobody named a pick, so the cheapest eligible one goes. Commissioners may confirm.
+            match_or_decline(
+                subject_id,
+                rfa_resolution_model.original_owner_team_id,
+                RfaMatchDecision::Decline,
+                None,
+                now,
+                txn,
             )
+            .await?;
+            Ok(())
         }
     }
 }
@@ -361,13 +391,13 @@ mod tests {
         let close = ProcessableEvent {
             league_id: 7,
             end_of_season_year: 2027,
-            auction_id: 99,
+            subject_id: 99,
             kind: ProcessableEventKind::FaAuctionClose,
         };
         let extension = ProcessableEvent {
             league_id: 7,
             end_of_season_year: 2027,
-            auction_id: 99,
+            subject_id: 99,
             kind: ProcessableEventKind::FaExtensionExpiry,
         };
         assert_eq!(close.idempotency_key(), "7:2027:FaAuctionClose:auction-99");
