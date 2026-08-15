@@ -12,6 +12,7 @@ use crate::{
     auction_bid,
     contract::{self, ContractKind},
     queries::pagination::{Paged, fetch_page},
+    rfa_resolution::{self, RfaResolutionStatus},
     team_user,
 };
 
@@ -42,8 +43,10 @@ where
         .ok_or_else(|| eyre!("Could not find auction with id: {}", auction_id))
 }
 
-/// The team's currently-winning bids (`(auction_id, bid_amount)`) across the league/season's `Open`
-/// auctions — the commitments rules §6.4.1 counts against a new bid.
+/// The `(auction_id, bid_amount)` commitments rules §6.4.1 counts against a new bid.
+///
+/// Two sources: the team's currently-winning bids in the league/season's `Open` auctions, and every
+/// RFA auction it won that is still in the raise/match handshake (rules §15.3.4).
 #[instrument(skip(db))]
 pub async fn find_winning_bids_for_team<C>(
     team_id: i64,
@@ -84,7 +87,47 @@ where
             winning_bids.push((auction_id, bid_amount));
         }
     }
+
+    winning_bids.extend(
+        find_in_flight_rfa_holds_for_team(team_id, league_id, end_of_season_year, db).await?,
+    );
     Ok(winning_bids)
+}
+
+/// What the winner of a closed RFA auction still owes while the handshake runs (rules §15.3.4).
+///
+/// The hold ends with the resolution: a match hands the player to the original owner, and a decline
+/// signs the winner's contract, whose salary the cap snapshot already counts.
+#[instrument(skip(db))]
+async fn find_in_flight_rfa_holds_for_team<C>(
+    team_id: i64,
+    league_id: i64,
+    end_of_season_year: i16,
+    db: &C,
+) -> Result<Vec<(i64, i16)>>
+where
+    C: ConnectionTrait,
+{
+    let in_flight_rfa_resolutions = rfa_resolution::Entity::find()
+        .filter(rfa_resolution::Column::LeagueId.eq(league_id))
+        .filter(rfa_resolution::Column::EndOfSeasonYear.eq(end_of_season_year))
+        .filter(rfa_resolution::Column::WinningTeamId.eq(team_id))
+        .filter(rfa_resolution::Column::Status.is_in([
+            RfaResolutionStatus::AwaitingRaise,
+            RfaResolutionStatus::AwaitingMatch,
+        ]))
+        .all(db)
+        .await?;
+
+    Ok(in_flight_rfa_resolutions
+        .iter()
+        .filter_map(|rfa_resolution_model| {
+            Some((
+                rfa_resolution_model.auction_id?,
+                rfa_resolution_model.effective_bid()?,
+            ))
+        })
+        .collect())
 }
 
 /// Auctions in the league/season still taking bids, soonest close first, optionally of one kind

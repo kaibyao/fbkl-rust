@@ -6,6 +6,8 @@
 //! could settle a decline.
 
 use fbkl_entity::{
+    auction::AuctionKind,
+    auction_queries,
     contract::{ContractKind, ContractStatus},
     contract_queries,
     deadline::DeadlineKind,
@@ -15,7 +17,9 @@ use fbkl_entity::{
     team_user::LeagueRole,
 };
 use fbkl_logic::{
-    auction::{end_veteran_auction, start_new_auction_for_nba_player},
+    auction::{
+        BidRejection, end_veteran_auction, place_auction_bid, start_new_auction_for_nba_player,
+    },
     deadline_processing::{
         RfaMatchDecision, UnbidRfaDecision, decline_to_raise, match_or_decline, raise_bid,
         resolve_unbid_rfa, seed_rfa_resolutions,
@@ -88,7 +92,7 @@ async fn seeded_rfa_auction(
         league.league_id,
         END_OF_SEASON_YEAR,
         central(AUCTION_START),
-        fbkl_entity::auction::AuctionKind::PreseasonVeteranAuction,
+        AuctionKind::PreseasonVeteranAuction,
         RFA_CARRY_SALARY,
         &league.db,
     )
@@ -287,6 +291,18 @@ async fn declining_signs_the_winner_and_hands_over_a_compensation_pick() {
     .await
     .expect("decline to match");
     assert_eq!(declined.status, RfaResolutionStatus::Declined);
+    assert!(
+        auction_queries::find_winning_bids_for_team(
+            handshake.league.team_id,
+            handshake.league.league_id,
+            END_OF_SEASON_YEAR,
+            db
+        )
+        .await
+        .expect("read the winner's commitments")
+        .is_empty(),
+        "the signed contract carries the salary, so the hold is counted once"
+    );
 
     let winner_contracts =
         contract_queries::find_active_contracts_for_team(handshake.league.team_id, db)
@@ -358,4 +374,95 @@ async fn an_unbid_rfa_never_enters_the_raise_window() {
     assert_eq!(signed_contract.year_number, 4);
     // Nobody bid, so the price is the standard 4th-year salary the RFA already carried.
     assert_eq!(signed_contract.salary, RFA_CARRY_SALARY);
+}
+
+#[tokio::test]
+async fn an_unresolved_rfa_win_holds_the_winners_cap_space() {
+    let Some(handshake) = closed_rfa_auction("rfa_state_cap_hold", &[3]).await else {
+        return;
+    };
+    let league = &handshake.league;
+    let db = &league.db;
+    // $190 of roster salary plus the $19 hold leaves the winner $9 under the $200 preseason cap.
+    let filler_player_id = league.add_veteran_player("Cap Filler").await;
+    league
+        .add_owned_contract(
+            filler_player_id,
+            ContractKind::RookieExtension,
+            190,
+            league.team_id,
+        )
+        .await;
+
+    let other_player_id = league.add_veteran_player("Other Vet").await;
+    let other_contract = league
+        .add_unowned_contract(
+            other_player_id,
+            ContractKind::UnrestrictedFreeAgentVeteran,
+            1,
+        )
+        .await;
+    let other_auction = start_new_auction_for_nba_player(
+        &other_contract,
+        league.league_id,
+        END_OF_SEASON_YEAR,
+        central("2025-09-13T00:00:00"),
+        AuctionKind::PreseasonVeteranAuction,
+        1,
+        db,
+    )
+    .await
+    .expect("start a second auction");
+    let bidder = league.add_team_user(LeagueRole::LeagueCommissioner).await;
+
+    let rejection = place_auction_bid(
+        other_auction.id,
+        bidder.id,
+        10,
+        None,
+        central("2025-09-13T06:00:00"),
+        db,
+    )
+    .await
+    .expect_err("the RFA hold leaves no room for a $10 bid");
+    assert!(
+        matches!(
+            rejection.downcast_ref::<BidRejection>(),
+            Some(BidRejection::InsufficientCap {
+                committed_salary: 219,
+                ..
+            })
+        ),
+        "unexpected rejection: {rejection}"
+    );
+
+    decline_to_raise(
+        handshake.rfa_resolution.id,
+        league.team_id,
+        central("2025-09-13T07:00:00"),
+        db,
+    )
+    .await
+    .expect("stand pat");
+    match_or_decline(
+        handshake.rfa_resolution.id,
+        handshake.owner_team_id,
+        RfaMatchDecision::Match,
+        None,
+        central("2025-09-13T08:00:00"),
+        db,
+    )
+    .await
+    .expect("match the bid");
+
+    place_auction_bid(
+        other_auction.id,
+        bidder.id,
+        10,
+        None,
+        central("2025-09-13T09:00:00"),
+        db,
+    )
+    .await
+    .expect("the match ends the hold and frees the winner's cap");
 }

@@ -170,7 +170,8 @@ impl AuctionQuery {
         })
     }
 
-    /// The caller's team's currently-winning bids in this season's open auctions.
+    /// The caller's team's currently-winning bids in this season's open auctions, plus the RFA
+    /// auctions it won that are still in the raise/match handshake (rules §15.3.4).
     #[graphql(guard = "LeagueRoleGuard(RoleRequirement::Member)")]
     async fn my_winning_bids(&self, ctx: &Context<'_>) -> Result<Vec<WinningBid>> {
         let db = ctx.data_unchecked::<DatabaseConnection>();
