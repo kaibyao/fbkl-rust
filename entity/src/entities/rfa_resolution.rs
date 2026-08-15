@@ -42,6 +42,18 @@ pub struct Model {
     pub updated_at: DateTimeWithTimeZone,
 }
 
+impl Model {
+    /// The bid every later step is measured against: the compensation tier, the original owner's
+    /// match price, and the winner's cap hold. It is the raise when the winner raised, else the bid
+    /// that won the auction (rules §15.3.2.1). NULL for a player nobody bid on.
+    pub const fn effective_bid(&self) -> Option<i16> {
+        match self.raised_bid {
+            Some(raised_bid) => Some(raised_bid),
+            None => self.final_bid,
+        }
+    }
+}
+
 /// Where a restricted free agent sits in the raise/match handshake (rules §15.3).
 #[derive(
     Debug, Clone, Copy, Eq, PartialEq, Enum, EnumIter, DeriveActiveEnum, Serialize, Deserialize,
