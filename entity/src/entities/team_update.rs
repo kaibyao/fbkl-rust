@@ -164,6 +164,12 @@ pub enum ContractUpdateType {
     ContractAdvanced,
     /// A contract is lost to another team via Free Agency (in the Veteran Auction).
     LostViaFreeAgency,
+    /// A contract at max length becomes a restricted free agent at the keeper deadline (rules §14.4).
+    RfaDesignation,
+    /// A contract at max length becomes an unrestricted free agent at the keeper deadline (rules §14.4).
+    UfaDesignation,
+    /// The original owner matched an RFA bid and re-signed the player (rules §15.3.2).
+    RfaResign,
 }
 
 /// Stores data for an update to a team's draft pick.

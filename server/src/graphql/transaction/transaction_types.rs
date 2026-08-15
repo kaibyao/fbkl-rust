@@ -1,7 +1,7 @@
 use async_graphql::{InputObject, SimpleObject};
 use fbkl_entity::transaction::{self, TransactionKind};
 
-/// One recorded league state change. Covers all 12 `TransactionKind` variants; the kind tells the
+/// One recorded league state change. Covers every `TransactionKind` variant; the kind tells the
 /// client which child row (trade, auction, rookie draft selection, team update) carries the detail.
 #[derive(SimpleObject)]
 pub struct Transaction {
