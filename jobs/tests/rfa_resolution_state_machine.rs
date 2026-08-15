@@ -6,7 +6,7 @@
 //! could settle a decline.
 
 use fbkl_entity::{
-    auction::AuctionKind,
+    auction::{AuctionKind, AuctionStatus},
     auction_queries,
     contract::{ContractKind, ContractStatus},
     contract_queries,
@@ -251,6 +251,13 @@ async fn matching_re_signs_the_player_to_the_original_owner_at_a_discount() {
     assert_eq!(matched.status, RfaResolutionStatus::Resolved);
     assert_eq!(matched.raised_bid, Some(24));
     assert!(matched.resolved_at.is_some());
+    assert_eq!(
+        auction_queries::find_auction_by_id(handshake.auction_id, db)
+            .await
+            .expect("re-read the auction")
+            .status,
+        AuctionStatus::Completed
+    );
 
     let signed_contract =
         contract_queries::find_active_contracts_for_team(handshake.owner_team_id, db)
@@ -535,5 +542,121 @@ async fn the_scheduler_tick_expires_both_handshake_windows() {
     assert_eq!(
         forfeited_pick.current_owner_team_id,
         handshake.owner_team_id
+    );
+}
+
+#[tokio::test]
+async fn raising_then_declining_prices_the_signing_and_the_pick_off_the_raise() {
+    let Some(handshake) = closed_rfa_auction("rfa_state_raise_then_decline", &[1, 3]).await else {
+        return;
+    };
+    let db = &handshake.league.db;
+    let rfa_resolution_id = handshake.rfa_resolution.id;
+
+    raise_bid(
+        rfa_resolution_id,
+        handshake.league.team_id,
+        30,
+        central("2025-09-11T12:00:00"),
+        db,
+    )
+    .await
+    .expect("raise the winning bid");
+    let declined = match_or_decline(
+        rfa_resolution_id,
+        handshake.owner_team_id,
+        RfaMatchDecision::Decline,
+        None,
+        central("2025-09-13T12:00:00"),
+        db,
+    )
+    .await
+    .expect("decline the raised bid");
+    assert_eq!(declined.status, RfaResolutionStatus::Declined);
+    assert_eq!(declined.raised_bid, Some(30));
+
+    let signed_contract =
+        contract_queries::find_active_contracts_for_team(handshake.league.team_id, db)
+            .await
+            .expect("read the winner's roster")
+            .pop()
+            .expect("the winner signs the player");
+    assert_eq!(signed_contract.kind, ContractKind::Veteran);
+    assert_eq!(signed_contract.year_number, 1);
+    assert_eq!(
+        signed_contract.salary, 30,
+        "the winner pays what it raised to"
+    );
+
+    let compensation =
+        rfa_resolution_queries::find_rfa_compensation_pick_for_resolution(rfa_resolution_id, db)
+            .await
+            .expect("read the compensation row")
+            .expect("a decline owes a pick");
+    // $30 sits in the second-round tier, so the winner's 3rd is too cheap to settle it.
+    assert_eq!(compensation.required_round, 2);
+    let forfeited_pick = draft_pick_queries::find_draft_pick_by_id(
+        compensation
+            .forfeited_draft_pick_id
+            .expect("the pick is chosen"),
+        db,
+    )
+    .await
+    .expect("read the forfeited pick");
+    assert_eq!(forfeited_pick.round, 1);
+    assert_eq!(
+        forfeited_pick.current_owner_team_id,
+        handshake.owner_team_id
+    );
+}
+
+#[tokio::test]
+async fn an_unbid_rfa_can_be_released_to_the_free_agent_auction() {
+    let Some(handshake) = seeded_rfa_auction("rfa_state_unbid_released", &[], false).await else {
+        return;
+    };
+    let db = &handshake.league.db;
+    end_veteran_auction(handshake.auction_id, None, db)
+        .await
+        .expect("close the unbid RFA auction");
+
+    let released = resolve_unbid_rfa(
+        handshake.rfa_resolution.id,
+        handshake.owner_team_id,
+        UnbidRfaDecision::ReleaseToAuction,
+        central("2025-09-13T12:00:00"),
+        db,
+    )
+    .await
+    .expect("release the unbid RFA");
+    assert_eq!(released.status, RfaResolutionStatus::NoBidToAuction);
+    assert!(released.resolved_at.is_some());
+
+    let owner_contracts =
+        contract_queries::find_active_contracts_for_team(handshake.owner_team_id, db)
+            .await
+            .expect("read the owner's roster");
+    assert_eq!(
+        owner_contracts.len(),
+        1,
+        "the player is still restricted, so nothing was re-signed"
+    );
+    assert_eq!(
+        owner_contracts[0].kind,
+        ContractKind::RestrictedFreeAgent,
+        "the released contract goes to the free agent auction as it stands"
+    );
+
+    assert!(
+        resolve_unbid_rfa(
+            handshake.rfa_resolution.id,
+            handshake.owner_team_id,
+            UnbidRfaDecision::Resign,
+            central("2025-09-14T12:00:00"),
+            db,
+        )
+        .await
+        .is_err(),
+        "a settled resolution cannot be settled twice"
     );
 }
