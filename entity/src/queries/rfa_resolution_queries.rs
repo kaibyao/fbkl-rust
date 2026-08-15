@@ -14,7 +14,7 @@ use sea_orm::{
 use tracing::instrument;
 
 use crate::{
-    rfa_compensation_pick,
+    contract_queries, rfa_compensation_pick,
     rfa_resolution::{self, RfaResolutionStatus},
 };
 
@@ -80,6 +80,9 @@ where
 }
 
 /// The resolution for a designated RFA contract, if designation has run for it.
+///
+/// Matches any contract in the same season's chain, because a trade between the keeper deadline and
+/// the auction replaces the contract row and the resolution still points at the older id.
 #[instrument(skip(db))]
 pub async fn find_rfa_resolution_for_contract<C>(
     rfa_contract_id: i64,
@@ -88,8 +91,18 @@ pub async fn find_rfa_resolution_for_contract<C>(
 where
     C: ConnectionTrait,
 {
+    let given_contract = contract_queries::find_contract_by_id(rfa_contract_id, db).await?;
+    let season_chain_ids: Vec<i64> = contract_queries::find_contract_chain(rfa_contract_id, db)
+        .await?
+        .into_iter()
+        .filter_map(|chain_contract| {
+            (chain_contract.end_of_season_year == given_contract.end_of_season_year)
+                .then_some(chain_contract.id)
+        })
+        .collect();
+
     let maybe_rfa_resolution = rfa_resolution::Entity::find()
-        .filter(rfa_resolution::Column::RfaContractId.eq(rfa_contract_id))
+        .filter(rfa_resolution::Column::RfaContractId.is_in(season_chain_ids))
         .one(db)
         .await?;
     Ok(maybe_rfa_resolution)
@@ -144,10 +157,22 @@ where
     Ok(expired_rfa_resolutions)
 }
 
+/// Everything a closed RFA auction hands to its resolution.
+#[derive(Clone, Copy, Debug)]
+pub struct ClosedRfaAuctionResult {
+    pub auction_id: i64,
+    pub winning_team_id: i64,
+    pub final_bid: i16,
+    pub final_bid_at: DateTimeWithTimeZone,
+    /// Auction close + 48h (rules §15.3.2.1).
+    pub raise_deadline_at: DateTimeWithTimeZone,
+}
+
+/// Fills in the auction's result and starts the winner's 48h raise window.
 #[instrument(skip(db))]
-pub async fn update_rfa_resolution_status<C>(
+pub async fn open_rfa_raise_window<C>(
     rfa_resolution_id: i64,
-    new_status: RfaResolutionStatus,
+    auction_result: ClosedRfaAuctionResult,
     db: &C,
 ) -> Result<rfa_resolution::Model>
 where
@@ -157,7 +182,59 @@ where
         find_rfa_resolution_by_id(rfa_resolution_id, db)
             .await?
             .into();
-    rfa_resolution_to_update.status = ActiveValue::Set(new_status);
+    rfa_resolution_to_update.auction_id = ActiveValue::Set(Some(auction_result.auction_id));
+    rfa_resolution_to_update.winning_team_id =
+        ActiveValue::Set(Some(auction_result.winning_team_id));
+    rfa_resolution_to_update.final_bid = ActiveValue::Set(Some(auction_result.final_bid));
+    rfa_resolution_to_update.final_bid_at = ActiveValue::Set(Some(auction_result.final_bid_at));
+    rfa_resolution_to_update.raise_deadline_at =
+        ActiveValue::Set(Some(auction_result.raise_deadline_at));
+    rfa_resolution_to_update.status = ActiveValue::Set(RfaResolutionStatus::AwaitingRaise);
+    Ok(rfa_resolution_to_update.update(db).await?)
+}
+
+/// Closes the raise window and starts the original owner's 48h window. `maybe_raised_bid` is NULL
+/// when the winner stood pat.
+#[instrument(skip(db))]
+pub async fn open_rfa_match_window<C>(
+    rfa_resolution_id: i64,
+    maybe_raised_bid: Option<i16>,
+    match_deadline_at: DateTimeWithTimeZone,
+    db: &C,
+) -> Result<rfa_resolution::Model>
+where
+    C: ConnectionTrait,
+{
+    let mut rfa_resolution_to_update: rfa_resolution::ActiveModel =
+        find_rfa_resolution_by_id(rfa_resolution_id, db)
+            .await?
+            .into();
+    if let Some(raised_bid) = maybe_raised_bid {
+        rfa_resolution_to_update.raised_bid = ActiveValue::Set(Some(raised_bid));
+    }
+    rfa_resolution_to_update.match_deadline_at = ActiveValue::Set(Some(match_deadline_at));
+    rfa_resolution_to_update.status = ActiveValue::Set(RfaResolutionStatus::AwaitingMatch);
+    Ok(rfa_resolution_to_update.update(db).await?)
+}
+
+/// Stamps the resolution's final state. `final_status` is one of `Resolved`, `Declined`,
+/// `NoBidResigned` or `NoBidToAuction`.
+#[instrument(skip(db))]
+pub async fn finish_rfa_resolution<C>(
+    rfa_resolution_id: i64,
+    final_status: RfaResolutionStatus,
+    resolved_at: DateTimeWithTimeZone,
+    db: &C,
+) -> Result<rfa_resolution::Model>
+where
+    C: ConnectionTrait,
+{
+    let mut rfa_resolution_to_update: rfa_resolution::ActiveModel =
+        find_rfa_resolution_by_id(rfa_resolution_id, db)
+            .await?
+            .into();
+    rfa_resolution_to_update.status = ActiveValue::Set(final_status);
+    rfa_resolution_to_update.resolved_at = ActiveValue::Set(Some(resolved_at));
     Ok(rfa_resolution_to_update.update(db).await?)
 }
 

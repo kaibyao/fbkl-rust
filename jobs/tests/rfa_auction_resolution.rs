@@ -2,8 +2,8 @@
 //! because the close writes the pooled contract that the resolution re-reads.
 //!
 //! An RFA auction is the one auction whose close does not sign anybody: the original team may still
-//! match. `resolve_rfa_auction_to_winning_bid` is the no-match outcome, and until the raise/match
-//! exchange exists it is the only way a closed RFA auction reaches a signed contract.
+//! match. `resolve_rfa_auction_to_winning_bid` is the no-match outcome, called from the decline
+//! branch of the handshake and covered here on its own.
 
 use fbkl_entity::{
     auction::AuctionStatus,
@@ -109,7 +109,7 @@ async fn an_unmatched_rfa_goes_to_the_winning_bidder_as_a_veteran() {
         .await
         .expect("close the RFA auction");
 
-    let signed_contract = resolve_rfa_auction_to_winning_bid(auction_id, None, &league.db)
+    let signed_contract = resolve_rfa_auction_to_winning_bid(auction_id, None, None, &league.db)
         .await
         .expect("resolve the RFA auction");
 
@@ -163,7 +163,7 @@ async fn resolving_a_non_rfa_auction_is_rejected() {
     .expect("start the UFA auction");
 
     assert!(
-        resolve_rfa_auction_to_winning_bid(auction.id, None, &league.db)
+        resolve_rfa_auction_to_winning_bid(auction.id, None, None, &league.db)
             .await
             .is_err()
     );

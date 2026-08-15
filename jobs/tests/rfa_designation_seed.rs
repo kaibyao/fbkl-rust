@@ -19,11 +19,21 @@ async fn seeds_one_resolution_per_rfa_and_none_for_a_ufa() {
     };
     let rfa_player_id = league.add_veteran_player("Restricted Vet").await;
     let rfa_contract = league
-        .add_owned_contract(rfa_player_id, ContractKind::RestrictedFreeAgent, 7)
+        .add_owned_contract(
+            rfa_player_id,
+            ContractKind::RestrictedFreeAgent,
+            7,
+            league.team_id,
+        )
         .await;
     let ufa_player_id = league.add_veteran_player("Unrestricted Vet").await;
     league
-        .add_owned_contract(ufa_player_id, ContractKind::UnrestrictedFreeAgentVeteran, 9)
+        .add_owned_contract(
+            ufa_player_id,
+            ContractKind::UnrestrictedFreeAgentVeteran,
+            9,
+            league.team_id,
+        )
         .await;
     let unowned_rfa_player_id = league.add_veteran_player("Unowned Restricted Vet").await;
     let unowned_rfa_contract = league

@@ -18,6 +18,7 @@ use fbkl_entity::{
 use tracing::instrument;
 
 use super::sign_auction_contract_to_team;
+use crate::deadline_processing::open_raise_window_for_closed_auction;
 
 pub static VALID_VETERAN_AUCTION_FA_TYPES: &[ContractKind] = &[
     ContractKind::FreeAgent,
@@ -76,6 +77,13 @@ where
                     &db_txn,
                 )
                 .await?;
+                open_raise_window_for_closed_auction(
+                    &auction_model,
+                    &auction_contract_model,
+                    maybe_latest_bid.as_ref(),
+                    &db_txn,
+                )
+                .await?;
                 auction_contract_model
             }
             AuctionCloseOutcome::Expire => {
@@ -97,6 +105,7 @@ where
                     &auction_model,
                     &auction_contract_model,
                     &winning_bid_model,
+                    None,
                     maybe_override_effective_date,
                     &db_txn,
                 )
@@ -115,6 +124,7 @@ async fn sign_winning_bid<C>(
     auction_model: &auction::Model,
     auction_contract_model: &contract::Model,
     winning_bid_model: &auction_bid::Model,
+    maybe_raised_bid_amount: Option<i16>,
     maybe_override_effective_date: Option<NaiveDate>,
     db: &C,
 ) -> Result<contract::Model>
@@ -135,6 +145,7 @@ where
         auction_model,
         winning_bid_model,
         &preseason_fa_auction_start_deadline_model,
+        maybe_raised_bid_amount,
         None,
         db,
     )
@@ -157,12 +168,15 @@ where
 /// winning bidder signs the player (rules §6.5).
 ///
 /// [`end_veteran_auction`] leaves an RFA auction `Closed` with its pooled contract untouched,
-/// because the raise/match exchange decides who signs. That exchange is not implemented yet, so
-/// this no-match path is currently the only way an RFA auction reaches a signed contract, and
-/// nothing calls it on the live path — without it a closed RFA auction never produces one.
+/// because the raise/match exchange decides who signs. The decline branch of that exchange
+/// (`fbkl_logic::deadline_processing::match_or_decline`) calls this, passing the effective bid so a
+/// raised bid is what the winner pays.
+///
+/// `maybe_effective_bid` defaults to the winning bid when the winner never raised.
 #[instrument(skip(db))]
 pub async fn resolve_rfa_auction_to_winning_bid<C>(
     auction_id: i64,
+    maybe_effective_bid: Option<i16>,
     maybe_override_effective_date: Option<NaiveDate>,
     db: &C,
 ) -> Result<contract::Model>
@@ -186,6 +200,7 @@ where
         &auction_model,
         &auction_contract_model,
         &winning_bid_model,
+        maybe_effective_bid,
         maybe_override_effective_date,
         &db_txn,
     )

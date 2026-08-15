@@ -413,6 +413,22 @@ where
     Ok(updated_contract)
 }
 
+/// Signs an RFA/UFA contract to a team outside any auction: the RFA raise/match handshake and the
+/// no-bid re-sign both price the contract from the resolution rather than from a winning bid.
+pub async fn sign_rfa_or_ufa_contract_to_team<C>(
+    fa_contract_model: contract::Model,
+    signing_team_id: i64,
+    signing_amount: i16,
+    db: &C,
+) -> Result<contract::Model>
+where
+    C: ConnectionTrait,
+{
+    let signed_contract_model_to_insert =
+        fa_contract_model.sign_rfa_or_ufa_contract_to_team(signing_team_id, signing_amount)?;
+    add_replacement_contract_to_chain(fa_contract_model, signed_contract_model_to_insert, db).await
+}
+
 /// Signs a contract to a team as a result of an auction ending (either the pre-season veteran auction or in-season FA auction).
 pub async fn sign_auction_contract_to_team<C>(
     auction_model: &auction::Model,

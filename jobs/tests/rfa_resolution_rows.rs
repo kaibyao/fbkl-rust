@@ -64,14 +64,16 @@ async fn rfa_resolution_rows_round_trip() {
     .unwrap();
     assert!(not_expired.is_empty());
 
-    let updated = rfa_resolution_queries::update_rfa_resolution_status(
+    let updated = rfa_resolution_queries::finish_rfa_resolution(
         inserted.id,
         RfaResolutionStatus::Declined,
+        central("2025-09-12T12:00:00"),
         &league.db,
     )
     .await
     .unwrap();
     assert_eq!(updated.status, RfaResolutionStatus::Declined);
+    assert!(updated.resolved_at.is_some());
 
     let compensation = rfa_resolution_queries::insert_rfa_compensation_pick(
         NewRfaCompensationPick {

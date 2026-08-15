@@ -53,7 +53,12 @@ async fn eligible_picks_drop_worse_rounds_other_owners_and_post_bid_acquisitions
 
     let player_id = league.add_veteran_player("Restricted Vet").await;
     let rfa_contract = league
-        .add_owned_contract(player_id, ContractKind::RestrictedFreeAgent, 7)
+        .add_owned_contract(
+            player_id,
+            ContractKind::RestrictedFreeAgent,
+            7,
+            league.team_id,
+        )
         .await;
     let mut resolution = rfa_resolution_queries::insert_rfa_resolution(
         NewRfaResolution {

@@ -186,6 +186,10 @@ pub enum DraftPickUpdateType {
     AddViaTrade,
     /// A draft pick option has been added to the draft pick.
     DraftPickOptionAdded,
+    /// A draft pick is given up as RFA compensation (rules §15.2).
+    ForfeitedAsRfaCompensation,
+    /// A draft pick is received as RFA compensation (rules §15.2).
+    AddViaRfaCompensation,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]

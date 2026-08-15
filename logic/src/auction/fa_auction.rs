@@ -77,6 +77,7 @@ where
                     &auction_model,
                     &winning_bid_model,
                     deadline_model,
+                    None,
                     maybe_override_effective_date,
                     &db_txn,
                 )

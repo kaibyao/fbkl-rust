@@ -16,11 +16,15 @@ use crate::roster::{
 };
 
 /// Signs a contract to the team that submitted the last/winning bid to a preseason veteran auction before it ended. Creates + inserts the contract, transaction, and team update.
+///
+/// `maybe_raised_bid_amount` sets the price for an RFA whose winner raised its own bid
+/// (rules §15.3.2.1); every other signing pays the winning bid.
 #[instrument(skip(db))]
 pub async fn sign_auction_contract_to_team<C>(
     auction_model: &auction::Model,
     winning_auction_bid_model: &auction_bid::Model,
     deadline_model: &deadline::Model,
+    maybe_raised_bid_amount: Option<i16>,
     maybe_override_effective_date: Option<NaiveDate>,
     db: &C,
 ) -> Result<(contract::Model, transaction::Model, team_update::Model)>
@@ -35,7 +39,7 @@ where
     } = calculate_team_contract_salary_with_model(&winning_team_model, deadline_model, db).await?;
     let signed_contract_model = contract_queries::sign_auction_contract_to_team(
         auction_model,
-        winning_auction_bid_model.bid_amount,
+        maybe_raised_bid_amount.unwrap_or(winning_auction_bid_model.bid_amount),
         winning_team_model.id,
         db,
     )

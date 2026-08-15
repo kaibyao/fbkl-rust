@@ -1,0 +1,358 @@
+//! What the team that held the player at the keeper deadline does with him (rules §15.3).
+//!
+//! Two decision points share that owner and the discount right recorded in
+//! `rfa_resolution.original_owner_team_id`:
+//!
+//! * somebody bid, so the owner matches the effective bid at a discount or declines and takes a
+//!   draft pick instead (§15.3.2, §15.2);
+//! * nobody bid, so the owner re-signs at the standard 4th-year salary or lets the player go to the
+//!   regular free agent auction (§15.3.5).
+
+use color_eyre::{
+    Result,
+    eyre::{ensure, eyre},
+};
+use fbkl_constants::league_rules::compensation_round_for_bid;
+use fbkl_entity::{
+    auction::AuctionStatus,
+    auction_queries, contract, contract_queries, deadline, draft_pick,
+    rfa_resolution::{self, RfaResolutionStatus},
+    rfa_resolution_queries::{self, NewRfaCompensationPick},
+    sea_orm::{
+        ActiveModelTrait, ActiveValue, ConnectionTrait, TransactionSession, TransactionTrait,
+        prelude::DateTimeWithTimeZone,
+    },
+    team_update::DraftPickUpdateType,
+    transaction::TransactionKind,
+};
+use tracing::instrument;
+
+use crate::{
+    auction::resolve_rfa_auction_to_winning_bid,
+    roster::{SalarySnapshot, calculate_team_contract_salary_at_datetime},
+};
+
+use super::{
+    compute_eligible_compensation_picks,
+    rfa_transaction::{
+        find_rfa_handshake_deadline, insert_compensation_pick_team_update,
+        insert_rfa_resign_team_update, insert_rfa_transaction,
+    },
+};
+
+/// What the original owner does with a winning bid on his restricted free agent (rules §15.3.2).
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum RfaMatchDecision {
+    /// Re-sign the player at the effective bid less the discount.
+    Match,
+    /// Let the winner sign him and take a draft pick as compensation.
+    Decline,
+}
+
+/// What the original owner does with a restricted free agent nobody bid on (rules §15.3.5).
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum UnbidRfaDecision {
+    /// Re-sign at the standard 4th-year salary the RFA contract already carries.
+    Resign,
+    /// Pass, sending the player to the regular free agent auction.
+    ReleaseToAuction,
+}
+
+/// Settles the original owner's 48h window (rules §15.3.2).
+///
+/// On a decline the winner signs through the shared auction path, and `maybe_chosen_pick_id` names
+/// the pick that changes hands. Leaving it NULL forfeits the cheapest eligible pick, which is the
+/// worst round that still settles the tier.
+#[instrument(skip(db))]
+pub async fn match_or_decline<C>(
+    rfa_resolution_id: i64,
+    original_owner_team_id: i64,
+    decision: RfaMatchDecision,
+    maybe_chosen_pick_id: Option<i64>,
+    now: DateTimeWithTimeZone,
+    db: &C,
+) -> Result<rfa_resolution::Model>
+where
+    C: ConnectionTrait + TransactionTrait,
+{
+    let rfa_resolution_model =
+        rfa_resolution_queries::find_rfa_resolution_by_id(rfa_resolution_id, db).await?;
+    ensure!(
+        rfa_resolution_model.status == RfaResolutionStatus::AwaitingMatch,
+        "The match window for RFA resolution {rfa_resolution_id} is not open (status: {:?}).",
+        rfa_resolution_model.status
+    );
+    ensure!(
+        rfa_resolution_model.original_owner_team_id == original_owner_team_id,
+        "Only the original owner may match or decline RFA resolution {rfa_resolution_id}."
+    );
+    let effective_bid = rfa_resolution_model
+        .effective_bid()
+        .ok_or_else(|| eyre!("RFA resolution {rfa_resolution_id} has no bid to match."))?;
+
+    let deadline_model = find_rfa_handshake_deadline(&rfa_resolution_model, db).await?;
+    let db_txn = db.begin().await?;
+    match decision {
+        RfaMatchDecision::Match => {
+            resign_to_original_owner(
+                &rfa_resolution_model,
+                effective_bid,
+                &deadline_model,
+                &db_txn,
+            )
+            .await?;
+            if let Some(auction_id) = rfa_resolution_model.auction_id {
+                auction_queries::update_auction_status(
+                    auction_id,
+                    AuctionStatus::Completed,
+                    &db_txn,
+                )
+                .await?;
+            }
+        }
+        RfaMatchDecision::Decline => {
+            forfeit_pick_to_original_owner(
+                &rfa_resolution_model,
+                effective_bid,
+                maybe_chosen_pick_id,
+                &deadline_model,
+                &db_txn,
+            )
+            .await?;
+        }
+    }
+    let final_status = match decision {
+        RfaMatchDecision::Match => RfaResolutionStatus::Resolved,
+        RfaMatchDecision::Decline => RfaResolutionStatus::Declined,
+    };
+    let finished_rfa_resolution = rfa_resolution_queries::finish_rfa_resolution(
+        rfa_resolution_id,
+        final_status,
+        now,
+        &db_txn,
+    )
+    .await?;
+    db_txn.commit().await?;
+
+    Ok(finished_rfa_resolution)
+}
+
+/// Settles a restricted free agent nobody bid on (rules §15.3.5). Call it once the veteran auction
+/// has ended, which is when a resolution still sitting in `AwaitingAuction` is known to be unbid.
+#[instrument(skip(db))]
+pub async fn resolve_unbid_rfa<C>(
+    rfa_resolution_id: i64,
+    original_owner_team_id: i64,
+    decision: UnbidRfaDecision,
+    now: DateTimeWithTimeZone,
+    db: &C,
+) -> Result<rfa_resolution::Model>
+where
+    C: ConnectionTrait + TransactionTrait,
+{
+    let rfa_resolution_model =
+        rfa_resolution_queries::find_rfa_resolution_by_id(rfa_resolution_id, db).await?;
+    ensure!(
+        rfa_resolution_model.status == RfaResolutionStatus::AwaitingAuction
+            && rfa_resolution_model.auction_id.is_none(),
+        "RFA resolution {rfa_resolution_id} drew a bid, so it settles through the raise/match windows (status: {:?}).",
+        rfa_resolution_model.status
+    );
+    ensure!(
+        rfa_resolution_model.original_owner_team_id == original_owner_team_id,
+        "Only the original owner may settle unbid RFA resolution {rfa_resolution_id}."
+    );
+
+    let deadline_model = find_rfa_handshake_deadline(&rfa_resolution_model, db).await?;
+    let db_txn = db.begin().await?;
+    let final_status = match decision {
+        UnbidRfaDecision::Resign => {
+            // The 10% RFA discount floors at the standard 4th-year salary, so pricing from that salary lands on it.
+            let rfa_contract_model = find_rfa_contract(&rfa_resolution_model, &db_txn).await?;
+            resign_to_original_owner(
+                &rfa_resolution_model,
+                rfa_contract_model.salary,
+                &deadline_model,
+                &db_txn,
+            )
+            .await?;
+            RfaResolutionStatus::NoBidResigned
+        }
+        UnbidRfaDecision::ReleaseToAuction => RfaResolutionStatus::NoBidToAuction,
+    };
+    let finished_rfa_resolution = rfa_resolution_queries::finish_rfa_resolution(
+        rfa_resolution_id,
+        final_status,
+        now,
+        &db_txn,
+    )
+    .await?;
+    db_txn.commit().await?;
+
+    Ok(finished_rfa_resolution)
+}
+
+/// Signs the player back to the team that held him at the keeper deadline, at the discount that
+/// team's contract earns (rules §15.3.2, §15.3.5).
+async fn resign_to_original_owner<C>(
+    rfa_resolution_model: &rfa_resolution::Model,
+    signing_amount: i16,
+    deadline_model: &deadline::Model,
+    db: &C,
+) -> Result<contract::Model>
+where
+    C: ConnectionTrait,
+{
+    let rfa_contract_model = find_rfa_contract(rfa_resolution_model, db).await?;
+    let original_owner_team_id = rfa_resolution_model.original_owner_team_id;
+    // The discount reads the contract's own team, so a contract traded away since the keeper deadline cannot take this path.
+    ensure!(
+        rfa_contract_model.team_id == Some(original_owner_team_id),
+        "RFA contract {} is no longer held by its keeper-deadline owner (team {original_owner_team_id}), so it cannot be re-signed at the discount.",
+        rfa_contract_model.id
+    );
+
+    let SalarySnapshot {
+        salary: previous_salary,
+        cap: previous_salary_cap,
+    } = calculate_team_contract_salary_at_datetime(
+        rfa_resolution_model.league_id,
+        original_owner_team_id,
+        deadline_model.date_time,
+        db,
+    )
+    .await?;
+    let signed_contract_model = contract_queries::sign_rfa_or_ufa_contract_to_team(
+        rfa_contract_model,
+        original_owner_team_id,
+        signing_amount,
+        db,
+    )
+    .await?;
+
+    let transaction_model = insert_rfa_transaction(
+        rfa_resolution_model,
+        TransactionKind::RfaResign,
+        Some(signed_contract_model.id),
+        deadline_model,
+        db,
+    )
+    .await?;
+    insert_rfa_resign_team_update(
+        &signed_contract_model,
+        deadline_model,
+        (previous_salary, previous_salary_cap),
+        transaction_model.id,
+        db,
+    )
+    .await?;
+
+    Ok(signed_contract_model)
+}
+
+/// Hands the player to the winning bidder and one of the winner's draft picks to the original owner
+/// (rules §15.2, §15.3.2).
+async fn forfeit_pick_to_original_owner<C>(
+    rfa_resolution_model: &rfa_resolution::Model,
+    effective_bid: i16,
+    maybe_chosen_pick_id: Option<i64>,
+    deadline_model: &deadline::Model,
+    db: &C,
+) -> Result<draft_pick::Model>
+where
+    C: ConnectionTrait + TransactionTrait,
+{
+    let rfa_resolution_id = rfa_resolution_model.id;
+    let auction_id = rfa_resolution_model.auction_id.ok_or_else(|| {
+        eyre!("RFA resolution {rfa_resolution_id} has no auction, so nothing can be declined.")
+    })?;
+    let winning_team_id = rfa_resolution_model
+        .winning_team_id
+        .ok_or_else(|| eyre!("RFA resolution {rfa_resolution_id} has no winning bidder."))?;
+
+    // Read the eligible set before the pick moves, while the winner still owns it.
+    let eligible_draft_picks =
+        compute_eligible_compensation_picks(rfa_resolution_model, db).await?;
+    let forfeited_draft_pick_model = match maybe_chosen_pick_id {
+        Some(chosen_pick_id) => eligible_draft_picks
+            .into_iter()
+            .find(|eligible_pick| eligible_pick.id == chosen_pick_id)
+            .ok_or_else(|| {
+                eyre!(
+                    "Draft pick {chosen_pick_id} cannot settle RFA resolution {rfa_resolution_id}."
+                )
+            })?,
+        // Best round first, so the last one is the cheapest pick that still settles the tier.
+        None => eligible_draft_picks.into_iter().next_back().ok_or_else(|| {
+            eyre!(
+                "Team {winning_team_id} holds no draft pick that can settle RFA resolution {rfa_resolution_id} (rules §15.3.3)."
+            )
+        })?,
+    };
+
+    resolve_rfa_auction_to_winning_bid(auction_id, Some(effective_bid), None, db).await?;
+
+    rfa_resolution_queries::insert_rfa_compensation_pick(
+        NewRfaCompensationPick {
+            rfa_resolution_id,
+            required_round: compensation_round_for_bid(effective_bid),
+            forfeited_draft_pick_id: Some(forfeited_draft_pick_model.id),
+            to_team_id: rfa_resolution_model.original_owner_team_id,
+            from_team_id: winning_team_id,
+        },
+        db,
+    )
+    .await?;
+
+    let mut draft_pick_to_move: draft_pick::ActiveModel = forfeited_draft_pick_model.into();
+    draft_pick_to_move.current_owner_team_id =
+        ActiveValue::Set(rfa_resolution_model.original_owner_team_id);
+    let moved_draft_pick_model = draft_pick_to_move.update(db).await?;
+
+    let transaction_model = insert_rfa_transaction(
+        rfa_resolution_model,
+        TransactionKind::RfaDeclineAndForfeit,
+        None,
+        deadline_model,
+        db,
+    )
+    .await?;
+    insert_compensation_pick_team_update(
+        winning_team_id,
+        &moved_draft_pick_model,
+        DraftPickUpdateType::ForfeitedAsRfaCompensation,
+        deadline_model,
+        transaction_model.id,
+        db,
+    )
+    .await?;
+    insert_compensation_pick_team_update(
+        rfa_resolution_model.original_owner_team_id,
+        &moved_draft_pick_model,
+        DraftPickUpdateType::AddViaRfaCompensation,
+        deadline_model,
+        transaction_model.id,
+        db,
+    )
+    .await?;
+
+    Ok(moved_draft_pick_model)
+}
+
+async fn find_rfa_contract<C>(
+    rfa_resolution_model: &rfa_resolution::Model,
+    db: &C,
+) -> Result<contract::Model>
+where
+    C: ConnectionTrait,
+{
+    let rfa_contract_model =
+        contract_queries::find_contract_by_id(rfa_resolution_model.rfa_contract_id, db).await?;
+    ensure!(
+        rfa_contract_model.status == contract::ContractStatus::Active,
+        "RFA contract {} is no longer active, so RFA resolution {} cannot be settled from it.",
+        rfa_contract_model.id,
+        rfa_resolution_model.id
+    );
+    Ok(rfa_contract_model)
+}
