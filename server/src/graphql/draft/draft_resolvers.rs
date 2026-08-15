@@ -50,7 +50,7 @@ pub struct DraftPick {
 }
 
 impl DraftPick {
-    const fn from_model(model: &draft_pick::Model) -> Self {
+    pub const fn from_model(model: &draft_pick::Model) -> Self {
         Self {
             id: model.id,
             round: model.round,
