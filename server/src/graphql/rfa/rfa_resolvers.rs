@@ -13,6 +13,7 @@ use chrono::Utc;
 use color_eyre::Report;
 use fbkl_constants::league_rules::compensation_round_for_bid;
 use fbkl_entity::{
+    contract::FreeAgentException,
     contract_queries::find_contract_by_id,
     rfa_compensation_pick,
     rfa_resolution::{self, RfaResolutionStatus},
@@ -89,18 +90,24 @@ impl RfaResolution {
 impl RfaResolution {
     /// What the original owner would pay to re-sign at its discount (rules §15.3.2, §15.3.5).
     ///
-    /// Null once the handshake is over, because the RFA contract has been replaced by then and
-    /// there is no longer a price to quote.
+    /// Null once the handshake is over, because the contract is no longer a free agent one by then
+    /// and there is no price left to quote.
     async fn projected_resign_salary(&self, ctx: &Context<'_>) -> Result<Option<i16>> {
         let db = ctx.data_unchecked::<DatabaseConnection>();
 
         let rfa_contract = find_contract_by_id(self.model.rfa_contract_id, db)
             .await
+            .map_err(|err| internal("failed to load the RFA contract", &err))?
+            // A trade during the auction replaces the row the resolution points at.
+            .get_latest_in_chain(db)
+            .await
             .map_err(|err| internal("failed to load the RFA contract", &err))?;
         let price_to_match = self.model.effective_bid().unwrap_or(rfa_contract.salary);
-        let Ok(resigned_contract) = rfa_contract
-            .sign_rfa_or_ufa_contract_to_team(self.model.original_owner_team_id, price_to_match)
-        else {
+        let Ok(resigned_contract) = rfa_contract.sign_rfa_or_ufa_contract_to_team(
+            self.model.original_owner_team_id,
+            price_to_match,
+            FreeAgentException::Held,
+        ) else {
             return Ok(None);
         };
 

@@ -220,6 +220,76 @@ async fn a_raise_the_winner_cannot_compensate_for_is_rejected() {
     );
 }
 
+/// Rules §15.4.2: the discount belongs to the keeper-deadline owner, so a trade during the auction
+/// hands over the player without handing over the discount.
+#[tokio::test]
+async fn matching_a_traded_rfa_still_re_signs_at_the_keeper_deadline_discount() {
+    let Some(handshake) = seeded_rfa_auction("rfa_state_match_after_trade", &[3], true).await
+    else {
+        return;
+    };
+    let db = &handshake.league.db.clone();
+    let acquiring_team_id = handshake.league.add_team("Acquired him mid-auction").await;
+
+    // Moves the contract chain the way a processed trade does, minus the trade rows nothing here reads.
+    let rfa_contract =
+        contract_queries::find_contract_by_id(handshake.rfa_resolution.rfa_contract_id, db)
+            .await
+            .expect("read the designated RFA contract");
+    let traded_contract =
+        contract_queries::trade_contract_to_team(rfa_contract, acquiring_team_id, db)
+            .await
+            .expect("trade the RFA away from its keeper-deadline owner");
+    assert_eq!(traded_contract.team_id, Some(acquiring_team_id));
+
+    end_veteran_auction(handshake.auction_id, None, db)
+        .await
+        .expect("close the RFA auction");
+    let handshake = reread(handshake).await;
+    decline_to_raise(
+        handshake.rfa_resolution.id,
+        handshake.league.team_id,
+        central("2025-09-11T12:00:00"),
+        db,
+    )
+    .await
+    .expect("stand pat");
+    let matched = match_or_decline(
+        handshake.rfa_resolution.id,
+        handshake.owner_team_id,
+        RfaMatchDecision::Match,
+        None,
+        central("2025-09-13T12:00:00"),
+        db,
+    )
+    .await
+    .expect("the keeper-deadline owner matches the bid");
+    assert_eq!(matched.status, RfaResolutionStatus::Resolved);
+
+    let signed_contract =
+        contract_queries::find_active_contracts_for_team(handshake.owner_team_id, db)
+            .await
+            .expect("read the keeper-deadline owner's roster")
+            .pop()
+            .expect("matching brings the player back");
+    assert_eq!(signed_contract.kind, ContractKind::RookieExtension);
+    assert_eq!(signed_contract.year_number, 4);
+    // $19 less the uncapped 10% RFA discount, the same price an untraded RFA would cost.
+    assert_eq!(signed_contract.salary, 17);
+    assert_eq!(signed_contract.status, ContractStatus::Active);
+    assert_eq!(
+        signed_contract.previous_contract_id,
+        Some(traded_contract.id)
+    );
+    assert!(
+        contract_queries::find_active_contracts_for_team(acquiring_team_id, db)
+            .await
+            .expect("read the acquiring team's roster")
+            .is_empty(),
+        "the team that acquired him loses him to the match"
+    );
+}
+
 #[tokio::test]
 async fn matching_re_signs_the_player_to_the_original_owner_at_a_discount() {
     let Some(handshake) = closed_rfa_auction("rfa_state_match", &[2, 3]).await else {

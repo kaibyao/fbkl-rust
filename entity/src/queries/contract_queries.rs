@@ -13,7 +13,7 @@ use tracing::instrument;
 
 use crate::{
     auction,
-    contract::{self, ContractKind, ContractStatus},
+    contract::{self, ContractKind, ContractStatus, FreeAgentException},
     deadline::{self, DeadlineKind},
     league_player, player,
     transaction::{self, TransactionKind},
@@ -419,21 +419,29 @@ pub async fn sign_rfa_or_ufa_contract_to_team<C>(
     fa_contract_model: contract::Model,
     signing_team_id: i64,
     signing_amount: i16,
+    fa_exception: FreeAgentException,
     db: &C,
 ) -> Result<contract::Model>
 where
     C: ConnectionTrait,
 {
-    let signed_contract_model_to_insert =
-        fa_contract_model.sign_rfa_or_ufa_contract_to_team(signing_team_id, signing_amount)?;
+    let signed_contract_model_to_insert = fa_contract_model.sign_rfa_or_ufa_contract_to_team(
+        signing_team_id,
+        signing_amount,
+        fa_exception,
+    )?;
     add_replacement_contract_to_chain(fa_contract_model, signed_contract_model_to_insert, db).await
 }
 
 /// Signs a contract to a team as a result of an auction ending (either the pre-season veteran auction or in-season FA auction).
+///
+/// `fa_exception` says whether the winner also holds the player's re-sign discount; it is ignored
+/// for contracts that carry no exception.
 pub async fn sign_auction_contract_to_team<C>(
     auction_model: &auction::Model,
     winning_bid_amount: i16,
     winning_team_id: i64,
+    fa_exception: FreeAgentException,
     db: &C,
 ) -> Result<contract::Model>
 where
@@ -444,9 +452,8 @@ where
     let signed_contract_model_to_insert = match contract_model.kind {
         ContractKind::RestrictedFreeAgent
         | ContractKind::UnrestrictedFreeAgentOriginalTeam
-        | ContractKind::UnrestrictedFreeAgentVeteran => {
-            contract_model.sign_rfa_or_ufa_contract_to_team(winning_team_id, winning_bid_amount)?
-        }
+        | ContractKind::UnrestrictedFreeAgentVeteran => contract_model
+            .sign_rfa_or_ufa_contract_to_team(winning_team_id, winning_bid_amount, fa_exception)?,
         ContractKind::Veteran | ContractKind::FreeAgent => {
             contract_model.sign_veteran_contract_to_team(winning_team_id, winning_bid_amount)?
         }

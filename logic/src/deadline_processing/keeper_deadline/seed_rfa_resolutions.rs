@@ -8,9 +8,10 @@
 //! alone: they can be neither kept nor dropped.
 //!
 //! What is missing is the snapshot. An RFA contract can be traded between the keeper deadline and
-//! the close of its auction, and the discount in `sign_rfa_or_ufa_contract_to_team` keys off the
-//! contract's `team_id`. So the owner at the deadline is copied into
-//! `rfa_resolution.original_owner_team_id` while it is still correct.
+//! the close of its auction, and such a trade hands over the player without handing over the
+//! discount. So the owner at the deadline is copied into `rfa_resolution.original_owner_team_id`
+//! while it is still correct, and every signing path reads the discount right from there rather
+//! than from the contract's current `team_id`.
 //!
 //! UFAs need no row: they have no raise/match handshake, and their discount right is read straight
 //! off the contract they carry into the auction.

@@ -15,7 +15,9 @@ use color_eyre::{
 use fbkl_constants::league_rules::compensation_round_for_bid;
 use fbkl_entity::{
     auction::AuctionStatus,
-    auction_queries, contract, contract_queries, deadline, draft_pick,
+    auction_queries,
+    contract::{self, FreeAgentException},
+    contract_queries, deadline, draft_pick,
     rfa_resolution::{self, RfaResolutionStatus},
     rfa_resolution_queries::{self, NewRfaCompensationPick},
     sea_orm::{
@@ -205,12 +207,6 @@ where
 {
     let rfa_contract_model = find_rfa_contract(rfa_resolution_model, db).await?;
     let original_owner_team_id = rfa_resolution_model.original_owner_team_id;
-    // The discount reads the contract's own team, so a contract traded away since the keeper deadline cannot take this path.
-    ensure!(
-        rfa_contract_model.team_id == Some(original_owner_team_id),
-        "RFA contract {} is no longer held by its keeper-deadline owner (team {original_owner_team_id}), so it cannot be re-signed at the discount.",
-        rfa_contract_model.id
-    );
 
     let SalarySnapshot {
         salary: previous_salary,
@@ -226,6 +222,8 @@ where
         rfa_contract_model,
         original_owner_team_id,
         signing_amount,
+        // This team held the player at the keeper deadline, which is what earns the discount.
+        FreeAgentException::Held,
         db,
     )
     .await?;
@@ -346,8 +344,12 @@ async fn find_rfa_contract<C>(
 where
     C: ConnectionTrait,
 {
+    // A trade during the auction replaces the contract row, leaving the resolution pointing at the older one.
     let rfa_contract_model =
-        contract_queries::find_contract_by_id(rfa_resolution_model.rfa_contract_id, db).await?;
+        contract_queries::find_contract_by_id(rfa_resolution_model.rfa_contract_id, db)
+            .await?
+            .get_latest_in_chain(db)
+            .await?;
     ensure!(
         rfa_contract_model.status == contract::ContractStatus::Active,
         "RFA contract {} is no longer active, so RFA resolution {} cannot be settled from it.",

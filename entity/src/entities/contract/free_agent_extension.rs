@@ -30,11 +30,25 @@ impl FreeAgentKind {
     }
 }
 
+/// Whether the signing team holds the player's RFA/UFA re-sign exception, i.e. the discount that
+/// rules §15.4.2 and §16.4.1 give to whoever owned him at the keeper deadline.
+///
+/// The caller decides, because the contract itself cannot say: a trade between the keeper deadline
+/// and the close of the auction moves the player without moving the discount.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum FreeAgentException {
+    /// The signing team owned the player at the keeper deadline, so it signs at the discount.
+    Held,
+    /// Somebody else did, so the signing team pays the full bid.
+    NotHeld,
+}
+
 /// Creates a new Veteran or Rookie Extension contract from the given RFA or UFA contract as a result of a team winning the contract during the Preseason Veteran Auction.
 pub fn sign_rfa_or_ufa_contract_to_team(
     fa_contract: &contract::Model,
     signing_team_id: i64,
     winning_bid_amount: i16,
+    fa_exception: FreeAgentException,
 ) -> Result<contract::ActiveModel> {
     let fa_kind = FreeAgentKind::from_contract_kind(fa_contract.kind).ok_or_else(|| {
         eyre!(
@@ -49,10 +63,8 @@ pub fn sign_rfa_or_ufa_contract_to_team(
         );
     }
 
-    let signing_original_team = fa_contract.team_id == Some(signing_team_id);
-    let (new_contract_year, new_contract_type, new_salary) = match (signing_original_team, fa_kind)
-    {
-        (true, FreeAgentKind::Restricted) => (
+    let (new_contract_year, new_contract_type, new_salary) = match (fa_exception, fa_kind) {
+        (FreeAgentException::Held, FreeAgentKind::Restricted) => (
             4,
             ContractKind::RookieExtension,
             // RFA 10% re-sign is uncapped, floored at the standard 4th-year salary the RFA contract already carries (rookie Y3 + 20%).
@@ -61,17 +73,17 @@ pub fn sign_rfa_or_ufa_contract_to_team(
                 fa_contract.salary,
             ),
         ),
-        (true, FreeAgentKind::UnrestrictedOriginalTeam) => (
+        (FreeAgentException::Held, FreeAgentKind::UnrestrictedOriginalTeam) => (
             1,
             ContractKind::Veteran,
             discounted_salary(winning_bid_amount, 0.2, Some(8)),
         ),
-        (true, FreeAgentKind::UnrestrictedVeteran) => (
+        (FreeAgentException::Held, FreeAgentKind::UnrestrictedVeteran) => (
             1,
             ContractKind::Veteran,
             discounted_salary(winning_bid_amount, 0.1, Some(5)),
         ),
-        (false, _) => (1, ContractKind::Veteran, winning_bid_amount),
+        (FreeAgentException::NotHeld, _) => (1, ContractKind::Veteran, winning_bid_amount),
     };
 
     let new_contract = contract::ActiveModel {
@@ -116,7 +128,9 @@ mod tests {
 
     use crate::contract::{
         ContractKind, ContractStatus, Model,
-        free_agent_extension::{discounted_salary, sign_rfa_or_ufa_contract_to_team},
+        free_agent_extension::{
+            FreeAgentException, discounted_salary, sign_rfa_or_ufa_contract_to_team,
+        },
     };
 
     static NOW: LazyLock<DateTime<FixedOffset>> = LazyLock::new(|| {
@@ -150,7 +164,8 @@ mod tests {
         test_contract.kind = ContractKind::RestrictedFreeAgent;
         test_contract.salary = 4;
 
-        let advanced_contract = sign_rfa_or_ufa_contract_to_team(&test_contract, 1, 11)?;
+        let advanced_contract =
+            sign_rfa_or_ufa_contract_to_team(&test_contract, 1, 11, FreeAgentException::Held)?;
         assert_eq!(advanced_contract.year_number, ActiveValue::Set(4));
         assert_eq!(
             advanced_contract.kind,
@@ -167,7 +182,48 @@ mod tests {
         test_contract.kind = ContractKind::RestrictedFreeAgent;
         test_contract.salary = 4;
 
-        let advanced_contract = sign_rfa_or_ufa_contract_to_team(&test_contract, 2, 11)?;
+        let advanced_contract =
+            sign_rfa_or_ufa_contract_to_team(&test_contract, 2, 11, FreeAgentException::NotHeld)?;
+        assert_eq!(advanced_contract.year_number, ActiveValue::Set(1));
+        assert_eq!(
+            advanced_contract.kind,
+            ActiveValue::Set(ContractKind::Veteran)
+        );
+        assert_eq!(advanced_contract.salary, ActiveValue::Set(11));
+
+        Ok(())
+    }
+
+    /// A trade during the auction moves the player, not the discount (rules §15.4.2).
+    #[test]
+    fn resign_rfa_traded_away_since_the_keeper_deadline() -> Result<()> {
+        let mut test_contract = generate_contract();
+        test_contract.kind = ContractKind::RestrictedFreeAgent;
+        test_contract.salary = 4;
+        test_contract.team_id = Some(2);
+
+        let advanced_contract =
+            sign_rfa_or_ufa_contract_to_team(&test_contract, 1, 11, FreeAgentException::Held)?;
+        assert_eq!(advanced_contract.year_number, ActiveValue::Set(4));
+        assert_eq!(
+            advanced_contract.kind,
+            ActiveValue::Set(ContractKind::RookieExtension)
+        );
+        assert_eq!(advanced_contract.salary, ActiveValue::Set(9));
+        assert_eq!(advanced_contract.team_id, ActiveValue::Set(Some(1)));
+
+        Ok(())
+    }
+
+    /// The other side of the same trade: holding the contract is not holding the exception.
+    #[test]
+    fn sign_rfa_to_the_team_that_acquired_it_pays_the_full_bid() -> Result<()> {
+        let mut test_contract = generate_contract();
+        test_contract.kind = ContractKind::RestrictedFreeAgent;
+        test_contract.salary = 4;
+
+        let advanced_contract =
+            sign_rfa_or_ufa_contract_to_team(&test_contract, 1, 11, FreeAgentException::NotHeld)?;
         assert_eq!(advanced_contract.year_number, ActiveValue::Set(1));
         assert_eq!(
             advanced_contract.kind,
@@ -184,7 +240,8 @@ mod tests {
         test_contract.kind = ContractKind::UnrestrictedFreeAgentOriginalTeam;
         test_contract.salary = 27;
 
-        let advanced_contract = sign_rfa_or_ufa_contract_to_team(&test_contract, 1, 33)?;
+        let advanced_contract =
+            sign_rfa_or_ufa_contract_to_team(&test_contract, 1, 33, FreeAgentException::Held)?;
         assert_eq!(advanced_contract.year_number, ActiveValue::Set(1));
         assert_eq!(
             advanced_contract.kind,
@@ -201,7 +258,8 @@ mod tests {
         test_contract.kind = ContractKind::UnrestrictedFreeAgentOriginalTeam;
         test_contract.salary = 27;
 
-        let advanced_contract = sign_rfa_or_ufa_contract_to_team(&test_contract, 2, 33)?;
+        let advanced_contract =
+            sign_rfa_or_ufa_contract_to_team(&test_contract, 2, 33, FreeAgentException::NotHeld)?;
         assert_eq!(advanced_contract.year_number, ActiveValue::Set(1));
         assert_eq!(
             advanced_contract.kind,
@@ -218,7 +276,8 @@ mod tests {
         test_contract.kind = ContractKind::UnrestrictedFreeAgentVeteran;
         test_contract.salary = 27;
 
-        let advanced_contract = sign_rfa_or_ufa_contract_to_team(&test_contract, 1, 33)?;
+        let advanced_contract =
+            sign_rfa_or_ufa_contract_to_team(&test_contract, 1, 33, FreeAgentException::Held)?;
         assert_eq!(advanced_contract.year_number, ActiveValue::Set(1));
         assert_eq!(
             advanced_contract.kind,
@@ -235,7 +294,8 @@ mod tests {
         test_contract.kind = ContractKind::UnrestrictedFreeAgentVeteran;
         test_contract.salary = 27;
 
-        let advanced_contract = sign_rfa_or_ufa_contract_to_team(&test_contract, 2, 33)?;
+        let advanced_contract =
+            sign_rfa_or_ufa_contract_to_team(&test_contract, 2, 33, FreeAgentException::NotHeld)?;
         assert_eq!(advanced_contract.year_number, ActiveValue::Set(1));
         assert_eq!(
             advanced_contract.kind,
@@ -288,7 +348,8 @@ mod tests {
         test_contract.salary = 20; // standard 4th-year salary the RFA carries
 
         // Low winning bid: 10% discount would drop to 9, floored at 20.
-        let advanced_contract = sign_rfa_or_ufa_contract_to_team(&test_contract, 1, 11)?;
+        let advanced_contract =
+            sign_rfa_or_ufa_contract_to_team(&test_contract, 1, 11, FreeAgentException::Held)?;
         assert_eq!(advanced_contract.salary, ActiveValue::Set(20));
 
         Ok(())

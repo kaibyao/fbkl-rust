@@ -1,7 +1,9 @@
 use chrono::NaiveDate;
 use color_eyre::Result;
 use fbkl_entity::{
-    auction, auction_bid, contract, contract_queries, deadline,
+    auction, auction_bid,
+    contract::{self, ContractKind, FreeAgentException},
+    contract_queries, deadline, rfa_resolution_queries,
     sea_orm::{ActiveValue, ConnectionTrait, TransactionTrait},
     team_update::{
         self, ContractUpdate, ContractUpdateType, TeamUpdateAsset, TeamUpdateData, TeamUpdateStatus,
@@ -37,10 +39,14 @@ where
         salary: previous_salary,
         cap: previous_salary_cap,
     } = calculate_team_contract_salary_with_model(&winning_team_model, deadline_model, db).await?;
+    let auction_contract_model = auction_model.get_contract(db).await?;
+    let fa_exception =
+        find_free_agent_exception(&auction_contract_model, winning_team_model.id, db).await?;
     let signed_contract_model = contract_queries::sign_auction_contract_to_team(
         auction_model,
         maybe_raised_bid_amount.unwrap_or(winning_auction_bid_model.bid_amount),
         winning_team_model.id,
+        fa_exception,
         db,
     )
     .await?;
@@ -67,6 +73,39 @@ where
         auction_transaction_model,
         team_update_model,
     ))
+}
+
+/// Whether the auction winner also holds the player's re-sign discount (rules §15.4.2, §16.4.1).
+///
+/// The discount belongs to whoever owned the player at the keeper deadline, so a trade during the
+/// auction hands over the player without handing over the discount. An RFA keeps that owner in its
+/// resolution row; a UFA has no resolution, so its designated contract is the only record of it and
+/// a UFA traded mid-auction still reads as its current team.
+#[instrument(skip(db))]
+async fn find_free_agent_exception<C>(
+    auction_contract_model: &contract::Model,
+    winning_team_id: i64,
+    db: &C,
+) -> Result<FreeAgentException>
+where
+    C: ConnectionTrait,
+{
+    let exception_holder_team_id = match auction_contract_model.kind {
+        ContractKind::RestrictedFreeAgent => {
+            rfa_resolution_queries::find_rfa_resolution_for_contract(auction_contract_model.id, db)
+                .await?
+                .map(|rfa_resolution_model| rfa_resolution_model.original_owner_team_id)
+        }
+        ContractKind::UnrestrictedFreeAgentOriginalTeam
+        | ContractKind::UnrestrictedFreeAgentVeteran => auction_contract_model.team_id,
+        _ => None,
+    };
+
+    Ok(if exception_holder_team_id == Some(winning_team_id) {
+        FreeAgentException::Held
+    } else {
+        FreeAgentException::NotHeld
+    })
 }
 
 /// Creates & inserts a team update from a completed auction.
