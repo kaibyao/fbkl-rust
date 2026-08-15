@@ -18,7 +18,8 @@ use crate::{
     rfa_resolution::{self, RfaResolutionStatus},
 };
 
-/// A resolution to seed, either from a closed RFA auction or (unbid) straight from designation.
+/// A resolution to seed. Designation writes one with only the first four fields filled in; the
+/// auction fills in the rest when it closes.
 #[derive(Clone, Copy, Debug)]
 pub struct NewRfaResolution {
     pub league_id: i64,
@@ -31,7 +32,8 @@ pub struct NewRfaResolution {
     pub final_bid: Option<i16>,
     pub final_bid_at: Option<DateTimeWithTimeZone>,
     pub status: RfaResolutionStatus,
-    pub raise_deadline_at: DateTimeWithTimeZone,
+    /// NULL until the auction closes (rules §15.3.2.1).
+    pub raise_deadline_at: Option<DateTimeWithTimeZone>,
 }
 
 #[instrument(skip(db))]

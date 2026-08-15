@@ -31,6 +31,7 @@ mod m20260731_000001_create_veteran_auction_ranking;
 mod m20260731_000002_create_league_team_season_standing;
 mod m20260731_000003_create_rookie_draft_lottery_tables;
 mod m20260815_000001_create_rfa_resolution_tables;
+mod m20260815_000002_alter_rfa_resolution_raise_deadline_nullable;
 
 pub struct Migrator;
 
@@ -62,6 +63,7 @@ impl MigratorTrait for Migrator {
             Box::new(m20260731_000002_create_league_team_season_standing::Migration),
             Box::new(m20260731_000003_create_rookie_draft_lottery_tables::Migration),
             Box::new(m20260815_000001_create_rfa_resolution_tables::Migration),
+            Box::new(m20260815_000002_alter_rfa_resolution_raise_deadline_nullable::Migration),
         ]
     }
 }

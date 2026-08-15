@@ -295,6 +295,25 @@ impl TestLeague {
         .await
         .expect("insert unowned contract")
     }
+
+    /// The same contract owned by the league's team, i.e. how a designated RFA/UFA sits at the
+    /// keeper deadline before the auction pool is assembled.
+    pub async fn add_owned_contract(
+        &self,
+        player_id: i64,
+        kind: ContractKind,
+        salary: i16,
+    ) -> contract::Model {
+        let mut contract_to_own: contract::ActiveModel = self
+            .add_unowned_contract(player_id, kind, salary)
+            .await
+            .into();
+        contract_to_own.team_id = ActiveValue::Set(Some(self.team_id));
+        contract_to_own
+            .update(&self.db)
+            .await
+            .expect("own contract")
+    }
 }
 
 /// Parses a CT wall clock written as `YYYY-MM-DDTHH:MM:SS`, the timezone every league deadline

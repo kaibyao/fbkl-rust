@@ -33,7 +33,7 @@ async fn rfa_resolution_rows_round_trip() {
             final_bid: Some(19),
             final_bid_at: Some(central("2025-09-10T12:00:00")),
             status: RfaResolutionStatus::AwaitingRaise,
-            raise_deadline_at: central("2025-09-12T12:00:00"),
+            raise_deadline_at: Some(central("2025-09-12T12:00:00")),
         },
         &league.db,
     )

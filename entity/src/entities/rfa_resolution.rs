@@ -4,6 +4,10 @@
 //! has 48h to match at a discount or decline. This row carries that state between the two windows,
 //! including `original_owner_team_id` — the auction can move the contract's `team_id`, so the
 //! discount right is snapshotted here instead of being re-derived later (§15.4.2).
+//!
+//! The row is written at the keeper deadline, not at auction close, because that is the moment the
+//! original owner is decided. Everything the auction supplies (`auction_id`, `winning_team_id`,
+//! `final_bid`, `raise_deadline_at`) stays NULL until then, and the status is `AwaitingAuction`.
 
 use async_graphql::Enum;
 use sea_orm::entity::prelude::*;
@@ -29,8 +33,8 @@ pub struct Model {
     pub status: RfaResolutionStatus,
     /// The winner's optional raise, never below `final_bid` (rules §15.3.2.1).
     pub raised_bid: Option<i16>,
-    /// Auction close + 48h.
-    pub raise_deadline_at: DateTimeWithTimeZone,
+    /// Auction close + 48h. NULL until the auction closes, i.e. while `AwaitingAuction`.
+    pub raise_deadline_at: Option<DateTimeWithTimeZone>,
     /// Set when the raise window resolves; that moment + 48h.
     pub match_deadline_at: Option<DateTimeWithTimeZone>,
     pub resolved_at: Option<DateTimeWithTimeZone>,
@@ -44,6 +48,9 @@ pub struct Model {
 )]
 #[sea_orm(rs_type = "String", db_type = "String(StringLen::None)")]
 pub enum RfaResolutionStatus {
+    /// Designated at the keeper deadline; the player's auction has not closed yet.
+    #[sea_orm(string_value = "AwaitingAuction")]
+    AwaitingAuction,
     /// Auction closed; the winner's 48h raise window is open.
     #[sea_orm(string_value = "AwaitingRaise")]
     AwaitingRaise,
