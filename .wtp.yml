@@ -1,0 +1,27 @@
+version: "1.0"
+defaults:
+  # Base directory for worktrees (relative to project root)
+  base_dir: "../fbkl-worktrees"
+hooks:
+  post_create:
+    # Copy real files from the MAIN worktree into the NEW worktree
+    - type: copy
+      from: ".env" # Allowed even if gitignored. 'from' is always relative to the MAIN worktree
+      to: ".env" # Destination is relative to the NEW worktree
+
+    # Install node packages
+    - type: command
+      command: "pnpm install"
+
+    # Cargo build
+    - type: command
+      command: "cargo build"
+
+    # Prefer explicit, single-step setup commands
+    # - type: command
+    #   command: "npm ci" # Example for Node.js (replace with your build/deps tool)
+    # - type: command
+    #   command: "npm run db:setup"
+    # Alternative: using make or a task runner
+    # - type: command
+    #   command: "make bootstrap"
