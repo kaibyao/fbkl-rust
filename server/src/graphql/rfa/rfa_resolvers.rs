@@ -102,11 +102,15 @@ impl RfaResolution {
             .get_latest_in_chain(db)
             .await
             .map_err(|err| internal("failed to load the RFA contract", &err))?;
-        let price_to_match = self.model.effective_bid().unwrap_or(rfa_contract.salary);
+        // No bid means no price to match, so the owner discounts the carry salary instead (rules §15.3.5).
+        let (signing_amount, fa_exception) = self.model.effective_bid().map_or(
+            (rfa_contract.salary, FreeAgentException::HeldNoBid),
+            |effective_bid| (effective_bid, FreeAgentException::Held),
+        );
         let Ok(resigned_contract) = rfa_contract.sign_rfa_or_ufa_contract_to_team(
             self.model.original_owner_team_id,
-            price_to_match,
-            FreeAgentException::Held,
+            signing_amount,
+            fa_exception,
         ) else {
             return Ok(None);
         };

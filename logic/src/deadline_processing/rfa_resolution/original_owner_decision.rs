@@ -99,6 +99,7 @@ where
             resign_to_original_owner(
                 &rfa_resolution_model,
                 effective_bid,
+                FreeAgentException::Held,
                 &deadline_model,
                 &db_txn,
             )
@@ -169,11 +170,12 @@ where
     let db_txn = db.begin().await?;
     let final_status = match decision {
         UnbidRfaDecision::Resign => {
-            // The 10% RFA discount floors at the standard 4th-year salary, so pricing from that salary lands on it.
+            // Nobody bid, so the 10% discount comes off the carry salary itself (rules §15.3.5).
             let rfa_contract_model = find_rfa_contract(&rfa_resolution_model, &db_txn).await?;
             resign_to_original_owner(
                 &rfa_resolution_model,
                 rfa_contract_model.salary,
+                FreeAgentException::HeldNoBid,
                 &deadline_model,
                 &db_txn,
             )
@@ -196,9 +198,13 @@ where
 
 /// Signs the player back to the team that held him at the keeper deadline, at the discount that
 /// team's contract earns (rules §15.3.2, §15.3.5).
+///
+/// `fa_exception` says which discount: `Held` floors a matched bid at the carry salary, `HeldNoBid`
+/// discounts the carry salary itself.
 async fn resign_to_original_owner<C>(
     rfa_resolution_model: &rfa_resolution::Model,
     signing_amount: i16,
+    fa_exception: FreeAgentException,
     deadline_model: &deadline::Model,
     db: &C,
 ) -> Result<contract::Model>
@@ -222,8 +228,7 @@ where
         rfa_contract_model,
         original_owner_team_id,
         signing_amount,
-        // This team held the player at the keeper deadline, which is what earns the discount.
-        FreeAgentException::Held,
+        fa_exception,
         db,
     )
     .await?;

@@ -39,6 +39,8 @@ impl FreeAgentKind {
 pub enum FreeAgentException {
     /// The signing team owned the player at the keeper deadline, so it signs at the discount.
     Held,
+    /// Same team, but nobody bid, so the discount comes off the carry salary with no floor (rules §15.3.5).
+    HeldNoBid,
     /// Somebody else did, so the signing team pays the full bid.
     NotHeld,
 }
@@ -47,7 +49,7 @@ pub enum FreeAgentException {
 pub fn sign_rfa_or_ufa_contract_to_team(
     fa_contract: &contract::Model,
     signing_team_id: i64,
-    winning_bid_amount: i16,
+    signing_amount: i16,
     fa_exception: FreeAgentException,
 ) -> Result<contract::ActiveModel> {
     let fa_kind = FreeAgentKind::from_contract_kind(fa_contract.kind).ok_or_else(|| {
@@ -69,21 +71,31 @@ pub fn sign_rfa_or_ufa_contract_to_team(
             ContractKind::RookieExtension,
             // RFA 10% re-sign is uncapped, floored at the standard 4th-year salary the RFA contract already carries (rookie Y3 + 20%).
             cmp::max(
-                discounted_salary(winning_bid_amount, 0.1, None),
+                discounted_salary(signing_amount, 0.1, None),
                 fa_contract.salary,
             ),
+        ),
+        (FreeAgentException::HeldNoBid, FreeAgentKind::Restricted) => (
+            4,
+            ContractKind::RookieExtension,
+            // Nobody bid, so the 10% comes straight off the carry salary; no bid means no floor to hold it up (rules §15.3.5).
+            discounted_salary(signing_amount, 0.1, None),
+        ),
+        (FreeAgentException::HeldNoBid, _) => bail!(
+            "Only a restricted free agent can be re-signed with no bid. Contract:\n{:#?}",
+            fa_contract
         ),
         (FreeAgentException::Held, FreeAgentKind::UnrestrictedOriginalTeam) => (
             1,
             ContractKind::Veteran,
-            discounted_salary(winning_bid_amount, 0.2, Some(8)),
+            discounted_salary(signing_amount, 0.2, Some(8)),
         ),
         (FreeAgentException::Held, FreeAgentKind::UnrestrictedVeteran) => (
             1,
             ContractKind::Veteran,
-            discounted_salary(winning_bid_amount, 0.1, Some(5)),
+            discounted_salary(signing_amount, 0.1, Some(5)),
         ),
-        (FreeAgentException::NotHeld, _) => (1, ContractKind::Veteran, winning_bid_amount),
+        (FreeAgentException::NotHeld, _) => (1, ContractKind::Veteran, signing_amount),
     };
 
     let new_contract = contract::ActiveModel {
@@ -339,6 +351,38 @@ mod tests {
 
         // RFA 10% is uncapped: high bids keep full 10% discount.
         assert_eq!(discounted_salary(80, 0.1, None), 72);
+    }
+
+    /// Nobody bid, so there is no floor to stop the 10% (rules §15.3.5).
+    #[test]
+    fn resign_unbid_rfa_discounts_the_carry_salary() -> Result<()> {
+        let mut test_contract = generate_contract();
+        test_contract.kind = ContractKind::RestrictedFreeAgent;
+        test_contract.salary = 7;
+
+        let advanced_contract =
+            sign_rfa_or_ufa_contract_to_team(&test_contract, 1, 7, FreeAgentException::HeldNoBid)?;
+        assert_eq!(advanced_contract.year_number, ActiveValue::Set(4));
+        assert_eq!(
+            advanced_contract.kind,
+            ActiveValue::Set(ContractKind::RookieExtension)
+        );
+        assert_eq!(advanced_contract.salary, ActiveValue::Set(6));
+
+        Ok(())
+    }
+
+    /// Only an RFA has a no-bid re-sign; a UFA nobody bid on just leaves.
+    #[test]
+    fn resign_unbid_ufa_is_rejected() {
+        let mut test_contract = generate_contract();
+        test_contract.kind = ContractKind::UnrestrictedFreeAgentVeteran;
+        test_contract.salary = 27;
+
+        assert!(
+            sign_rfa_or_ufa_contract_to_team(&test_contract, 1, 27, FreeAgentException::HeldNoBid)
+                .is_err()
+        );
     }
 
     #[test]

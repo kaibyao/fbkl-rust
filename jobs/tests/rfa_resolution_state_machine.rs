@@ -450,8 +450,8 @@ async fn an_unbid_rfa_never_enters_the_raise_window() {
     .expect("the owner keeps the player");
     assert_eq!(signed_contract.kind, ContractKind::RookieExtension);
     assert_eq!(signed_contract.year_number, 4);
-    // Nobody bid, so the price is the standard 4th-year salary the RFA already carried.
-    assert_eq!(signed_contract.salary, RFA_CARRY_SALARY);
+    // Nobody bid, so the 10% discount comes off the carry salary with no floor (rules §15.3.5).
+    assert_eq!(signed_contract.salary, 6, "$7 carry, $1 discount");
 }
 
 #[tokio::test]
