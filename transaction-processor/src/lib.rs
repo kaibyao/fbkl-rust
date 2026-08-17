@@ -32,8 +32,8 @@ use fbkl_logic::{
     annual_contract_advancement::advance_league_contracts,
     auction::{assemble_veteran_auction_pool, end_fa_auction, end_veteran_auction},
     deadline_processing::{
-        RfaMatchDecision, decline_to_raise, lock_rosters, match_or_decline,
-        process_keeper_deadline_transaction,
+        RfaMatchDecision, decline_to_raise, expire_pick_selection_window, lock_rosters,
+        match_or_decline, process_keeper_deadline_transaction,
     },
 };
 use tracing::{error, info, instrument};
@@ -47,7 +47,7 @@ pub struct ProcessableEvent {
     pub league_id: i64,
     pub end_of_season_year: i16,
     /// The row the event is about: an `auction` id for the close events, an `rfa_resolution` id for
-    /// the two RFA window expiries. `kind` says which table it points to.
+    /// the RFA window expiries. `kind` says which table it points to.
     pub subject_id: i64,
     pub kind: ProcessableEventKind,
 }
@@ -63,6 +63,8 @@ pub enum ProcessableEventKind {
     VeteranAuctionClose,
     /// An RFA winner's 48h raise window expired (§15.3.2, spec 03).
     RfaRaiseWindowExpiry,
+    /// An RFA winner's 24h window to name a compensation pick expired (§15.2.2, spec 03).
+    RfaPickSelectionExpiry,
     /// An RFA owner's 48h match window expired (§15.3.2, spec 03).
     RfaMatchWindowExpiry,
 }
@@ -74,6 +76,7 @@ impl ProcessableEventKind {
             Self::FaExtensionExpiry => JobEventKind::FaExtensionExpiry,
             Self::VeteranAuctionClose => JobEventKind::VeteranAuctionClose,
             Self::RfaRaiseWindowExpiry => JobEventKind::RfaRaiseWindow,
+            Self::RfaPickSelectionExpiry => JobEventKind::RfaPickSelectionWindow,
             Self::RfaMatchWindowExpiry => JobEventKind::RfaMatchWindow,
         }
     }
@@ -82,7 +85,9 @@ impl ProcessableEventKind {
     const fn subject_label(self) -> &'static str {
         match self {
             Self::FaAuctionClose | Self::FaExtensionExpiry | Self::VeteranAuctionClose => "auction",
-            Self::RfaRaiseWindowExpiry | Self::RfaMatchWindowExpiry => "rfa-resolution",
+            Self::RfaRaiseWindowExpiry
+            | Self::RfaPickSelectionExpiry
+            | Self::RfaMatchWindowExpiry => "rfa-resolution",
         }
     }
 }
@@ -331,16 +336,19 @@ where
             decline_to_raise(subject_id, winning_team_id, now, txn).await?;
             Ok(())
         }
+        // §15.2.2: no choice inside 24h, so the league names the pick and the owner's window opens.
+        ProcessableEventKind::RfaPickSelectionExpiry => {
+            expire_pick_selection_window(subject_id, now, txn).await?;
+            Ok(())
+        }
         // §15.3.2.2: no match inside 48h counts as declining, so the winner signs and forfeits.
         ProcessableEventKind::RfaMatchWindowExpiry => {
             let rfa_resolution_model =
                 rfa_resolution_queries::find_rfa_resolution_by_id(subject_id, txn).await?;
-            // Nobody named a pick, so the cheapest eligible one goes. Commissioners may confirm.
             match_or_decline(
                 subject_id,
                 rfa_resolution_model.original_owner_team_id,
                 RfaMatchDecision::Decline,
-                None,
                 now,
                 txn,
             )

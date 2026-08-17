@@ -1,15 +1,15 @@
 //! Reads/writes for the RFA raise/match handshake rows (rules §15.2, §15.3).
 //!
-//! Every rule about who may raise, match or decline lives in `logic`; these are plain row
-//! accessors. The scheduler drives the two 48h windows off
+//! Every rule about who may raise, select a pick, match or decline lives in `logic`; these are
+//! plain row accessors. The scheduler drives all three windows off
 //! [`find_rfa_resolutions_with_expired_window`].
 
-use std::fmt::Debug;
+use std::{collections::HashSet, fmt::Debug};
 
 use color_eyre::{Result, eyre::eyre};
 use sea_orm::{
-    ActiveModelTrait, ActiveValue, ColumnTrait, Condition, ConnectionTrait, EntityTrait,
-    QueryFilter, QueryOrder, prelude::DateTimeWithTimeZone,
+    ActiveModelTrait, ActiveValue, ColumnTrait, Condition, ConnectionTrait, EntityTrait, JoinType,
+    QueryFilter, QueryOrder, QuerySelect, RelationTrait, prelude::DateTimeWithTimeZone,
 };
 use tracing::instrument;
 
@@ -57,6 +57,7 @@ where
         status: ActiveValue::Set(new_rfa_resolution.status),
         raised_bid: ActiveValue::NotSet,
         raise_deadline_at: ActiveValue::Set(new_rfa_resolution.raise_deadline_at),
+        pick_selection_deadline_at: ActiveValue::NotSet,
         match_deadline_at: ActiveValue::NotSet,
         resolved_at: ActiveValue::NotSet,
         created_at: ActiveValue::NotSet,
@@ -127,8 +128,8 @@ where
     Ok(rfa_resolutions)
 }
 
-/// Resolutions whose open window has run out by `now` — the scheduler's work list for both 48h
-/// timeouts. The row's own status says which window it is.
+/// Resolutions whose open window has run out by `now` — the scheduler's work list for all three
+/// handshake timeouts. The row's own status says which window it is.
 #[instrument(skip(db))]
 pub async fn find_rfa_resolutions_with_expired_window<C>(
     now: DateTimeWithTimeZone,
@@ -144,6 +145,14 @@ where
                     Condition::all()
                         .add(rfa_resolution::Column::Status.eq(RfaResolutionStatus::AwaitingRaise))
                         .add(rfa_resolution::Column::RaiseDeadlineAt.lte(now)),
+                )
+                .add(
+                    Condition::all()
+                        .add(
+                            rfa_resolution::Column::Status
+                                .eq(RfaResolutionStatus::AwaitingPickSelection),
+                        )
+                        .add(rfa_resolution::Column::PickSelectionDeadlineAt.lte(now)),
                 )
                 .add(
                     Condition::all()
@@ -193,13 +202,13 @@ where
     Ok(rfa_resolution_to_update.update(db).await?)
 }
 
-/// Closes the raise window and starts the original owner's 48h window. `maybe_raised_bid` is NULL
-/// when the winner stood pat.
+/// Closes the raise window and starts the winner's 24h pick-selection window (rules §15.2.2).
+/// `maybe_raised_bid` is NULL when the winner stood pat.
 #[instrument(skip(db))]
-pub async fn open_rfa_match_window<C>(
+pub async fn open_rfa_pick_selection_window<C>(
     rfa_resolution_id: i64,
     maybe_raised_bid: Option<i16>,
-    match_deadline_at: DateTimeWithTimeZone,
+    pick_selection_deadline_at: DateTimeWithTimeZone,
     db: &C,
 ) -> Result<rfa_resolution::Model>
 where
@@ -212,6 +221,26 @@ where
     if let Some(raised_bid) = maybe_raised_bid {
         rfa_resolution_to_update.raised_bid = ActiveValue::Set(Some(raised_bid));
     }
+    rfa_resolution_to_update.pick_selection_deadline_at =
+        ActiveValue::Set(Some(pick_selection_deadline_at));
+    rfa_resolution_to_update.status = ActiveValue::Set(RfaResolutionStatus::AwaitingPickSelection);
+    Ok(rfa_resolution_to_update.update(db).await?)
+}
+
+/// Closes the pick-selection window and starts the original owner's 48h window.
+#[instrument(skip(db))]
+pub async fn open_rfa_match_window<C>(
+    rfa_resolution_id: i64,
+    match_deadline_at: DateTimeWithTimeZone,
+    db: &C,
+) -> Result<rfa_resolution::Model>
+where
+    C: ConnectionTrait,
+{
+    let mut rfa_resolution_to_update: rfa_resolution::ActiveModel =
+        find_rfa_resolution_by_id(rfa_resolution_id, db)
+            .await?
+            .into();
     rfa_resolution_to_update.match_deadline_at = ActiveValue::Set(Some(match_deadline_at));
     rfa_resolution_to_update.status = ActiveValue::Set(RfaResolutionStatus::AwaitingMatch);
     Ok(rfa_resolution_to_update.update(db).await?)
@@ -238,8 +267,7 @@ where
     Ok(rfa_resolution_to_update.update(db).await?)
 }
 
-/// The compensation a decline owes. `forfeited_draft_pick_id` is the winner's choice among the
-/// eligible picks, and is NULL until they make it.
+/// The compensation a decline would owe, written when the winner names the pick (rules §15.2.2).
 #[derive(Clone, Copy, Debug)]
 pub struct NewRfaCompensationPick {
     pub rfa_resolution_id: i64,
@@ -274,7 +302,7 @@ where
     Ok(rfa_compensation_pick_to_insert.insert(db).await?)
 }
 
-/// The compensation row a resolution owes, if a decline has created one.
+/// The compensation row a resolution owes, if the winner has named a pick for it.
 #[instrument(skip(db))]
 pub async fn find_rfa_compensation_pick_for_resolution<C>(
     rfa_resolution_id: i64,
@@ -288,4 +316,35 @@ where
         .one(db)
         .await?;
     Ok(maybe_rfa_compensation_pick)
+}
+
+/// The picks other handshakes in the season have named but not yet handed over.
+///
+/// Only an `AwaitingMatch` resolution holds a promise still outstanding: a decline has already moved
+/// the pick, and a match cancels the debt and leaves its row behind as a record.
+#[instrument(skip(db))]
+pub async fn find_promised_compensation_pick_ids<C>(
+    league_id: i64,
+    end_of_season_year: i16,
+    excluded_rfa_resolution_id: i64,
+    db: &C,
+) -> Result<HashSet<i64>>
+where
+    C: ConnectionTrait,
+{
+    let promised_picks: Vec<Option<i64>> = rfa_compensation_pick::Entity::find()
+        .join(
+            JoinType::InnerJoin,
+            rfa_compensation_pick::Relation::RfaResolution.def(),
+        )
+        .filter(rfa_resolution::Column::LeagueId.eq(league_id))
+        .filter(rfa_resolution::Column::EndOfSeasonYear.eq(end_of_season_year))
+        .filter(rfa_resolution::Column::Status.eq(RfaResolutionStatus::AwaitingMatch))
+        .filter(rfa_compensation_pick::Column::RfaResolutionId.ne(excluded_rfa_resolution_id))
+        .select_only()
+        .column(rfa_compensation_pick::Column::ForfeitedDraftPickId)
+        .into_tuple()
+        .all(db)
+        .await?;
+    Ok(promised_picks.into_iter().flatten().collect())
 }

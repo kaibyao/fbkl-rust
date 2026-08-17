@@ -2,14 +2,14 @@
 //!
 //! Closing the auction signs nobody. It hands the bid facts to the resolution row seeded at the
 //! keeper deadline and starts this window, in which the winner may raise its own bid once. Raising
-//! or standing pat both end the window and open the original owner's.
+//! or standing pat both end the window and open the winner's 24h pick-selection window.
 
 use chrono::TimeDelta;
 use color_eyre::{
     Result,
     eyre::{ensure, eyre},
 };
-use fbkl_constants::league_rules::{RFA_MATCH_WINDOW_HOURS, RFA_RAISE_WINDOW_HOURS};
+use fbkl_constants::league_rules::{RFA_PICK_SELECTION_WINDOW_HOURS, RFA_RAISE_WINDOW_HOURS};
 use fbkl_entity::{
     auction, auction_bid, contract,
     rfa_resolution::{self, RfaResolutionStatus},
@@ -89,8 +89,8 @@ where
     Ok(Some(opened_rfa_resolution))
 }
 
-/// The winner raises its own winning bid (rules §15.3.2.1) and hands the original owner the higher
-/// price to match.
+/// The winner raises its own winning bid (rules §15.3.2.1), which moves the handshake on to naming
+/// the compensation pick that the higher price now owes.
 ///
 /// Rules §15.3.3 forbids a raise into a compensation tier the winner cannot pay, so a raise that
 /// would leave no forfeitable pick is rejected before anything is written.
@@ -142,10 +142,10 @@ where
         &db_txn,
     )
     .await?;
-    let updated_rfa_resolution = rfa_resolution_queries::open_rfa_match_window(
+    let updated_rfa_resolution = rfa_resolution_queries::open_rfa_pick_selection_window(
         rfa_resolution_id,
         Some(new_bid),
-        match_deadline_from(now)?,
+        pick_selection_deadline_from(now)?,
         &db_txn,
     )
     .await?;
@@ -154,7 +154,7 @@ where
     Ok(updated_rfa_resolution)
 }
 
-/// The winner stands pat, which opens the original owner's window straight away instead of waiting
+/// The winner stands pat, which opens the pick-selection window straight away instead of waiting
 /// the full 48h out (rules §15.3.2.1). Standing pat writes no transaction: nothing changed.
 #[instrument(skip(db))]
 pub async fn decline_to_raise<C>(
@@ -167,10 +167,10 @@ where
     C: ConnectionTrait,
 {
     find_raisable_rfa_resolution(rfa_resolution_id, raising_team_id, db).await?;
-    rfa_resolution_queries::open_rfa_match_window(
+    rfa_resolution_queries::open_rfa_pick_selection_window(
         rfa_resolution_id,
         None,
-        match_deadline_from(now)?,
+        pick_selection_deadline_from(now)?,
         db,
     )
     .await
@@ -199,7 +199,7 @@ where
     Ok(rfa_resolution_model)
 }
 
-fn match_deadline_from(now: DateTimeWithTimeZone) -> Result<DateTimeWithTimeZone> {
-    now.checked_add_signed(TimeDelta::hours(RFA_MATCH_WINDOW_HOURS))
-        .ok_or_else(|| eyre!("Match deadline overflowed from {now}."))
+fn pick_selection_deadline_from(now: DateTimeWithTimeZone) -> Result<DateTimeWithTimeZone> {
+    now.checked_add_signed(TimeDelta::hours(RFA_PICK_SELECTION_WINDOW_HOURS))
+        .ok_or_else(|| eyre!("Pick selection deadline overflowed from {now}."))
 }

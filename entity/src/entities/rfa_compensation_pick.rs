@@ -1,8 +1,10 @@
 //! The rookie-draft pick a declined RFA costs the winning team (rules §15.2).
 //!
 //! `required_round` is the tier the final bid landed in; the winner may hand over that round or any
-//! earlier one, so `forfeited_draft_pick_id` stays NULL until the winner names the pick. The pick
-//! itself moves by rewriting `draft_pick.current_owner_team_id`, the same way a trade moves it.
+//! earlier one. The row is written when the winner names the pick, which is before the original
+//! owner decides, so a matched RFA leaves the row behind as the record of a debt that never came
+//! due. The pick itself moves only on a decline, by rewriting `draft_pick.current_owner_team_id`,
+//! the same way a trade moves it.
 
 use sea_orm::entity::prelude::*;
 use serde::{Deserialize, Serialize};
@@ -15,7 +17,7 @@ pub struct Model {
     pub rfa_resolution_id: i64,
     /// Highest round number the compensation may be, from the bid tier table (rules §15.2.1).
     pub required_round: i16,
-    /// The pick the winner chose to give up; NULL until it is chosen.
+    /// The pick the winner chose to give up. It changes hands only if the original owner declines.
     pub forfeited_draft_pick_id: Option<i64>,
     /// The original owner, who receives the pick.
     pub to_team_id: i64,

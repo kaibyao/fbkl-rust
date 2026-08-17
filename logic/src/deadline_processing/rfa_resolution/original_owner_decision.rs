@@ -12,14 +12,13 @@ use color_eyre::{
     Result,
     eyre::{ensure, eyre},
 };
-use fbkl_constants::league_rules::compensation_round_for_bid;
 use fbkl_entity::{
     auction::{AuctionKind, AuctionStatus},
     auction_queries,
     contract::{self, FreeAgentException},
-    contract_queries, deadline, draft_pick,
+    contract_queries, deadline, draft_pick, draft_pick_queries,
     rfa_resolution::{self, RfaResolutionStatus},
-    rfa_resolution_queries::{self, NewRfaCompensationPick},
+    rfa_resolution_queries,
     sea_orm::{
         ActiveModelTrait, ActiveValue, ConnectionTrait, TransactionSession, TransactionTrait,
         prelude::DateTimeWithTimeZone,
@@ -34,12 +33,9 @@ use crate::{
     roster::{SalarySnapshot, calculate_team_contract_salary_at_datetime},
 };
 
-use super::{
-    compute_eligible_compensation_picks,
-    rfa_transaction::{
-        find_rfa_handshake_deadline, insert_compensation_pick_team_update,
-        insert_rfa_resign_team_update, insert_rfa_transaction,
-    },
+use super::rfa_transaction::{
+    find_rfa_handshake_deadline, insert_compensation_pick_team_update,
+    insert_rfa_resign_team_update, insert_rfa_transaction,
 };
 
 /// What the original owner does with a winning bid on his restricted free agent (rules §15.3.2).
@@ -62,15 +58,13 @@ pub enum UnbidRfaDecision {
 
 /// Settles the original owner's 48h window (rules §15.3.2).
 ///
-/// On a decline the winner signs through the shared auction path, and `maybe_chosen_pick_id` names
-/// the pick that changes hands. Leaving it NULL forfeits the cheapest eligible pick, which is the
-/// worst round that still settles the tier.
+/// On a decline the winner signs through the shared auction path and the pick he named in the
+/// selection window changes hands. A match leaves that pick where it is.
 #[instrument(skip(db))]
 pub async fn match_or_decline<C>(
     rfa_resolution_id: i64,
     original_owner_team_id: i64,
     decision: RfaMatchDecision,
-    maybe_chosen_pick_id: Option<i64>,
     now: DateTimeWithTimeZone,
     db: &C,
 ) -> Result<rfa_resolution::Model>
@@ -117,7 +111,6 @@ where
             forfeit_pick_to_original_owner(
                 &rfa_resolution_model,
                 effective_bid,
-                maybe_chosen_pick_id,
                 &deadline_model,
                 &db_txn,
             )
@@ -275,7 +268,6 @@ where
 async fn forfeit_pick_to_original_owner<C>(
     rfa_resolution_model: &rfa_resolution::Model,
     effective_bid: i16,
-    maybe_chosen_pick_id: Option<i64>,
     deadline_model: &deadline::Model,
     db: &C,
 ) -> Result<draft_pick::Model>
@@ -290,39 +282,24 @@ where
         .winning_team_id
         .ok_or_else(|| eyre!("RFA resolution {rfa_resolution_id} has no winning bidder."))?;
 
-    // Read the eligible set before the pick moves, while the winner still owns it.
-    let eligible_draft_picks =
-        compute_eligible_compensation_picks(rfa_resolution_model, db).await?;
-    let forfeited_draft_pick_model = match maybe_chosen_pick_id {
-        Some(chosen_pick_id) => eligible_draft_picks
-            .into_iter()
-            .find(|eligible_pick| eligible_pick.id == chosen_pick_id)
+    // The selection window is what names the pick, so a decline only spends what is already there.
+    let forfeited_draft_pick_id =
+        rfa_resolution_queries::find_rfa_compensation_pick_for_resolution(rfa_resolution_id, db)
+            .await?
+            .and_then(|rfa_compensation_pick_model| {
+                rfa_compensation_pick_model.forfeited_draft_pick_id
+            })
             .ok_or_else(|| {
-                eyre!(
-                    "Draft pick {chosen_pick_id} cannot settle RFA resolution {rfa_resolution_id}."
-                )
-            })?,
-        // Best round first, so the last one is the cheapest pick that still settles the tier.
-        None => eligible_draft_picks.into_iter().next_back().ok_or_else(|| {
-            eyre!(
-                "Team {winning_team_id} holds no draft pick that can settle RFA resolution {rfa_resolution_id} (rules §15.3.3)."
-            )
-        })?,
-    };
+                eyre!("RFA resolution {rfa_resolution_id} has no compensation pick to forfeit.")
+            })?;
+    let forfeited_draft_pick_model =
+        draft_pick_queries::find_draft_pick_by_id(forfeited_draft_pick_id, db).await?;
+    ensure!(
+        forfeited_draft_pick_model.current_owner_team_id == winning_team_id,
+        "Draft pick {forfeited_draft_pick_id} left team {winning_team_id} after it was named as compensation for RFA resolution {rfa_resolution_id}."
+    );
 
     resolve_rfa_auction_to_winning_bid(auction_id, Some(effective_bid), None, db).await?;
-
-    rfa_resolution_queries::insert_rfa_compensation_pick(
-        NewRfaCompensationPick {
-            rfa_resolution_id,
-            required_round: compensation_round_for_bid(effective_bid),
-            forfeited_draft_pick_id: Some(forfeited_draft_pick_model.id),
-            to_team_id: rfa_resolution_model.original_owner_team_id,
-            from_team_id: winning_team_id,
-        },
-        db,
-    )
-    .await?;
 
     let mut draft_pick_to_move: draft_pick::ActiveModel = forfeited_draft_pick_model.into();
     draft_pick_to_move.current_owner_team_id =

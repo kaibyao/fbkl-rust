@@ -1,5 +1,6 @@
 //! The restricted free agent handshake (spec 03, rules §15.2, §15.3): the winner's 48-hour raise
-//! period, then the original owner's 48-hour match-or-decline period.
+//! period, his 24-hour period to name a compensation pick, then the original owner's 48-hour
+//! match-or-decline period.
 //!
 //! Every rule lives in `fbkl_logic::deadline_processing`; these resolvers only authorize, fetch and
 //! map. The acting team always comes from the session, so the logic layer's own team checks are
@@ -26,7 +27,7 @@ use fbkl_entity::{
 };
 use fbkl_logic::deadline_processing::{
     RfaMatchDecision, UnbidRfaDecision, compute_eligible_compensation_picks, decline_to_raise,
-    match_or_decline, raise_bid, resolve_unbid_rfa,
+    match_or_decline, raise_bid, resolve_unbid_rfa, select_compensation_pick,
 };
 
 use crate::graphql::{
@@ -56,7 +57,9 @@ pub struct RfaResolution {
     pub final_bid_at: Option<String>,
     /// Auction close + 48h; the countdown for the winner.
     pub raise_deadline_at: Option<String>,
-    /// Raise settled + 48h; the countdown for the original owner.
+    /// Raise settled + 24h; the winner's countdown to name the pick he would forfeit (rules §15.2.2).
+    pub pick_selection_deadline_at: Option<String>,
+    /// Pick selection settled + 48h; the countdown for the original owner.
     pub match_deadline_at: Option<String>,
     pub resolved_at: Option<String>,
     #[graphql(skip)]
@@ -79,6 +82,7 @@ impl RfaResolution {
             compensation_round: model.effective_bid().map(compensation_round_for_bid),
             final_bid_at: model.final_bid_at.map(|at| at.to_rfc3339()),
             raise_deadline_at: model.raise_deadline_at.map(|at| at.to_rfc3339()),
+            pick_selection_deadline_at: model.pick_selection_deadline_at.map(|at| at.to_rfc3339()),
             match_deadline_at: model.match_deadline_at.map(|at| at.to_rfc3339()),
             resolved_at: model.resolved_at.map(|at| at.to_rfc3339()),
             model: model.clone(),
@@ -126,7 +130,9 @@ impl RfaResolution {
 
         if !matches!(
             self.model.status,
-            RfaResolutionStatus::AwaitingRaise | RfaResolutionStatus::AwaitingMatch
+            RfaResolutionStatus::AwaitingRaise
+                | RfaResolutionStatus::AwaitingPickSelection
+                | RfaResolutionStatus::AwaitingMatch
         ) {
             return Ok(vec![]);
         }
@@ -138,7 +144,8 @@ impl RfaResolution {
         Ok(draft_picks.iter().map(DraftPick::from_model).collect())
     }
 
-    /// The pick a decline owed, once one was declined. Null in every other state.
+    /// The pick the winner named as compensation, once he has named one. Null before that, and it
+    /// only changes hands if the original owner declines.
     async fn compensation_pick(&self, ctx: &Context<'_>) -> Result<Option<RfaCompensationPick>> {
         let db = ctx.data_unchecked::<DatabaseConnection>();
 
@@ -275,6 +282,31 @@ impl RfaMutation {
         Ok(RfaResolution::from_model(&settled))
     }
 
+    /// The winning bidder names the pick it would forfeit, which opens the original owner's period
+    /// straight away instead of waiting the full 24 hours out (rules §15.2.2).
+    #[graphql(guard = "LeagueRoleGuard(RoleRequirement::Member)")]
+    async fn select_rfa_compensation_pick(
+        &self,
+        ctx: &Context<'_>,
+        rfa_resolution_id: i64,
+        draft_pick_id: i64,
+    ) -> Result<RfaResolution> {
+        let db = ctx.data_unchecked::<DatabaseConnection>();
+        let team_user = load_acting_team_user(ctx, rfa_resolution_id).await?;
+
+        let selected = select_compensation_pick(
+            rfa_resolution_id,
+            team_user.team_id,
+            draft_pick_id,
+            Utc::now().into(),
+            db,
+        )
+        .await
+        .map_err(|err| refused("failed to name the RFA compensation pick", &err))?;
+
+        Ok(RfaResolution::from_model(&selected))
+    }
+
     /// The original owner matches the effective bid and re-signs the player at its discount
     /// (rules §15.3.2).
     #[graphql(guard = "LeagueRoleGuard(RoleRequirement::Member)")]
@@ -286,7 +318,6 @@ impl RfaMutation {
             rfa_resolution_id,
             team_user.team_id,
             RfaMatchDecision::Match,
-            None,
             Utc::now().into(),
             db,
         )
@@ -296,14 +327,13 @@ impl RfaMutation {
         Ok(RfaResolution::from_model(&matched))
     }
 
-    /// The original owner declines: the winner signs the player and forfeits a pick (rules §15.2).
-    /// Leaving `forfeitedDraftPickId` null forfeits the cheapest eligible pick.
+    /// The original owner declines: the winner signs the player and forfeits the pick he named in
+    /// the selection period (rules §15.2).
     #[graphql(guard = "LeagueRoleGuard(RoleRequirement::Member)")]
     async fn decline_rfa(
         &self,
         ctx: &Context<'_>,
         rfa_resolution_id: i64,
-        forfeited_draft_pick_id: Option<i64>,
     ) -> Result<RfaResolution> {
         let db = ctx.data_unchecked::<DatabaseConnection>();
         let team_user = load_acting_team_user(ctx, rfa_resolution_id).await?;
@@ -312,7 +342,6 @@ impl RfaMutation {
             rfa_resolution_id,
             team_user.team_id,
             RfaMatchDecision::Decline,
-            forfeited_draft_pick_id,
             Utc::now().into(),
             db,
         )
@@ -427,7 +456,8 @@ mod tests {
             status: RfaResolutionStatus::AwaitingMatch,
             raised_bid: Some(30),
             raise_deadline_at: Some(at("2025-09-13T12:00:00-05:00")),
-            match_deadline_at: Some(at("2025-09-15T12:00:00-05:00")),
+            pick_selection_deadline_at: Some(at("2025-09-14T12:00:00-05:00")),
+            match_deadline_at: Some(at("2025-09-16T12:00:00-05:00")),
             resolved_at: None,
             created_at: at("2025-09-01T12:00:00-05:00"),
             updated_at: at("2025-09-11T12:00:00-05:00"),
@@ -462,8 +492,12 @@ mod tests {
             Some("2025-09-13T12:00:00-05:00")
         );
         assert_eq!(
+            resolution.pick_selection_deadline_at.as_deref(),
+            Some("2025-09-14T12:00:00-05:00")
+        );
+        assert_eq!(
             resolution.match_deadline_at.as_deref(),
-            Some("2025-09-15T12:00:00-05:00")
+            Some("2025-09-16T12:00:00-05:00")
         );
         assert_eq!(resolution.resolved_at, None);
     }

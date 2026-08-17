@@ -24,7 +24,8 @@ use tracing::instrument;
 ///
 /// A pick qualifies when the winner still holds it, its round is no worse than the tier the bid
 /// earns (an earlier round always settles a later one, rules §15.2.1), and the winner did not
-/// acquire it after the winning bid was announced (rules §15.2.2).
+/// acquire it after the winning bid was announced (rules §15.2.2). A pick another handshake has
+/// already named is out too, because one pick cannot settle two debts.
 ///
 /// An empty result means the winner owes a pick he cannot pay, which rules §15.3.3 is meant to
 /// prevent at bid and raise time.
@@ -47,7 +48,14 @@ where
         eyre!("RFA resolution {resolution_id} is missing the time its winning bid was announced.")
     })?;
 
-    eligible_compensation_picks(
+    let promised_pick_ids = rfa_resolution_queries::find_promised_compensation_pick_ids(
+        rfa_resolution_model.league_id,
+        rfa_resolution_model.end_of_season_year,
+        resolution_id,
+        db,
+    )
+    .await?;
+    let mut eligible_draft_picks = eligible_compensation_picks(
         rfa_resolution_model.league_id,
         rfa_resolution_model.end_of_season_year,
         winning_team_id,
@@ -55,7 +63,10 @@ where
         Some(final_bid_at),
         db,
     )
-    .await
+    .await?;
+    eligible_draft_picks.retain(|eligible_pick| !promised_pick_ids.contains(&eligible_pick.id));
+
+    Ok(eligible_draft_picks)
 }
 
 /// The same eligible set as [`compute_eligible_compensation_picks`], for a bid with no resolution
@@ -143,6 +154,7 @@ where
             rfa_resolution_model.status,
             RfaResolutionStatus::AwaitingAuction
                 | RfaResolutionStatus::AwaitingRaise
+                | RfaResolutionStatus::AwaitingPickSelection
                 | RfaResolutionStatus::AwaitingMatch
         ) {
             rfa_obligations.push(RfaObligation {

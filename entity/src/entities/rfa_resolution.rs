@@ -1,7 +1,7 @@
 //! The state of one restricted free agent's post-auction handshake (rules §15.3).
 //!
-//! A closed RFA auction signs nobody: the winner has 48h to raise, then the keeper-deadline owner
-//! has 48h to match at a discount or decline. This row carries that state between the two windows,
+//! A closed RFA auction signs nobody: the winner has 48h to raise, then 24h to name the pick he
+//! would forfeit, then the keeper-deadline owner has 48h to match at a discount or decline. This row carries that state between the two windows,
 //! including `original_owner_team_id` — the auction can move the contract's `team_id`, so the
 //! discount right is snapshotted here instead of being re-derived later (§15.4.2).
 //!
@@ -35,7 +35,9 @@ pub struct Model {
     pub raised_bid: Option<i16>,
     /// Auction close + 48h. NULL until the auction closes, i.e. while `AwaitingAuction`.
     pub raise_deadline_at: Option<DateTimeWithTimeZone>,
-    /// Set when the raise window resolves; that moment + 48h.
+    /// Set when the raise window resolves; that moment + 24h (rules §15.2.2).
+    pub pick_selection_deadline_at: Option<DateTimeWithTimeZone>,
+    /// Set when the pick selection settles; that moment + 48h.
     pub match_deadline_at: Option<DateTimeWithTimeZone>,
     pub resolved_at: Option<DateTimeWithTimeZone>,
     pub created_at: DateTimeWithTimeZone,
@@ -66,7 +68,10 @@ pub enum RfaResolutionStatus {
     /// Auction closed; the winner's 48h raise window is open.
     #[sea_orm(string_value = "AwaitingRaise")]
     AwaitingRaise,
-    /// Raise window settled (raised or not); the original owner's 48h window is open.
+    /// Raise window settled; the winner's 24h window to name the pick he would forfeit is open.
+    #[sea_orm(string_value = "AwaitingPickSelection")]
+    AwaitingPickSelection,
+    /// Pick selection settled; the original owner's 48h window is open.
     #[sea_orm(string_value = "AwaitingMatch")]
     AwaitingMatch,
     /// Original owner matched and re-signed the player at the discount.

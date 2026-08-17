@@ -41,6 +41,8 @@ pub static IN_SEASON_FA_FIRST_EXTENSION_TRIGGER_MINUTES: i64 = 60;
 pub static IN_SEASON_FA_LATER_EXTENSION_TRIGGER_MINUTES: i64 = 30;
 /// How long the RFA winning bidder has to raise his bid after the auction closes (rules §15.3.2.1).
 pub static RFA_RAISE_WINDOW_HOURS: i64 = 48;
+/// How long the RFA winner then has to name the pick he would forfeit (rules §15.2.2).
+pub static RFA_PICK_SELECTION_WINDOW_HOURS: i64 = 24;
 /// How long the original owner then has to match or decline the RFA bid (rules §15.3.2).
 pub static RFA_MATCH_WINDOW_HOURS: i64 = 48;
 /// The number of veteran auction players released for bidding each day (rules §6.3.3). The rules set
