@@ -15,12 +15,7 @@ use color_eyre::{
     eyre::{bail, ensure, eyre},
 };
 use fbkl_constants::league_rules::DRAFT_PICK_ROUNDS;
-use fbkl_entity::{
-    draft_pick, draft_pick_queries, league_team_season_standing,
-    league_team_season_standing_queries, rookie_draft_lottery_queries,
-    rookie_draft_selection_queries, sea_orm::ConnectionTrait,
-};
-use tracing::instrument;
+use fbkl_entity::{draft_pick, league_team_season_standing};
 
 /// One slot of the ordered draft slate, in overall pick order.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -140,71 +135,6 @@ pub fn compute_draft_order(
     }
 
     Ok(slots)
-}
-
-/// The season's draft picks in overall pick order, for callers that need to rank a pick without
-/// running the draft (rules §7.2.1).
-///
-/// Returns `None` when the order is not settled yet: the slate is the frozen truth once the draft
-/// has started, otherwise the order is recomputed from the lottery draw, and before the lottery
-/// runs there is no intra-round order at all.
-#[instrument(skip(db))]
-pub async fn find_season_draft_pick_order<C>(
-    league_id: i64,
-    end_of_season_year: i16,
-    db: &C,
-) -> Result<Option<Vec<i64>>>
-where
-    C: ConnectionTrait,
-{
-    let draft_slate =
-        rookie_draft_selection_queries::get_selections_for_draft(league_id, end_of_season_year, db)
-            .await?;
-    if !draft_slate.is_empty() {
-        return Ok(Some(
-            draft_slate
-                .into_iter()
-                .map(|selection| selection.draft_pick_id)
-                .collect(),
-        ));
-    }
-
-    let Some(lottery_model) = rookie_draft_lottery_queries::find_lottery_for_league_season(
-        league_id,
-        end_of_season_year,
-        db,
-    )
-    .await?
-    else {
-        return Ok(None);
-    };
-    let lottery_picks =
-        rookie_draft_lottery_queries::find_lottery_picks(lottery_model.id, db).await?;
-    if lottery_picks.is_empty() {
-        return Ok(None);
-    }
-
-    let lottery_team_order: Vec<i64> = lottery_picks
-        .into_iter()
-        .map(|lottery_pick| lottery_pick.team_id)
-        .collect();
-    let standings = league_team_season_standing_queries::find_standings_for_league_season(
-        league_id,
-        end_of_season_year,
-        db,
-    )
-    .await?;
-    let draft_picks =
-        draft_pick_queries::get_draft_picks_for_league_season(league_id, end_of_season_year, db)
-            .await?;
-    let draft_slots = compute_draft_order(&standings, &lottery_team_order, &draft_picks)?;
-
-    Ok(Some(
-        draft_slots
-            .into_iter()
-            .map(|draft_slot| draft_slot.draft_pick_id)
-            .collect(),
-    ))
 }
 
 /// Indexes picks by the (round, original owner) slot the draft order is built from.

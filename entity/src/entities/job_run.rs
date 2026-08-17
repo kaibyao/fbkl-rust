@@ -50,9 +50,6 @@ pub enum JobEventKind {
     /// The RFA winner's 48h raise window expiring (§15.3.2).
     #[sea_orm(string_value = "RfaRaiseWindow")]
     RfaRaiseWindow,
-    /// The RFA winner's 24h window to name a compensation pick expiring (§15.2.2).
-    #[sea_orm(string_value = "RfaPickSelectionWindow")]
-    RfaPickSelectionWindow,
     /// The RFA owner's 48h match window expiring (§15.3.2).
     #[sea_orm(string_value = "RfaMatchWindow")]
     RfaMatchWindow,

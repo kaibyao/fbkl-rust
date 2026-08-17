@@ -61,9 +61,6 @@ use fbkl_entity::{
     },
     team,
     team_user::{self, LeagueRole},
-    trade::{self, TradeStatus},
-    trade_action::{self, TradeActionType},
-    trade_asset::{self, FromTeamId, ToTeamId},
     user,
 };
 
@@ -354,56 +351,6 @@ impl TestLeague {
         .insert(&self.db)
         .await
         .expect("insert draft pick")
-    }
-
-    /// Records a pick trade that has already gone through, announced at `accepted_at`.
-    ///
-    /// This writes the rows a processed trade leaves behind — a completed `trade`, its pick
-    /// `trade_asset`, the accepting `trade_action`, and the pick's new owner — without running the
-    /// trade engine, which would need rosters, salaries and a deadline the test does not care about.
-    /// `accepted_at` is written explicitly because the announcement time is what pick eligibility
-    /// reads, and the database clock would otherwise stamp it "now".
-    pub async fn add_completed_pick_trade(
-        &self,
-        draft_pick_model: &draft_pick::Model,
-        to_team_id: i64,
-        accepting_team_user_id: i64,
-        accepted_at: DateTimeWithTimeZone,
-    ) {
-        let trade_model = trade::ActiveModel {
-            end_of_season_year: ActiveValue::Set(self.end_of_season_year),
-            status: ActiveValue::Set(TradeStatus::Completed),
-            league_id: ActiveValue::Set(self.league_id),
-            ..Default::default()
-        }
-        .insert(&self.db)
-        .await
-        .expect("insert trade");
-
-        trade_asset::Model::from_draft_pick(
-            Some(trade_model.id),
-            draft_pick_model.id,
-            FromTeamId(draft_pick_model.current_owner_team_id),
-            ToTeamId(to_team_id),
-        )
-        .insert(&self.db)
-        .await
-        .expect("insert pick trade asset");
-
-        trade_action::ActiveModel {
-            action_type: ActiveValue::Set(TradeActionType::Accept),
-            team_user_id: ActiveValue::Set(accepting_team_user_id),
-            trade_id: ActiveValue::Set(trade_model.id),
-            created_at: ActiveValue::Set(accepted_at),
-            ..Default::default()
-        }
-        .insert(&self.db)
-        .await
-        .expect("insert accepting trade action");
-
-        let mut traded_pick: draft_pick::ActiveModel = draft_pick_model.clone().into();
-        traded_pick.current_owner_team_id = ActiveValue::Set(to_team_id);
-        traded_pick.update(&self.db).await.expect("transfer pick");
     }
 }
 

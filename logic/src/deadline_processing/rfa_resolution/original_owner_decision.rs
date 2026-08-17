@@ -58,8 +58,8 @@ pub enum UnbidRfaDecision {
 
 /// Settles the original owner's 48h window (rules §15.3.2).
 ///
-/// On a decline the winner signs through the shared auction path and the pick he named in the
-/// selection window changes hands. A match leaves that pick where it is.
+/// On a decline the winner signs through the shared auction path and the pick his bid named
+/// changes hands. A match leaves that pick where it is.
 #[instrument(skip(db))]
 pub async fn match_or_decline<C>(
     rfa_resolution_id: i64,
@@ -282,16 +282,14 @@ where
         .winning_team_id
         .ok_or_else(|| eyre!("RFA resolution {rfa_resolution_id} has no winning bidder."))?;
 
-    // The selection window is what names the pick, so a decline only spends what is already there.
+    // The winning bid is what names the pick, so a decline only spends what is already there.
     let forfeited_draft_pick_id =
         rfa_resolution_queries::find_rfa_compensation_pick_for_resolution(rfa_resolution_id, db)
             .await?
-            .and_then(|rfa_compensation_pick_model| {
-                rfa_compensation_pick_model.forfeited_draft_pick_id
-            })
             .ok_or_else(|| {
                 eyre!("RFA resolution {rfa_resolution_id} has no compensation pick to forfeit.")
-            })?;
+            })?
+            .forfeited_draft_pick_id;
     let forfeited_draft_pick_model =
         draft_pick_queries::find_draft_pick_by_id(forfeited_draft_pick_id, db).await?;
     ensure!(

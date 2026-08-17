@@ -156,12 +156,12 @@ pub async fn run_auction_close_tick(
     Ok(summary)
 }
 
-/// Expires the three RFA handshake windows (rules §15.2.2, §15.3.2, spec 03).
+/// Expires the two RFA handshake windows (rules §15.3.2, spec 03).
 ///
-/// A raise window that runs out counts as the winner standing pat, which opens his 24h window to
-/// name a compensation pick; letting that one run out has the league name the pick instead. A match
-/// window that runs out counts as declining, so the winner signs the player and forfeits the named
-/// pick. Each expiry goes through `process_event`, so the `job_run` claim is the double-fire guard.
+/// A raise window that runs out counts as the winner standing pat, which opens the original owner's
+/// window. A match window that runs out counts as declining, so the winner signs the player and
+/// forfeits the pick his bid named. Each expiry goes through `process_event`, so the `job_run`
+/// claim is the double-fire guard.
 #[instrument(skip(db))]
 pub async fn run_rfa_window_tick(
     db: &DatabaseConnection,
@@ -173,9 +173,6 @@ pub async fn run_rfa_window_tick(
     {
         let kind = match rfa_resolution_model.status {
             RfaResolutionStatus::AwaitingRaise => ProcessableEventKind::RfaRaiseWindowExpiry,
-            RfaResolutionStatus::AwaitingPickSelection => {
-                ProcessableEventKind::RfaPickSelectionExpiry
-            }
             RfaResolutionStatus::AwaitingMatch => ProcessableEventKind::RfaMatchWindowExpiry,
             other_status => {
                 error!(

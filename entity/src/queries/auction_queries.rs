@@ -114,7 +114,6 @@ where
         .filter(rfa_resolution::Column::WinningTeamId.eq(team_id))
         .filter(rfa_resolution::Column::Status.is_in([
             RfaResolutionStatus::AwaitingRaise,
-            RfaResolutionStatus::AwaitingPickSelection,
             RfaResolutionStatus::AwaitingMatch,
         ]))
         .all(db)

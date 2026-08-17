@@ -75,11 +75,12 @@ async fn rfa_resolution_rows_round_trip() {
     assert_eq!(updated.status, RfaResolutionStatus::Declined);
     assert!(updated.resolved_at.is_some());
 
-    let compensation = rfa_resolution_queries::insert_rfa_compensation_pick(
+    let third_round_pick = league.add_draft_pick(3, league.team_id).await;
+    let compensation = rfa_resolution_queries::upsert_rfa_compensation_pick(
         NewRfaCompensationPick {
             rfa_resolution_id: inserted.id,
             required_round: 3,
-            forfeited_draft_pick_id: None,
+            forfeited_draft_pick_id: third_round_pick.id,
             to_team_id: league.team_id,
             from_team_id: league.team_id,
         },
@@ -94,6 +95,24 @@ async fn rfa_resolution_rows_round_trip() {
             .unwrap();
     assert_eq!(found_compensation.id, compensation.id);
     assert_eq!(found_compensation.required_round, 3);
+
+    // A later bid rewrites the same row rather than adding a second debt.
+    let second_round_pick = league.add_draft_pick(2, league.team_id).await;
+    let renamed = rfa_resolution_queries::upsert_rfa_compensation_pick(
+        NewRfaCompensationPick {
+            rfa_resolution_id: inserted.id,
+            required_round: 2,
+            forfeited_draft_pick_id: second_round_pick.id,
+            to_team_id: league.team_id,
+            from_team_id: league.team_id,
+        },
+        &league.db,
+    )
+    .await
+    .unwrap();
+    assert_eq!(renamed.id, compensation.id);
+    assert_eq!(renamed.required_round, 2);
+    assert_eq!(renamed.forfeited_draft_pick_id, second_round_pick.id);
 
     let season_rows = rfa_resolution_queries::find_rfa_resolutions_for_league_season(
         league.league_id,

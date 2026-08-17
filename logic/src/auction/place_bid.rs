@@ -9,7 +9,9 @@
 use std::fmt::Debug;
 
 use color_eyre::Result;
-use fbkl_constants::league_rules::PRE_SEASON_CONTRACTS_PER_ROSTER_LIMIT;
+use fbkl_constants::league_rules::{
+    PRE_SEASON_CONTRACTS_PER_ROSTER_LIMIT, compensation_round_for_bid,
+};
 use fbkl_entity::{
     auction::{self, AuctionStatus},
     auction_bid, auction_queries, contract, contract_queries,
@@ -27,7 +29,7 @@ use super::{
     rolled_all_bid_deadline,
 };
 use crate::{
-    deadline_processing::{RfaObligation, find_unpayable_rfa_obligation},
+    deadline_processing::{find_eligible_compensation_pick, name_compensation_pick},
     roster,
 };
 
@@ -66,20 +68,27 @@ pub enum BidRejection {
     )]
     NoRosterSpace { roster_used: i32, roster_limit: i16 },
     #[error(
-        "Bidding ${bid_amount} on a restricted free agent owes a round {required_round} or better draft pick, and you have none spare to forfeit."
+        "Bidding ${bid_amount} on a restricted free agent owes a round {required_round} or better draft pick, so the bid must name the pick it would forfeit."
     )]
     MissingCompensationPick {
         bid_amount: i16,
         required_round: i16,
     },
+    #[error("Draft pick {draft_pick_id} cannot settle the compensation this bid would owe.")]
+    IneligibleCompensationPick { draft_pick_id: i64 },
 }
 
 /// Places a bid on an open auction, rolling its 24h close time forward (§6.4.4 / §8.3.1).
+///
+/// `maybe_compensation_draft_pick_id` is the pick the bid would forfeit if the original owner
+/// declines a restricted free agent (§15.3.3); it is required for those auctions and refused for
+/// every other one.
 #[instrument(skip(db))]
 pub async fn place_auction_bid<C>(
     auction_id: i64,
     bidding_team_user_id: i64,
     bid_amount: i16,
+    maybe_compensation_draft_pick_id: Option<i64>,
     comment: Option<String>,
     now: DateTimeWithTimeZone,
     db: &C,
@@ -129,10 +138,11 @@ where
         &db_txn,
     )
     .await?;
-    validate_rfa_compensation(
+    name_bid_compensation_pick(
         &auctioned_contract,
         bidding_team_user.team_id,
         bid_amount,
+        maybe_compensation_draft_pick_id,
         &db_txn,
     )
     .await?;
@@ -272,49 +282,69 @@ where
     Ok(())
 }
 
-/// The rules §15.3.3 check: nobody may bid into a compensation tier he could not pay.
+/// The rules §15.3.3 check: a bid names the pick it would cost, and nobody may bid into a
+/// compensation tier he could not pay.
 ///
 /// Only an RFA still waiting on its auction owes a pick — a released one (`NoBidToAuction`) is a
 /// plain free agent again, so the gate keys off the resolution's status and not the contract kind.
-/// No winning bid is announced yet, so §15.2.2 excludes nothing and every held pick counts.
+/// Recording the choice here is also what frees the outbid team's pick: one row per resolution
+/// says what its current leader owes.
 #[instrument(skip(db))]
-async fn validate_rfa_compensation<C>(
+async fn name_bid_compensation_pick<C>(
     auctioned_contract: &contract::Model,
     bidding_team_id: i64,
     bid_amount: i16,
+    maybe_compensation_draft_pick_id: Option<i64>,
     db: &C,
 ) -> Result<()>
 where
     C: ConnectionTrait,
 {
-    let Some(rfa_resolution_model) =
-        rfa_resolution_queries::find_rfa_resolution_for_contract(auctioned_contract.id, db).await?
-    else {
-        return Ok(());
+    let maybe_rfa_resolution_model =
+        rfa_resolution_queries::find_rfa_resolution_for_contract(auctioned_contract.id, db)
+            .await?
+            .filter(|rfa_resolution_model| {
+                rfa_resolution_model.status == RfaResolutionStatus::AwaitingAuction
+            });
+    let Some(rfa_resolution_model) = maybe_rfa_resolution_model else {
+        return maybe_compensation_draft_pick_id.map_or_else(
+            || Ok(()),
+            |draft_pick_id| Err(BidRejection::IneligibleCompensationPick { draft_pick_id }.into()),
+        );
     };
-    if rfa_resolution_model.status != RfaResolutionStatus::AwaitingAuction {
-        return Ok(());
-    }
 
-    let maybe_required_round = find_unpayable_rfa_obligation(
-        auctioned_contract.league_id,
-        auctioned_contract.end_of_season_year,
-        bidding_team_id,
-        RfaObligation {
-            rfa_resolution_id: rfa_resolution_model.id,
-            bid_amount,
-            announced_at: None,
-        },
-        db,
-    )
-    .await?;
-    maybe_required_round.map_or(Ok(()), |required_round| {
-        Err(BidRejection::MissingCompensationPick {
+    let required_round = compensation_round_for_bid(bid_amount);
+    let Some(compensation_draft_pick_id) = maybe_compensation_draft_pick_id else {
+        return Err(BidRejection::MissingCompensationPick {
             bid_amount,
             required_round,
         }
-        .into())
-    })
+        .into());
+    };
+    let Some(eligible_draft_pick) = find_eligible_compensation_pick(
+        &rfa_resolution_model,
+        bidding_team_id,
+        required_round,
+        compensation_draft_pick_id,
+        db,
+    )
+    .await?
+    else {
+        return Err(BidRejection::IneligibleCompensationPick {
+            draft_pick_id: compensation_draft_pick_id,
+        }
+        .into());
+    };
+
+    name_compensation_pick(
+        &rfa_resolution_model,
+        bidding_team_id,
+        required_round,
+        &eligible_draft_pick,
+        db,
+    )
+    .await?;
+    Ok(())
 }
 
 /// Salary the bidder would be committed to if this bid wins. Re-bidding on an auction the team

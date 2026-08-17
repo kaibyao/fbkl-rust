@@ -13,8 +13,7 @@ use fbkl_entity::{
     deadline::DeadlineKind,
     draft_pick_queries,
     rfa_resolution::{Model as RfaResolution, RfaResolutionStatus},
-    rfa_resolution_queries, rookie_draft_selection_queries,
-    sea_orm::prelude::DateTimeWithTimeZone,
+    rfa_resolution_queries,
     team_user::LeagueRole,
 };
 use fbkl_jobs::{TickSummary, run_rfa_window_tick};
@@ -24,9 +23,9 @@ use fbkl_logic::{
         place_auction_bid, start_new_auction_for_nba_player,
     },
     deadline_processing::{
-        RfaMatchDecision, UnbidRfaDecision, decline_to_raise, expire_pick_selection_window,
-        match_or_decline, raise_bid, resolve_unbid_rfa, seed_rfa_resolutions,
-        select_compensation_pick,
+        RfaMatchDecision, UnbidRfaDecision, change_compensation_pick, decline_to_raise,
+        eligible_compensation_picks, match_or_decline, raise_bid, resolve_unbid_rfa,
+        seed_rfa_resolutions,
     },
 };
 use fbkl_test_support::{TestLeague, central};
@@ -34,6 +33,8 @@ use fbkl_test_support::{TestLeague, central};
 const END_OF_SEASON_YEAR: i16 = 2026;
 const RFA_CARRY_SALARY: i16 = 7;
 const WINNING_BID: i16 = 19;
+/// The tier $19 lands in (rules §15.2.1), which every bid at [`WINNING_BID`] must be able to pay.
+const WINNING_BID_ROUND: i16 = 3;
 const AUCTION_START: &str = "2025-09-10T12:00:00";
 
 struct RfaHandshake {
@@ -42,6 +43,8 @@ struct RfaHandshake {
     owner_team_id: i64,
     rfa_player_id: i64,
     auction_id: i64,
+    /// The pick the winning bid named, which a decline would forfeit. `None` when nobody bid.
+    named_pick_id: Option<i64>,
 }
 
 /// A closed RFA auction whose resolution is waiting on the winner, plus `winner_pick_rounds` worth
@@ -104,24 +107,31 @@ async fn seeded_rfa_auction(
     .await
     .expect("start the RFA auction");
 
-    if is_bid_on {
-        let bidder = league.add_team_user(LeagueRole::TeamOwner).await;
-        fbkl_entity::auction_queries::insert_auction_bid(
-            auction.id,
-            bidder.id,
-            WINNING_BID,
-            None,
-            &league.db,
-        )
-        .await
-        .expect("insert the winning bid");
-    }
-
     let rfa_resolution =
         rfa_resolution_queries::find_rfa_resolution_for_contract(rfa_contract.id, &league.db)
             .await
             .expect("read the seeded resolution")
             .expect("the keeper deadline seeds one");
+
+    // Bidding at the auction's start keeps its close 24h out, so the raise deadline stays round.
+    let named_pick_id = if is_bid_on {
+        let bidder = league.add_team_user(LeagueRole::TeamOwner).await;
+        let pick_id = weakest_eligible_pick_id(&league, &rfa_resolution, WINNING_BID_ROUND).await;
+        place_auction_bid(
+            auction.id,
+            bidder.id,
+            WINNING_BID,
+            Some(pick_id),
+            None,
+            central(AUCTION_START),
+            &league.db,
+        )
+        .await
+        .expect("place the winning bid");
+        Some(pick_id)
+    } else {
+        None
+    };
 
     Some(RfaHandshake {
         league,
@@ -129,7 +139,29 @@ async fn seeded_rfa_auction(
         owner_team_id,
         rfa_player_id,
         auction_id: auction.id,
+        named_pick_id,
     })
+}
+
+/// The eligible pick that costs the bidder least: the last of the set, which runs best round first.
+async fn weakest_eligible_pick_id(
+    league: &TestLeague,
+    rfa_resolution: &RfaResolution,
+    required_round: i16,
+) -> i64 {
+    eligible_compensation_picks(
+        league.league_id,
+        END_OF_SEASON_YEAR,
+        league.team_id,
+        required_round,
+        rfa_resolution.id,
+        &league.db,
+    )
+    .await
+    .expect("read the eligible picks")
+    .last()
+    .expect("the bidder holds a pick that settles the tier")
+    .id
 }
 
 async fn reread(handshake: RfaHandshake) -> RfaHandshake {
@@ -143,13 +175,6 @@ async fn reread(handshake: RfaHandshake) -> RfaHandshake {
         rfa_resolution,
         ..handshake
     }
-}
-
-/// Walks the winner through the pick-selection window the way a timeout does (rules §15.2.2).
-async fn auto_select_compensation_pick(handshake: &RfaHandshake, now: DateTimeWithTimeZone) {
-    expire_pick_selection_window(handshake.rfa_resolution.id, now, &handshake.league.db)
-        .await
-        .expect("the league names the compensation pick");
 }
 
 #[tokio::test]
@@ -181,12 +206,22 @@ async fn only_the_winning_bidder_may_raise_and_only_upward() {
     };
     let db = &handshake.league.db;
     let rfa_resolution_id = handshake.rfa_resolution.id;
+    let named_pick_id = handshake
+        .named_pick_id
+        .expect("the winning bid named a pick");
     let now = central("2025-09-11T12:00:00");
 
     assert!(
-        raise_bid(rfa_resolution_id, handshake.owner_team_id, 25, now, db)
-            .await
-            .is_err(),
+        raise_bid(
+            rfa_resolution_id,
+            handshake.owner_team_id,
+            25,
+            named_pick_id,
+            now,
+            db
+        )
+        .await
+        .is_err(),
         "the original owner does not get to raise"
     );
     assert!(
@@ -194,6 +229,7 @@ async fn only_the_winning_bidder_may_raise_and_only_upward() {
             rfa_resolution_id,
             handshake.league.team_id,
             WINNING_BID,
+            named_pick_id,
             now,
             db
         )
@@ -206,17 +242,24 @@ async fn only_the_winning_bidder_may_raise_and_only_upward() {
         .await
         .expect("stand pat");
     assert!(
-        raise_bid(rfa_resolution_id, handshake.league.team_id, 25, now, db)
-            .await
-            .is_err(),
+        raise_bid(
+            rfa_resolution_id,
+            handshake.league.team_id,
+            25,
+            named_pick_id,
+            now,
+            db
+        )
+        .await
+        .is_err(),
         "the raise window is shut once the match window opens"
     );
 }
 
 #[tokio::test]
 async fn a_raise_the_winner_cannot_compensate_for_is_rejected() {
-    // A round 5 pick settles bids up to $11; raising to $42 owes a first-rounder (rules §15.2.1).
-    let Some(handshake) = closed_rfa_auction("rfa_state_raise_unpayable", &[5]).await else {
+    // A round 3 pick settles the $19 win; raising to $42 owes a first-rounder (rules §15.2.1).
+    let Some(handshake) = closed_rfa_auction("rfa_state_raise_unpayable", &[3]).await else {
         return;
     };
     assert!(
@@ -224,6 +267,9 @@ async fn a_raise_the_winner_cannot_compensate_for_is_rejected() {
             handshake.rfa_resolution.id,
             handshake.league.team_id,
             42,
+            handshake
+                .named_pick_id
+                .expect("the winning bid named a pick"),
             central("2025-09-11T12:00:00"),
             &handshake.league.db
         )
@@ -266,7 +312,6 @@ async fn matching_a_traded_rfa_still_re_signs_at_the_keeper_deadline_discount() 
     )
     .await
     .expect("stand pat");
-    auto_select_compensation_pick(&handshake, central("2025-09-12T12:00:00")).await;
     let matched = match_or_decline(
         handshake.rfa_resolution.id,
         handshake.owner_team_id,
@@ -310,16 +355,19 @@ async fn matching_re_signs_the_player_to_the_original_owner_at_a_discount() {
     let db = &handshake.league.db;
     let rfa_resolution_id = handshake.rfa_resolution.id;
 
+    let named_pick_id = handshake
+        .named_pick_id
+        .expect("the winning bid named a pick");
     raise_bid(
         rfa_resolution_id,
         handshake.league.team_id,
         24,
+        named_pick_id,
         central("2025-09-11T12:00:00"),
         db,
     )
     .await
-    .expect("raise the winning bid");
-    auto_select_compensation_pick(&handshake, central("2025-09-12T12:00:00")).await;
+    .expect("raise the winning bid, which stays in the same tier");
     let matched = match_or_decline(
         rfa_resolution_id,
         handshake.owner_team_id,
@@ -357,17 +405,14 @@ async fn matching_re_signs_the_player_to_the_original_owner_at_a_discount() {
         rfa_resolution_queries::find_rfa_compensation_pick_for_resolution(rfa_resolution_id, db)
             .await
             .expect("read the compensation row")
-            .expect("the winner named a pick during the selection window");
-    let named_pick = draft_pick_queries::find_draft_pick_by_id(
-        compensation
-            .forfeited_draft_pick_id
-            .expect("the pick is named"),
-        db,
-    )
-    .await
-    .expect("read the named pick");
+            .expect("the winning bid named a pick");
+    assert_eq!(compensation.forfeited_draft_pick_id, named_pick_id);
     assert_eq!(
-        named_pick.current_owner_team_id, handshake.league.team_id,
+        draft_pick_queries::find_draft_pick_by_id(named_pick_id, db)
+            .await
+            .expect("read the named pick")
+            .current_owner_team_id,
+        handshake.league.team_id,
         "a match leaves the named pick with the winner"
     );
 }
@@ -388,7 +433,6 @@ async fn declining_signs_the_winner_and_hands_over_a_compensation_pick() {
     )
     .await
     .expect("stand pat");
-    auto_select_compensation_pick(&handshake, central("2025-09-12T12:00:00")).await;
     let declined = match_or_decline(
         rfa_resolution_id,
         handshake.owner_team_id,
@@ -428,16 +472,18 @@ async fn declining_signs_the_winner_and_hands_over_a_compensation_pick() {
             .await
             .expect("read the compensation row")
             .expect("a decline owes a pick");
-    // $19 sits in the third-round tier, and nobody chose, so the cheapest eligible one goes.
+    // $19 sits in the third-round tier, and the bid named the cheapest pick that settles it.
     assert_eq!(compensation.required_round, 3);
-    let forfeited_pick = draft_pick_queries::find_draft_pick_by_id(
-        compensation
-            .forfeited_draft_pick_id
-            .expect("the pick is chosen"),
-        db,
-    )
-    .await
-    .expect("read the forfeited pick");
+    assert_eq!(
+        compensation.forfeited_draft_pick_id,
+        handshake
+            .named_pick_id
+            .expect("the winning bid named a pick")
+    );
+    let forfeited_pick =
+        draft_pick_queries::find_draft_pick_by_id(compensation.forfeited_draft_pick_id, db)
+            .await
+            .expect("read the forfeited pick");
     assert_eq!(forfeited_pick.round, 3);
     assert_eq!(
         forfeited_pick.current_owner_team_id,
@@ -536,6 +582,7 @@ async fn an_unresolved_rfa_win_holds_the_winners_cap_space() {
         bidder.id,
         10,
         None,
+        None,
         central("2025-09-13T06:00:00"),
         db,
     )
@@ -560,7 +607,6 @@ async fn an_unresolved_rfa_win_holds_the_winners_cap_space() {
     )
     .await
     .expect("stand pat");
-    auto_select_compensation_pick(&handshake, central("2025-09-13T07:30:00")).await;
     match_or_decline(
         handshake.rfa_resolution.id,
         handshake.owner_team_id,
@@ -576,6 +622,7 @@ async fn an_unresolved_rfa_win_holds_the_winners_cap_space() {
         bidder.id,
         10,
         None,
+        None,
         central("2025-09-13T09:00:00"),
         db,
     )
@@ -584,7 +631,7 @@ async fn an_unresolved_rfa_win_holds_the_winners_cap_space() {
 }
 
 #[tokio::test]
-async fn the_scheduler_tick_expires_all_three_handshake_windows() {
+async fn the_scheduler_tick_expires_both_handshake_windows() {
     let Some(handshake) = closed_rfa_auction("rfa_state_window_ticks", &[2, 3]).await else {
         return;
     };
@@ -598,33 +645,14 @@ async fn the_scheduler_tick_expires_all_three_handshake_windows() {
     let handshake = reread(handshake).await;
     assert_eq!(
         handshake.rfa_resolution.status,
-        RfaResolutionStatus::AwaitingPickSelection,
-        "an unraised bid stands, which sends the winner off to name a pick"
-    );
-
-    // The tick set each deadline out from the real clock, so backdate before expiring the next one.
-    rfa_resolution_queries::open_rfa_pick_selection_window(
-        rfa_resolution_id,
-        None,
-        central("2025-09-15T12:00:00"),
-        db,
-    )
-    .await
-    .expect("backdate the pick selection deadline");
-
-    let selection_expiry = run_rfa_window_tick(db, central("2025-09-15T18:00:00"))
-        .await
-        .expect("expire the pick selection window");
-    assert_eq!(selection_expiry.processed, 1);
-    let handshake = reread(handshake).await;
-    assert_eq!(
-        handshake.rfa_resolution.status,
         RfaResolutionStatus::AwaitingMatch,
-        "the named pick opens the original owner's window"
+        "an unraised bid stands, which opens the original owner's window"
     );
 
+    // The tick set the deadline out from the real clock, so backdate before expiring it.
     rfa_resolution_queries::open_rfa_match_window(
         rfa_resolution_id,
+        None,
         central("2025-09-16T12:00:00"),
         db,
     )
@@ -654,17 +682,13 @@ async fn the_scheduler_tick_expires_all_three_handshake_windows() {
             .await
             .expect("read the compensation row")
             .expect("an expired match window owes a pick");
-    let forfeited_pick = draft_pick_queries::find_draft_pick_by_id(
-        compensation
-            .forfeited_draft_pick_id
-            .expect("the pick is chosen"),
-        db,
-    )
-    .await
-    .expect("read the forfeited pick");
+    let forfeited_pick =
+        draft_pick_queries::find_draft_pick_by_id(compensation.forfeited_draft_pick_id, db)
+            .await
+            .expect("read the forfeited pick");
     assert_eq!(
         forfeited_pick.round, 3,
-        "nobody named a pick, so the cheapest eligible one goes"
+        "the winning bid named the cheapest pick that settles its tier"
     );
     assert_eq!(
         forfeited_pick.current_owner_team_id,
@@ -679,17 +703,20 @@ async fn raising_then_declining_prices_the_signing_and_the_pick_off_the_raise() 
     };
     let db = &handshake.league.db;
     let rfa_resolution_id = handshake.rfa_resolution.id;
+    // $30 sits in the second-round tier, so the raise has to name the first-rounder instead.
+    let first_round_pick_id =
+        weakest_eligible_pick_id(&handshake.league, &handshake.rfa_resolution, 2).await;
 
     raise_bid(
         rfa_resolution_id,
         handshake.league.team_id,
         30,
+        first_round_pick_id,
         central("2025-09-11T12:00:00"),
         db,
     )
     .await
     .expect("raise the winning bid");
-    auto_select_compensation_pick(&handshake, central("2025-09-12T12:00:00")).await;
     let declined = match_or_decline(
         rfa_resolution_id,
         handshake.owner_team_id,
@@ -720,16 +747,12 @@ async fn raising_then_declining_prices_the_signing_and_the_pick_off_the_raise() 
             .await
             .expect("read the compensation row")
             .expect("a decline owes a pick");
-    // $30 sits in the second-round tier, so the winner's 3rd is too cheap to settle it.
     assert_eq!(compensation.required_round, 2);
-    let forfeited_pick = draft_pick_queries::find_draft_pick_by_id(
-        compensation
-            .forfeited_draft_pick_id
-            .expect("the pick is chosen"),
-        db,
-    )
-    .await
-    .expect("read the forfeited pick");
+    assert_eq!(compensation.forfeited_draft_pick_id, first_round_pick_id);
+    let forfeited_pick =
+        draft_pick_queries::find_draft_pick_by_id(compensation.forfeited_draft_pick_id, db)
+            .await
+            .expect("read the forfeited pick");
     assert_eq!(forfeited_pick.round, 1);
     assert_eq!(
         forfeited_pick.current_owner_team_id,
@@ -853,6 +876,7 @@ async fn a_released_rfa_re_signs_as_a_plain_veteran_to_any_bidder() {
         former_owner.id,
         12,
         None,
+        None,
         central("2025-09-14T13:00:00"),
         db,
     )
@@ -888,230 +912,6 @@ async fn a_released_rfa_re_signs_as_a_plain_veteran_to_any_bidder() {
     );
 }
 
-/// Rules §15.3.3: nobody may bid into a compensation tier he could not pay.
-#[tokio::test]
-async fn a_bid_owing_a_pick_the_bidder_lacks_is_rejected() {
-    // A round 5 pick settles bids up to $11; $19 owes a third-rounder (rules §15.2.1).
-    let Some(handshake) = seeded_rfa_auction("rfa_state_bid_unpayable", &[5], false).await else {
-        return;
-    };
-    let db = &handshake.league.db;
-    let bidder = handshake.league.add_team_user(LeagueRole::TeamOwner).await;
-
-    let rejection = place_auction_bid(
-        handshake.auction_id,
-        bidder.id,
-        WINNING_BID,
-        None,
-        central("2025-09-10T18:00:00"),
-        db,
-    )
-    .await
-    .expect_err("a fifth-rounder cannot settle a $19 bid");
-    assert!(
-        matches!(
-            rejection.downcast_ref::<BidRejection>(),
-            Some(BidRejection::MissingCompensationPick {
-                required_round: 3,
-                ..
-            })
-        ),
-        "unexpected rejection: {rejection}"
-    );
-
-    place_auction_bid(
-        handshake.auction_id,
-        bidder.id,
-        11,
-        None,
-        central("2025-09-10T18:00:00"),
-        db,
-    )
-    .await
-    .expect("$11 stays in the fifth-round tier");
-}
-
-#[tokio::test]
-async fn a_bid_the_bidder_can_compensate_for_is_accepted() {
-    let Some(handshake) = seeded_rfa_auction("rfa_state_bid_payable", &[3], false).await else {
-        return;
-    };
-    let bidder = handshake.league.add_team_user(LeagueRole::TeamOwner).await;
-
-    place_auction_bid(
-        handshake.auction_id,
-        bidder.id,
-        WINNING_BID,
-        None,
-        central("2025-09-10T18:00:00"),
-        &handshake.league.db,
-    )
-    .await
-    .expect("a third-rounder settles a $19 bid");
-}
-
-/// Two live RFA debts need two picks: one third-rounder cannot be promised twice (rules §15.3.3).
-#[tokio::test]
-async fn two_live_rfa_bids_cannot_lean_on_the_same_pick() {
-    let Some(handshake) = seeded_rfa_auction("rfa_state_bid_two_debts", &[3], false).await else {
-        return;
-    };
-    let league = &handshake.league;
-    let db = &league.db;
-
-    let second_player_id = league.add_veteran_player("Second Restricted Vet").await;
-    let second_rfa_contract = league
-        .add_owned_contract(
-            second_player_id,
-            ContractKind::RestrictedFreeAgent,
-            RFA_CARRY_SALARY,
-            handshake.owner_team_id,
-        )
-        .await;
-    seed_rfa_resolutions(league.league_id, END_OF_SEASON_YEAR, db)
-        .await
-        .expect("seed the second RFA's resolution");
-    let second_auction = start_new_auction_for_nba_player(
-        &second_rfa_contract,
-        league.league_id,
-        END_OF_SEASON_YEAR,
-        central(AUCTION_START),
-        AuctionKind::PreseasonVeteranAuction,
-        RFA_CARRY_SALARY,
-        db,
-    )
-    .await
-    .expect("start the second RFA auction");
-
-    let bidder = league.add_team_user(LeagueRole::TeamOwner).await;
-    place_auction_bid(
-        handshake.auction_id,
-        bidder.id,
-        WINNING_BID,
-        None,
-        central("2025-09-10T18:00:00"),
-        db,
-    )
-    .await
-    .expect("the only third-rounder covers the first bid");
-
-    let rejection = place_auction_bid(
-        second_auction.id,
-        bidder.id,
-        WINNING_BID,
-        None,
-        central("2025-09-10T19:00:00"),
-        db,
-    )
-    .await
-    .expect_err("the same pick cannot back a second third-round debt");
-    assert!(
-        matches!(
-            rejection.downcast_ref::<BidRejection>(),
-            Some(BidRejection::MissingCompensationPick {
-                required_round: 3,
-                ..
-            })
-        ),
-        "unexpected rejection: {rejection}"
-    );
-
-    // Even the mildest tier needs a pick of its own while the third-rounder backs the first bid.
-    let rejection = place_auction_bid(
-        second_auction.id,
-        bidder.id,
-        11,
-        None,
-        central("2025-09-10T19:00:00"),
-        db,
-    )
-    .await
-    .expect_err("the third-rounder is already promised elsewhere");
-    assert!(
-        matches!(
-            rejection.downcast_ref::<BidRejection>(),
-            Some(BidRejection::MissingCompensationPick {
-                required_round: 5,
-                ..
-            })
-        ),
-        "unexpected rejection: {rejection}"
-    );
-
-    league.add_draft_pick(5, league.team_id).await;
-    place_auction_bid(
-        second_auction.id,
-        bidder.id,
-        11,
-        None,
-        central("2025-09-10T19:00:00"),
-        db,
-    )
-    .await
-    .expect("a second pick settles the second debt");
-}
-
-#[tokio::test]
-async fn standing_pat_opens_the_winners_pick_selection_window() {
-    let Some(handshake) = closed_rfa_auction("rfa_state_pick_window_opens", &[3]).await else {
-        return;
-    };
-
-    let settled = decline_to_raise(
-        handshake.rfa_resolution.id,
-        handshake.league.team_id,
-        central("2025-09-11T12:00:00"),
-        &handshake.league.db,
-    )
-    .await
-    .expect("stand pat");
-
-    assert_eq!(
-        settled.status,
-        RfaResolutionStatus::AwaitingPickSelection,
-        "the winner names his compensation pick before the owner decides (rules §15.2.2)"
-    );
-    assert_eq!(
-        settled.pick_selection_deadline_at,
-        Some(central("2025-09-12T12:00:00")),
-        "24 hours from the moment the raise window settled"
-    );
-    assert_eq!(
-        settled.match_deadline_at, None,
-        "the original owner's window waits on the pick"
-    );
-}
-
-#[tokio::test]
-async fn the_original_owner_cannot_act_before_the_winner_names_a_pick() {
-    let Some(handshake) = closed_rfa_auction("rfa_state_match_before_pick", &[3]).await else {
-        return;
-    };
-    let db = &handshake.league.db;
-
-    decline_to_raise(
-        handshake.rfa_resolution.id,
-        handshake.league.team_id,
-        central("2025-09-11T12:00:00"),
-        db,
-    )
-    .await
-    .expect("stand pat");
-
-    assert!(
-        match_or_decline(
-            handshake.rfa_resolution.id,
-            handshake.owner_team_id,
-            RfaMatchDecision::Match,
-            central("2025-09-11T13:00:00"),
-            db,
-        )
-        .await
-        .is_err(),
-        "the match window is shut until the pick selection settles"
-    );
-}
-
 /// The winner's picks for the season, best round first.
 async fn winner_pick_ids(handshake: &RfaHandshake) -> Vec<i64> {
     draft_pick_queries::get_draft_picks_for_league_season(
@@ -1126,180 +926,12 @@ async fn winner_pick_ids(handshake: &RfaHandshake) -> Vec<i64> {
     .collect()
 }
 
-#[tokio::test]
-async fn only_the_winner_may_name_a_pick_and_only_an_eligible_one() {
-    // $19 needs a 3rd-rounder or better, so the winner's 5th cannot be named.
-    let Some(handshake) = closed_rfa_auction("rfa_state_pick_guards", &[3, 5]).await else {
-        return;
-    };
-    let db = &handshake.league.db;
-    let rfa_resolution_id = handshake.rfa_resolution.id;
-    let now = central("2025-09-11T13:00:00");
-    decline_to_raise(
-        rfa_resolution_id,
-        handshake.league.team_id,
-        central("2025-09-11T12:00:00"),
-        db,
-    )
-    .await
-    .expect("stand pat");
-    let pick_ids = winner_pick_ids(&handshake).await;
-    let (third_round_pick_id, fifth_round_pick_id) = (pick_ids[0], pick_ids[1]);
-
-    assert!(
-        select_compensation_pick(
-            rfa_resolution_id,
-            handshake.league.team_id,
-            fifth_round_pick_id,
-            now,
-            db
-        )
-        .await
-        .is_err(),
-        "a fifth-rounder cannot settle a $19 bid"
-    );
-    assert!(
-        select_compensation_pick(
-            rfa_resolution_id,
-            handshake.owner_team_id,
-            third_round_pick_id,
-            now,
-            db
-        )
-        .await
-        .is_err(),
-        "only the winning bidder names the pick"
-    );
-}
-
-#[tokio::test]
-async fn the_winner_names_a_pick_and_declining_moves_it() {
-    let Some(handshake) = closed_rfa_auction("rfa_state_pick_choice", &[3, 5]).await else {
-        return;
-    };
-    let db = &handshake.league.db;
-    let rfa_resolution_id = handshake.rfa_resolution.id;
-    let winning_team_id = handshake.league.team_id;
-    let now = central("2025-09-11T13:00:00");
-
-    decline_to_raise(
-        rfa_resolution_id,
-        winning_team_id,
-        central("2025-09-11T12:00:00"),
-        db,
-    )
-    .await
-    .expect("stand pat");
-    let third_round_pick_id = winner_pick_ids(&handshake).await[0];
-
-    let selected = select_compensation_pick(
-        rfa_resolution_id,
-        winning_team_id,
-        third_round_pick_id,
-        now,
-        db,
-    )
-    .await
-    .expect("name the third-rounder");
-    assert_eq!(selected.status, RfaResolutionStatus::AwaitingMatch);
-    assert_eq!(
-        selected.match_deadline_at,
-        Some(central("2025-09-13T13:00:00")),
-        "48 hours from the moment the pick was named"
-    );
-
-    let compensation =
-        rfa_resolution_queries::find_rfa_compensation_pick_for_resolution(rfa_resolution_id, db)
-            .await
-            .expect("read the compensation row")
-            .expect("naming a pick writes the row");
-    assert_eq!(compensation.required_round, 3);
-    assert_eq!(
-        compensation.forfeited_draft_pick_id,
-        Some(third_round_pick_id)
-    );
-    assert_eq!(
-        draft_pick_queries::find_draft_pick_by_id(third_round_pick_id, db)
-            .await
-            .expect("re-read the named pick")
-            .current_owner_team_id,
-        winning_team_id,
-        "the pick only moves once the original owner declines"
-    );
-
-    match_or_decline(
-        rfa_resolution_id,
-        handshake.owner_team_id,
-        RfaMatchDecision::Decline,
-        central("2025-09-13T12:00:00"),
-        db,
-    )
-    .await
-    .expect("decline to match");
-    assert_eq!(
-        draft_pick_queries::find_draft_pick_by_id(third_round_pick_id, db)
-            .await
-            .expect("re-read the forfeited pick")
-            .current_owner_team_id,
-        handshake.owner_team_id,
-        "declining hands over the pick the winner named"
-    );
-}
-
-#[tokio::test]
-async fn a_selection_timeout_forfeits_the_pick_latest_in_draft_order() {
-    // A 2nd and a 3rd both settle the $19 tier, so draft order, not round number, picks the loss.
-    let Some(handshake) = closed_rfa_auction("rfa_state_pick_timeout_order", &[2, 3]).await else {
-        return;
-    };
-    let db = &handshake.league.db;
-    let rfa_resolution_id = handshake.rfa_resolution.id;
-
-    let season_picks = draft_pick_queries::get_draft_picks_for_league_season(
-        handshake.league.league_id,
-        END_OF_SEASON_YEAR,
-        db,
-    )
-    .await
-    .expect("read the winner's picks");
-    assert_eq!(season_picks.len(), 2);
-    // The slate drafts the third-rounder first, which leaves the second-rounder as the last slot.
-    rookie_draft_selection_queries::build_draft_slate(
-        handshake.league.league_id,
-        END_OF_SEASON_YEAR,
-        vec![season_picks[1].id, season_picks[0].id],
-        db,
-    )
-    .await
-    .expect("build the rookie draft slate");
-
-    decline_to_raise(
-        rfa_resolution_id,
-        handshake.league.team_id,
-        central("2025-09-11T12:00:00"),
-        db,
-    )
-    .await
-    .expect("stand pat");
-    auto_select_compensation_pick(&handshake, central("2025-09-12T12:00:00")).await;
-
-    let compensation =
-        rfa_resolution_queries::find_rfa_compensation_pick_for_resolution(rfa_resolution_id, db)
-            .await
-            .expect("read the compensation row")
-            .expect("a timeout names a pick anyway");
-    assert_eq!(
-        compensation.forfeited_draft_pick_id,
-        Some(season_picks[0].id),
-        "the pick that drafts last costs the winner least, even though its round is better"
-    );
-}
-
-/// A second RFA in the same league, closed with the same winner as `handshake`.
-async fn second_closed_rfa_auction(handshake: &RfaHandshake, bidder_user_id: i64) -> RfaResolution {
+/// A second designated RFA in the same league, with its auction open. Returns the auction and the
+/// contract its resolution hangs off.
+async fn second_rfa_auction(handshake: &RfaHandshake, player_name: &str) -> (i64, i64) {
     let league = &handshake.league;
     let db = &league.db;
-    let second_player_id = league.add_veteran_player("Second Restricted Vet").await;
+    let second_player_id = league.add_veteran_player(player_name).await;
     let second_rfa_contract = league
         .add_owned_contract(
             second_player_id,
@@ -1322,24 +954,371 @@ async fn second_closed_rfa_auction(handshake: &RfaHandshake, bidder_user_id: i64
     )
     .await
     .expect("start the second RFA auction");
-    place_auction_bid(
-        second_auction.id,
-        bidder_user_id,
+
+    (second_auction.id, second_rfa_contract.id)
+}
+
+/// Rules §15.3.3: nobody may bid into a compensation tier he could not pay.
+#[tokio::test]
+async fn a_bid_owing_a_pick_the_bidder_lacks_is_rejected() {
+    // A round 5 pick settles bids up to $11; $19 owes a third-rounder (rules §15.2.1).
+    let Some(handshake) = seeded_rfa_auction("rfa_state_bid_unpayable", &[5], false).await else {
+        return;
+    };
+    let db = &handshake.league.db;
+    let bidder = handshake.league.add_team_user(LeagueRole::TeamOwner).await;
+    let fifth_round_pick_id = winner_pick_ids(&handshake).await[0];
+    let bid_at = central("2025-09-10T18:00:00");
+
+    let rejection = place_auction_bid(
+        handshake.auction_id,
+        bidder.id,
         WINNING_BID,
+        None,
+        None,
+        bid_at,
+        db,
+    )
+    .await
+    .expect_err("a bid on a restricted free agent has to name a pick");
+    assert!(
+        matches!(
+            rejection.downcast_ref::<BidRejection>(),
+            Some(BidRejection::MissingCompensationPick {
+                required_round: 3,
+                ..
+            })
+        ),
+        "unexpected rejection: {rejection}"
+    );
+
+    let rejection = place_auction_bid(
+        handshake.auction_id,
+        bidder.id,
+        WINNING_BID,
+        Some(fifth_round_pick_id),
+        None,
+        bid_at,
+        db,
+    )
+    .await
+    .expect_err("a fifth-rounder cannot settle a $19 bid");
+    assert!(
+        matches!(
+            rejection.downcast_ref::<BidRejection>(),
+            Some(BidRejection::IneligibleCompensationPick { .. })
+        ),
+        "unexpected rejection: {rejection}"
+    );
+
+    place_auction_bid(
+        handshake.auction_id,
+        bidder.id,
+        11,
+        Some(fifth_round_pick_id),
+        None,
+        bid_at,
+        db,
+    )
+    .await
+    .expect("$11 stays in the fifth-round tier");
+}
+
+#[tokio::test]
+async fn a_bid_records_the_pick_it_would_forfeit() {
+    let Some(handshake) = closed_rfa_auction("rfa_state_bid_payable", &[3]).await else {
+        return;
+    };
+
+    let compensation = rfa_resolution_queries::find_rfa_compensation_pick_for_resolution(
+        handshake.rfa_resolution.id,
+        &handshake.league.db,
+    )
+    .await
+    .expect("read the compensation row")
+    .expect("a bid on a restricted free agent names a pick");
+
+    assert_eq!(compensation.required_round, 3);
+    assert_eq!(
+        compensation.forfeited_draft_pick_id,
+        handshake
+            .named_pick_id
+            .expect("the winning bid named a pick")
+    );
+    assert_eq!(compensation.from_team_id, handshake.league.team_id);
+    assert_eq!(compensation.to_team_id, handshake.owner_team_id);
+}
+
+/// Two live RFA debts need two picks: one third-rounder cannot be named twice (rules §15.3.3).
+#[tokio::test]
+async fn two_live_rfa_bids_cannot_lean_on_the_same_pick() {
+    let Some(handshake) = seeded_rfa_auction("rfa_state_bid_two_debts", &[3], false).await else {
+        return;
+    };
+    let league = &handshake.league;
+    let db = &league.db;
+    let second_auction_id = second_rfa_auction(&handshake, "Second Restricted Vet")
+        .await
+        .0;
+    let third_round_pick_id = winner_pick_ids(&handshake).await[0];
+
+    let bidder = league.add_team_user(LeagueRole::TeamOwner).await;
+    place_auction_bid(
+        handshake.auction_id,
+        bidder.id,
+        WINNING_BID,
+        Some(third_round_pick_id),
+        None,
+        central("2025-09-10T18:00:00"),
+        db,
+    )
+    .await
+    .expect("the only third-rounder covers the first bid");
+
+    for (bid_amount, reason) in [
+        (
+            WINNING_BID,
+            "the same pick cannot back a second third-round debt",
+        ),
+        (11, "even the mildest tier needs a pick of its own"),
+    ] {
+        let rejection = place_auction_bid(
+            second_auction_id,
+            bidder.id,
+            bid_amount,
+            Some(third_round_pick_id),
+            None,
+            central("2025-09-10T19:00:00"),
+            db,
+        )
+        .await
+        .expect_err(reason);
+        assert!(
+            matches!(
+                rejection.downcast_ref::<BidRejection>(),
+                Some(BidRejection::IneligibleCompensationPick { .. })
+            ),
+            "unexpected rejection: {rejection}"
+        );
+    }
+
+    let fifth_round_pick = league.add_draft_pick(5, league.team_id).await;
+    place_auction_bid(
+        second_auction_id,
+        bidder.id,
+        11,
+        Some(fifth_round_pick.id),
         None,
         central("2025-09-10T19:00:00"),
         db,
     )
     .await
-    .expect("two picks cover two third-round debts");
-    end_veteran_auction(second_auction.id, None, db)
-        .await
-        .expect("close the second RFA auction");
+    .expect("a second pick settles the second debt");
+}
 
-    rfa_resolution_queries::find_rfa_resolution_for_contract(second_rfa_contract.id, db)
+/// Being outbid is what frees a named pick, so the losing bidder may name it somewhere else.
+#[tokio::test]
+async fn being_outbid_frees_the_pick_the_bid_named() {
+    let Some(handshake) = seeded_rfa_auction("rfa_state_outbid_frees_pick", &[3], false).await
+    else {
+        return;
+    };
+    let league = &handshake.league;
+    let db = &league.db;
+    let second_auction_id = second_rfa_auction(&handshake, "Second Restricted Vet")
         .await
-        .expect("read the second resolution")
-        .expect("the keeper deadline seeds one")
+        .0;
+    let third_round_pick_id = winner_pick_ids(&handshake).await[0];
+
+    let first_bidder = league.add_team_user(LeagueRole::TeamOwner).await;
+    place_auction_bid(
+        handshake.auction_id,
+        first_bidder.id,
+        WINNING_BID,
+        Some(third_round_pick_id),
+        None,
+        central("2025-09-10T18:00:00"),
+        db,
+    )
+    .await
+    .expect("the third-rounder backs the first bid");
+
+    let outbidding_team_id = league.add_team("Outbidding team").await;
+    let outbidding_pick = league.add_draft_pick(3, outbidding_team_id).await;
+    let outbidder = league
+        .add_team_user_for_team(outbidding_team_id, LeagueRole::TeamOwner)
+        .await;
+    place_auction_bid(
+        handshake.auction_id,
+        outbidder.id,
+        WINNING_BID + 1,
+        Some(outbidding_pick.id),
+        None,
+        central("2025-09-10T19:00:00"),
+        db,
+    )
+    .await
+    .expect("outbid the first team");
+
+    place_auction_bid(
+        second_auction_id,
+        first_bidder.id,
+        WINNING_BID,
+        Some(third_round_pick_id),
+        None,
+        central("2025-09-10T20:00:00"),
+        db,
+    )
+    .await
+    .expect("losing the first auction frees the pick it named");
+}
+
+#[tokio::test]
+async fn standing_pat_opens_the_original_owners_window() {
+    let Some(handshake) = closed_rfa_auction("rfa_state_stand_pat", &[3]).await else {
+        return;
+    };
+
+    let settled = decline_to_raise(
+        handshake.rfa_resolution.id,
+        handshake.league.team_id,
+        central("2025-09-11T12:00:00"),
+        &handshake.league.db,
+    )
+    .await
+    .expect("stand pat");
+
+    assert_eq!(settled.status, RfaResolutionStatus::AwaitingMatch);
+    assert_eq!(settled.raised_bid, None);
+    assert_eq!(
+        settled.match_deadline_at,
+        Some(central("2025-09-13T12:00:00")),
+        "48 hours from the moment the raise window settled"
+    );
+}
+
+#[tokio::test]
+async fn the_original_owner_cannot_act_while_the_raise_window_is_open() {
+    let Some(handshake) = closed_rfa_auction("rfa_state_match_too_early", &[3]).await else {
+        return;
+    };
+
+    assert!(
+        match_or_decline(
+            handshake.rfa_resolution.id,
+            handshake.owner_team_id,
+            RfaMatchDecision::Match,
+            central("2025-09-11T13:00:00"),
+            &handshake.league.db,
+        )
+        .await
+        .is_err(),
+        "the match window is shut until the raise window settles"
+    );
+}
+
+#[tokio::test]
+async fn only_the_leading_bidder_may_swap_the_named_pick_and_only_for_an_eligible_one() {
+    // $19 needs a 3rd-rounder or better, so the winner's 5th cannot replace it.
+    let Some(handshake) = closed_rfa_auction("rfa_state_swap_guards", &[3, 5]).await else {
+        return;
+    };
+    let db = &handshake.league.db;
+    let rfa_resolution_id = handshake.rfa_resolution.id;
+    let pick_ids = winner_pick_ids(&handshake).await;
+    let (third_round_pick_id, fifth_round_pick_id) = (pick_ids[0], pick_ids[1]);
+    assert_eq!(handshake.named_pick_id, Some(third_round_pick_id));
+
+    assert!(
+        change_compensation_pick(
+            rfa_resolution_id,
+            handshake.league.team_id,
+            fifth_round_pick_id,
+            db
+        )
+        .await
+        .is_err(),
+        "a fifth-rounder cannot settle a $19 bid"
+    );
+    assert!(
+        change_compensation_pick(
+            rfa_resolution_id,
+            handshake.owner_team_id,
+            third_round_pick_id,
+            db
+        )
+        .await
+        .is_err(),
+        "only the leading bidder names the pick"
+    );
+
+    decline_to_raise(
+        rfa_resolution_id,
+        handshake.league.team_id,
+        central("2025-09-11T12:00:00"),
+        db,
+    )
+    .await
+    .expect("stand pat");
+    assert!(
+        change_compensation_pick(
+            rfa_resolution_id,
+            handshake.league.team_id,
+            third_round_pick_id,
+            db
+        )
+        .await
+        .is_err(),
+        "the choice is fixed once the original owner's window opens"
+    );
+}
+
+#[tokio::test]
+async fn swapping_the_named_pick_changes_what_a_decline_forfeits() {
+    let Some(handshake) = closed_rfa_auction("rfa_state_swap_then_decline", &[2, 3]).await else {
+        return;
+    };
+    let db = &handshake.league.db;
+    let rfa_resolution_id = handshake.rfa_resolution.id;
+    let winning_team_id = handshake.league.team_id;
+    let second_round_pick_id = winner_pick_ids(&handshake).await[0];
+
+    let swapped =
+        change_compensation_pick(rfa_resolution_id, winning_team_id, second_round_pick_id, db)
+            .await
+            .expect("swap the third-rounder for the second-rounder");
+    assert_eq!(swapped.forfeited_draft_pick_id, second_round_pick_id);
+    assert_eq!(
+        swapped.required_round, 3,
+        "the tier still comes from the bid, not from the pick that pays it"
+    );
+
+    decline_to_raise(
+        rfa_resolution_id,
+        winning_team_id,
+        central("2025-09-11T12:00:00"),
+        db,
+    )
+    .await
+    .expect("stand pat");
+    match_or_decline(
+        rfa_resolution_id,
+        handshake.owner_team_id,
+        RfaMatchDecision::Decline,
+        central("2025-09-13T12:00:00"),
+        db,
+    )
+    .await
+    .expect("decline to match");
+
+    assert_eq!(
+        draft_pick_queries::find_draft_pick_by_id(second_round_pick_id, db)
+            .await
+            .expect("re-read the forfeited pick")
+            .current_owner_team_id,
+        handshake.owner_team_id,
+        "declining hands over the pick the winner swapped to"
+    );
 }
 
 /// One pick cannot settle two debts, so naming it for one handshake takes it out of the other's
@@ -1352,59 +1331,61 @@ async fn a_pick_named_for_one_handshake_cannot_be_named_for_another() {
     };
     let db = &handshake.league.db;
     let winning_team_id = handshake.league.team_id;
+    let pick_ids = winner_pick_ids(&handshake).await;
+    let (second_round_pick_id, third_round_pick_id) = (pick_ids[0], pick_ids[1]);
+
     let bidder = handshake.league.add_team_user(LeagueRole::TeamOwner).await;
     place_auction_bid(
         handshake.auction_id,
         bidder.id,
         WINNING_BID,
+        Some(third_round_pick_id),
         None,
         central("2025-09-10T18:00:00"),
         db,
     )
     .await
-    .expect("the second-rounder covers the first bid");
-    end_veteran_auction(handshake.auction_id, None, db)
-        .await
-        .expect("close the first RFA auction");
-    let second_resolution = second_closed_rfa_auction(&handshake, bidder.id).await;
-    let pick_ids = winner_pick_ids(&handshake).await;
-    let (second_round_pick_id, third_round_pick_id) = (pick_ids[0], pick_ids[1]);
-    let now = central("2025-09-11T13:00:00");
+    .expect("the third-rounder covers the first bid");
 
-    for rfa_resolution_id in [handshake.rfa_resolution.id, second_resolution.id] {
-        decline_to_raise(rfa_resolution_id, winning_team_id, now, db)
-            .await
-            .expect("stand pat");
-    }
-    select_compensation_pick(
-        handshake.rfa_resolution.id,
-        winning_team_id,
-        second_round_pick_id,
-        now,
+    let (second_auction_id, second_rfa_contract_id) =
+        second_rfa_auction(&handshake, "Second Restricted Vet").await;
+    place_auction_bid(
+        second_auction_id,
+        bidder.id,
+        WINNING_BID,
+        Some(second_round_pick_id),
+        None,
+        central("2025-09-10T19:00:00"),
         db,
     )
     .await
-    .expect("name the second-rounder for the first handshake");
+    .expect("two picks cover two third-round debts");
+    let second_resolution =
+        rfa_resolution_queries::find_rfa_resolution_for_contract(second_rfa_contract_id, db)
+            .await
+            .expect("read the second resolution")
+            .expect("the keeper deadline seeds one");
 
     assert!(
-        select_compensation_pick(
+        change_compensation_pick(
             second_resolution.id,
             winning_team_id,
-            second_round_pick_id,
-            now,
+            third_round_pick_id,
             db
         )
         .await
         .is_err(),
-        "the second-rounder is already promised to the first handshake"
+        "the third-rounder is already named on the first handshake"
     );
-    select_compensation_pick(
-        second_resolution.id,
-        winning_team_id,
-        third_round_pick_id,
-        now,
-        db,
-    )
-    .await
-    .expect("the second debt gets a pick of its own");
+    assert!(
+        change_compensation_pick(
+            handshake.rfa_resolution.id,
+            winning_team_id,
+            second_round_pick_id,
+            db
+        )
+        .await
+        .is_err(),
+        "and the second-rounder is already named on the second"
+    );
 }

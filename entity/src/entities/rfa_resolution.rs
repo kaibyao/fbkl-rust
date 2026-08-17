@@ -1,9 +1,12 @@
 //! The state of one restricted free agent's post-auction handshake (rules §15.3).
 //!
-//! A closed RFA auction signs nobody: the winner has 48h to raise, then 24h to name the pick he
-//! would forfeit, then the keeper-deadline owner has 48h to match at a discount or decline. This row carries that state between the two windows,
+//! A closed RFA auction signs nobody: the winner has 48h to raise, then the keeper-deadline owner
+//! has 48h to match at a discount or decline. This row carries that state between the two windows,
 //! including `original_owner_team_id` — the auction can move the contract's `team_id`, so the
 //! discount right is snapshotted here instead of being re-derived later (§15.4.2).
+//!
+//! The pick a decline would cost is not here: every bid names it as it is placed (§15.3.3), so it
+//! lives in `rfa_compensation_pick` from the first bid onwards.
 //!
 //! The row is written at the keeper deadline, not at auction close, because that is the moment the
 //! original owner is decided. Everything the auction supplies (`auction_id`, `winning_team_id`,
@@ -28,16 +31,14 @@ pub struct Model {
     pub auction_id: Option<i64>,
     pub winning_team_id: Option<i64>,
     pub final_bid: Option<i16>,
-    /// When the winning bid was announced (rules §15.2.2). Picks the winner acquired after it cannot be forfeited.
+    /// When the winning bid was announced (rules §15.2.2).
     pub final_bid_at: Option<DateTimeWithTimeZone>,
     pub status: RfaResolutionStatus,
     /// The winner's optional raise, never below `final_bid` (rules §15.3.2.1).
     pub raised_bid: Option<i16>,
     /// Auction close + 48h. NULL until the auction closes, i.e. while `AwaitingAuction`.
     pub raise_deadline_at: Option<DateTimeWithTimeZone>,
-    /// Set when the raise window resolves; that moment + 24h (rules §15.2.2).
-    pub pick_selection_deadline_at: Option<DateTimeWithTimeZone>,
-    /// Set when the pick selection settles; that moment + 48h.
+    /// Set when the raise window resolves; that moment + 48h.
     pub match_deadline_at: Option<DateTimeWithTimeZone>,
     pub resolved_at: Option<DateTimeWithTimeZone>,
     pub created_at: DateTimeWithTimeZone,
@@ -68,10 +69,7 @@ pub enum RfaResolutionStatus {
     /// Auction closed; the winner's 48h raise window is open.
     #[sea_orm(string_value = "AwaitingRaise")]
     AwaitingRaise,
-    /// Raise window settled; the winner's 24h window to name the pick he would forfeit is open.
-    #[sea_orm(string_value = "AwaitingPickSelection")]
-    AwaitingPickSelection,
-    /// Pick selection settled; the original owner's 48h window is open.
+    /// Raise window settled; the original owner's 48h window is open.
     #[sea_orm(string_value = "AwaitingMatch")]
     AwaitingMatch,
     /// Original owner matched and re-signed the player at the discount.

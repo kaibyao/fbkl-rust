@@ -1,6 +1,6 @@
 //! The restricted free agent handshake (spec 03, rules §15.2, §15.3): the winner's 48-hour raise
-//! period, his 24-hour period to name a compensation pick, then the original owner's 48-hour
-//! match-or-decline period.
+//! period, then the original owner's 48-hour match-or-decline period. The pick a decline would cost
+//! is named by the bid itself, in `auction_resolvers`.
 //!
 //! Every rule lives in `fbkl_logic::deadline_processing`; these resolvers only authorize, fetch and
 //! map. The acting team always comes from the session, so the logic layer's own team checks are
@@ -26,8 +26,8 @@ use fbkl_entity::{
     team_user,
 };
 use fbkl_logic::deadline_processing::{
-    RfaMatchDecision, UnbidRfaDecision, compute_eligible_compensation_picks, decline_to_raise,
-    match_or_decline, raise_bid, resolve_unbid_rfa, select_compensation_pick,
+    RfaMatchDecision, UnbidRfaDecision, change_compensation_pick, decline_to_raise,
+    eligible_compensation_picks, match_or_decline, raise_bid, resolve_unbid_rfa,
 };
 
 use crate::graphql::{
@@ -57,9 +57,7 @@ pub struct RfaResolution {
     pub final_bid_at: Option<String>,
     /// Auction close + 48h; the countdown for the winner.
     pub raise_deadline_at: Option<String>,
-    /// Raise settled + 24h; the winner's countdown to name the pick he would forfeit (rules §15.2.2).
-    pub pick_selection_deadline_at: Option<String>,
-    /// Pick selection settled + 48h; the countdown for the original owner.
+    /// Raise settled + 48h; the countdown for the original owner.
     pub match_deadline_at: Option<String>,
     pub resolved_at: Option<String>,
     #[graphql(skip)]
@@ -82,7 +80,6 @@ impl RfaResolution {
             compensation_round: model.effective_bid().map(compensation_round_for_bid),
             final_bid_at: model.final_bid_at.map(|at| at.to_rfc3339()),
             raise_deadline_at: model.raise_deadline_at.map(|at| at.to_rfc3339()),
-            pick_selection_deadline_at: model.pick_selection_deadline_at.map(|at| at.to_rfc3339()),
             match_deadline_at: model.match_deadline_at.map(|at| at.to_rfc3339()),
             resolved_at: model.resolved_at.map(|at| at.to_rfc3339()),
             model: model.clone(),
@@ -122,30 +119,36 @@ impl RfaResolution {
         Ok(resigned_contract.salary.try_as_ref().copied())
     }
 
-    /// The picks the winner may forfeit on a decline, best round first (rules §15.2).
+    /// The picks the winner may swap his named one for, best round first (rules §15.2.2).
     ///
-    /// Empty until the auction closes, and once the handshake is over.
-    async fn eligible_compensation_picks(&self, ctx: &Context<'_>) -> Result<Vec<DraftPick>> {
+    /// Only the raise period can still take a swap, so the set is empty outside it.
+    async fn swappable_compensation_picks(&self, ctx: &Context<'_>) -> Result<Vec<DraftPick>> {
         let db = ctx.data_unchecked::<DatabaseConnection>();
 
-        if !matches!(
+        let (RfaResolutionStatus::AwaitingRaise, Some(winning_team_id), Some(effective_bid)) = (
             self.model.status,
-            RfaResolutionStatus::AwaitingRaise
-                | RfaResolutionStatus::AwaitingPickSelection
-                | RfaResolutionStatus::AwaitingMatch
-        ) {
+            self.model.winning_team_id,
+            self.model.effective_bid(),
+        ) else {
             return Ok(vec![]);
-        }
+        };
 
-        let draft_picks = compute_eligible_compensation_picks(&self.model, db)
-            .await
-            .map_err(|err| internal("failed to compute the eligible compensation picks", &err))?;
+        let draft_picks = eligible_compensation_picks(
+            self.model.league_id,
+            self.model.end_of_season_year,
+            winning_team_id,
+            compensation_round_for_bid(effective_bid),
+            self.model.id,
+            db,
+        )
+        .await
+        .map_err(|err| internal("failed to compute the eligible compensation picks", &err))?;
 
         Ok(draft_picks.iter().map(DraftPick::from_model).collect())
     }
 
-    /// The pick the winner named as compensation, once he has named one. Null before that, and it
-    /// only changes hands if the original owner declines.
+    /// The pick the leading bid named as compensation. It only changes hands if the original owner
+    /// declines, and it is null until somebody bids.
     async fn compensation_pick(&self, ctx: &Context<'_>) -> Result<Option<RfaCompensationPick>> {
         let db = ctx.data_unchecked::<DatabaseConnection>();
 
@@ -163,7 +166,7 @@ pub struct RfaCompensationPick {
     pub id: i64,
     pub rfa_resolution_id: i64,
     pub required_round: i16,
-    pub forfeited_draft_pick_id: Option<i64>,
+    pub forfeited_draft_pick_id: i64,
     /// The original owner, which receives the pick.
     pub to_team_id: i64,
     /// The winning bidder, which gives up the pick.
@@ -240,13 +243,15 @@ pub struct RfaMutation;
 #[Object]
 impl RfaMutation {
     /// The winning bidder raises its own bid once, which opens the original owner's period
-    /// straight away (rules §15.3.2.1).
+    /// straight away (rules §15.3.2.1). The higher price may owe a better pick, so the raise names
+    /// the pick it would forfeit (rules §15.3.3).
     #[graphql(guard = "LeagueRoleGuard(RoleRequirement::Member)")]
     async fn raise_rfa_bid(
         &self,
         ctx: &Context<'_>,
         rfa_resolution_id: i64,
         bid_amount: i16,
+        compensation_draft_pick_id: i64,
     ) -> Result<RfaResolution> {
         let db = ctx.data_unchecked::<DatabaseConnection>();
         let team_user = load_acting_team_user(ctx, rfa_resolution_id).await?;
@@ -255,6 +260,7 @@ impl RfaMutation {
             rfa_resolution_id,
             team_user.team_id,
             bid_amount,
+            compensation_draft_pick_id,
             Utc::now().into(),
             db,
         )
@@ -282,29 +288,24 @@ impl RfaMutation {
         Ok(RfaResolution::from_model(&settled))
     }
 
-    /// The winning bidder names the pick it would forfeit, which opens the original owner's period
-    /// straight away instead of waiting the full 24 hours out (rules §15.2.2).
+    /// The leading bidder swaps the pick it named at bid time for another that settles the same
+    /// tier (rules §15.2.2). Refused once the original owner's period opens.
     #[graphql(guard = "LeagueRoleGuard(RoleRequirement::Member)")]
-    async fn select_rfa_compensation_pick(
+    async fn change_rfa_compensation_pick(
         &self,
         ctx: &Context<'_>,
         rfa_resolution_id: i64,
         draft_pick_id: i64,
-    ) -> Result<RfaResolution> {
+    ) -> Result<RfaCompensationPick> {
         let db = ctx.data_unchecked::<DatabaseConnection>();
         let team_user = load_acting_team_user(ctx, rfa_resolution_id).await?;
 
-        let selected = select_compensation_pick(
-            rfa_resolution_id,
-            team_user.team_id,
-            draft_pick_id,
-            Utc::now().into(),
-            db,
-        )
-        .await
-        .map_err(|err| refused("failed to name the RFA compensation pick", &err))?;
+        let named =
+            change_compensation_pick(rfa_resolution_id, team_user.team_id, draft_pick_id, db)
+                .await
+                .map_err(|err| refused("failed to name the RFA compensation pick", &err))?;
 
-        Ok(RfaResolution::from_model(&selected))
+        Ok(RfaCompensationPick::from_model(&named))
     }
 
     /// The original owner matches the effective bid and re-signs the player at its discount
@@ -327,8 +328,8 @@ impl RfaMutation {
         Ok(RfaResolution::from_model(&matched))
     }
 
-    /// The original owner declines: the winner signs the player and forfeits the pick he named in
-    /// the selection period (rules §15.2).
+    /// The original owner declines: the winner signs the player and forfeits the pick his bid
+    /// named (rules §15.2).
     #[graphql(guard = "LeagueRoleGuard(RoleRequirement::Member)")]
     async fn decline_rfa(
         &self,
@@ -456,7 +457,6 @@ mod tests {
             status: RfaResolutionStatus::AwaitingMatch,
             raised_bid: Some(30),
             raise_deadline_at: Some(at("2025-09-13T12:00:00-05:00")),
-            pick_selection_deadline_at: Some(at("2025-09-14T12:00:00-05:00")),
             match_deadline_at: Some(at("2025-09-16T12:00:00-05:00")),
             resolved_at: None,
             created_at: at("2025-09-01T12:00:00-05:00"),
@@ -490,10 +490,6 @@ mod tests {
         assert_eq!(
             resolution.raise_deadline_at.as_deref(),
             Some("2025-09-13T12:00:00-05:00")
-        );
-        assert_eq!(
-            resolution.pick_selection_deadline_at.as_deref(),
-            Some("2025-09-14T12:00:00-05:00")
         );
         assert_eq!(
             resolution.match_deadline_at.as_deref(),
