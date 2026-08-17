@@ -349,6 +349,7 @@ fn bid_error(error: &Report) -> GraphQlError {
         BidRejection::BelowIncrement { .. } => ErrorCode::BidBelowIncrement,
         BidRejection::InsufficientCap { .. } => ErrorCode::BidInsufficientCap,
         BidRejection::NoRosterSpace { .. } => ErrorCode::BidNoRosterSpace,
+        BidRejection::MissingCompensationPick { .. } => ErrorCode::BidMissingCompensationPick,
     };
 
     graphql_error(code, rejection.to_string())
@@ -425,6 +426,13 @@ mod tests {
                     roster_limit: 15,
                 },
                 "BID_NO_ROSTER_SPACE",
+            ),
+            (
+                BidRejection::MissingCompensationPick {
+                    bid_amount: 19,
+                    required_round: 3,
+                },
+                "BID_MISSING_COMPENSATION_PICK",
             ),
         ];
 

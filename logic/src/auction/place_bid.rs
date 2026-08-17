@@ -13,6 +13,8 @@ use fbkl_constants::league_rules::PRE_SEASON_CONTRACTS_PER_ROSTER_LIMIT;
 use fbkl_entity::{
     auction::{self, AuctionStatus},
     auction_bid, auction_queries, contract, contract_queries,
+    rfa_resolution::RfaResolutionStatus,
+    rfa_resolution_queries,
     sea_orm::{
         ConnectionTrait, TransactionSession, TransactionTrait, prelude::DateTimeWithTimeZone,
     },
@@ -24,7 +26,10 @@ use super::{
     auction_close_at, auction_quiet_window, fa_auction_week_deadlines, find_auction_mode_deadlines,
     rolled_all_bid_deadline,
 };
-use crate::roster;
+use crate::{
+    deadline_processing::{RfaObligation, find_unpayable_rfa_obligation},
+    roster,
+};
 
 /// Why a bid was refused. Each variant is a distinct user-facing rejection reason.
 #[derive(Debug, thiserror::Error, PartialEq, Eq)]
@@ -60,6 +65,13 @@ pub enum BidRejection {
         "Winning this bid would need {roster_used} roster spots, but the limit is {roster_limit}."
     )]
     NoRosterSpace { roster_used: i32, roster_limit: i16 },
+    #[error(
+        "Bidding ${bid_amount} on a restricted free agent owes a round {required_round} or better draft pick, and you have none spare to forfeit."
+    )]
+    MissingCompensationPick {
+        bid_amount: i16,
+        required_round: i16,
+    },
 }
 
 /// Places a bid on an open auction, rolling its 24h close time forward (§6.4.4 / §8.3.1).
@@ -114,6 +126,13 @@ where
         bidding_team_user.team_id,
         bid_amount,
         now,
+        &db_txn,
+    )
+    .await?;
+    validate_rfa_compensation(
+        &auctioned_contract,
+        bidding_team_user.team_id,
+        bid_amount,
         &db_txn,
     )
     .await?;
@@ -251,6 +270,51 @@ where
     }
 
     Ok(())
+}
+
+/// The rules §15.3.3 check: nobody may bid into a compensation tier he could not pay.
+///
+/// Only an RFA still waiting on its auction owes a pick — a released one (`NoBidToAuction`) is a
+/// plain free agent again, so the gate keys off the resolution's status and not the contract kind.
+/// No winning bid is announced yet, so §15.2.2 excludes nothing and every held pick counts.
+#[instrument(skip(db))]
+async fn validate_rfa_compensation<C>(
+    auctioned_contract: &contract::Model,
+    bidding_team_id: i64,
+    bid_amount: i16,
+    db: &C,
+) -> Result<()>
+where
+    C: ConnectionTrait,
+{
+    let Some(rfa_resolution_model) =
+        rfa_resolution_queries::find_rfa_resolution_for_contract(auctioned_contract.id, db).await?
+    else {
+        return Ok(());
+    };
+    if rfa_resolution_model.status != RfaResolutionStatus::AwaitingAuction {
+        return Ok(());
+    }
+
+    let maybe_required_round = find_unpayable_rfa_obligation(
+        auctioned_contract.league_id,
+        auctioned_contract.end_of_season_year,
+        bidding_team_id,
+        RfaObligation {
+            rfa_resolution_id: rfa_resolution_model.id,
+            bid_amount,
+            announced_at: None,
+        },
+        db,
+    )
+    .await?;
+    maybe_required_round.map_or(Ok(()), |required_round| {
+        Err(BidRejection::MissingCompensationPick {
+            bid_amount,
+            required_round,
+        }
+        .into())
+    })
 }
 
 /// Salary the bidder would be committed to if this bid wins. Re-bidding on an auction the team

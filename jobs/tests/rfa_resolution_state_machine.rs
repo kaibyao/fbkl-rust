@@ -841,3 +841,166 @@ async fn a_released_rfa_re_signs_as_a_plain_veteran_to_any_bidder() {
         "the new auction writes no RFA resolution of its own"
     );
 }
+
+/// Rules §15.3.3: nobody may bid into a compensation tier he could not pay.
+#[tokio::test]
+async fn a_bid_owing_a_pick_the_bidder_lacks_is_rejected() {
+    // A round 5 pick settles bids up to $11; $19 owes a third-rounder (rules §15.2.1).
+    let Some(handshake) = seeded_rfa_auction("rfa_state_bid_unpayable", &[5], false).await else {
+        return;
+    };
+    let db = &handshake.league.db;
+    let bidder = handshake.league.add_team_user(LeagueRole::TeamOwner).await;
+
+    let rejection = place_auction_bid(
+        handshake.auction_id,
+        bidder.id,
+        WINNING_BID,
+        None,
+        central("2025-09-10T18:00:00"),
+        db,
+    )
+    .await
+    .expect_err("a fifth-rounder cannot settle a $19 bid");
+    assert!(
+        matches!(
+            rejection.downcast_ref::<BidRejection>(),
+            Some(BidRejection::MissingCompensationPick {
+                required_round: 3,
+                ..
+            })
+        ),
+        "unexpected rejection: {rejection}"
+    );
+
+    place_auction_bid(
+        handshake.auction_id,
+        bidder.id,
+        11,
+        None,
+        central("2025-09-10T18:00:00"),
+        db,
+    )
+    .await
+    .expect("$11 stays in the fifth-round tier");
+}
+
+#[tokio::test]
+async fn a_bid_the_bidder_can_compensate_for_is_accepted() {
+    let Some(handshake) = seeded_rfa_auction("rfa_state_bid_payable", &[3], false).await else {
+        return;
+    };
+    let bidder = handshake.league.add_team_user(LeagueRole::TeamOwner).await;
+
+    place_auction_bid(
+        handshake.auction_id,
+        bidder.id,
+        WINNING_BID,
+        None,
+        central("2025-09-10T18:00:00"),
+        &handshake.league.db,
+    )
+    .await
+    .expect("a third-rounder settles a $19 bid");
+}
+
+/// Two live RFA debts need two picks: one third-rounder cannot be promised twice (rules §15.3.3).
+#[tokio::test]
+async fn two_live_rfa_bids_cannot_lean_on_the_same_pick() {
+    let Some(handshake) = seeded_rfa_auction("rfa_state_bid_two_debts", &[3], false).await else {
+        return;
+    };
+    let league = &handshake.league;
+    let db = &league.db;
+
+    let second_player_id = league.add_veteran_player("Second Restricted Vet").await;
+    let second_rfa_contract = league
+        .add_owned_contract(
+            second_player_id,
+            ContractKind::RestrictedFreeAgent,
+            RFA_CARRY_SALARY,
+            handshake.owner_team_id,
+        )
+        .await;
+    seed_rfa_resolutions(league.league_id, END_OF_SEASON_YEAR, db)
+        .await
+        .expect("seed the second RFA's resolution");
+    let second_auction = start_new_auction_for_nba_player(
+        &second_rfa_contract,
+        league.league_id,
+        END_OF_SEASON_YEAR,
+        central(AUCTION_START),
+        AuctionKind::PreseasonVeteranAuction,
+        RFA_CARRY_SALARY,
+        db,
+    )
+    .await
+    .expect("start the second RFA auction");
+
+    let bidder = league.add_team_user(LeagueRole::TeamOwner).await;
+    place_auction_bid(
+        handshake.auction_id,
+        bidder.id,
+        WINNING_BID,
+        None,
+        central("2025-09-10T18:00:00"),
+        db,
+    )
+    .await
+    .expect("the only third-rounder covers the first bid");
+
+    let rejection = place_auction_bid(
+        second_auction.id,
+        bidder.id,
+        WINNING_BID,
+        None,
+        central("2025-09-10T19:00:00"),
+        db,
+    )
+    .await
+    .expect_err("the same pick cannot back a second third-round debt");
+    assert!(
+        matches!(
+            rejection.downcast_ref::<BidRejection>(),
+            Some(BidRejection::MissingCompensationPick {
+                required_round: 3,
+                ..
+            })
+        ),
+        "unexpected rejection: {rejection}"
+    );
+
+    // Even the mildest tier needs a pick of its own while the third-rounder backs the first bid.
+    let rejection = place_auction_bid(
+        second_auction.id,
+        bidder.id,
+        11,
+        None,
+        central("2025-09-10T19:00:00"),
+        db,
+    )
+    .await
+    .expect_err("the third-rounder is already promised elsewhere");
+    assert!(
+        matches!(
+            rejection.downcast_ref::<BidRejection>(),
+            Some(BidRejection::MissingCompensationPick {
+                required_round: 5,
+                ..
+            })
+        ),
+        "unexpected rejection: {rejection}"
+    );
+
+    league.add_draft_pick(5, league.team_id).await;
+    place_auction_bid(
+        second_auction.id,
+        bidder.id,
+        11,
+        None,
+        central("2025-09-10T19:00:00"),
+        db,
+    )
+    .await
+    .expect("a second pick settles the second debt");
+}

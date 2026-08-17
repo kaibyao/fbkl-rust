@@ -22,7 +22,7 @@ use fbkl_entity::{
 use tracing::{instrument, warn};
 
 use super::{
-    compute_eligible_compensation_picks,
+    RfaObligation, find_unpayable_rfa_obligation,
     rfa_transaction::{find_rfa_handshake_deadline, insert_rfa_transaction},
 };
 
@@ -115,12 +115,20 @@ where
         "A raise must beat the winning bid of ${final_bid}; ${new_bid} does not."
     );
 
-    let mut raised_rfa_resolution = rfa_resolution_model.clone();
-    raised_rfa_resolution.raised_bid = Some(new_bid);
+    let maybe_unpayable_round = find_unpayable_rfa_obligation(
+        rfa_resolution_model.league_id,
+        rfa_resolution_model.end_of_season_year,
+        raising_team_id,
+        RfaObligation {
+            rfa_resolution_id,
+            bid_amount: new_bid,
+            announced_at: rfa_resolution_model.final_bid_at,
+        },
+        db,
+    )
+    .await?;
     ensure!(
-        !compute_eligible_compensation_picks(&raised_rfa_resolution, db)
-            .await?
-            .is_empty(),
+        maybe_unpayable_round.is_none(),
         "Raising to ${new_bid} would owe a draft pick that team {raising_team_id} cannot forfeit (rules §15.3.3)."
     );
 
