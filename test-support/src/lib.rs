@@ -177,8 +177,17 @@ impl TestLeague {
     /// One member per role: the user's email is derived from the role so a second call with the
     /// same one fails loudly instead of silently seeding a duplicate owner.
     pub async fn add_team_user(&self, league_role: LeagueRole) -> team_user::Model {
+        self.add_team_user_for_team(self.team_id, league_role).await
+    }
+
+    /// [`Self::add_team_user`] for one of the extra teams [`Self::add_team`] made.
+    pub async fn add_team_user_for_team(
+        &self,
+        team_id: i64,
+        league_role: LeagueRole,
+    ) -> team_user::Model {
         let user_id = user::Entity::insert(user::ActiveModel {
-            email: ActiveValue::Set(format!("{league_role:?}-{}@example.com", self.team_id)),
+            email: ActiveValue::Set(format!("{league_role:?}-{team_id}@example.com")),
             hashed_password: ActiveValue::Set("not-a-real-hash".to_owned()),
             ..Default::default()
         })
@@ -191,7 +200,7 @@ impl TestLeague {
             league_role: ActiveValue::Set(league_role),
             nickname: ActiveValue::Set(format!("Test {league_role:?}")),
             first_end_of_season_year: ActiveValue::Set(self.end_of_season_year),
-            team_id: ActiveValue::Set(self.team_id),
+            team_id: ActiveValue::Set(team_id),
             user_id: ActiveValue::Set(user_id),
             ..Default::default()
         }

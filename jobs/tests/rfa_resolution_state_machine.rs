@@ -19,7 +19,8 @@ use fbkl_entity::{
 use fbkl_jobs::{TickSummary, run_rfa_window_tick};
 use fbkl_logic::{
     auction::{
-        BidRejection, end_veteran_auction, place_auction_bid, start_new_auction_for_nba_player,
+        BidRejection, end_veteran_auction, get_or_create_player_contract_for_veteran_auction,
+        place_auction_bid, start_new_auction_for_nba_player,
     },
     deadline_processing::{
         RfaMatchDecision, UnbidRfaDecision, decline_to_raise, match_or_decline, raise_bid,
@@ -37,6 +38,7 @@ struct RfaHandshake {
     league: TestLeague,
     rfa_resolution: RfaResolution,
     owner_team_id: i64,
+    rfa_player_id: i64,
     auction_id: i64,
 }
 
@@ -123,6 +125,7 @@ async fn seeded_rfa_auction(
         league,
         rfa_resolution,
         owner_team_id,
+        rfa_player_id,
         auction_id: auction.id,
     })
 }
@@ -452,6 +455,14 @@ async fn an_unbid_rfa_never_enters_the_raise_window() {
     assert_eq!(signed_contract.year_number, 4);
     // Nobody bid, so the 10% discount comes off the carry salary with no floor (rules §15.3.5).
     assert_eq!(signed_contract.salary, 6, "$7 carry, $1 discount");
+    assert_eq!(
+        auction_queries::find_auction_by_id(handshake.auction_id, &handshake.league.db)
+            .await
+            .expect("re-read the RFA-week auction")
+            .status,
+        AuctionStatus::Completed,
+        "the re-sign settles the auction the unbid RFA left Closed"
+    );
 }
 
 #[tokio::test]
@@ -702,19 +713,28 @@ async fn an_unbid_rfa_can_be_released_to_the_free_agent_auction() {
     assert_eq!(released.status, RfaResolutionStatus::NoBidToAuction);
     assert!(released.resolved_at.is_some());
 
-    let owner_contracts =
+    assert!(
         contract_queries::find_active_contracts_for_team(handshake.owner_team_id, db)
             .await
-            .expect("read the owner's roster");
-    assert_eq!(
-        owner_contracts.len(),
-        1,
-        "the player is still restricted, so nothing was re-signed"
+            .expect("read the owner's roster")
+            .is_empty(),
+        "releasing the player takes him off the owner's roster"
     );
+    let released_contract =
+        contract_queries::find_contract_by_id(handshake.rfa_resolution.rfa_contract_id, db)
+            .await
+            .expect("read the designated RFA contract")
+            .get_latest_in_chain(db)
+            .await
+            .expect("read the end of the contract chain");
+    assert_eq!(released_contract.status, ContractStatus::Expired);
     assert_eq!(
-        owner_contracts[0].kind,
-        ContractKind::RestrictedFreeAgent,
-        "the released contract goes to the free agent auction as it stands"
+        auction_queries::find_auction_by_id(handshake.auction_id, db)
+            .await
+            .expect("re-read the RFA-week auction")
+            .status,
+        AuctionStatus::Expired,
+        "the release settles the auction the unbid RFA left Closed"
     );
 
     assert!(
@@ -728,5 +748,96 @@ async fn an_unbid_rfa_can_be_released_to_the_free_agent_auction() {
         .await
         .is_err(),
         "a settled resolution cannot be settled twice"
+    );
+}
+
+/// Rules §15.3.5: a released RFA "is now on a new veteran contract, regardless of which owner
+/// wins", so his old team may bid and wins him at the bid with no discount.
+#[tokio::test]
+async fn a_released_rfa_re_signs_as_a_plain_veteran_to_any_bidder() {
+    let Some(handshake) = seeded_rfa_auction("rfa_state_released_reauction", &[], false).await
+    else {
+        return;
+    };
+    let league = &handshake.league;
+    let db = &league.db;
+    end_veteran_auction(handshake.auction_id, None, db)
+        .await
+        .expect("close the unbid RFA auction");
+    resolve_unbid_rfa(
+        handshake.rfa_resolution.id,
+        handshake.owner_team_id,
+        UnbidRfaDecision::ReleaseToAuction,
+        central("2025-09-13T12:00:00"),
+        db,
+    )
+    .await
+    .expect("release the unbid RFA");
+
+    let pooled_contract = get_or_create_player_contract_for_veteran_auction(
+        league.league_id,
+        END_OF_SEASON_YEAR,
+        handshake.rfa_player_id,
+        db,
+    )
+    .await
+    .expect("pool the released player again");
+    assert_eq!(
+        pooled_contract.kind,
+        ContractKind::FreeAgent,
+        "the release leaves nothing restricted behind"
+    );
+    let new_auction = start_new_auction_for_nba_player(
+        &pooled_contract,
+        league.league_id,
+        END_OF_SEASON_YEAR,
+        central("2025-09-14T12:00:00"),
+        AuctionKind::PreseasonVeteranAuction,
+        1,
+        db,
+    )
+    .await
+    .expect("start the released player's new auction");
+
+    let former_owner = league
+        .add_team_user_for_team(handshake.owner_team_id, LeagueRole::TeamOwner)
+        .await;
+    place_auction_bid(
+        new_auction.id,
+        former_owner.id,
+        12,
+        None,
+        central("2025-09-14T13:00:00"),
+        db,
+    )
+    .await
+    .expect("the team that let him go may bid on him again");
+    end_veteran_auction(new_auction.id, None, db)
+        .await
+        .expect("close the new auction");
+
+    let signed_contract =
+        contract_queries::find_active_contracts_for_team(handshake.owner_team_id, db)
+            .await
+            .expect("read the winner's roster")
+            .pop()
+            .expect("the winning bidder signs the player");
+    assert_eq!(signed_contract.kind, ContractKind::Veteran);
+    assert_eq!(signed_contract.year_number, 1);
+    assert_eq!(signed_contract.salary, 12, "no discount on a fresh veteran");
+    assert_eq!(
+        auction_queries::find_auction_by_id(new_auction.id, db)
+            .await
+            .expect("re-read the new auction")
+            .status,
+        AuctionStatus::Completed,
+        "the new auction signs on close instead of awaiting an RFA handshake"
+    );
+    assert!(
+        rfa_resolution_queries::find_rfa_resolution_for_contract(pooled_contract.id, db)
+            .await
+            .expect("look for a second resolution")
+            .is_none(),
+        "the new auction writes no RFA resolution of its own"
     );
 }

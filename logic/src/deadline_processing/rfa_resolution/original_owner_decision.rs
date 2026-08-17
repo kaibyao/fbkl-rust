@@ -14,7 +14,7 @@ use color_eyre::{
 };
 use fbkl_constants::league_rules::compensation_round_for_bid;
 use fbkl_entity::{
-    auction::AuctionStatus,
+    auction::{AuctionKind, AuctionStatus},
     auction_queries,
     contract::{self, FreeAgentException},
     contract_queries, deadline, draft_pick,
@@ -168,10 +168,16 @@ where
 
     let deadline_model = find_rfa_handshake_deadline(&rfa_resolution_model, db).await?;
     let db_txn = db.begin().await?;
-    let final_status = match decision {
+    let rfa_contract_model = find_rfa_contract(&rfa_resolution_model, &db_txn).await?;
+    let rfa_player_id = rfa_contract_model.player_id.ok_or_else(|| {
+        eyre!(
+            "RFA contract {} has no NBA player, so its auction cannot be found.",
+            rfa_contract_model.id
+        )
+    })?;
+    let (final_status, rfa_auction_status) = match decision {
         UnbidRfaDecision::Resign => {
             // Nobody bid, so the 10% discount comes off the carry salary itself (rules §15.3.5).
-            let rfa_contract_model = find_rfa_contract(&rfa_resolution_model, &db_txn).await?;
             resign_to_original_owner(
                 &rfa_resolution_model,
                 rfa_contract_model.salary,
@@ -180,10 +186,21 @@ where
                 &db_txn,
             )
             .await?;
-            RfaResolutionStatus::NoBidResigned
+            (RfaResolutionStatus::NoBidResigned, AuctionStatus::Completed)
         }
-        UnbidRfaDecision::ReleaseToAuction => RfaResolutionStatus::NoBidToAuction,
+        UnbidRfaDecision::ReleaseToAuction => {
+            // Expiring is how a player rejoins the free agent pool (rules §15.3.5).
+            contract_queries::expire_contract(rfa_contract_model, &db_txn).await?;
+            (RfaResolutionStatus::NoBidToAuction, AuctionStatus::Expired)
+        }
     };
+    settle_unbid_rfa_auction(
+        &rfa_resolution_model,
+        rfa_player_id,
+        rfa_auction_status,
+        &db_txn,
+    )
+    .await?;
     let finished_rfa_resolution = rfa_resolution_queries::finish_rfa_resolution(
         rfa_resolution_id,
         final_status,
@@ -340,6 +357,36 @@ where
     .await?;
 
     Ok(moved_draft_pick_model)
+}
+
+/// Closes out the RFA-week auction an unbid resolution leaves parked in `Closed`.
+///
+/// `end_veteran_auction` parks every RFA auction there for the handshake, but an unbid one never
+/// writes its id into the resolution row, so it is found by player - a trade replaces the pooled
+/// contract row and the resolution keeps pointing at the older one.
+async fn settle_unbid_rfa_auction<C>(
+    rfa_resolution_model: &rfa_resolution::Model,
+    rfa_player_id: i64,
+    new_status: AuctionStatus,
+    db: &C,
+) -> Result<()>
+where
+    C: ConnectionTrait,
+{
+    let maybe_auction_model = auction_queries::find_auction_for_player_in_season(
+        rfa_resolution_model.league_id,
+        rfa_resolution_model.end_of_season_year,
+        rfa_player_id,
+        AuctionKind::PreseasonVeteranAuction,
+        db,
+    )
+    .await?;
+    if let Some(auction_model) = maybe_auction_model
+        && auction_model.status == AuctionStatus::Closed
+    {
+        auction_queries::update_auction_status(auction_model.id, new_status, db).await?;
+    }
+    Ok(())
 }
 
 async fn find_rfa_contract<C>(
