@@ -14,6 +14,8 @@ use fbkl_entity::{
 use std::collections::HashMap;
 use tracing::instrument;
 
+use super::seed_rfa_resolutions;
+
 /// Processes the `team_updates` that have been created for the Keeper Deadline and sets the status for them.
 #[instrument(skip(db))]
 pub async fn process_keeper_deadline_transaction<C>(
@@ -60,6 +62,9 @@ where
             }
         }
     }
+
+    // Runs last: the owner of each RFA is only settled once every keep and drop has been applied.
+    seed_rfa_resolutions(league_id, end_of_season_year, db).await?;
 
     Ok(())
 }

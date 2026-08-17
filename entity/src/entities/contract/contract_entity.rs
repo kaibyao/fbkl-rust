@@ -20,7 +20,7 @@ use super::{
     annual_contract_advancement::create_advancement_for_contract,
     drop_contract::create_dropped_contract,
     expire_contract::expire_contract,
-    free_agent_extension::sign_rfa_or_ufa_contract_to_team,
+    free_agent_extension::{FreeAgentException, sign_rfa_or_ufa_contract_to_team},
     rookie_activation::create_rookie_contract_from_rd,
     rookie_development_international::{create_rd_contract_from_rdi, create_rdi_contract_from_rd},
     rookie_draft::new_contract_from_rookie_draft,
@@ -212,9 +212,10 @@ impl Model {
     pub fn sign_rfa_or_ufa_contract_to_team(
         &self,
         team_id: i64,
-        winning_bid_amount: i16,
+        signing_amount: i16,
+        fa_exception: FreeAgentException,
     ) -> Result<ActiveModel, Error> {
-        sign_rfa_or_ufa_contract_to_team(self, team_id, winning_bid_amount)
+        sign_rfa_or_ufa_contract_to_team(self, team_id, signing_amount, fa_exception)
     }
 
     /// Creates a new Veteran contract from the current contract as a result of a team winning the contract in an auction (either Veteran or in-season FA). Note that this doesn't do anything to insert the new contract or update the original.

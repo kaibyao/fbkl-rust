@@ -12,6 +12,7 @@ pub mod pagination;
 pub mod player_queries;
 pub mod position_queries;
 pub mod real_team_queries;
+pub mod rfa_resolution_queries;
 pub mod rookie_draft_lottery_queries;
 pub mod rookie_draft_selection_queries;
 pub mod team_queries;

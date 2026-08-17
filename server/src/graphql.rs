@@ -12,6 +12,7 @@ use self::{
     keeper::{KeeperMutation, KeeperQuery},
     league::{LeagueMutation, LeagueQuery},
     player::PlayerQuery,
+    rfa::{RfaMutation, RfaQuery},
     roster::RosterMutation,
     team::TeamQuery,
     trade::{TradeMutation, TradeQuery},
@@ -32,6 +33,7 @@ mod keeper;
 mod league;
 mod loaders;
 mod player;
+mod rfa;
 mod roster;
 mod season;
 mod team;
@@ -55,6 +57,7 @@ pub struct QueryRoot(
     AuctionQuery,
     DraftQuery,
     EligibilityQuery,
+    RfaQuery,
 );
 
 #[derive(Default, MergedObject)]
@@ -67,4 +70,5 @@ pub struct MutationRoot(
     EligibilityMutation,
     AuctionMutation,
     DraftMutation,
+    RfaMutation,
 );

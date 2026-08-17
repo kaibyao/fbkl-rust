@@ -52,7 +52,7 @@ use fbkl_entity::{
     contract::{self, ContractKind, ContractStatus},
     contract_queries,
     deadline::{self, DeadlineKind},
-    league,
+    draft_pick, league,
     player::{self, NbaRosterSource, PlayerStatus},
     position, real_team,
     sea_orm::{
@@ -174,8 +174,17 @@ impl TestLeague {
     /// One member per role: the user's email is derived from the role so a second call with the
     /// same one fails loudly instead of silently seeding a duplicate owner.
     pub async fn add_team_user(&self, league_role: LeagueRole) -> team_user::Model {
+        self.add_team_user_for_team(self.team_id, league_role).await
+    }
+
+    /// [`Self::add_team_user`] for one of the extra teams [`Self::add_team`] made.
+    pub async fn add_team_user_for_team(
+        &self,
+        team_id: i64,
+        league_role: LeagueRole,
+    ) -> team_user::Model {
         let user_id = user::Entity::insert(user::ActiveModel {
-            email: ActiveValue::Set(format!("{league_role:?}-{}@example.com", self.team_id)),
+            email: ActiveValue::Set(format!("{league_role:?}-{team_id}@example.com")),
             hashed_password: ActiveValue::Set("not-a-real-hash".to_owned()),
             ..Default::default()
         })
@@ -188,7 +197,7 @@ impl TestLeague {
             league_role: ActiveValue::Set(league_role),
             nickname: ActiveValue::Set(format!("Test {league_role:?}")),
             first_end_of_season_year: ActiveValue::Set(self.end_of_season_year),
-            team_id: ActiveValue::Set(self.team_id),
+            team_id: ActiveValue::Set(team_id),
             user_id: ActiveValue::Set(user_id),
             ..Default::default()
         }
@@ -294,6 +303,54 @@ impl TestLeague {
         )
         .await
         .expect("insert unowned contract")
+    }
+
+    /// The same contract owned by `owner_team_id`, i.e. how a designated RFA/UFA sits at the
+    /// keeper deadline before the auction pool is assembled.
+    pub async fn add_owned_contract(
+        &self,
+        player_id: i64,
+        kind: ContractKind,
+        salary: i16,
+        owner_team_id: i64,
+    ) -> contract::Model {
+        let mut contract_to_own: contract::ActiveModel = self
+            .add_unowned_contract(player_id, kind, salary)
+            .await
+            .into();
+        contract_to_own.team_id = ActiveValue::Set(Some(owner_team_id));
+        contract_to_own
+            .update(&self.db)
+            .await
+            .expect("own contract")
+    }
+
+    /// A second team in the same league, for cases that need an asset to change hands.
+    pub async fn add_team(&self, name: &str) -> i64 {
+        team::Entity::insert(team::ActiveModel {
+            name: ActiveValue::Set(name.to_owned()),
+            league_id: ActiveValue::Set(self.league_id),
+            ..Default::default()
+        })
+        .exec(&self.db)
+        .await
+        .expect("insert team")
+        .last_insert_id
+    }
+
+    /// A Rookie-Draft pick for this season, held by `owner_team_id` since it was created.
+    pub async fn add_draft_pick(&self, round: i16, owner_team_id: i64) -> draft_pick::Model {
+        draft_pick::ActiveModel {
+            round: ActiveValue::Set(round),
+            end_of_season_year: ActiveValue::Set(self.end_of_season_year),
+            league_id: ActiveValue::Set(self.league_id),
+            current_owner_team_id: ActiveValue::Set(owner_team_id),
+            original_owner_team_id: ActiveValue::Set(owner_team_id),
+            ..Default::default()
+        }
+        .insert(&self.db)
+        .await
+        .expect("insert draft pick")
     }
 }
 

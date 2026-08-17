@@ -19,6 +19,8 @@ use color_eyre::eyre::Result;
 use fbkl_entity::{
     auction::AuctionKind,
     auction_queries, auction_schedule, auction_schedule_queries, deadline_queries,
+    rfa_resolution::RfaResolutionStatus,
+    rfa_resolution_queries,
     sea_orm::{DatabaseConnection, prelude::DateTimeWithTimeZone},
 };
 use fbkl_logic::auction::{
@@ -114,7 +116,7 @@ pub async fn run_scheduler_tick(db: &DatabaseConnection) -> Result<TickSummary> 
     summary.merge(run_veteran_auction_release_tick(db, now).await?);
     summary.merge(run_auction_close_tick(db, now).await?);
 
-    // TODO(fbkl-rust-1dk, spec 03): synthesize RFA 48h raise/match window expiries.
+    summary.merge(run_rfa_window_tick(db, now).await?);
 
     if summary != TickSummary::default() {
         info!(
@@ -143,30 +145,74 @@ pub async fn run_auction_close_tick(
         let event = ProcessableEvent {
             league_id: contract_model.league_id,
             end_of_season_year: contract_model.end_of_season_year,
-            auction_id: auction_model.id,
+            subject_id: auction_model.id,
             kind: match auction_model.kind {
                 AuctionKind::InSeasonFreeAgent => ProcessableEventKind::FaAuctionClose,
                 AuctionKind::PreseasonVeteranAuction => ProcessableEventKind::VeteranAuctionClose,
             },
         };
-        match process_event(db, event).await {
-            Ok(ProcessOutcome::Processed { .. }) => summary.processed += 1,
-            Ok(ProcessOutcome::Failed { .. }) => summary.failed += 1,
-            Ok(
-                ProcessOutcome::AlreadyProcessed
-                | ProcessOutcome::AlreadyRunning
-                | ProcessOutcome::AttemptsExhausted { .. },
-            ) => summary.skipped += 1,
-            Err(orchestration_error) => {
-                summary.errors += 1;
-                error!(
-                    "Scheduler error closing auction (id = {}): {orchestration_error:?}",
-                    auction_model.id
-                );
-            }
-        }
+        tally_event(db, event, &mut summary).await;
     }
     Ok(summary)
+}
+
+/// Expires the two RFA handshake windows (rules §15.3.2, spec 03).
+///
+/// A raise window that runs out counts as the winner standing pat, which opens the original owner's
+/// window. A match window that runs out counts as declining, so the winner signs the player and
+/// forfeits the pick his bid named. Each expiry goes through `process_event`, so the `job_run`
+/// claim is the double-fire guard.
+#[instrument(skip(db))]
+pub async fn run_rfa_window_tick(
+    db: &DatabaseConnection,
+    now: DateTimeWithTimeZone,
+) -> Result<TickSummary> {
+    let mut summary = TickSummary::default();
+    for rfa_resolution_model in
+        rfa_resolution_queries::find_rfa_resolutions_with_expired_window(now, db).await?
+    {
+        let kind = match rfa_resolution_model.status {
+            RfaResolutionStatus::AwaitingRaise => ProcessableEventKind::RfaRaiseWindowExpiry,
+            RfaResolutionStatus::AwaitingMatch => ProcessableEventKind::RfaMatchWindowExpiry,
+            other_status => {
+                error!(
+                    "RFA resolution (id = {}) has no open window to expire (status: {other_status:?}).",
+                    rfa_resolution_model.id
+                );
+                summary.errors += 1;
+                continue;
+            }
+        };
+        // An unbid resolution never gets an auction, so the resolution row is the event's subject.
+        let event = ProcessableEvent {
+            league_id: rfa_resolution_model.league_id,
+            end_of_season_year: rfa_resolution_model.end_of_season_year,
+            subject_id: rfa_resolution_model.id,
+            kind,
+        };
+        tally_event(db, event, &mut summary).await;
+    }
+    Ok(summary)
+}
+
+/// Processes one synthesized event and counts its outcome into `summary`.
+async fn tally_event(db: &DatabaseConnection, event: ProcessableEvent, summary: &mut TickSummary) {
+    match process_event(db, event).await {
+        Ok(ProcessOutcome::Processed { .. }) => summary.processed += 1,
+        Ok(ProcessOutcome::Failed { .. }) => summary.failed += 1,
+        Ok(
+            ProcessOutcome::AlreadyProcessed
+            | ProcessOutcome::AlreadyRunning
+            | ProcessOutcome::AttemptsExhausted { .. },
+        ) => summary.skipped += 1,
+        Err(orchestration_error) => {
+            summary.errors += 1;
+            error!(
+                "Scheduler error processing {:?} (subject id = {}): {orchestration_error:?}",
+                event.kind, event.subject_id
+            );
+        }
+    }
 }
 
 /// Releases the veteran auction players due today, slides unbid auctions a tier (rules §6.3.3-.5),

@@ -160,10 +160,13 @@ pub enum ContractUpdateType {
     FromRdi,
     /// A contract is kept on the team for the Keeper Deadline.
     Keeper,
-    /// A contract is advanced by one year.
+    /// A contract is advanced by one year. RFA/UFA designation is one of these: a contract at max
+    /// length advances into a free-agent kind instead of another year (rules §14.4).
     ContractAdvanced,
     /// A contract is lost to another team via Free Agency (in the Veteran Auction).
     LostViaFreeAgency,
+    /// The original owner matched an RFA bid and re-signed the player (rules §15.3.2).
+    RfaResign,
 }
 
 /// Stores data for an update to a team's draft pick.
@@ -183,6 +186,10 @@ pub enum DraftPickUpdateType {
     AddViaTrade,
     /// A draft pick option has been added to the draft pick.
     DraftPickOptionAdded,
+    /// A draft pick is given up as RFA compensation (rules §15.2).
+    ForfeitedAsRfaCompensation,
+    /// A draft pick is received as RFA compensation (rules §15.2).
+    AddViaRfaCompensation,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]

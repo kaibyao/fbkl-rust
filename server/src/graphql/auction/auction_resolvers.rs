@@ -7,6 +7,7 @@
 use async_graphql::{Context, Error as GraphQlError, Object, Result, SimpleObject};
 use chrono::Utc;
 use color_eyre::Report;
+use fbkl_constants::league_rules::compensation_round_for_bid;
 use fbkl_entity::{
     auction::{self, AuctionKind, AuctionStatus},
     auction_bid,
@@ -22,11 +23,17 @@ use fbkl_entity::{
     deadline_queries::find_sorted_deadlines_for_league_season,
     sea_orm::DatabaseConnection,
 };
-use fbkl_logic::auction::{BidRejection, place_auction_bid};
+use fbkl_entity::{
+    rfa_resolution::RfaResolutionStatus, rfa_resolution_queries::find_rfa_resolution_for_contract,
+};
+use fbkl_logic::{
+    auction::{BidRejection, place_auction_bid},
+    deadline_processing::eligible_compensation_picks,
+};
 
 use crate::graphql::{
     ErrorCode, LeagueRoleGuard, RoleRequirement, code_error, current_season, deadline::Deadline,
-    graphql_error, require_league_role,
+    draft::DraftPick, graphql_error, require_league_role,
 };
 
 /// Bid history spans a whole auction, so a page is always bounded (same convention as the
@@ -139,6 +146,47 @@ impl AuctionQuery {
         Ok(auctions.iter().map(Auction::from_model).collect())
     }
 
+    /// The picks the caller's team could name on a bid of `bidAmount`, best round first
+    /// (rules §15.2.1, §15.3.3).
+    ///
+    /// Empty for an auction that owes no compensation, so a bid form can ask for a pick only when
+    /// the list has one.
+    #[graphql(guard = "LeagueRoleGuard(RoleRequirement::Member)")]
+    async fn eligible_compensation_picks(
+        &self,
+        ctx: &Context<'_>,
+        auction_id: i64,
+        bid_amount: i16,
+    ) -> Result<Vec<DraftPick>> {
+        let db = ctx.data_unchecked::<DatabaseConnection>();
+        let (_, caller_team) = require_league_role(ctx, RoleRequirement::Member).await?;
+        let auction_model = load_auction_in_league(ctx, auction_id).await?;
+
+        let maybe_rfa_resolution = find_rfa_resolution_for_contract(auction_model.contract_id, db)
+            .await
+            .map_err(|_| code_error(ErrorCode::NotFound))?
+            .filter(|rfa_resolution| rfa_resolution.status == RfaResolutionStatus::AwaitingAuction);
+        let Some(rfa_resolution) = maybe_rfa_resolution else {
+            return Ok(vec![]);
+        };
+
+        let draft_picks = eligible_compensation_picks(
+            rfa_resolution.league_id,
+            rfa_resolution.end_of_season_year,
+            caller_team.id,
+            compensation_round_for_bid(bid_amount),
+            rfa_resolution.id,
+            db,
+        )
+        .await
+        .map_err(|err| {
+            tracing::error!(error = ?err, "failed to compute the eligible compensation picks");
+            code_error(ErrorCode::Internal)
+        })?;
+
+        Ok(draft_picks.iter().map(DraftPick::from_model).collect())
+    }
+
     #[graphql(guard = "LeagueRoleGuard(RoleRequirement::Member)")]
     async fn auction(&self, ctx: &Context<'_>, id: i64) -> Result<Auction> {
         let model = load_auction_in_league(ctx, id).await?;
@@ -170,7 +218,8 @@ impl AuctionQuery {
         })
     }
 
-    /// The caller's team's currently-winning bids in this season's open auctions.
+    /// The caller's team's currently-winning bids in this season's open auctions, plus the RFA
+    /// auctions it won that are still in the raise/match handshake (rules §15.3.4).
     #[graphql(guard = "LeagueRoleGuard(RoleRequirement::Member)")]
     async fn my_winning_bids(&self, ctx: &Context<'_>) -> Result<Vec<WinningBid>> {
         let db = ctx.data_unchecked::<DatabaseConnection>();
@@ -230,12 +279,16 @@ pub struct AuctionMutation;
 impl AuctionMutation {
     /// Places a bid for the caller's own team. The bidding team comes from the session, never the
     /// client, and every rejection reason carries its own error code.
+    ///
+    /// A bid on a restricted free agent must name the pick it would forfeit should the original
+    /// owner decline (rules §15.3.3); `eligibleCompensationPicks` lists what the amount allows.
     #[graphql(guard = "LeagueRoleGuard(RoleRequirement::Member)")]
     async fn place_bid(
         &self,
         ctx: &Context<'_>,
         auction_id: i64,
         bid_amount: i16,
+        compensation_draft_pick_id: Option<i64>,
         comment: Option<String>,
     ) -> Result<AuctionBid> {
         let db = ctx.data_unchecked::<DatabaseConnection>();
@@ -246,6 +299,7 @@ impl AuctionMutation {
             auction_id,
             team_user.id,
             bid_amount,
+            compensation_draft_pick_id,
             comment,
             Utc::now().into(),
             db,
@@ -348,6 +402,8 @@ fn bid_error(error: &Report) -> GraphQlError {
         BidRejection::BelowIncrement { .. } => ErrorCode::BidBelowIncrement,
         BidRejection::InsufficientCap { .. } => ErrorCode::BidInsufficientCap,
         BidRejection::NoRosterSpace { .. } => ErrorCode::BidNoRosterSpace,
+        BidRejection::MissingCompensationPick { .. } => ErrorCode::BidMissingCompensationPick,
+        BidRejection::IneligibleCompensationPick { .. } => ErrorCode::BidIneligibleCompensationPick,
     };
 
     graphql_error(code, rejection.to_string())
@@ -424,6 +480,13 @@ mod tests {
                     roster_limit: 15,
                 },
                 "BID_NO_ROSTER_SPACE",
+            ),
+            (
+                BidRejection::MissingCompensationPick {
+                    bid_amount: 19,
+                    required_round: 3,
+                },
+                "BID_MISSING_COMPENSATION_PICK",
             ),
         ];
 

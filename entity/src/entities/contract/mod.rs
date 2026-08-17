@@ -11,3 +11,4 @@ mod veteran_auction_contract;
 mod veteran_contract_signing;
 
 pub use contract_entity::*;
+pub use free_agent_extension::FreeAgentException;

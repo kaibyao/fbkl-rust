@@ -125,6 +125,15 @@ pub enum TransactionKind {
     /// A team has made a configuration change (ownership/name change).
     #[sea_orm(string_value = "TeamUpdateConfigChange")]
     TeamUpdateConfigChange,
+    /// The team that won an RFA auction raised its own winning bid (rules §15.3.2.1).
+    #[sea_orm(string_value = "RfaRaiseBid")]
+    RfaRaiseBid,
+    /// The original owner matched the RFA bid and re-signed the player at the discount (rules §15.3.2).
+    #[sea_orm(string_value = "RfaResign")]
+    RfaResign,
+    /// The original owner declined to match, so the winner signs and forfeits a pick (rules §15.2).
+    #[sea_orm(string_value = "RfaDeclineAndForfeit")]
+    RfaDeclineAndForfeit,
 }
 
 #[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]

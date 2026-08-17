@@ -39,6 +39,10 @@ pub enum ErrorCode {
     BidNoRosterSpace,
     /// The player's previous team may not bid on that player's own auction (rules §6.2.2.3).
     BidOriginalOwner,
+    /// A bid on an RFA must name the pick it would forfeit (rules §15.3.3).
+    BidMissingCompensationPick,
+    /// The named pick cannot settle what the bid would owe, or the auction owes nothing (rules §15.3.3).
+    BidIneligibleCompensationPick,
     /// Season config (tiers, ranked list) is locked because the veteran auction pool is assembled (rules §6.3.6).
     VeteranAuctionStarted,
     /// The rookie draft has not been started for this league season.
@@ -75,6 +79,8 @@ impl ErrorCode {
             Self::BidInsufficientCap => "BID_INSUFFICIENT_CAP",
             Self::BidNoRosterSpace => "BID_NO_ROSTER_SPACE",
             Self::BidOriginalOwner => "BID_ORIGINAL_OWNER",
+            Self::BidMissingCompensationPick => "BID_MISSING_COMPENSATION_PICK",
+            Self::BidIneligibleCompensationPick => "BID_INELIGIBLE_COMPENSATION_PICK",
             Self::VeteranAuctionStarted => "VETERAN_AUCTION_STARTED",
             Self::DraftNotStarted => "DRAFT_NOT_STARTED",
             Self::DraftNotOnTheClock => "DRAFT_NOT_ON_THE_CLOCK",
@@ -104,6 +110,10 @@ impl ErrorCode {
             Self::BidInsufficientCap => "bid would exceed your salary cap",
             Self::BidNoRosterSpace => "bid would exceed your roster limit",
             Self::BidOriginalOwner => "you cannot bid on your own former player's auction",
+            Self::BidMissingCompensationPick => "bid must name the draft pick it would forfeit",
+            Self::BidIneligibleCompensationPick => {
+                "that draft pick cannot settle what the bid would owe"
+            }
             Self::VeteranAuctionStarted => {
                 "the veteran auction has started, so this season's config is locked"
             }
