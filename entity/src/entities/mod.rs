@@ -21,6 +21,7 @@ pub mod rfa_resolution;
 pub mod rookie_draft_lottery;
 pub mod rookie_draft_lottery_pick;
 pub mod rookie_draft_selection;
+pub mod roster_lock_violation;
 pub mod sessions;
 pub mod team;
 pub mod team_trade;

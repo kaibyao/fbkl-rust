@@ -3,6 +3,7 @@ use std::collections::HashSet;
 use color_eyre::eyre::Result;
 use fbkl_entity::{
     deadline::{self},
+    roster_lock_violation_queries::replace_violations_for_deadline,
     sea_orm::{ConnectionTrait, TransactionTrait},
     team_update::{self, TeamUpdateStatus},
     team_update_queries,
@@ -13,8 +14,9 @@ use super::{TeamRosterViolation, validate_league_rosters};
 
 /// Lock every legal team's pending `team_updates` for the deadline.
 ///
-/// Teams that broke a roster rule keep their `team_updates` Pending and come back as violations
-/// for the commissioner (rules 13.1.2/13.2), instead of blocking the rest of the league.
+/// Teams that broke a roster rule keep their `team_updates` Pending, and their broken rules are
+/// recorded for the commissioner to read (rules 13.1.2/13.2) instead of blocking the rest of the
+/// league. The recorded rows replace an earlier run's, so a re-run after fixes clears them.
 #[instrument(skip(db))]
 pub async fn lock_rosters<C>(
     deadline_model: &deadline::Model,
@@ -24,6 +26,7 @@ where
     C: ConnectionTrait + TransactionTrait,
 {
     let violations = validate_league_rosters(deadline_model, db).await?;
+    replace_violations_for_deadline(deadline_model, &violations, db).await?;
     let illegal_team_ids: HashSet<i64> = violations
         .iter()
         .map(|violation| violation.team_id)

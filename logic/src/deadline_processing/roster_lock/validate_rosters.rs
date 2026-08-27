@@ -17,44 +17,10 @@ use tracing::instrument;
 
 use crate::roster::{SalarySnapshot, calculate_team_contract_salary};
 
-/// Declares `RosterRule` and `RosterRule::ALL` from one list, so a rule added to the enum cannot go
-/// missing from the per-rule legality flags `teamWeek` reports.
-macro_rules! roster_rules {
-    ($($rule:ident),+ $(,)?) => {
-        /// A roster rule that a team's roster can break at lock time.
-        ///
-        /// Kept per-rule so callers can show a legality flag for each rule instead of one pass/fail.
-        #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-        pub enum RosterRule {
-            $($rule),+
-        }
-
-        impl RosterRule {
-            /// Every rule, so a caller can report one legality flag per rule rather than a single pass/fail.
-            pub const ALL: [Self; [$(stringify!($rule)),+].len()] = [$(Self::$rule),+];
-        }
-    };
-}
-
-roster_rules!(
-    IrSlots,
-    PreseasonRosterLimit,
-    RookieDevelopmentLimit,
-    IntlRookieDevelopmentLimit,
-    VeteranOrRookieLimit,
-    SalaryCap,
-);
-
-/// One rule broken by one team's roster at lock time.
-///
-/// Rules 13.1.2/13.2 send illegal rosters to the commissioner, so these are collected and
-/// returned instead of raised as an error that would block the rest of the league.
-#[derive(Debug, Clone)]
-pub struct TeamRosterViolation {
-    pub team_id: i64,
-    pub rule: RosterRule,
-    pub message: String,
-}
+// The persisted row's own types, so lock writes violations without a second copy of the rule list.
+pub use fbkl_entity::{
+    roster_lock_violation::RosterRule, roster_lock_violation_queries::TeamRosterViolation,
+};
 
 /// Validate every team's roster against the rules for a roster-lock deadline.
 ///

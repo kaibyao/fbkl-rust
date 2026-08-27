@@ -253,7 +253,7 @@ where
         | DeadlineKind::Week1RosterLock
         | DeadlineKind::InSeasonRosterLock => {
             let violations = lock_rosters(deadline_model, txn).await?;
-            // ponytail: illegal rosters only get logged; a commissioner notification is unbuilt.
+            // `lock_rosters` persists these for the commissioner query; this log is for ops only.
             if !violations.is_empty() {
                 warn!(
                     "Roster lock for deadline {} left {} team(s) Pending: {:?}",

@@ -13,6 +13,7 @@ use fbkl_entity::{
     contract_queries::{find_active_contracts_for_team, find_contract_by_id},
     deadline,
     deadline_queries::{find_deadline_by_id, find_upcoming_roster_lock},
+    roster_lock_violation_queries::find_violations_for_league,
     sea_orm::{ConnectionTrait, DatabaseConnection, DatabaseTransaction, TransactionTrait},
     team_queries::find_team_by_id_in_league,
     team_update::TeamUpdateStatus,
@@ -32,7 +33,7 @@ use fbkl_logic::{
 };
 
 use super::super::{contract::Contract, team::TeamUpdate};
-use super::{RosterMove, RosterMoveKind, TeamWeek, roster_illegal_error};
+use super::{RosterLockViolation, RosterMove, RosterMoveKind, TeamWeek, roster_illegal_error};
 use crate::graphql::{
     ErrorCode, LeagueRoleGuard, RoleRequirement, code_error, graphql_error, require_league_role,
 };
@@ -442,6 +443,29 @@ impl RosterQuery {
             rule_legality,
             is_legal,
         })
+    }
+
+    /// Every roster-lock failure the league has recorded, newest deadline first (rules §13.1.2, §13.2).
+    ///
+    /// Commissioner-only: an illegal roster keeps its moves Pending, and this is where the
+    /// commissioner sees which rule stopped which team without reading the scheduler's logs.
+    /// `deadline_id` narrows the read to one lock.
+    #[graphql(guard = "LeagueRoleGuard(RoleRequirement::Commissioner)")]
+    async fn roster_lock_violations(
+        &self,
+        ctx: &Context<'_>,
+        deadline_id: Option<i64>,
+    ) -> Result<Vec<RosterLockViolation>> {
+        let db = ctx.data_unchecked::<DatabaseConnection>();
+        let (_, caller_team) = require_league_role(ctx, RoleRequirement::Commissioner).await?;
+
+        let violation_models = find_violations_for_league(caller_team.league_id, deadline_id, db)
+            .await
+            .map_err(|err| internal("failed to load the league's roster-lock violations", &err))?;
+        Ok(violation_models
+            .into_iter()
+            .map(RosterLockViolation::from_model)
+            .collect())
     }
 }
 

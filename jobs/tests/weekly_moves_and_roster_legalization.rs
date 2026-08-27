@@ -9,7 +9,7 @@ use fbkl_entity::{
     contract::{self, ContractKind},
     contract_queries,
     deadline::{self, DeadlineKind},
-    deadline_queries,
+    deadline_queries, roster_lock_violation_queries,
     sea_orm::{ActiveValue, EntityTrait},
     team_update::{
         self, ContractUpdate, ContractUpdateType, TeamUpdateAsset, TeamUpdateData, TeamUpdateStatus,
@@ -519,6 +519,22 @@ async fn one_illegal_team_does_not_block_the_rest_of_the_league() {
             .collect::<Vec<_>>(),
         vec![(league.team_id, RosterRule::VeteranOrRookieLimit)]
     );
+    let persisted = roster_lock_violation_queries::find_violations_for_league(
+        league.league_id,
+        Some(week_1_lock.id),
+        &league.db,
+    )
+    .await
+    .expect("read the recorded violations");
+    assert_eq!(
+        persisted
+            .iter()
+            .map(|violation| (violation.team_id, violation.rule))
+            .collect::<Vec<_>>(),
+        vec![(league.team_id, RosterRule::VeteranOrRookieLimit)],
+        "lock records the violations for the commissioner instead of only logging them"
+    );
+
     assert_eq!(
         read_team_update_status(&league, legal_team_update.id).await,
         TeamUpdateStatus::Done,
