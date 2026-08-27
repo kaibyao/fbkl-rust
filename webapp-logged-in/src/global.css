@@ -213,42 +213,43 @@
     @apply text-primary underline-offset-4 hover:underline;
   }
 
-  /* Typography: `variant` prop on <Typography> maps to these bundles (see typography.tsx). */
+  /* Typography: `variant` prop on <Typography> maps to these bundles (see typography.tsx); sizes/weights come from design/moodboard.html, which wins any disagreement. */
   .typography-display {
-    @apply font-heading text-4xl font-black tracking-tight;
+    @apply font-heading text-[clamp(2.4rem,6vw,4.4rem)] leading-[1.05] font-black tracking-[-0.02em];
   }
   .typography-heading1 {
-    @apply font-heading text-3xl font-black tracking-tight;
+    @apply font-heading text-[clamp(1.5rem,3vw,2.2rem)] leading-[1.05] font-extrabold tracking-[-0.02em];
   }
   .typography-heading2 {
-    @apply font-heading text-base font-bold;
+    @apply font-heading text-xl font-extrabold tracking-[-0.02em];
   }
   .typography-heading3 {
-    @apply font-heading text-sm font-bold;
+    @apply font-heading text-base font-bold;
   }
   .typography-heading4 {
-    @apply font-heading text-xs font-bold;
+    @apply font-heading text-sm font-bold;
   }
+  /* text-base is the board's row-stat size; callers override it for hero figures (2-2.6rem). */
   .typography-stat {
-    @apply font-heading text-sm font-bold tabular-nums;
+    @apply font-heading text-base font-black tabular-nums lining-nums;
   }
   .typography-eyebrow {
-    @apply text-xs font-semibold tracking-[0.22em] text-primary-hot uppercase;
+    @apply text-xs font-extrabold tracking-[0.22em] text-primary-hot uppercase;
   }
   .typography-section-label {
-    @apply text-xs font-semibold tracking-wide text-muted-foreground uppercase;
+    @apply text-xs font-extrabold tracking-[0.04em] text-muted-foreground uppercase;
   }
   .typography-body {
-    @apply text-sm;
+    @apply text-base;
   }
   .typography-body-sm {
     @apply text-xs;
   }
   .typography-body-strong {
-    @apply text-xs font-medium;
+    @apply text-base font-bold;
   }
   .typography-muted {
-    @apply text-sm text-muted-foreground;
+    @apply text-base text-muted-foreground;
   }
   .typography-muted-sm {
     @apply text-xs text-muted-foreground;
@@ -257,7 +258,7 @@
     @apply text-muted-foreground;
   }
   .typography-error {
-    @apply text-sm text-destructive;
+    @apply text-base text-destructive;
   }
   .typography-error-sm {
     @apply text-xs text-destructive;

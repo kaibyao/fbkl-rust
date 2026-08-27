@@ -7,35 +7,35 @@ import { cn } from '@/lib/utils';
 
 /** Text style preset. `Heading{N}` render `<h{N}>` by default; override the tag with `render`. */
 export enum TypographyVariant {
-  /** Hero display — 4xl black, splash/marketing only. Renders `<h1>`. */
+  /** Hero display — fluid 2.4-4.4rem black, splash/marketing only. Renders `<h1>`. */
   Display = 'display',
-  /** Page title — 3xl black, one per page. Renders `<h1>`. */
+  /** Page title — fluid 1.5-2.2rem extrabold, one per page. Renders `<h1>`. */
   Heading1 = 'heading1',
-  /** Section / card title — base bold. Renders `<h2>`. */
+  /** Section / card title — xl extrabold. Renders `<h2>`. */
   Heading2 = 'heading2',
-  /** Sub-section title — sm bold. Renders `<h3>`. */
+  /** Sub-section title — base bold. Renders `<h3>`. */
   Heading3 = 'heading3',
-  /** Minor heading — xs bold. Renders `<h4>`. */
+  /** Minor heading — sm bold. Renders `<h4>`. */
   Heading4 = 'heading4',
-  /** Numeric stat / figure — sm bold, tabular-nums. Renders `<span>`. */
+  /** Numeric stat / figure — base black, tabular lining nums; size up for hero figures. Renders `<span>`. */
   Stat = 'stat',
-  /** Eyebrow / kicker — xs uppercase, wide tracking, primary-hot. Renders `<p>`. */
+  /** Eyebrow / kicker — xs uppercase extrabold, wide tracking, primary-hot. Renders `<p>`. */
   Eyebrow = 'eyebrow',
   /** Uppercase muted label above a list/group. Renders `<h3>`. */
   SectionLabel = 'section-label',
-  /** Default body copy — sm. Renders `<p>`. */
+  /** Default body copy — base. Renders `<p>`. */
   Body = 'body',
   /** Compact body copy — xs. Renders `<p>`. */
   BodySm = 'body-sm',
-  /** Emphasized compact body — xs medium. Renders `<p>`. */
+  /** Emphasized body — base bold; the primary text in a roster row. Renders `<p>`. */
   BodyStrong = 'body-strong',
-  /** Muted secondary text — sm. Renders `<p>`. */
+  /** Muted secondary text — base. Renders `<p>`. */
   Muted = 'muted',
   /** Muted secondary text, compact — xs. Renders `<p>`. */
   MutedSm = 'muted-sm',
   /** Inline muted recolor; inherits parent size. Renders `<span>`. */
   InlineMuted = 'inline-muted',
-  /** Error message — sm destructive. Renders `<p>`. */
+  /** Error message — base destructive. Renders `<p>`. */
   Error = 'error',
   /** Error message, compact — xs destructive. Renders `<p>`. */
   ErrorSm = 'error-sm',

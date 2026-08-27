@@ -127,6 +127,16 @@
   .spark{display:flex;align-items:flex-end;gap:3px;height:36px}
   .spark>i{flex:1;background:var(--chart-2);border-radius:2px 2px 0 0;opacity:.85}
 
+  /* ---------------- board → component mapping ---------------- */
+  .scroll-x{overflow-x:auto}
+  .map{width:100%;border-collapse:collapse;font-size:.88rem;min-width:560px}
+  .map th{text-align:left;padding:0 12px 10px 0;border-bottom:1px solid var(--border);
+    font-size:.72rem;font-weight:800;letter-spacing:.12em;text-transform:uppercase;color:var(--muted-fg)}
+  .map td{padding:10px 12px 10px 0;border-bottom:1px solid var(--border);vertical-align:top}
+  .map tr:last-child td{border-bottom:none}
+  .map th:last-child,.map td:last-child{padding-right:0;width:1%;white-space:nowrap}
+  .map code{font-family:ui-monospace,Menlo,monospace;font-size:.8rem}
+
   .principles{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:18px}
   .principles .card{padding:20px}
   .principles b{font-family:'Nunito Sans Variable',sans-serif;font-size:1.05rem}
@@ -324,6 +334,38 @@
     </div>
 
   </div>
+</section>
+
+<!-- ============ BOARD → COMPONENT MAPPING ============ -->
+<section>
+  <span class="eyebrow">Implementation · board class → shipped component</span>
+  <h2 style="margin:10px 0 6px">Build with these components</h2>
+  <p class="muted" style="margin:0 0 22px;max-width:64ch">Every pattern on this board has one home in <code>src/components/ui</code>. Nothing here is a new one-off: if a row says "to build", build it once as a component, not inline.</p>
+  <div class="card pad scroll-x">
+    <table class="map">
+      <thead><tr><th>On this board</th><th>Ship as</th><th>Status</th></tr></thead>
+      <tbody>
+        <tr><td><code>h1</code> · hero headline</td><td><code>&lt;Typography variant="display"&gt;</code></td><td><span class="tag">Shipped</span></td></tr>
+        <tr><td><code>h2</code> · section title</td><td><code>&lt;Typography variant="heading1"&gt;</code></td><td><span class="tag">Shipped</span></td></tr>
+        <tr><td><code>h3</code> as used · muted .8rem label</td><td><code>&lt;Typography variant="section-label"&gt;</code></td><td><span class="tag">Shipped</span></td></tr>
+        <tr><td><code>.eyebrow</code></td><td><code>&lt;Typography variant="eyebrow"&gt;</code></td><td><span class="tag">Shipped</span></td></tr>
+        <tr><td>body copy · <code>.muted</code></td><td><code>&lt;Typography variant="body" | "muted" | "inline-muted"&gt;</code></td><td><span class="tag">Shipped</span></td></tr>
+        <tr><td><code>.num-tabular</code> · any stat</td><td><code>&lt;Typography variant="stat"&gt;</code>, size it at the call site</td><td><span class="tag">Shipped</span></td></tr>
+        <tr><td><code>.btn-primary</code></td><td><code>&lt;Button&gt;</code> (variant <code>default</code>)</td><td><span class="tag">Shipped</span></td></tr>
+        <tr><td><code>.btn-outline</code></td><td><code>&lt;Button variant="outline"&gt;</code></td><td><span class="tag">Shipped</span></td></tr>
+        <tr><td><code>.tag</code></td><td><code>&lt;Badge variant="secondary"&gt;</code></td><td><span class="tag">Shipped</span></td></tr>
+        <tr><td><code>.tag.fa</code> · orange tint</td><td><code>&lt;Badge&gt;</code> with a 20% primary tint variant; today's default is solid</td><td><span class="tag fa">To build</span></td></tr>
+        <tr><td><code>.pill</code> + <code>.live-dot</code></td><td><code>&lt;Badge&gt;</code> full-round variant, pulsing dot as a child</td><td><span class="tag fa">To build</span></td></tr>
+        <tr><td><code>.card</code> · <code>.pad</code></td><td><code>&lt;Card&gt;</code> · <code>&lt;CardContent&gt;</code></td><td><span class="tag">Shipped</span></td></tr>
+        <tr><td><code>.ava</code> · 44px, 10px squircle</td><td><code>&lt;Avatar size="lg"&gt;</code> (40px today, resize to 44px)</td><td><span class="tag">Shipped</span></td></tr>
+        <tr><td><code>.row</code></td><td><code>&lt;Stack direction="row"&gt;</code></td><td><span class="tag">Shipped</span></td></tr>
+        <tr><td><code>.bar</code> · value bar</td><td>Progress</td><td><span class="tag fa">To build</span></td></tr>
+        <tr><td><code>.spark</code> · trajectory bars</td><td>Sparkline</td><td><span class="tag fa">To build</span></td></tr>
+        <tr><td><code>.t-scrim</code> <code>.t-duo</code> <code>.t-spot</code> <code>.t-cool</code></td><td>PhotoTreatment classes (A to D)</td><td><span class="tag fa">To build</span></td></tr>
+      </tbody>
+    </table>
+  </div>
+  <p class="note"><b>Density ruling:</b> the board's row density is canon: 44px avatars, 1rem row text, ~62px rows. The compact <code>h-8</code> / <code>text-xs</code> era is over. Where the board and <code>global.css</code> disagree, the board wins and the shipped class changes.</p>
 </section>
 
 <!-- ============ PRINCIPLES ============ -->
