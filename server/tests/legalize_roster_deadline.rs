@@ -1,6 +1,10 @@
 //! The season-start wizard runs in the window BEFORE a roster lock fires, so which deadline it
 //! legalizes against cannot be read off the clock: the last passed deadline is the previous one and
 //! carries the previous period's rules (rules §11.2 regular-season limits vs the preseason limit).
+//!
+//! Naming the deadline is not choosing it, though: only the upcoming roster lock is a legal
+//! argument, so a passed lock, a keeper deadline or a post-season kind cannot be named to run the
+//! batch under another period's rules.
 
 use std::sync::Arc;
 
@@ -49,19 +53,9 @@ async fn the_wizard_legalizes_against_the_named_deadline_not_the_last_passed_one
     let to_ir = contracts[0].id;
     let ir_move = format!("{{contractId: {to_ir}, kind: MOVE_TO_IR}}");
 
-    let keeper_id = deadline_id(&league, DeadlineKind::PreseasonKeeper).await;
     let lock_id = deadline_id(&league, DeadlineKind::PreseasonFinalRosterLock).await;
     let schema = build_graphql_schema(league.db.clone());
     let session = session_for(owner.user_id, league.league_id).await;
-
-    // Under the passed keeper deadline the IR guard refuses the move, which is the bug this fixes.
-    let under_keeper = run(
-        &schema,
-        &legalize(league.team_id, keeper_id, &ir_move),
-        &session,
-    )
-    .await;
-    assert_eq!(under_keeper, Err("INTERNAL".to_owned()));
 
     // The named lock checks the regular-season branch, so 23 veteran contracts is illegal there.
     let no_moves = run(&schema, &legalize(league.team_id, lock_id, ""), &session).await;
@@ -103,6 +97,94 @@ async fn the_wizard_legalizes_against_the_named_deadline_not_the_last_passed_one
     let foreign_id = foreign_league_deadline(&league).await;
     let foreign = run(&schema, &legalize(league.team_id, foreign_id, ""), &session).await;
     assert_eq!(foreign, Err("NOT_FOUND".to_owned()));
+}
+
+/// Every other deadline row in the league carries another period's rules, so naming one would run
+/// the batch under those: the IR guard passes unconditionally before the season (rules 10.3.1),
+/// drops are penalty-free at the keeper deadline (8.3.3), and the post-season kinds resolve the
+/// higher cap (4.2.3). Only the upcoming lock is a legal argument.
+#[tokio::test]
+async fn only_the_upcoming_roster_lock_is_a_legal_argument() {
+    let Some(league) = TestLeague::create("legalize_roster_lock_choice", END_OF_SEASON_YEAR).await
+    else {
+        return;
+    };
+    league
+        .add_deadline(
+            DeadlineKind::PreseasonKeeper,
+            central("2025-09-01T12:00:00"),
+        )
+        .await;
+    // A lock of a settled week, and a deadline that is no lock at all.
+    league
+        .add_deadline(
+            DeadlineKind::Week1RosterLock,
+            central("2025-09-15T18:00:00"),
+        )
+        .await;
+    league
+        .add_deadline(DeadlineKind::SeasonEnd, central("2026-06-01T18:00:00"))
+        .await;
+    let upcoming_lock = Utc::now()
+        .checked_add_days(Days::new(30))
+        .expect("30 days from now")
+        .fixed_offset();
+    league
+        .add_deadline(DeadlineKind::PreseasonFinalRosterLock, upcoming_lock)
+        .await;
+    let owner = league.add_team_user(LeagueRole::TeamOwner).await;
+
+    let contracts = add_roster_contracts(&league, 1).await;
+    let to_ir = contracts[0].id;
+    let ir_move = format!("{{contractId: {to_ir}, kind: MOVE_TO_IR}}");
+    let schema = build_graphql_schema(league.db.clone());
+    let session = session_for(owner.user_id, league.league_id).await;
+
+    for (case, kind, expected) in [
+        (
+            "the keeper deadline",
+            DeadlineKind::PreseasonKeeper,
+            "roster moves count towards a roster lock, and this deadline is not one",
+        ),
+        (
+            "a post-season deadline",
+            DeadlineKind::SeasonEnd,
+            "roster moves count towards a roster lock, and this deadline is not one",
+        ),
+        (
+            "a lock that already fired",
+            DeadlineKind::Week1RosterLock,
+            "roster moves count towards the upcoming roster lock, and this is not it",
+        ),
+    ] {
+        let named = deadline_id(&league, kind).await;
+        let mutation = legalize(league.team_id, named, &ir_move);
+        assert_eq!(
+            run(&schema, &mutation, &session).await,
+            Err("BAD_REQUEST".to_owned()),
+            "{case} should be rejected"
+        );
+        assert_eq!(message(&schema, &mutation, &session).await, expected);
+    }
+
+    assert_eq!(
+        ir_contract_count(&league).await,
+        0,
+        "no rejected call should have applied its move"
+    );
+
+    // The upcoming lock is the one argument that works, so the wizard flow still runs.
+    let lock_id = deadline_id(&league, DeadlineKind::PreseasonFinalRosterLock).await;
+    let accepted = run(
+        &schema,
+        &legalize(league.team_id, lock_id, &ir_move),
+        &session,
+    )
+    .await;
+    assert!(
+        accepted.is_ok(),
+        "expected the batch to apply: {accepted:?}"
+    );
 }
 
 fn legalize(team_id: i64, deadline_id: i64, moves: &str) -> String {
@@ -190,6 +272,19 @@ async fn run(schema: &AppSchema, mutation: &str, session: &Session) -> Result<Va
         return Err(code.trim_matches('"').to_owned());
     }
     Ok(response.data)
+}
+
+/// The message of a failing mutation's error, i.e. what the owner is told.
+async fn message(schema: &AppSchema, mutation: &str, session: &Session) -> String {
+    let response = schema
+        .execute(Request::new(mutation).data(session.clone()))
+        .await;
+    response
+        .errors
+        .first()
+        .expect("the mutation should fail")
+        .message
+        .clone()
 }
 
 /// The `violations` extension of a failing mutation's error, i.e. the machine-readable payload.

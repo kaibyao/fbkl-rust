@@ -75,6 +75,28 @@ impl Model {
         Ok(salary_cap)
     }
 
+    /// Whether the roster-lock rules (§11.2) run at this deadline, i.e. whether it is one of the
+    /// locks a team's weekly moves count towards. Matched exhaustively so a new kind has to pick a
+    /// side here rather than default to "not a lock".
+    pub const fn is_roster_lock(&self) -> bool {
+        match self.kind {
+            DeadlineKind::PreseasonFinalRosterLock
+            | DeadlineKind::Week1RosterLock
+            | DeadlineKind::InSeasonRosterLock => true,
+            DeadlineKind::PreseasonStart
+            | DeadlineKind::PreseasonKeeper
+            | DeadlineKind::PreseasonVeteranAuctionStart
+            | DeadlineKind::PreseasonFaAuctionStart
+            | DeadlineKind::PreseasonFaAuctionEnd
+            | DeadlineKind::PreseasonRookieDraftStart
+            | DeadlineKind::Week1FreeAgentAuctionStart
+            | DeadlineKind::Week1FreeAgentAuctionEnd
+            | DeadlineKind::FreeAgentAuctionEnd
+            | DeadlineKind::TradeDeadlineAndPlayoffStart
+            | DeadlineKind::SeasonEnd => false,
+        }
+    }
+
     #[instrument]
     pub fn is_preseason_keeper_or_before(&self) -> bool {
         [DeadlineKind::PreseasonStart, DeadlineKind::PreseasonKeeper].contains(&self.kind)

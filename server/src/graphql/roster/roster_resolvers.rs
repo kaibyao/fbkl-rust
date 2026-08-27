@@ -12,7 +12,10 @@ use fbkl_entity::{
     contract,
     contract_queries::{find_active_contracts_for_team, find_contract_by_id},
     deadline,
-    deadline_queries::{find_deadline_by_id, find_most_recent_deadline_by_datetime},
+    deadline_queries::{
+        find_deadline_by_id, find_most_recent_deadline_by_datetime,
+        find_sorted_deadlines_for_league_season,
+    },
     sea_orm::{ConnectionTrait, DatabaseConnection, DatabaseTransaction, TransactionTrait},
     team_queries::find_team_by_id_in_league,
     team_update::TeamUpdateStatus,
@@ -119,12 +122,7 @@ impl RosterMutation {
             return Err(code_error(ErrorCode::Forbidden));
         }
 
-        let deadline_model = find_deadline_by_id(deadline_id, db)
-            .await
-            .map_err(|_| code_error(ErrorCode::NotFound))?;
-        if deadline_model.league_id != caller_team.league_id {
-            return Err(code_error(ErrorCode::NotFound));
-        }
+        resolve_roster_lock(deadline_id, caller_team.league_id, db).await?;
 
         let week_move_models = find_team_updates_by_team(team_id, None, Some(deadline_id), db)
             .await
@@ -178,12 +176,8 @@ impl RosterMutation {
             return Err(code_error(ErrorCode::Forbidden));
         }
 
-        let deadline_model = find_deadline_by_id(deadline_id, db)
-            .await
-            .map_err(|_| code_error(ErrorCode::NotFound))?;
-        if deadline_model.league_id != caller_team.league_id {
-            return Err(code_error(ErrorCode::NotFound));
-        }
+        let deadline_model =
+            resolve_upcoming_roster_lock(deadline_id, caller_team.league_id, db).await?;
 
         let db_txn = db
             .begin()
@@ -280,6 +274,71 @@ where
         .map_err(|err| internal("failed to commit roster move", &err.into()))?;
 
     Contract::from_model(&updated).map_err(|_| code_error(ErrorCode::Internal))
+}
+
+/// Resolves the roster-lock deadline a request names, in the caller's own league.
+///
+/// Deadlines are league-scoped rows, so an id from another league reads as not-found rather than
+/// forbidden. Only locks are legal arguments: the other kinds carry another period's rules — drops
+/// are penalty-free at the keeper deadline (rules §8.3.3) and the auction-end kinds resolve the
+/// post-season cap (§4.2.3) — so a move naming one would run under the wrong rules.
+async fn resolve_roster_lock<C>(deadline_id: i64, league_id: i64, db: &C) -> Result<deadline::Model>
+where
+    C: ConnectionTrait,
+{
+    let deadline_model = find_deadline_by_id(deadline_id, db)
+        .await
+        .map_err(|_| code_error(ErrorCode::NotFound))?;
+    if deadline_model.league_id != league_id {
+        return Err(code_error(ErrorCode::NotFound));
+    }
+    if !deadline_model.is_roster_lock() {
+        return Err(graphql_error(
+            ErrorCode::BadRequest,
+            "roster moves count towards a roster lock, and this deadline is not one".to_owned(),
+        ));
+    }
+
+    Ok(deadline_model)
+}
+
+/// Resolves the lock a roster move counts towards: the caller's league's next one still to fire.
+///
+/// The lock has to be named rather than read off the clock, because owners work in the window
+/// before it fires where the last passed deadline is the previous one. Naming it is not the same as
+/// choosing it, though: a lock that has already fired belongs to a settled week and a later one is
+/// a period not yet in effect, so running a move against either applies the wrong limits, skips the
+/// same-week guards, and files the move under the wrong week.
+///
+/// The season comes off the named deadline, so last season's rows fail the same check — none of
+/// that season's locks is still to fire.
+async fn resolve_upcoming_roster_lock<C>(
+    deadline_id: i64,
+    league_id: i64,
+    db: &C,
+) -> Result<deadline::Model>
+where
+    C: ConnectionTrait,
+{
+    let deadline_model = resolve_roster_lock(deadline_id, league_id, db).await?;
+
+    let now = Utc::now().fixed_offset();
+    let season_deadlines =
+        find_sorted_deadlines_for_league_season(league_id, deadline_model.end_of_season_year, db)
+            .await
+            .map_err(|err| internal("failed to load the league's deadlines", &err))?;
+    let upcoming_lock_id = season_deadlines
+        .iter()
+        .find(|candidate| candidate.date_time >= now && candidate.is_roster_lock())
+        .map(|lock| lock.id);
+    if upcoming_lock_id != Some(deadline_id) {
+        return Err(graphql_error(
+            ErrorCode::BadRequest,
+            "roster moves count towards the upcoming roster lock, and this is not it".to_owned(),
+        ));
+    }
+
+    Ok(deadline_model)
 }
 
 fn internal(message: &str, error: &Report) -> GraphQlError {
