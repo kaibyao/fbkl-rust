@@ -97,37 +97,45 @@ impl RosterMutation {
         .await
     }
 
-    /// Saves the owner's chosen order for their team's moves (rules §13.1.1).
+    /// Saves the owner's chosen order for one week's moves (rules §13.1.1).
     ///
     /// Order is presentational and for the audit log only: the same set of moves stays legal or
     /// illegal whatever order it is put in, so nothing is re-validated here.
+    ///
+    /// The order covers one week, named by its lock deadline, and has to list that week's moves and
+    /// no others. Sequences are positions in the list, so a partial list or a move from another
+    /// week would write positions that clash with the ones already stored for other weeks.
     #[graphql(guard = "LeagueRoleGuard(RoleRequirement::Member)")]
     async fn reorder_weekly_moves(
         &self,
         ctx: &Context<'_>,
         team_id: i64,
+        deadline_id: i64,
         ordered_team_update_ids: Vec<i64>,
     ) -> Result<Vec<TeamUpdate>> {
         let db = ctx.data_unchecked::<DatabaseConnection>();
-        let (team_user, _) = require_league_role(ctx, RoleRequirement::Member).await?;
+        let (team_user, caller_team) = require_league_role(ctx, RoleRequirement::Member).await?;
         if team_user.team_id != team_id {
             return Err(code_error(ErrorCode::Forbidden));
         }
 
-        let requested_ids: HashSet<i64> = ordered_team_update_ids.iter().copied().collect();
-        if requested_ids.len() != ordered_team_update_ids.len() {
-            return Err(graphql_error(
-                ErrorCode::BadRequest,
-                "a move cannot be listed twice in an order".to_owned(),
-            ));
+        let deadline_model = find_deadline_by_id(deadline_id, db)
+            .await
+            .map_err(|_| code_error(ErrorCode::NotFound))?;
+        if deadline_model.league_id != caller_team.league_id {
+            return Err(code_error(ErrorCode::NotFound));
         }
 
-        let team_update_models = find_team_updates_by_team(team_id, None, None, db)
+        let week_move_models = find_team_updates_by_team(team_id, None, Some(deadline_id), db)
             .await
-            .map_err(|err| internal("failed to load the team's moves", &err))?;
-        let owned_ids: HashSet<i64> = team_update_models.iter().map(|model| model.id).collect();
-        if !requested_ids.is_subset(&owned_ids) {
-            return Err(code_error(ErrorCode::NotFound));
+            .map_err(|err| internal("failed to load this week's moves", &err))?;
+        let week_move_ids: HashSet<i64> = week_move_models.iter().map(|model| model.id).collect();
+        let requested_ids: HashSet<i64> = ordered_team_update_ids.iter().copied().collect();
+        if requested_ids.len() != ordered_team_update_ids.len() || requested_ids != week_move_ids {
+            return Err(graphql_error(
+                ErrorCode::BadRequest,
+                "an order has to list each of this week's moves once and nothing else".to_owned(),
+            ));
         }
 
         let db_txn = db
@@ -137,18 +145,14 @@ impl RosterMutation {
         update_team_update_sequences(&ordered_team_update_ids, &db_txn)
             .await
             .map_err(|err| internal("failed to save the move order", &err))?;
-        let reordered = find_team_updates_by_team(team_id, None, None, &db_txn)
+        let reordered = find_team_updates_by_team(team_id, None, Some(deadline_id), &db_txn)
             .await
-            .map_err(|err| internal("failed to reload the team's moves", &err))?;
+            .map_err(|err| internal("failed to reload this week's moves", &err))?;
         db_txn
             .commit()
             .await
             .map_err(|err| internal("failed to commit the move order", &err.into()))?;
 
-        let reordered: Vec<_> = reordered
-            .into_iter()
-            .filter(|model| requested_ids.contains(&model.id))
-            .collect();
         Ok(TeamWeek::in_owner_order(&reordered))
     }
 
