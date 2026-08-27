@@ -107,9 +107,13 @@ where
             .map(|chain_contract| chain_contract.id)
             .collect();
 
-    let committed_team_updates =
-        team_update_queries::find_team_updates_by_team(team_id, Some(TeamUpdateStatus::Done), db)
-            .await?;
+    let committed_team_updates = team_update_queries::find_team_updates_by_team(
+        team_id,
+        Some(TeamUpdateStatus::Done),
+        None,
+        db,
+    )
+    .await?;
 
     let mut is_previously_committed_without_ir = false;
     for team_update_model in committed_team_updates {

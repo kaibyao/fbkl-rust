@@ -132,7 +132,7 @@ impl Team {
             return Err(code_error(ErrorCode::Forbidden));
         }
 
-        let team_update_models = find_team_updates_by_team(self.id, status, db)
+        let team_update_models = find_team_updates_by_team(self.id, status, None, db)
             .await
             .map_err(|db_err| {
                 tracing::error!(error = ?db_err, team_id = self.id, "failed to load team updates");

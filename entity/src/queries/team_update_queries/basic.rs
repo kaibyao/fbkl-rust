@@ -1,13 +1,14 @@
 use color_eyre::Result;
 use sea_orm::{
-    ActiveModelTrait, ActiveValue, ColumnTrait, ConnectionTrait, EntityTrait, ModelTrait,
-    QueryFilter, QueryOrder, sea_query::Expr,
+    ActiveModelTrait, ActiveValue, ColumnTrait, ConnectionTrait, EntityTrait, JoinType, ModelTrait,
+    QueryFilter, QueryOrder, QuerySelect, RelationTrait, sea_query::Expr,
 };
 use tracing::instrument;
 
 use crate::{
     deadline,
     team_update::{self, TeamUpdateStatus},
+    transaction,
 };
 
 /// Finds the `team_updates` related to the given deadline.
@@ -42,11 +43,15 @@ where
     Ok(team_updates)
 }
 
-/// Finds a team's `team_updates` newest-first, optionally narrowed to one status.
+/// Finds a team's `team_updates` newest-first, narrowed by status and/or deadline.
+///
+/// Filtering by deadline gives the moves made in one week, since every roster move records its
+/// transaction against the deadline it is made for.
 #[instrument(skip(db))]
 pub async fn find_team_updates_by_team<C>(
     team_id: i64,
     maybe_status: Option<TeamUpdateStatus>,
+    maybe_deadline_id: Option<i64>,
     db: &C,
 ) -> Result<Vec<team_update::Model>>
 where
@@ -56,6 +61,15 @@ where
 
     if let Some(status) = maybe_status {
         query = query.filter(team_update::Column::Status.eq(status));
+    }
+
+    if let Some(deadline_id) = maybe_deadline_id {
+        query = query
+            .join(
+                JoinType::InnerJoin,
+                team_update::Relation::Transaction.def(),
+            )
+            .filter(transaction::Column::DeadlineId.eq(deadline_id));
     }
 
     let team_updates = query.order_by_desc(team_update::Column::Id).all(db).await?;

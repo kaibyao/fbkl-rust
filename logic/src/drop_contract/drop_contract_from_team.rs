@@ -1,8 +1,12 @@
+use std::collections::HashSet;
+
 use color_eyre::eyre::{Result, ensure, eyre};
 use fbkl_entity::{
     contract::{self, ContractStatus},
     contract_queries, deadline,
     sea_orm::{ActiveValue, ConnectionTrait},
+    team_update::{self, ContractUpdateType, TeamUpdateAsset, TeamUpdateData},
+    team_update_queries,
     transaction::{self, TransactionKind},
     transaction_queries,
 };
@@ -22,6 +26,7 @@ where
     C: ConnectionTrait,
 {
     validate_contract_eligibility(&contract_model)?;
+    validate_not_dropping_same_week_add(&contract_model, deadline_model, db).await?;
 
     let team_model = contract_model.get_team(db).await?.ok_or_else(|| {
         eyre!(
@@ -79,4 +84,157 @@ fn validate_contract_eligibility(contract_model: &contract::Model) -> Result<()>
         contract_model.id
     );
     Ok(())
+}
+
+/// Rejects dropping a contract that this team added earlier in the same week to make room for a
+/// different contract it also added this week (rules §8.3.7).
+///
+/// The week is the set of `team_updates` whose transaction points at `deadline_model`, i.e. the
+/// moves not yet locked in. A contract counts as a same-week add when every one of its updates
+/// this week is an auction or trade add.
+#[instrument(skip(db))]
+pub async fn validate_not_dropping_same_week_add<C>(
+    contract_model: &contract::Model,
+    deadline_model: &deadline::Model,
+    db: &C,
+) -> Result<()>
+where
+    C: ConnectionTrait,
+{
+    let Some(team_id) = contract_model.team_id else {
+        return Ok(());
+    };
+
+    let this_week_team_updates =
+        team_update_queries::find_team_updates_by_team(team_id, None, Some(deadline_model.id), db)
+            .await?;
+    let target_chain_contract_ids: HashSet<i64> =
+        contract_queries::find_contract_chain(contract_model.id, db)
+            .await?
+            .into_iter()
+            .map(|chain_contract| chain_contract.id)
+            .collect();
+
+    ensure!(
+        !is_dropping_same_week_add(&this_week_team_updates, &target_chain_contract_ids)?,
+        "Cannot drop a contract added this week to make room for a different contract also added this week. (contract_id = {})",
+        contract_model.id
+    );
+
+    Ok(())
+}
+
+/// ponytail: any other same-week add counts, even one already dropped again this week - the chain
+/// rewrite on drop makes matching those back to their add row costly. Upgrade when it bites.
+fn is_dropping_same_week_add(
+    team_update_models: &[team_update::Model],
+    target_chain_contract_ids: &HashSet<i64>,
+) -> Result<bool> {
+    let mut target_update_types = Vec::new();
+    let mut is_other_contract_added_this_week = false;
+
+    for team_update_model in team_update_models {
+        let TeamUpdateData::Assets(asset_summary) = team_update_model.get_data()? else {
+            continue;
+        };
+        for changed_asset in &asset_summary.changed_assets {
+            let TeamUpdateAsset::Contracts(contract_updates) = changed_asset else {
+                continue;
+            };
+            for contract_update in contract_updates {
+                if target_chain_contract_ids.contains(&contract_update.contract_id) {
+                    target_update_types.push(contract_update.update_type);
+                } else if is_add(contract_update.update_type) {
+                    is_other_contract_added_this_week = true;
+                }
+            }
+        }
+    }
+
+    let is_target_added_this_week =
+        !target_update_types.is_empty() && target_update_types.iter().copied().all(is_add);
+
+    Ok(is_target_added_this_week && is_other_contract_added_this_week)
+}
+
+const fn is_add(update_type: ContractUpdateType) -> bool {
+    matches!(
+        update_type,
+        ContractUpdateType::AddViaAuction | ContractUpdateType::AddViaTrade
+    )
+}
+
+#[cfg(test)]
+mod tests {
+    use chrono::{NaiveDate, Utc};
+    use fbkl_entity::team_update::{ContractUpdate, TeamUpdateStatus};
+
+    use super::*;
+
+    fn team_update_with_contract_update(
+        id: i64,
+        contract_id: i64,
+        update_type: ContractUpdateType,
+    ) -> team_update::Model {
+        let data = TeamUpdateData::from_assets(
+            vec![contract_id],
+            vec![TeamUpdateAsset::Contracts(vec![ContractUpdate {
+                contract_id,
+                update_type,
+                player_name_at_time: "Test Player".to_string(),
+                player_team_abbr_at_time: "TST".to_string(),
+                player_team_name_at_time: "Test Team".to_string(),
+            }])],
+            10,
+            100,
+            5,
+            100,
+        );
+        let now = Utc::now().into();
+
+        team_update::Model {
+            id,
+            data: data.to_json().unwrap(),
+            effective_date: NaiveDate::from_ymd_opt(2024, 11, 4).unwrap(),
+            status: TeamUpdateStatus::Pending,
+            team_id: 1,
+            transaction_id: Some(id),
+            created_at: now,
+            updated_at: now,
+        }
+    }
+
+    #[test]
+    fn same_week_add_dropped_for_another_same_week_add_is_illegal() {
+        let team_updates = vec![
+            team_update_with_contract_update(1, 100, ContractUpdateType::AddViaAuction),
+            team_update_with_contract_update(2, 200, ContractUpdateType::AddViaTrade),
+        ];
+        let target_chain_contract_ids = HashSet::from([100]);
+
+        assert!(is_dropping_same_week_add(&team_updates, &target_chain_contract_ids).unwrap());
+    }
+
+    #[test]
+    fn contract_added_in_a_prior_week_is_droppable() {
+        let team_updates = vec![team_update_with_contract_update(
+            1,
+            200,
+            ContractUpdateType::AddViaAuction,
+        )];
+        let target_chain_contract_ids = HashSet::from([100]);
+
+        assert!(!is_dropping_same_week_add(&team_updates, &target_chain_contract_ids).unwrap());
+    }
+
+    #[test]
+    fn same_week_add_is_droppable_when_nothing_else_was_added() {
+        let team_updates = vec![
+            team_update_with_contract_update(1, 100, ContractUpdateType::AddViaAuction),
+            team_update_with_contract_update(2, 200, ContractUpdateType::ToIR),
+        ];
+        let target_chain_contract_ids = HashSet::from([100]);
+
+        assert!(!is_dropping_same_week_add(&team_updates, &target_chain_contract_ids).unwrap());
+    }
 }
