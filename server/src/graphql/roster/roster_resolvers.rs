@@ -20,7 +20,7 @@ use fbkl_entity::{
     team_user::LeagueRole,
 };
 use fbkl_logic::{
-    deadline_processing::roster_lock::validate_league_rosters,
+    deadline_processing::roster_lock::{TeamRosterViolation, validate_team_roster},
     drop_contract::drop_contract_from_team,
     ir::{activate_contract_from_ir, move_contract_to_ir},
     rookie_development_activation::activate_rookie_development_contract,
@@ -31,7 +31,7 @@ use fbkl_logic::{
 };
 
 use super::super::{contract::Contract, team::TeamUpdate};
-use super::{RosterMove, RosterMoveKind, RosterRuleLegality, TeamWeek};
+use super::{RosterMove, RosterMoveKind, TeamWeek, roster_illegal_error};
 use crate::graphql::{
     ErrorCode, LeagueRoleGuard, RoleRequirement, code_error, graphql_error, require_league_role,
 };
@@ -219,16 +219,9 @@ impl RosterMutation {
                 .push(Contract::from_model(&updated).map_err(|_| code_error(ErrorCode::Internal))?);
         }
 
-        let illegal_rules = team_rule_legality(team_id, &deadline_model, &db_txn)
-            .await?
-            .into_iter()
-            .filter_map(|rule| rule.message)
-            .collect::<Vec<_>>();
-        if !illegal_rules.is_empty() {
-            return Err(graphql_error(
-                ErrorCode::RosterIllegal,
-                illegal_rules.join("\n"),
-            ));
+        let violations = team_roster_violations(team_id, &deadline_model, &db_txn).await?;
+        if !violations.is_empty() {
+            return Err(roster_illegal_error(&violations));
         }
 
         db_txn
@@ -339,8 +332,9 @@ impl RosterQuery {
         .await
         .map_err(|err| internal("failed to load this week's pending moves", &err))?;
 
-        let rule_legality = team_rule_legality(team_id, &deadline_model, db).await?;
-        let is_legal = rule_legality.iter().all(|rule| rule.is_legal);
+        let violations = team_roster_violations(team_id, &deadline_model, db).await?;
+        let rule_legality = TeamWeek::rule_legality_for_team(team_id, &violations);
+        let is_legal = violations.is_empty();
 
         Ok(TeamWeek {
             team_id,
@@ -356,12 +350,13 @@ impl RosterQuery {
 /// Runs the roster-lock rules for one team without mutating anything.
 ///
 /// The keeper window has rules of its own (`validate_team_keepers`), so no roster-lock rule
-/// applies there and the list comes back empty.
-async fn team_rule_legality<C>(
+/// applies there and the list comes back empty. Only the named team is read: the rest of the
+/// league's legality is nobody's business on a single-team request.
+async fn team_roster_violations<C>(
     team_id: i64,
     deadline_model: &deadline::Model,
     db: &C,
-) -> Result<Vec<RosterRuleLegality>>
+) -> Result<Vec<TeamRosterViolation>>
 where
     C: ConnectionTrait,
 {
@@ -369,9 +364,7 @@ where
         return Ok(vec![]);
     }
 
-    let violations = validate_league_rosters(deadline_model, db)
+    validate_team_roster(team_id, deadline_model, db)
         .await
-        .map_err(|err| internal("failed to validate the team's roster", &err))?;
-
-    Ok(TeamWeek::rule_legality_for_team(team_id, &violations))
+        .map_err(|err| internal("failed to validate the team's roster", &err))
 }

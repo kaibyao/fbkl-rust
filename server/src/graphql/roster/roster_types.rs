@@ -1,10 +1,45 @@
 //! GraphQL shapes for a team's week: its committed roster, its pending moves, and per-rule legality.
 
-use async_graphql::{Enum, InputObject, SimpleObject};
+use async_graphql::{
+    Enum, Error as GraphQlError, ErrorExtensions, InputObject, SimpleObject, Value, value,
+};
 use fbkl_entity::team_update;
 use fbkl_logic::deadline_processing::roster_lock::{RosterRule, TeamRosterViolation};
 
 use super::super::{contract::Contract, team::TeamUpdate};
+use crate::graphql::{ErrorCode, code_error};
+
+/// The error a failing `legalizeRoster` returns: one entry per rule the roster breaks.
+///
+/// The entries go in a `violations` error extension, each naming the rule as its GraphQL enum
+/// value, so a client can point at the rule it broke instead of parsing one joined message.
+pub fn roster_illegal_error(violations: &[TeamRosterViolation]) -> GraphQlError {
+    let payload = violations
+        .iter()
+        .map(|violation| {
+            value!({
+                "teamId": violation.team_id,
+                "rule": roster_rule_name(violation.rule),
+                "message": violation.message.clone(),
+            })
+        })
+        .collect();
+
+    code_error(ErrorCode::RosterIllegal)
+        .extend_with(|_, extensions| extensions.set("violations", Value::List(payload)))
+}
+
+/// The GraphQL enum value for a rule. Exhaustive so a new rule cannot ship unnamed.
+const fn roster_rule_name(rule: RosterRule) -> &'static str {
+    match rule {
+        RosterRule::IrSlots => "IR_SLOTS",
+        RosterRule::PreseasonRosterLimit => "PRESEASON_ROSTER_LIMIT",
+        RosterRule::RookieDevelopmentLimit => "ROOKIE_DEVELOPMENT_LIMIT",
+        RosterRule::IntlRookieDevelopmentLimit => "INTL_ROOKIE_DEVELOPMENT_LIMIT",
+        RosterRule::VeteranOrRookieLimit => "VETERAN_OR_ROOKIE_LIMIT",
+        RosterRule::SalaryCap => "SALARY_CAP",
+    }
+}
 
 /// Whether one roster rule holds for a team, with the failure text when it does not.
 #[derive(SimpleObject)]
@@ -131,6 +166,22 @@ mod tests {
         assert_eq!(illegal.len(), 1);
         assert_eq!(illegal[0].rule, RosterRule::SalaryCap);
         assert_eq!(illegal[0].message.as_deref(), Some("over the limit"));
+    }
+
+    #[test]
+    fn the_illegal_roster_error_names_every_broken_rule() {
+        let error = roster_illegal_error(&[violation(7, RosterRule::VeteranOrRookieLimit)]);
+        let extensions = error.extensions.expect("the error carries extensions");
+
+        assert_eq!(extensions.get("code"), Some(&"ROSTER_ILLEGAL".into()));
+        assert_eq!(
+            extensions.get("violations"),
+            Some(&Value::List(vec![value!({
+                "teamId": 7,
+                "rule": "VETERAN_OR_ROOKIE_LIMIT",
+                "message": "over the limit",
+            })]))
+        );
     }
 
     #[test]

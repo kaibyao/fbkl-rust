@@ -67,6 +67,22 @@ async fn the_wizard_legalizes_against_the_named_deadline_not_the_last_passed_one
     let no_moves = run(&schema, &legalize(league.team_id, lock_id, ""), &session).await;
     assert_eq!(no_moves, Err("ROSTER_ILLEGAL".to_owned()));
 
+    // The refusal names the rule, so the wizard can point at the rule the roster broke.
+    let violations =
+        error_extension(&schema, &legalize(league.team_id, lock_id, ""), &session).await;
+    let Some(Value::List(violations)) = violations else {
+        panic!("expected a list of violations, got {violations:?}");
+    };
+    let [Value::Object(violation)] = violations.as_slice() else {
+        panic!("expected exactly one violation, got {violations:?}");
+    };
+    assert_eq!(violation["rule"], Value::from("VETERAN_OR_ROOKIE_LIMIT"));
+    assert_eq!(violation["teamId"], Value::from(league.team_id));
+    assert!(
+        violation["message"].to_string().contains("22"),
+        "the message should name the limit: {violation:?}"
+    );
+
     let with_ir_move = run(
         &schema,
         &legalize(league.team_id, lock_id, &ir_move),
@@ -174,6 +190,19 @@ async fn run(schema: &AppSchema, mutation: &str, session: &Session) -> Result<Va
         return Err(code.trim_matches('"').to_owned());
     }
     Ok(response.data)
+}
+
+/// The `violations` extension of a failing mutation's error, i.e. the machine-readable payload.
+async fn error_extension(schema: &AppSchema, mutation: &str, session: &Session) -> Option<Value> {
+    let response = schema
+        .execute(Request::new(mutation).data(session.clone()))
+        .await;
+    let error = response.errors.first().expect("the mutation should fail");
+    error
+        .extensions
+        .as_ref()
+        .and_then(|extensions| extensions.get("violations"))
+        .cloned()
 }
 
 /// A logged-in session for one user in one league, i.e. what the session layer would have built.
