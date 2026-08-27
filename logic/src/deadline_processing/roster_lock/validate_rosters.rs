@@ -17,30 +17,33 @@ use tracing::instrument;
 
 use crate::roster::{SalarySnapshot, calculate_team_contract_salary};
 
-/// A roster rule that a team's roster can break at lock time.
-///
-/// Kept per-rule so callers can show a legality flag for each rule instead of one pass/fail.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum RosterRule {
+/// Declares `RosterRule` and `RosterRule::ALL` from one list, so a rule added to the enum cannot go
+/// missing from the per-rule legality flags `teamWeek` reports.
+macro_rules! roster_rules {
+    ($($rule:ident),+ $(,)?) => {
+        /// A roster rule that a team's roster can break at lock time.
+        ///
+        /// Kept per-rule so callers can show a legality flag for each rule instead of one pass/fail.
+        #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+        pub enum RosterRule {
+            $($rule),+
+        }
+
+        impl RosterRule {
+            /// Every rule, so a caller can report one legality flag per rule rather than a single pass/fail.
+            pub const ALL: [Self; [$(stringify!($rule)),+].len()] = [$(Self::$rule),+];
+        }
+    };
+}
+
+roster_rules!(
     IrSlots,
     PreseasonRosterLimit,
     RookieDevelopmentLimit,
     IntlRookieDevelopmentLimit,
     VeteranOrRookieLimit,
     SalaryCap,
-}
-
-impl RosterRule {
-    /// Every rule, so a caller can report one legality flag per rule rather than a single pass/fail.
-    pub const ALL: [Self; 6] = [
-        Self::IrSlots,
-        Self::PreseasonRosterLimit,
-        Self::RookieDevelopmentLimit,
-        Self::IntlRookieDevelopmentLimit,
-        Self::VeteranOrRookieLimit,
-        Self::SalaryCap,
-    ];
-}
+);
 
 /// One rule broken by one team's roster at lock time.
 ///

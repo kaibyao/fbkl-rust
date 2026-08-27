@@ -169,6 +169,11 @@ fn is_added_this_week(
     Ok(!target_update_types.is_empty() && target_update_types.iter().copied().all(is_add))
 }
 
+/// Whether the update type is a weekly pickup, i.e. an add rule 8.3.7 asks to accommodate first.
+///
+/// Narrower than `is_add_from_outside_the_roster` in `move_contract_to_ir`: a rookie-draft add is
+/// left out because the rookie draft lets an owner drop a just-drafted player, and RD contracts
+/// take up no roster or cap space anyway.
 const fn is_add(update_type: ContractUpdateType) -> bool {
     matches!(
         update_type,

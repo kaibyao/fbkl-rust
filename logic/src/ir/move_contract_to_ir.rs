@@ -78,7 +78,7 @@ where
 /// the add that brought it in only counts once its own week is over, so that an owner cannot park a
 /// fresh signing or trade pickup on IR to dodge the 22-man limit (rules §10.3.1).
 #[instrument(skip(db))]
-pub async fn validate_ir_eligible_in_season<C>(
+async fn validate_ir_eligible_in_season<C>(
     contract_model: &contract::Model,
     deadline_model: &deadline::Model,
     db: &C,
