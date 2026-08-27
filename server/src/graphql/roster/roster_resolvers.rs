@@ -381,7 +381,13 @@ fn roster_move_error(error: &Report) -> GraphQlError {
         return internal("roster move failed", error);
     };
 
-    graphql_error(ErrorCode::RosterMoveRejected, rejection.to_string())
+    let code = match rejection {
+        // A stale contract row is a refetch-and-retry for the client, not a rule it broke.
+        RosterMoveRejection::NotLatestInChain { .. } => ErrorCode::NotLatestInChain,
+        _ => ErrorCode::RosterMoveRejected,
+    };
+
+    graphql_error(code, rejection.to_string())
 }
 
 fn internal(message: &str, error: &Report) -> GraphQlError {
@@ -543,6 +549,16 @@ mod tests {
                 "the owner should be told which rule stopped the move: {error:?}"
             );
         }
+    }
+
+    #[test]
+    fn a_stale_contract_gets_the_chain_code_instead_of_a_rule_rejection() {
+        let error = roster_move_error(&Report::new(RosterMoveRejection::NotLatestInChain {
+            contract_id: 7,
+        }));
+
+        assert_eq!(code_of(&error), Some("NOT_LATEST_IN_CHAIN".into()));
+        assert!(error.message.contains("latest in its chain"), "{error:?}");
     }
 
     #[test]

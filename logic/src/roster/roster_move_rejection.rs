@@ -36,6 +36,11 @@ pub enum RosterMoveRejection {
         contract_id: i64,
         violations: String,
     },
+    /// A newer row in the contract's chain supersedes it, so the client is acting on a stale copy.
+    #[error(
+        "Contract {contract_id} is not the latest in its chain, so no roster move applies to it."
+    )]
+    NotLatestInChain { contract_id: i64 },
     /// Only a live contract can be moved; a replaced or expired row is a stale reference.
     #[error("Contract {contract_id} has status {status:?}, so no roster move applies to it.")]
     ContractNotActive {

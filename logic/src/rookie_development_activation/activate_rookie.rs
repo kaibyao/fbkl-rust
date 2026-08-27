@@ -24,7 +24,12 @@ where
     C: ConnectionTrait,
 {
     validate_contract_is_activatable(&contract_model)?;
-    contract_queries::validate_contract_is_latest_in_chain(&contract_model, db).await?;
+    if !contract_model.is_latest_in_chain(db).await? {
+        return Err(RosterMoveRejection::NotLatestInChain {
+            contract_id: contract_model.id,
+        }
+        .into());
+    }
 
     let team_model = contract_model.get_team(db).await?.ok_or_else(|| {
         eyre!(

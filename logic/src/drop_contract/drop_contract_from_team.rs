@@ -100,7 +100,7 @@ fn validate_contract_eligibility(contract_model: &contract::Model) -> Result<()>
 /// this week is an auction or trade add. Because the adds are already applied and the drop is not,
 /// the team's current roster is the roster §8.3.7 asks about: with every add, without the drop.
 #[instrument(skip(db))]
-pub async fn validate_not_dropping_same_week_add<C>(
+async fn validate_not_dropping_same_week_add<C>(
     contract_model: &contract::Model,
     deadline_model: &deadline::Model,
     db: &C,
