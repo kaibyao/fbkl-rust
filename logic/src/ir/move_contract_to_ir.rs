@@ -5,7 +5,10 @@ use fbkl_entity::{
     contract, contract_queries,
     deadline::{self, DeadlineKind},
     sea_orm::{ActiveValue, ConnectionTrait},
-    team_update::{ContractUpdateType, TeamUpdateData, TeamUpdateStatus},
+    team_update::{
+        ContractUpdateType, TeamUpdateAsset, TeamUpdateAssetSummary, TeamUpdateData,
+        TeamUpdateStatus,
+    },
     team_update_queries,
     transaction::{self, TransactionKind},
     transaction_queries,
@@ -71,8 +74,9 @@ where
 /// Rejects a move to IR that the league rules do not allow (rules §5.1.3, §10.1.2, §10.3.2, §11.7).
 ///
 /// A contract may go straight to IR only at the preseason final roster lock. At every other
-/// deadline the contract must already have been committed to this team without IR at an earlier
-/// lock, so that an owner cannot park a fresh signing on IR to dodge the 22-man limit.
+/// deadline a committed `team_update` must already show the contract on this team without IR, and
+/// that update may not be the add that brought it in, so that an owner cannot park a fresh signing
+/// or trade pickup on IR to dodge the 22-man limit (rules §10.3.1).
 #[instrument(skip(db))]
 pub async fn validate_ir_eligible_in_season<C>(
     contract_model: &contract::Model,
@@ -117,13 +121,15 @@ where
 
     let mut is_previously_committed_without_ir = false;
     for team_update_model in committed_team_updates {
-        if let TeamUpdateData::Assets(asset_summary) = team_update_model.get_data()?
-            && asset_summary
-                .all_contract_ids
-                .iter()
-                .any(|committed_contract_id| {
-                    non_ir_chain_contract_ids.contains(committed_contract_id)
-                })
+        let TeamUpdateData::Assets(asset_summary) = team_update_model.get_data()? else {
+            continue;
+        };
+        let is_on_committed_roster = asset_summary
+            .all_contract_ids
+            .iter()
+            .any(|committed_contract_id| non_ir_chain_contract_ids.contains(committed_contract_id));
+
+        if is_on_committed_roster && !is_acquisition_of(&asset_summary, &non_ir_chain_contract_ids)
         {
             is_previously_committed_without_ir = true;
             break;
@@ -138,4 +144,37 @@ where
     );
 
     Ok(())
+}
+
+/// Whether this `team_update` is the add that put one of `chain_contract_ids` on the team.
+///
+/// An in-season auction win or trade receipt flips its own `team_update` to Done as soon as it
+/// happens, so that update proves nothing about the contract ever fitting on the 22-man active
+/// roster. Only an update recording something else about the roster does (rules §10.3.1).
+fn is_acquisition_of(
+    asset_summary: &TeamUpdateAssetSummary,
+    chain_contract_ids: &HashSet<i64>,
+) -> bool {
+    asset_summary
+        .changed_assets
+        .iter()
+        .any(|changed_asset| match changed_asset {
+            TeamUpdateAsset::Contracts(contract_updates) => {
+                contract_updates.iter().any(|contract_update| {
+                    chain_contract_ids.contains(&contract_update.contract_id)
+                        && is_add_from_outside_the_roster(contract_update.update_type)
+                })
+            }
+            TeamUpdateAsset::DraftPicks(_) => false,
+        })
+}
+
+/// Whether the update type brings a contract onto the team from outside its roster.
+const fn is_add_from_outside_the_roster(update_type: ContractUpdateType) -> bool {
+    matches!(
+        update_type,
+        ContractUpdateType::AddViaAuction
+            | ContractUpdateType::AddViaTrade
+            | ContractUpdateType::AddViaRookieDraft
+    )
 }

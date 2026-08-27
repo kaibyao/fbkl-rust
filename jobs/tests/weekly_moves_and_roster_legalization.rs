@@ -81,37 +81,57 @@ async fn add_roster_contracts(
     contracts
 }
 
-/// Records an auction win for `contract_model` against `deadline_model`, i.e. a pending same-week
-/// add, without running an auction.
-async fn record_auction_add(
+/// One `team_update` to seed, i.e. a roster move recorded without running the code that makes it.
+struct RecordedMove<'a> {
+    deadline_model: &'a deadline::Model,
+    kind: TransactionKind,
+    status: TeamUpdateStatus,
+    /// The roster the update commits, i.e. `all_contract_ids`.
+    roster_contract_ids: Vec<i64>,
+    /// The moves the update records, as `(contract_id, update_type)` pairs.
+    contract_moves: Vec<(i64, ContractUpdateType)>,
+}
+
+/// Inserts `recorded` as a `team_update` on `team_id`, skipping the logic that normally writes it.
+async fn record_move(
     league: &TestLeague,
-    contract_model: &contract::Model,
-    deadline_model: &deadline::Model,
+    team_id: i64,
+    recorded: RecordedMove<'_>,
 ) -> team_update::Model {
-    let team_id = contract_model.team_id.expect("added contract has a team");
+    let RecordedMove {
+        deadline_model,
+        kind,
+        status,
+        roster_contract_ids,
+        contract_moves,
+    } = recorded;
+
     let transaction_model = transaction_queries::insert_transaction(
         transaction::ActiveModel {
             end_of_season_year: ActiveValue::Set(END_OF_SEASON_YEAR),
-            kind: ActiveValue::Set(TransactionKind::AuctionDone),
+            kind: ActiveValue::Set(kind),
             league_id: ActiveValue::Set(league.league_id),
             deadline_id: ActiveValue::Set(deadline_model.id),
-            contract_id: ActiveValue::Set(Some(contract_model.id)),
             ..Default::default()
         },
         &league.db,
     )
     .await
-    .expect("insert auction transaction");
+    .expect("insert transaction");
 
-    let team_update_data = TeamUpdateData::from_assets(
-        vec![contract_model.id],
-        vec![TeamUpdateAsset::Contracts(vec![ContractUpdate {
-            contract_id: contract_model.id,
-            update_type: ContractUpdateType::AddViaAuction,
+    let contract_updates = contract_moves
+        .into_iter()
+        .map(|(contract_id, update_type)| ContractUpdate {
+            contract_id,
+            update_type,
             player_name_at_time: String::new(),
             player_team_abbr_at_time: String::new(),
             player_team_name_at_time: String::new(),
-        }])],
+        })
+        .collect();
+    let team_update_data = TeamUpdateData::from_assets(
+        roster_contract_ids,
+        vec![TeamUpdateAsset::Contracts(contract_updates)],
         0,
         0,
         0,
@@ -126,7 +146,7 @@ async fn record_auction_add(
                     .expect("team update data as json"),
             ),
             effective_date: ActiveValue::Set(deadline_model.date_time.date_naive()),
-            status: ActiveValue::Set(TeamUpdateStatus::Pending),
+            status: ActiveValue::Set(status),
             team_id: ActiveValue::Set(team_id),
             transaction_id: ActiveValue::Set(Some(transaction_model.id)),
             ..Default::default()
@@ -134,7 +154,29 @@ async fn record_auction_add(
         &league.db,
     )
     .await
-    .expect("insert add team update")
+    .expect("insert team update")
+}
+
+/// Records an auction win for `contract_model` against `deadline_model`, i.e. a pending same-week
+/// add, without running an auction.
+async fn record_auction_add(
+    league: &TestLeague,
+    contract_model: &contract::Model,
+    deadline_model: &deadline::Model,
+) -> team_update::Model {
+    let team_id = contract_model.team_id.expect("added contract has a team");
+    record_move(
+        league,
+        team_id,
+        RecordedMove {
+            deadline_model,
+            kind: TransactionKind::AuctionDone,
+            status: TeamUpdateStatus::Pending,
+            roster_contract_ids: vec![contract_model.id],
+            contract_moves: vec![(contract_model.id, ContractUpdateType::AddViaAuction)],
+        },
+    )
+    .await
 }
 
 fn broken_rules(violations: &[TeamRosterViolation]) -> Vec<RosterRule> {
@@ -217,6 +259,84 @@ async fn direct_to_ir_is_preseason_only() {
     let ir_contract = move_contract_to_ir(signing, &preseason_lock, &league.db)
         .await
         .expect("the preseason final roster lock allows direct-to-IR");
+    assert!(ir_contract.is_ir);
+}
+
+/// Rules §10.3.1: a contract acquired in-season must sit on the 22-man roster before it may go to
+/// IR, and the add's own Done `team_update` is not proof that it ever did.
+#[tokio::test]
+async fn an_in_season_add_cannot_go_straight_to_ir() {
+    let Some(league) = weekly_moves_league("weekly_moves_in_season_add_to_ir").await else {
+        return;
+    };
+    let week_1_lock = deadline_of(&league, DeadlineKind::Week1RosterLock).await;
+
+    for (add_kind, transaction_kind) in [
+        (
+            ContractUpdateType::AddViaAuction,
+            TransactionKind::AuctionDone,
+        ),
+        (ContractUpdateType::AddViaTrade, TransactionKind::Trade),
+    ] {
+        let player_id = league
+            .add_veteran_player(&format!("Acquired via {add_kind:?}"))
+            .await;
+        let acquired = league
+            .add_owned_contract(player_id, ContractKind::RookieExtension, 1, league.team_id)
+            .await;
+        record_move(
+            &league,
+            league.team_id,
+            RecordedMove {
+                deadline_model: &week_1_lock,
+                kind: transaction_kind,
+                status: TeamUpdateStatus::Done,
+                roster_contract_ids: vec![acquired.id],
+                contract_moves: vec![(acquired.id, add_kind)],
+            },
+        )
+        .await;
+
+        let rejection = move_contract_to_ir(acquired, &week_1_lock, &league.db)
+            .await
+            .expect_err("an in-season add cannot go straight to IR");
+        assert!(
+            rejection.to_string().contains("straight to IR"),
+            "unexpected rejection for {add_kind:?}: {rejection}"
+        );
+    }
+}
+
+/// Rules §10.3.1: once the contract has been committed to the active roster, IR is open to it.
+#[tokio::test]
+async fn a_contract_committed_to_the_active_roster_can_go_to_ir() {
+    let Some(league) = weekly_moves_league("weekly_moves_committed_then_ir").await else {
+        return;
+    };
+    let week_1_lock = deadline_of(&league, DeadlineKind::Week1RosterLock).await;
+    let player_id = league.add_veteran_player("Committed vet").await;
+    let committed = league
+        .add_owned_contract(player_id, ContractKind::RookieExtension, 1, league.team_id)
+        .await;
+    let dropped = add_roster_contracts(&league, league.team_id, 1, "Dropped").await;
+
+    // A drop made while already holding the vet: he is on the committed roster, and this is not his add.
+    record_move(
+        &league,
+        league.team_id,
+        RecordedMove {
+            deadline_model: &week_1_lock,
+            kind: TransactionKind::TeamUpdateDropContract,
+            status: TeamUpdateStatus::Done,
+            roster_contract_ids: vec![committed.id, dropped[0].id],
+            contract_moves: vec![(dropped[0].id, ContractUpdateType::Drop)],
+        },
+    )
+    .await;
+
+    let ir_contract = move_contract_to_ir(committed, &week_1_lock, &league.db)
+        .await
+        .expect("a contract already committed to the active roster may move to IR in-season");
     assert!(ir_contract.is_ir);
 }
 
