@@ -75,8 +75,8 @@ where
 ///
 /// A contract may go straight to IR only at the preseason final roster lock. At every other
 /// deadline a committed `team_update` must already show the contract on this team without IR, and
-/// that update may not be the add that brought it in, so that an owner cannot park a fresh signing
-/// or trade pickup on IR to dodge the 22-man limit (rules §10.3.1).
+/// the add that brought it in only counts once its own week is over, so that an owner cannot park a
+/// fresh signing or trade pickup on IR to dodge the 22-man limit (rules §10.3.1).
 #[instrument(skip(db))]
 pub async fn validate_ir_eligible_in_season<C>(
     contract_model: &contract::Model,
@@ -118,6 +118,16 @@ where
         db,
     )
     .await?;
+    let this_week_update_ids: HashSet<i64> = team_update_queries::find_team_updates_by_team(
+        team_id,
+        Some(TeamUpdateStatus::Done),
+        Some(deadline_model.id),
+        db,
+    )
+    .await?
+    .into_iter()
+    .map(|team_update_model| team_update_model.id)
+    .collect();
 
     let mut is_previously_committed_without_ir = false;
     for team_update_model in committed_team_updates {
@@ -128,9 +138,10 @@ where
             .all_contract_ids
             .iter()
             .any(|committed_contract_id| non_ir_chain_contract_ids.contains(committed_contract_id));
+        let is_add_still_in_its_own_week = this_week_update_ids.contains(&team_update_model.id)
+            && is_acquisition_of(&asset_summary, &non_ir_chain_contract_ids);
 
-        if is_on_committed_roster && !is_acquisition_of(&asset_summary, &non_ir_chain_contract_ids)
-        {
+        if is_on_committed_roster && !is_add_still_in_its_own_week {
             is_previously_committed_without_ir = true;
             break;
         }
@@ -150,7 +161,10 @@ where
 ///
 /// An in-season auction win or trade receipt flips its own `team_update` to Done as soon as it
 /// happens, so that update proves nothing about the contract ever fitting on the 22-man active
-/// roster. Only an update recording something else about the roster does (rules §10.3.1).
+/// roster while its week is still open. Once the week's lock has fired the add is filed under a
+/// past deadline, and the roster it committed does count (rules §10.3.1).
+// ponytail: an add under a past deadline is taken as proof its lock committed the roster. A lock
+// whose job never ran would also pass; the fix would be a per-lock committed marker row.
 fn is_acquisition_of(
     asset_summary: &TeamUpdateAssetSummary,
     chain_contract_ids: &HashSet<i64>,

@@ -30,6 +30,8 @@ const END_OF_SEASON_YEAR: i16 = 2026;
 const VET_OR_ROOKIE_LIMIT: usize = 22;
 const PRESEASON_LOCK: &str = "2025-10-20T18:00:00";
 const WEEK_1_LOCK: &str = "2025-10-27T18:00:00";
+const WEEK_2_LOCK: &str = "2025-11-03T18:00:00";
+const FA_AUCTION_END: &str = "2026-03-01T18:00:00";
 
 /// A league with the two roster locks these tests move contracts against.
 async fn weekly_moves_league(test_name: &str) -> Option<TestLeague> {
@@ -305,6 +307,54 @@ async fn an_in_season_add_cannot_go_straight_to_ir() {
             "unexpected rejection for {add_kind:?}: {rejection}"
         );
     }
+}
+
+/// Rules §10.3.1: the ban on direct-to-IR ends with the add's own week. A team that wins an
+/// in-season auction and makes no other move still gets its player onto IR at the next lock.
+#[tokio::test]
+async fn a_quiet_team_can_ir_its_only_add_after_its_week_ends() {
+    let Some(league) = weekly_moves_league("weekly_moves_quiet_team_ir").await else {
+        return;
+    };
+    let week_1_lock = deadline_of(&league, DeadlineKind::Week1RosterLock).await;
+    league
+        .add_deadline(DeadlineKind::FreeAgentAuctionEnd, central(FA_AUCTION_END))
+        .await;
+    league
+        .add_deadline(DeadlineKind::InSeasonRosterLock, central(WEEK_2_LOCK))
+        .await;
+    let in_season_lock = deadline_of(&league, DeadlineKind::InSeasonRosterLock).await;
+
+    let player_id = league.add_veteran_player("Only signing").await;
+    let signing = league
+        .add_owned_contract(player_id, ContractKind::RookieExtension, 1, league.team_id)
+        .await;
+    // The auction win's own committed update, i.e. the team's one and only roster move.
+    record_move(
+        &league,
+        league.team_id,
+        RecordedMove {
+            deadline_model: &week_1_lock,
+            kind: TransactionKind::AuctionDone,
+            status: TeamUpdateStatus::Done,
+            roster_contract_ids: vec![signing.id],
+            contract_moves: vec![(signing.id, ContractUpdateType::AddViaAuction)],
+        },
+    )
+    .await;
+
+    let rejection = move_contract_to_ir(signing.clone(), &week_1_lock, &league.db)
+        .await
+        .expect_err("the add's own week still blocks IR");
+    assert!(
+        rejection.to_string().contains("straight to IR"),
+        "unexpected rejection: {rejection}"
+    );
+
+    let ir_contract = move_contract_to_ir(signing, &in_season_lock, &league.db)
+        .await
+        .expect("the week the add was filed under has ended, so IR is open");
+    assert!(ir_contract.is_ir);
 }
 
 /// Rules §10.3.1: once the contract has been committed to the active roster, IR is open to it.
