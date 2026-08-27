@@ -31,3 +31,6 @@ module_name_repetitions = "allow"
 missing_errors_doc = "allow"
 missing_panics_doc = "allow"
 must_use_candidate = "allow"
+# Fires only on async-graphql's `Enum` derive: derive output takes the call-site span,
+# so clippy blames our enums for a macro-generated `OutputType::resolve` with no await.
+unused_async_trait_impl = "allow"
