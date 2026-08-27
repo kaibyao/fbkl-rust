@@ -156,11 +156,16 @@ impl RosterMutation {
     ///
     /// The whole batch is rejected when the team's roster is still illegal after it, so a
     /// mid-batch state that breaks a rule is fine as long as the end state does not.
+    ///
+    /// `deadline_id` is the lock the owner is legalizing towards, normally the upcoming one. It has
+    /// to be given rather than read off the clock: owners work in the window before the lock fires,
+    /// where the last passed deadline is the previous one and carries the wrong rules.
     #[graphql(guard = "LeagueRoleGuard(RoleRequirement::Member)")]
     async fn legalize_roster(
         &self,
         ctx: &Context<'_>,
         team_id: i64,
+        deadline_id: i64,
         moves: Vec<RosterMove>,
     ) -> Result<Vec<Contract>> {
         let db = ctx.data_unchecked::<DatabaseConnection>();
@@ -169,13 +174,12 @@ impl RosterMutation {
             return Err(code_error(ErrorCode::Forbidden));
         }
 
-        let deadline_model = find_most_recent_deadline_by_datetime(
-            caller_team.league_id,
-            Utc::now().fixed_offset(),
-            db,
-        )
-        .await
-        .map_err(|err| internal("failed to resolve the current deadline", &err))?;
+        let deadline_model = find_deadline_by_id(deadline_id, db)
+            .await
+            .map_err(|_| code_error(ErrorCode::NotFound))?;
+        if deadline_model.league_id != caller_team.league_id {
+            return Err(code_error(ErrorCode::NotFound));
+        }
 
         let db_txn = db
             .begin()
