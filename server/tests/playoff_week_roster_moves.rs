@@ -36,18 +36,30 @@ async fn an_ir_move_in_a_playoff_week_counts_towards_that_weeks_lock() {
         return;
     };
     let playoff_start = add_season_past(&league).await;
-    // The lock at the start of the next playoff week, i.e. the one this move is judged at.
-    league
+    // The lock at the start of the next playoff week, i.e. the one this move is judged at, plus the
+    // playoff week after it: the move counts towards the upcoming lock, not any later one.
+    let lock_id = league
         .add_deadline(DeadlineKind::InSeasonRosterLock, days_from_now(2))
+        .await;
+    let later_lock_id = league
+        .add_deadline(DeadlineKind::InSeasonRosterLock, days_from_now(9))
         .await;
     let owner = league.add_team_user(LeagueRole::TeamOwner).await;
     let holdover = add_roster_contract(&league, "Playoff Holdover").await;
     // A settled week that committed the contract to the active roster (rules §10.3.1).
     record_committed_roster(&league, playoff_start, holdover.id).await;
 
-    let lock_id = deadline_id(&league, DeadlineKind::InSeasonRosterLock).await;
     let schema = build_graphql_schema(league.db.clone());
     let session = session_for(owner.user_id, league.league_id).await;
+
+    let (code, message) = move_to_ir(&schema, holdover.id, later_lock_id, &session)
+        .await
+        .expect_err("a playoff week not yet in effect cannot take the move");
+    assert_eq!(code.as_deref(), Some("BAD_REQUEST"));
+    assert!(
+        message.contains("this is not it"),
+        "the owner should be told the later lock is not the upcoming one: {message}"
+    );
 
     move_to_ir(&schema, holdover.id, lock_id, &session)
         .await

@@ -7,7 +7,8 @@
 use chrono::{Days, Utc};
 use fbkl_entity::{
     auction::AuctionKind, auction_queries, contract::ContractKind, deadline::DeadlineKind,
-    deadline_queries, team_update_queries::find_team_updates_by_team, team_user::LeagueRole,
+    deadline_queries, sea_orm::prelude::DateTimeWithTimeZone,
+    team_update_queries::find_team_updates_by_team, team_user::LeagueRole,
 };
 use fbkl_logic::auction::start_new_auction_for_nba_player;
 use fbkl_test_support::{TestLeague, central};
@@ -27,12 +28,6 @@ async fn an_auction_win_between_two_locks_is_filed_under_the_upcoming_lock() {
     league
         .add_deadline(DeadlineKind::Week1RosterLock, central(PASSED_LOCK))
         .await;
-    let days_from_now = |days: u64| {
-        Utc::now()
-            .checked_add_days(Days::new(days))
-            .expect("a date in the future")
-            .fixed_offset()
-    };
     league
         .add_deadline(DeadlineKind::InSeasonRosterLock, days_from_now(7))
         .await;
@@ -100,6 +95,89 @@ async fn an_auction_win_between_two_locks_is_filed_under_the_upcoming_lock() {
         settled_week.is_empty(),
         "the settled week should not gain a move: {settled_week:?}"
     );
+}
+
+/// Rules §8.1.3: pickups freeze at `FreeAgentAuctionEnd` "for the rest of the season (including
+/// playoffs)". The season still has locks to fire here, so only the freeze can refuse the close.
+#[tokio::test]
+async fn a_close_after_the_free_agency_freeze_is_refused() {
+    let Some(league) = TestLeague::create("fa_auction_close_frozen", END_OF_SEASON_YEAR).await
+    else {
+        return;
+    };
+    league
+        .add_deadline(DeadlineKind::InSeasonRosterLock, days_from_now(7))
+        .await;
+    league
+        .add_deadline(DeadlineKind::FreeAgentAuctionEnd, days_ago(1))
+        .await;
+
+    let bidder = league.add_team_user(LeagueRole::TeamOwner).await;
+    let player_id = league.add_veteran_player("Frozen Waiver Vet").await;
+    let pooled_contract = league
+        .add_unowned_contract(
+            player_id,
+            ContractKind::UnrestrictedFreeAgentVeteran,
+            WINNING_BID,
+        )
+        .await;
+    // A row whose clock outlived the freeze, i.e. what a moved deadline or a stale auction leaves.
+    let auction = start_new_auction_for_nba_player(
+        &pooled_contract,
+        league.league_id,
+        END_OF_SEASON_YEAR,
+        Utc::now().fixed_offset(),
+        AuctionKind::InSeasonFreeAgent,
+        WINNING_BID,
+        &league.db,
+    )
+    .await
+    .expect("start the in-season FA auction");
+    auction_queries::insert_auction_bid(auction.id, bidder.id, WINNING_BID, None, &league.db)
+        .await
+        .expect("insert the winning bid");
+
+    let outcome = process_event(
+        &league.db,
+        ProcessableEvent {
+            league_id: league.league_id,
+            end_of_season_year: END_OF_SEASON_YEAR,
+            subject_id: auction.id,
+            kind: ProcessableEventKind::FaAuctionClose,
+        },
+    )
+    .await
+    .expect("run the auction close");
+    let ProcessOutcome::Failed { error, .. } = &outcome else {
+        panic!("expected the frozen close to fail: {outcome:?}");
+    };
+    assert!(
+        error.contains("in-season pickups froze at"),
+        "the failure should name the free agency freeze: {error}"
+    );
+
+    let lock_id = deadline_id(&league, DeadlineKind::InSeasonRosterLock).await;
+    let upcoming_week = find_team_updates_by_team(league.team_id, None, Some(lock_id), &league.db)
+        .await
+        .expect("read the upcoming week's moves");
+    assert!(
+        upcoming_week.is_empty(),
+        "a frozen pickup should not reach any week: {upcoming_week:?}"
+    );
+}
+
+fn days_from_now(days: u64) -> DateTimeWithTimeZone {
+    Utc::now()
+        .checked_add_days(Days::new(days))
+        .expect("a date in the future")
+        .fixed_offset()
+}
+
+fn days_ago(days: u64) -> DateTimeWithTimeZone {
+    Utc::now()
+        .checked_sub_days(Days::new(days))
+        .expect("a date in the past")
+        .fixed_offset()
 }
 
 async fn deadline_id(league: &TestLeague, kind: DeadlineKind) -> i64 {

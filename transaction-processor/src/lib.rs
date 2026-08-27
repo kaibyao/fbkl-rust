@@ -324,9 +324,9 @@ where
         ProcessableEventKind::FaAuctionClose | ProcessableEventKind::FaExtensionExpiry => {
             // A signing joins the week it lands in, i.e. the lock it is judged at (spec 08), the
             // same deadline the owner-facing moves are stamped with. Weekly locks run through the
-            // playoff weeks to `SeasonEnd`, and no auction may close after the first playoff lock
-            // anyway, so no lock left means the season's deadlines are wrong: refuse rather than
-            // date the signing with a week that is already settled.
+            // playoff weeks to `SeasonEnd`, so no lock left means the season's deadlines are wrong:
+            // refuse rather than date the signing with a week that is already settled. A close past
+            // the §8.1.3 free agency freeze is refused inside `end_fa_auction`.
             let deadline_model = deadline_queries::find_upcoming_roster_lock(
                 league_id,
                 end_of_season_year,

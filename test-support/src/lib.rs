@@ -131,7 +131,9 @@ impl TestLeague {
         })
     }
 
-    pub async fn add_deadline(&self, kind: DeadlineKind, date_time: DateTimeWithTimeZone) {
+    /// Inserts one deadline row, returning its id — the caller may need it to name the row when a
+    /// season has two deadlines of the same kind.
+    pub async fn add_deadline(&self, kind: DeadlineKind, date_time: DateTimeWithTimeZone) -> i64 {
         deadline::Entity::insert(deadline::ActiveModel {
             date_time: ActiveValue::Set(date_time),
             kind: ActiveValue::Set(kind),
@@ -142,7 +144,8 @@ impl TestLeague {
         })
         .exec(&self.db)
         .await
-        .expect("insert deadline");
+        .expect("insert deadline")
+        .last_insert_id
     }
 
     /// Minimum-bid tiers in the given order, top tier first (rules §6.3.6).

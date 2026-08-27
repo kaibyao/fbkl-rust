@@ -123,8 +123,9 @@ pub fn crunch_window_start(hard_deadline: DateTimeWithTimeZone) -> Result<DateTi
 #[derive(Clone, Copy, Debug)]
 pub struct AuctionModeDeadlines {
     /// The instant past which the auction cannot take bids, whatever its own clocks say: the final
-    /// preseason roster lock, or in-season the following week's lock (which is what bounds the
-    /// §8.3.2 chain — the rules doc leaves it open-ended). `None` when the season has no lock left.
+    /// preseason roster lock, or in-season the earlier of the following week's lock (which is what
+    /// bounds the §8.3.2 chain — the rules doc leaves it open-ended) and the §8.1.3 free agency
+    /// freeze. `None` when the season has no lock left.
     pub hard_deadline: Option<DateTimeWithTimeZone>,
     /// When the quiet window shortens to 1h. `None` in-season: bidding is over by Sunday evening,
     /// well before Monday tipoff, so in-season never reaches a crunch window.
@@ -165,8 +166,21 @@ where
         db,
     )
     .await?;
+    // §8.1.3 ends free agency for the whole rest of the season, playoffs included, so an auction
+    // still running at the freeze closes there rather than signing a pickup the rules forbid.
+    let fa_auction_end = deadline_queries::find_deadline_for_season_by_type(
+        league_id,
+        end_of_season_year,
+        DeadlineKind::FreeAgentAuctionEnd,
+        db,
+    )
+    .await?;
     Ok(AuctionModeDeadlines {
-        hard_deadline: maybe_next_roster_lock.map(|roster_lock| roster_lock.date_time),
+        hard_deadline: Some(
+            maybe_next_roster_lock.map_or(fa_auction_end.date_time, |roster_lock| {
+                roster_lock.date_time.min(fa_auction_end.date_time)
+            }),
+        ),
         crunch_window_start: None,
     })
 }
