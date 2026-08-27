@@ -267,7 +267,7 @@
   .photo-treatment > :not(img) {
     @apply relative z-2;
   }
-  /* Any text over a photo goes in this label, which carries its own scrim, so the contrast sum is one fixed number on all four variants and at every card size: --foreground on --background, 15.9:1. The 2rem pad above the text is where the scrim fades out, so the photo still shows through above the words. Test it by reading the label's computed background: the bottom stop must be an opaque --background. */
+  /* Any text over a photo goes in this label, which carries its own scrim, so the contrast sum is one fixed number on all four variants and at every card size: --foreground on --background, 19:1. The 2rem pad above the text is where the scrim fades out, so the photo still shows through above the words. Test it by reading the label's computed background: the bottom stop must be an opaque --background. */
   .photo-treatment-label {
     @apply absolute inset-x-0 bottom-0 z-2 px-3 pt-8 pb-3;
     background: linear-gradient(

@@ -26,7 +26,7 @@ const photoTreatmentVariants = cva('photo-treatment', {
  * Label contrast rule, the same for all four variants: text over the photo goes in a child with
  * `className="photo-treatment-label"`, which paints its own scrim, so the text always sits on an
  * opaque `--background` whatever the photo does and whatever size the card is. The sum is therefore
- * one fixed number, `--foreground` on `--background`, 15.9:1, and the check is to read the label's
+ * one fixed number, `--foreground` on `--background`, 19:1, and the check is to read the label's
  * computed background and see an opaque `--background` at the bottom stop. Text that cannot take a
  * scrim does not go on a photo.
  */
