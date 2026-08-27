@@ -13,7 +13,7 @@ use self::{
     league::{LeagueMutation, LeagueQuery},
     player::PlayerQuery,
     rfa::{RfaMutation, RfaQuery},
-    roster::RosterMutation,
+    roster::{RosterMutation, RosterQuery},
     team::TeamQuery,
     trade::{TradeMutation, TradeQuery},
     transaction::TransactionQuery,
@@ -58,6 +58,7 @@ pub struct QueryRoot(
     DraftQuery,
     EligibilityQuery,
     RfaQuery,
+    RosterQuery,
 );
 
 #[derive(Default, MergedObject)]

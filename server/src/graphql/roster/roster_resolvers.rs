@@ -8,12 +8,17 @@ use chrono::Utc;
 use color_eyre::Report;
 use fbkl_entity::{
     contract,
-    contract_queries::find_contract_by_id,
+    contract_queries::{find_active_contracts_for_team, find_contract_by_id},
     deadline,
-    deadline_queries::find_most_recent_deadline_by_datetime,
-    sea_orm::{DatabaseConnection, DatabaseTransaction, TransactionTrait},
+    deadline_queries::{find_deadline_by_id, find_most_recent_deadline_by_datetime},
+    sea_orm::{ConnectionTrait, DatabaseConnection, DatabaseTransaction, TransactionTrait},
+    team_queries::find_team_by_id_in_league,
+    team_update::TeamUpdateStatus,
+    team_update_queries::find_team_updates_by_team,
+    team_user::LeagueRole,
 };
 use fbkl_logic::{
+    deadline_processing::roster_lock::validate_league_rosters,
     drop_contract::drop_contract_from_team,
     ir::{activate_contract_from_ir, move_contract_to_ir},
     rookie_development_activation::activate_rookie_development_contract,
@@ -23,9 +28,10 @@ use fbkl_logic::{
     },
 };
 
-use super::super::contract::Contract;
+use super::super::{contract::Contract, team::TeamUpdate};
+use super::{RosterMove, RosterMoveKind, RosterRuleLegality, TeamWeek};
 use crate::graphql::{
-    ErrorCode, LeagueRoleGuard, RoleRequirement, code_error, require_league_role,
+    ErrorCode, LeagueRoleGuard, RoleRequirement, code_error, graphql_error, require_league_role,
 };
 
 #[derive(Default)]
@@ -88,6 +94,89 @@ impl RosterMutation {
         )
         .await
     }
+
+    /// Applies a batch of roster moves in one database transaction for the season-start wizard.
+    ///
+    /// The whole batch is rejected when the team's roster is still illegal after it, so a
+    /// mid-batch state that breaks a rule is fine as long as the end state does not.
+    #[graphql(guard = "LeagueRoleGuard(RoleRequirement::Member)")]
+    async fn legalize_roster(
+        &self,
+        ctx: &Context<'_>,
+        team_id: i64,
+        moves: Vec<RosterMove>,
+    ) -> Result<Vec<Contract>> {
+        let db = ctx.data_unchecked::<DatabaseConnection>();
+        let (team_user, caller_team) = require_league_role(ctx, RoleRequirement::Member).await?;
+        if team_user.team_id != team_id {
+            return Err(code_error(ErrorCode::Forbidden));
+        }
+
+        let deadline_model = find_most_recent_deadline_by_datetime(
+            caller_team.league_id,
+            Utc::now().fixed_offset(),
+            db,
+        )
+        .await
+        .map_err(|err| internal("failed to resolve the current deadline", &err))?;
+
+        let db_txn = db
+            .begin()
+            .await
+            .map_err(|err| internal("failed to start transaction", &err.into()))?;
+
+        let mut updated_contracts = Vec::with_capacity(moves.len());
+        for roster_move in moves {
+            let contract_model = find_contract_by_id(roster_move.contract_id, &db_txn)
+                .await
+                .map_err(|_| code_error(ErrorCode::NotFound))?;
+            if contract_model.league_id != caller_team.league_id {
+                return Err(code_error(ErrorCode::NotFound));
+            }
+            if contract_model.team_id != Some(team_id) {
+                return Err(code_error(ErrorCode::Forbidden));
+            }
+
+            let updated = match roster_move.kind {
+                RosterMoveKind::Drop => {
+                    drop_contract_from_team(contract_model, &deadline_model, &db_txn).await
+                }
+                RosterMoveKind::MoveToIr => {
+                    move_contract_to_ir(contract_model, &deadline_model, &db_txn).await
+                }
+                RosterMoveKind::ActivateFromIr => {
+                    activate_contract_from_ir(contract_model, &deadline_model, &db_txn).await
+                }
+                RosterMoveKind::ActivateRookie => {
+                    activate_rookie_development_contract(contract_model, &deadline_model, &db_txn)
+                        .await
+                }
+            }
+            .map_err(|err| internal("roster move failed", &err))?;
+
+            updated_contracts
+                .push(Contract::from_model(&updated).map_err(|_| code_error(ErrorCode::Internal))?);
+        }
+
+        let illegal_rules = team_rule_legality(team_id, &deadline_model, &db_txn)
+            .await?
+            .into_iter()
+            .filter_map(|rule| rule.message)
+            .collect::<Vec<_>>();
+        if !illegal_rules.is_empty() {
+            return Err(graphql_error(
+                ErrorCode::RosterIllegal,
+                illegal_rules.join("\n"),
+            ));
+        }
+
+        db_txn
+            .commit()
+            .await
+            .map_err(|err| internal("failed to commit the roster batch", &err.into()))?;
+
+        Ok(updated_contracts)
+    }
 }
 
 /// Runs one roster move on a contract the caller's own team owns.
@@ -138,4 +227,93 @@ where
 fn internal(message: &str, error: &Report) -> GraphQlError {
     tracing::error!(error = ?error, message);
     code_error(ErrorCode::Internal)
+}
+
+#[derive(Default)]
+pub struct RosterQuery;
+
+#[Object]
+impl RosterQuery {
+    /// A team's roster for one deadline, with that week's pending moves and a flag per roster rule.
+    ///
+    /// Reads only. Rules 13.1.1 make move order presentational, so nothing here reads it.
+    #[graphql(guard = "LeagueRoleGuard(RoleRequirement::Member)")]
+    async fn team_week(
+        &self,
+        ctx: &Context<'_>,
+        team_id: i64,
+        deadline_id: i64,
+    ) -> Result<TeamWeek> {
+        let db = ctx.data_unchecked::<DatabaseConnection>();
+        let (team_user, caller_team) = require_league_role(ctx, RoleRequirement::Member).await?;
+        if team_user.team_id != team_id && team_user.league_role != LeagueRole::LeagueCommissioner {
+            return Err(code_error(ErrorCode::Forbidden));
+        }
+
+        let deadline_model = find_deadline_by_id(deadline_id, db)
+            .await
+            .map_err(|_| code_error(ErrorCode::NotFound))?;
+        if deadline_model.league_id != caller_team.league_id {
+            return Err(code_error(ErrorCode::NotFound));
+        }
+        find_team_by_id_in_league(team_id, caller_team.league_id, db)
+            .await
+            .map_err(|_| code_error(ErrorCode::NotFound))?;
+
+        let contract_models = find_active_contracts_for_team(team_id, db)
+            .await
+            .map_err(|err| internal("failed to load the team's contracts", &err))?;
+        let contracts = contract_models
+            .iter()
+            .map(Contract::from_model)
+            .collect::<std::result::Result<Vec<_>, _>>()
+            .map_err(|_| code_error(ErrorCode::Internal))?;
+
+        let pending_move_models = find_team_updates_by_team(
+            team_id,
+            Some(TeamUpdateStatus::Pending),
+            Some(deadline_id),
+            db,
+        )
+        .await
+        .map_err(|err| internal("failed to load this week's pending moves", &err))?;
+
+        let rule_legality = team_rule_legality(team_id, &deadline_model, db).await?;
+        let is_legal = rule_legality.iter().all(|rule| rule.is_legal);
+
+        Ok(TeamWeek {
+            team_id,
+            deadline_id,
+            contracts,
+            pending_moves: pending_move_models
+                .iter()
+                .map(TeamUpdate::from_model)
+                .collect(),
+            rule_legality,
+            is_legal,
+        })
+    }
+}
+
+/// Runs the roster-lock rules for one team without mutating anything.
+///
+/// The keeper window has rules of its own (`validate_team_keepers`), so no roster-lock rule
+/// applies there and the list comes back empty.
+async fn team_rule_legality<C>(
+    team_id: i64,
+    deadline_model: &deadline::Model,
+    db: &C,
+) -> Result<Vec<RosterRuleLegality>>
+where
+    C: ConnectionTrait,
+{
+    if deadline_model.is_preseason_keeper_or_before() {
+        return Ok(vec![]);
+    }
+
+    let violations = validate_league_rosters(deadline_model, db)
+        .await
+        .map_err(|err| internal("failed to validate the team's roster", &err))?;
+
+    Ok(TeamWeek::rule_legality_for_team(team_id, &violations))
 }

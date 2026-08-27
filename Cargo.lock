@@ -1655,6 +1655,7 @@ dependencies = [
 name = "fbkl-logic"
 version = "0.1.0"
 dependencies = [
+ "async-graphql",
  "chrono",
  "color-eyre",
  "fbkl-constants",
