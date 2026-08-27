@@ -5,6 +5,9 @@
 //! `AddViaTrade` update outside the lock's week. Both same-week guards read the week off that
 //! deadline, so the acquiring owner could park the pickup straight on IR (rules 10.3.1/10.3.2,
 //! 11.7) and the 8.3.7 drop guard could not see the add at all.
+//!
+//! A season with no lock left has no week for the add either, so that case is pinned here too: it
+//! has to fail with a typed error the resolver can name, not an opaque one it reports as a 500.
 
 use chrono::{Days, Utc};
 use fbkl_entity::{
@@ -14,10 +17,13 @@ use fbkl_entity::{
     deadline_queries,
     sea_orm::prelude::DateTimeWithTimeZone,
     team_update_queries,
-    team_user::LeagueRole,
-    trade_asset,
+    team_user::{self, LeagueRole},
+    trade, trade_asset,
 };
-use fbkl_logic::{ir::move_contract_to_ir, trade::accept_trade, trade::propose_trade};
+use fbkl_logic::{
+    ir::move_contract_to_ir,
+    trade::{MissingUpcomingRosterLock, accept_trade, propose_trade},
+};
 use fbkl_test_support::TestLeague;
 
 const END_OF_SEASON_YEAR: i16 = 2026;
@@ -35,31 +41,8 @@ async fn a_trade_add_is_filed_under_the_upcoming_lock_and_cannot_go_straight_to_
     league
         .add_deadline(DeadlineKind::InSeasonRosterLock, days_from_now(3))
         .await;
-    let sending_owner = league.add_team_user(LeagueRole::TeamOwner).await;
-    let receiving_team_id = league.add_team("Receiving team").await;
-    let receiving_owner = league
-        .add_team_user_for_team(receiving_team_id, LeagueRole::TeamOwner)
-        .await;
-    let player_id = league.add_veteran_player("Traded Player").await;
-    let traded_contract = league
-        .add_owned_contract(player_id, ContractKind::RookieExtension, 10, league.team_id)
-        .await;
-
-    let proposed_trade = propose_trade(
-        league.league_id,
-        END_OF_SEASON_YEAR,
-        &sending_owner,
-        &[receiving_team_id],
-        vec![trade_asset::Model::from_contract(
-            None,
-            traded_contract.id,
-            trade_asset::FromTeamId(league.team_id),
-            trade_asset::ToTeamId(receiving_team_id),
-        )],
-        &league.db,
-    )
-    .await
-    .expect("propose trade");
+    let (proposed_trade, receiving_owner, receiving_team_id, traded_contract) =
+        propose_one_contract_trade(&league).await;
     accept_trade(proposed_trade, &receiving_owner, &now, &league.db)
         .await
         .expect("accept trade")
@@ -88,6 +71,72 @@ async fn a_trade_add_is_filed_under_the_upcoming_lock_and_cannot_go_straight_to_
         ir_error.to_string().contains("straight to IR"),
         "the refusal should name the rule: {ir_error}"
     );
+}
+
+#[tokio::test]
+async fn accepting_a_trade_with_no_lock_left_names_the_missing_lock_deadlines() {
+    let Some(league) = TestLeague::create("trade_no_upcoming_lock", END_OF_SEASON_YEAR).await
+    else {
+        return;
+    };
+    let now = Utc::now().fixed_offset();
+    // The season's only deadline is not a lock, so no lock is left for the add to be judged at.
+    league
+        .add_deadline(DeadlineKind::FreeAgentAuctionEnd, days_from_now(1))
+        .await;
+    let (proposed_trade, receiving_owner, _, _) = propose_one_contract_trade(&league).await;
+
+    let error = accept_trade(proposed_trade, &receiving_owner, &now, &league.db)
+        .await
+        .expect_err("a trade cannot be processed with no lock left to file its adds under");
+
+    assert_eq!(
+        error.downcast_ref::<MissingUpcomingRosterLock>(),
+        Some(&MissingUpcomingRosterLock {
+            league_id: league.league_id,
+            end_of_season_year: END_OF_SEASON_YEAR,
+        }),
+        "the failure has to be typed so the resolver reports it instead of a 500: {error}"
+    );
+}
+
+/// One contract moving from the test league's own team to a second team, proposed and awaiting the
+/// receiving owner's response. Returns the trade, that owner, their team, and the traded contract.
+async fn propose_one_contract_trade(
+    league: &TestLeague,
+) -> (trade::Model, team_user::Model, i64, contract::Model) {
+    let sending_owner = league.add_team_user(LeagueRole::TeamOwner).await;
+    let receiving_team_id = league.add_team("Receiving team").await;
+    let receiving_owner = league
+        .add_team_user_for_team(receiving_team_id, LeagueRole::TeamOwner)
+        .await;
+    let player_id = league.add_veteran_player("Traded Player").await;
+    let traded_contract = league
+        .add_owned_contract(player_id, ContractKind::RookieExtension, 10, league.team_id)
+        .await;
+
+    let proposed_trade = propose_trade(
+        league.league_id,
+        END_OF_SEASON_YEAR,
+        &sending_owner,
+        &[receiving_team_id],
+        vec![trade_asset::Model::from_contract(
+            None,
+            traded_contract.id,
+            trade_asset::FromTeamId(league.team_id),
+            trade_asset::ToTeamId(receiving_team_id),
+        )],
+        &league.db,
+    )
+    .await
+    .expect("propose trade");
+
+    (
+        proposed_trade,
+        receiving_owner,
+        receiving_team_id,
+        traded_contract,
+    )
 }
 
 fn days_from_now(days: u64) -> DateTimeWithTimeZone {

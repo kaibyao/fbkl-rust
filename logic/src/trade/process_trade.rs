@@ -27,6 +27,19 @@ use super::{
 
 static EMPTY_VEC: &Vec<contract::Model> = &vec![];
 
+/// The trade's league season has no roster lock still to fire, so its adds have no week to join.
+///
+/// Concrete (not an opaque `eyre!`) so the resolver can `downcast_ref` and tell the owner the
+/// league's lock deadlines are missing, instead of reporting a bare server fault.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, thiserror::Error)]
+#[error(
+    "cannot process a trade for league (id = {league_id}) season {end_of_season_year}: no roster lock is still to fire, so the trade's adds have no week to be judged in; weekly locks run through the playoff weeks to the end of the season, so ask the commissioner to add the season's missing lock deadlines"
+)]
+pub struct MissingUpcomingRosterLock {
+    pub league_id: i64,
+    pub end_of_season_year: i16,
+}
+
 /// Stores the trade assets + their related models for a given trade. This exists so that we aren't constantly querying the DB for the same models all the time.
 #[derive(Debug)]
 #[allow(clippy::struct_field_names)] // field names mirror the trade_asset domain concept, not GraphQL/DB schema
@@ -127,12 +140,9 @@ where
         db,
     )
     .await?
-    .ok_or_else(|| {
-        eyre!(
-            "Cannot process a trade for league (id = {}) season {}: no roster lock is still to fire after {trade_datetime}.",
-            trade_model.league_id,
-            trade_model.end_of_season_year
-        )
+    .ok_or(MissingUpcomingRosterLock {
+        league_id: trade_model.league_id,
+        end_of_season_year: trade_model.end_of_season_year,
     })?;
     let traded_trade_assets = trade_model.get_trade_assets(db).await?;
     let mut all_team_ids = HashSet::new();
