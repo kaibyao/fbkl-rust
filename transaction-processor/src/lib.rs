@@ -36,7 +36,7 @@ use fbkl_logic::{
         process_keeper_deadline_transaction,
     },
 };
-use tracing::{error, info, instrument};
+use tracing::{error, info, instrument, warn};
 
 /// A time-triggered event that is *not* backed by a row in the `deadline` table.
 ///
@@ -251,7 +251,19 @@ where
         }
         DeadlineKind::PreseasonFinalRosterLock
         | DeadlineKind::Week1RosterLock
-        | DeadlineKind::InSeasonRosterLock => lock_rosters(deadline_model, txn).await,
+        | DeadlineKind::InSeasonRosterLock => {
+            let violations = lock_rosters(deadline_model, txn).await?;
+            // ponytail: illegal rosters only get logged; a commissioner notification is unbuilt.
+            if !violations.is_empty() {
+                warn!(
+                    "Roster lock for deadline {} left {} team(s) Pending: {:?}",
+                    deadline_model.id,
+                    violations.len(),
+                    violations
+                );
+            }
+            Ok(())
+        }
         // §6.3.1: this deadline builds the season's release schedule; the tick then opens each row on its date.
         DeadlineKind::PreseasonVeteranAuctionStart => {
             assemble_veteran_auction_pool(
