@@ -125,7 +125,7 @@ function CreateLeaguePage() {
           type="submit"
           size="lg"
           disabled={isSubmitting || fetching}
-          className="w-full hover:bg-primary-hot"
+          className="w-full"
         >
           {(isSubmitting || fetching) && <Loader2 className="animate-spin" />}
           Create league

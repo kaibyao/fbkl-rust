@@ -65,7 +65,7 @@ export const LoginForm: React.FC = () => {
         type="submit"
         size="lg"
         disabled={isSubmitting}
-        className="w-full hover:bg-primary-hot"
+        className="w-full"
       >
         {isSubmitting && <Loader2 className="animate-spin" />}
         Sign in

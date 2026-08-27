@@ -8,7 +8,6 @@
   /* ----- Tokens (sourced from webapp-logged-in/src/global.css, dark mode) ----- */
   :root{
     --bg:        oklch(0.141 0.005 285.823);   /* zinc-950 — app canvas */
-    --bg-raise:  #212121;                       /* current body bg */
     --card:      oklch(0.21 0.006 285.885);     /* zinc-900 surface */
     --card-2:    oklch(0.274 0.006 286.033);    /* muted / hover surface */
     --fg:        oklch(0.985 0 0);              /* near-white text */
@@ -16,7 +15,7 @@
     --border:    oklch(1 0 0 / 10%);
 
     /* Orange is the brand primary already in the theme. We lean into it. */
-    --primary:        oklch(0.553 0.195 38.402);   /* base token */
+    --primary:        oklch(0.553 0.195 38.402);   /* dark --primary, raised to this board value */
     --primary-hot:    oklch(0.70 0.205 41);        /* shipped --primary-hot: hotter accent for "live"/CTA glow */
     --primary-fg:     oklch(0.98 0.016 73.684);
 
@@ -29,7 +28,7 @@
     --chart-5: oklch(0.424 0.199 265.638);
 
     --win:  oklch(0.72 0.17 150);   /* shipped as --success: green (up / win / gain) */
-    --loss: oklch(0.704 0.191 22.216); /* destructive token reused (down / loss) */
+    --loss: oklch(0.63 0.2 18); /* destructive token reused (down / loss) */
 
     --radius: 0.625rem;
     --maxw: 1180px;
@@ -58,7 +57,7 @@
 
   /* ---------------- HERO ---------------- */
   .hero{position:relative;min-height:88vh;display:flex;align-items:flex-end;overflow:hidden}
-  .hero-img{position:absolute;inset:0;background:#000;
+  .hero-img{position:absolute;inset:0;background:var(--card);
     background-image:url('https://cdn.nba.com/manage/2025/12/Kawhi_1920x1080.jpg');
     background-size:cover;background-position:center 22%;
     filter:saturate(1.05) contrast(1.05)}
@@ -74,6 +73,7 @@
     border:1px solid color-mix(in oklch,var(--primary) 50%,transparent);padding:6px 12px;border-radius:999px}
   .live-dot{width:8px;height:8px;border-radius:50%;background:var(--primary-hot);box-shadow:0 0 0 0 var(--primary-hot);animation:pulse 1.8s infinite}
   @keyframes pulse{0%{box-shadow:0 0 0 0 color-mix(in oklch,var(--primary-hot) 70%,transparent)}70%{box-shadow:0 0 0 10px transparent}100%{box-shadow:0 0 0 0 transparent}}
+  @media (prefers-reduced-motion: reduce){.live-dot{animation:none}}
 
   /* ---------------- swatches ---------------- */
   .swatches{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:12px}
@@ -89,7 +89,7 @@
 
   /* ---------------- photo treatments ---------------- */
   .treat{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:18px}
-  .pcard{position:relative;aspect-ratio:3/4;border-radius:var(--radius);overflow:hidden;border:1px solid var(--border);background:#000}
+  .pcard{position:relative;aspect-ratio:3/4;border-radius:var(--radius);overflow:hidden;border:1px solid var(--border);background:var(--card)}
   .pcard img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;display:block}
   .pcard .lbl{position:absolute;left:12px;bottom:12px;right:12px;z-index:2;font-size:.78rem}
   .pcard .lbl b{display:block;font-family:'Nunito Sans Variable',sans-serif;font-weight:900;font-size:.95rem}
@@ -117,13 +117,13 @@
   .up{color:var(--win)} .down{color:var(--loss)}
   .btn{display:inline-flex;align-items:center;gap:8px;border:none;border-radius:var(--radius);padding:10px 16px;font-weight:800;font-family:inherit;cursor:pointer}
   .btn-primary{background:var(--primary);color:var(--primary-fg);box-shadow:0 8px 24px -8px color-mix(in oklch,var(--primary) 80%,transparent)}
-  .btn-ghost{background:transparent;color:var(--fg);border:1px solid var(--border)}
+  .btn-outline{background:transparent;color:var(--fg);border:1px solid var(--border)}
   .row{display:flex;align-items:center;gap:12px}
   .ava{width:44px;height:44px;border-radius:10px;object-fit:cover;border:1px solid var(--border)}
   .bar{height:8px;border-radius:99px;background:var(--card-2);overflow:hidden}
   .bar>i{display:block;height:100%;background:linear-gradient(90deg,var(--chart-3),var(--chart-1))}
-  .tag{font-size:.64rem;font-weight:800;letter-spacing:.1em;text-transform:uppercase;padding:3px 8px;border-radius:6px;background:var(--card-2);color:var(--muted-fg)}
-  .tag.fa{background:color-mix(in oklch,var(--primary) 20%,transparent);color:var(--primary-hot)}
+  .tag{font-size:.75rem;font-weight:800;letter-spacing:.1em;text-transform:uppercase;padding:3px 8px;border-radius:6px;background:var(--card-2);color:var(--muted-fg)}
+  .tag.fa{background:color-mix(in oklch,var(--primary) 20%,transparent);color:var(--primary-fg)}
   .spark{display:flex;align-items:flex-end;gap:3px;height:36px}
   .spark>i{flex:1;background:var(--chart-2);border-radius:2px 2px 0 0;opacity:.85}
 
@@ -174,9 +174,9 @@
     <div class="sw"><div class="chip" style="background:var(--chart-1)"></div><div class="meta"><b>Chart 1 (blue)</b><code>oklch(.809 .105 251.8)</code></div></div>
     <div class="sw"><div class="chip" style="background:var(--chart-3)"></div><div class="meta"><b>Chart 3 (blue)</b><code>oklch(.546 .245 262.9)</code></div></div>
     <div class="sw"><div class="chip" style="background:var(--win)"></div><div class="meta"><b>Win / Up ✦ shipped</b><code>--success</code></div></div>
-    <div class="sw"><div class="chip" style="background:var(--loss)"></div><div class="meta"><b>Loss / Down</b><code>oklch(.704 .191 22.2)</code></div></div>
+    <div class="sw"><div class="chip" style="background:var(--loss)"></div><div class="meta"><b>Loss / Down</b><code>oklch(.63 .2 18)</code></div></div>
   </div>
-  <p class="note">✦ = shipped to <code>global.css</code> as <code>--primary-hot</code> and <code>--success</code> (loss reuses <code>--destructive</code>); usable as <code>bg-primary-hot</code> / <code>text-success</code>. Everything else is your existing dark-mode token, verbatim.</p>
+  <p class="note">✦ = shipped to <code>global.css</code> as <code>--primary-hot</code> and <code>--success</code> (loss reuses <code>--destructive</code>); usable as <code>bg-primary-hot</code> / <code>text-success</code>. Dark <code>--primary</code> was raised to the board value shown here: the board is the authority, the code follows. Everything else is your existing dark-mode token, verbatim.</p>
 </section>
 
 <!-- ============ TYPE ============ -->
@@ -244,7 +244,7 @@
       <div class="pcard t-scrim" style="aspect-ratio:16/10;border:none;border-radius:0">
         <img src="https://cdn.nba.com/manage/2025/12/Kawhi_1920x1080.jpg" alt="">
         <div class="lbl" style="bottom:14px">
-          <span class="tag" style="background:color-mix(in oklch,var(--primary) 25%,transparent);color:var(--primary-hot)">SF · YOUR STARTER</span>
+          <span class="tag" style="background:color-mix(in oklch,var(--primary) 25%,transparent);color:var(--primary-fg)">SF · YOUR STARTER</span>
           <b style="font-size:1.4rem;margin-top:4px">Kawhi Leonard</b>
         </div>
       </div>
@@ -277,11 +277,11 @@
       <h3 style="color:var(--muted-fg);font-size:.8rem">3 · Plan your roster, week by week</h3>
       <div style="margin-top:12px">
         <div class="row" style="justify-content:space-between;padding:9px 0;border-bottom:1px solid var(--border)">
-          <div class="row"><img class="ava" src="https://cdn.nba.com/manage/2025/12/0GettyImages-2182344606-952x1176.jpg"><div><b>A. Edwards</b><div class="muted" style="font-size:.75rem">SG · 4 games</div></div></div>
-          <span class="tag" style="background:color-mix(in oklch,var(--win) 20%,transparent);color:var(--win)">START</span>
+          <div class="row"><img class="ava" src="https://cdn.nba.com/manage/2025/12/0GettyImages-2182344606-952x1176.jpg" alt="A. Edwards"><div><b>A. Edwards</b><div class="muted" style="font-size:.75rem">SG · 4 games</div></div></div>
+          <span class="tag" style="background:color-mix(in oklch,var(--win) 20%,transparent);color:var(--fg)">START</span>
         </div>
         <div class="row" style="justify-content:space-between;padding:9px 0;border-bottom:1px solid var(--border)">
-          <div class="row"><img class="ava" src="https://cdn.nba.com/manage/2025/12/wemby-vassell.jpg"><div><b>V. Wembanyama</b><div class="muted" style="font-size:.75rem">C · 3 games · GTD</div></div></div>
+          <div class="row"><img class="ava" src="https://cdn.nba.com/manage/2025/12/wemby-vassell.jpg" alt="V. Wembanyama"><div><b>V. Wembanyama</b><div class="muted" style="font-size:.75rem">C · 3 games · GTD</div></div></div>
           <span class="tag">BENCH</span>
         </div>
       </div>
@@ -292,7 +292,7 @@
     <div class="card pad">
       <h3 style="color:var(--muted-fg);font-size:.8rem">4 · Scout & sign free agents</h3>
       <div class="row" style="justify-content:space-between;margin-top:12px">
-        <div class="row"><img class="ava" src="https://cdn.nba.com/manage/2025/12/0GettyImages-2220907031-941x1176.jpg"><div><b>Free Agent</b><span class="tag fa" style="margin-left:6px">AVAILABLE</span><div class="muted" style="font-size:.75rem;margin-top:2px">trending ↑ last 7d</div></div></div>
+        <div class="row"><img class="ava" src="https://cdn.nba.com/manage/2025/12/0GettyImages-2220907031-941x1176.jpg" alt=""><div><b>Free Agent</b><span class="tag fa" style="margin-left:6px">AVAILABLE</span><div class="muted" style="font-size:.75rem;margin-top:2px">trending ↑ last 7d</div></div></div>
         <button class="btn btn-primary">+ Sign</button>
       </div>
       <div style="margin-top:16px">
@@ -308,17 +308,17 @@
       <div class="vg" style="margin-top:14px;align-items:center">
         <div>
           <div class="muted" style="font-size:.72rem;letter-spacing:.1em">YOU GIVE</div>
-          <div class="row" style="margin-top:8px"><img class="ava" src="https://cdn.nba.com/manage/2025/12/13_Photos-of-the-Year-1536x1024.jpg"><b>Player A</b><span class="muted num-tabular" style="margin-left:auto">24.1 val</span></div>
-          <div class="row" style="margin-top:8px"><img class="ava" src="https://cdn.nba.com/manage/2025/12/95_Photos-of-the-Year-1536x1024.jpg"><b>2027 1st</b><span class="muted num-tabular" style="margin-left:auto">9.0 val</span></div>
+          <div class="row" style="margin-top:8px"><img class="ava" src="https://cdn.nba.com/manage/2025/12/13_Photos-of-the-Year-1536x1024.jpg" alt="Player A"><b>Player A</b><span class="muted num-tabular" style="margin-left:auto">24.1 val</span></div>
+          <div class="row" style="margin-top:8px"><img class="ava" src="https://cdn.nba.com/manage/2025/12/95_Photos-of-the-Year-1536x1024.jpg" alt=""><b>2027 1st</b><span class="muted num-tabular" style="margin-left:auto">9.0 val</span></div>
         </div>
         <div>
           <div class="muted" style="font-size:.72rem;letter-spacing:.1em">YOU GET</div>
-          <div class="row" style="margin-top:8px"><img class="ava" src="https://cdn.nba.com/manage/2025/12/jokic3-2.jpg"><b>Player B</b><span class="muted num-tabular" style="margin-left:auto">35.4 val</span></div>
+          <div class="row" style="margin-top:8px"><img class="ava" src="https://cdn.nba.com/manage/2025/12/jokic3-2.jpg" alt="Player B"><b>Player B</b><span class="muted num-tabular" style="margin-left:auto">35.4 val</span></div>
         </div>
       </div>
       <div class="row" style="justify-content:space-between;margin-top:18px;padding-top:16px;border-top:1px solid var(--border)">
-        <div class="stat"><span class="muted">Net value</span><span class="v num-tabular up">+2.3</span><span class="tag" style="background:color-mix(in oklch,var(--win) 20%,transparent);color:var(--win)">FAIR · LEANS YOU</span></div>
-        <div class="row"><button class="btn btn-ghost">Counter</button><button class="btn btn-primary">Propose trade</button></div>
+        <div class="stat"><span class="muted">Net value</span><span class="v num-tabular up">+2.3</span><span class="tag" style="background:color-mix(in oklch,var(--win) 20%,transparent);color:var(--fg)">FAIR · LEANS YOU</span></div>
+        <div class="row"><button class="btn btn-outline">Counter</button><button class="btn btn-primary">Propose trade</button></div>
       </div>
       <p class="muted" style="margin:14px 0 0">The verdict is the loudest element: one big signed number + a plain-language judgment. Analysis is blue/neutral; the commit action is the single orange button.</p>
     </div>
@@ -333,10 +333,11 @@
   <div class="principles">
     <div class="card"><b>Orange = emotion + action</b><p class="muted" style="margin:.5rem 0 0">Live state, primary CTA, "now" marker, FA availability, your team. One per view, ideally.</p></div>
     <div class="card"><b>Blue = analysis</b><p class="muted" style="margin:.5rem 0 0">All charts, projections, value bars. Cool by design so it never competes with brand orange.</p></div>
-    <div class="card"><b>Green/Red = outcome</b><p class="muted" style="margin:.5rem 0 0">Up/down, win/loss, gain/loss vs projection. Tabular numerals only.</p></div>
+    <div class="card"><b>Green/Red = outcome</b><p class="muted" style="margin:.5rem 0 0">Up/down, win/loss, gain/loss vs projection. Tabular numerals only. Every color-coded state also carries a word or a sign glyph, never color alone.</p></div>
     <div class="card"><b>Zinc = everything else</b><p class="muted" style="margin:.5rem 0 0">Surfaces, borders, secondary text. Whitespace is a feature. Quiet by default.</p></div>
     <div class="card"><b>Photos = moments</b><p class="muted" style="margin:.5rem 0 0">Players, matchups, hype. Always treated (A–D). Never raw, never load-bearing for legibility.</p></div>
     <div class="card"><b>Motion = restraint</b><p class="muted" style="margin:.5rem 0 0">A single pulse on "live". Fast, ≤200ms transitions. Numbers count up on change. No bounce, no confetti.</p></div>
+    <div class="card"><b>Rounded = the shape system</b><p class="muted" style="margin:.5rem 0 0">The rounded ramp is canon: 6px on chips, 8px on controls, 10px on cards and buttons, 10px squircle avatars, full-round pills. Nothing ships square.</p></div>
   </div>
 </section>
 
