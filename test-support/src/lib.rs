@@ -4,7 +4,8 @@
 //! failed run leaves the database behind for inspection (the next run drops it). The base
 //! connection string comes from `DATABASE_URL` (the repo `.env` is loaded automatically); when it
 //! is unset the harness returns `None` and the test skips, so the suite still passes without a
-//! database.
+//! database — except under `CI`, where a missing `DATABASE_URL` panics instead of quietly skipping
+//! every DB test.
 //!
 //! # Simulated time vs `created_at`/`updated_at`
 //!

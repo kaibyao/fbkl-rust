@@ -8,6 +8,10 @@ use fbkl_migration::{Migrator, MigratorTrait};
 pub async fn scratch_db(test_name: &str) -> Option<DatabaseConnection> {
     dotenvy::dotenv().ok();
     let Ok(base_url) = std::env::var("DATABASE_URL") else {
+        assert!(
+            std::env::var_os("CI").is_none(),
+            "{test_name} needs a database, and CI set no DATABASE_URL: the whole DB suite would pass without running"
+        );
         eprintln!("skipping {test_name}: DATABASE_URL not set");
         return None;
     };
