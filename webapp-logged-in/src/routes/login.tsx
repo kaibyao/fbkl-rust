@@ -1,14 +1,14 @@
 import { createFileRoute } from '@tanstack/react-router';
 import { LoginForm } from '@/components/LoginForm';
 import { Typography, TypographyVariant } from '@/components/ui/typography';
+import heroImg from '@/assets/GettyImages-2220888872-1024x1536.jpg';
 
 export const Route = createFileRoute('/login')({
   component: LoginPage,
 });
 
 // Placeholder hero image — swap for a licensed/team-provided asset before shipping.
-const HERO_IMG =
-  'https://cdn.nba.com/manage/2025/12/GettyImages-2220888872-1024x1536.jpg';
+const HERO_IMG = heroImg;
 
 function LoginPage() {
   return (

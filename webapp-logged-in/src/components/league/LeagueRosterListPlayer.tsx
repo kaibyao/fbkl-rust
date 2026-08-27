@@ -1,4 +1,3 @@
-import { User } from 'lucide-react';
 import { FunctionComponent } from 'react';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
@@ -15,6 +14,7 @@ import {
   CONTRACT_KIND_DISPLAY,
   isFinalContractYear,
 } from '@/lib/contract.utils';
+import { getInitials } from '@/lib/name.utils';
 import { TERMS } from '@/lib/terms';
 import { cn } from '@/lib/utils';
 
@@ -57,9 +57,7 @@ export const LeagueRosterListPlayer: FunctionComponent<Props> = ({
     >
       <Avatar size="lg" className={cn(contract.isIr && 'opacity-70')}>
         {photoUrl ? <AvatarImage src={photoUrl} alt="" /> : null}
-        <AvatarFallback>
-          <User className="size-5" />
-        </AvatarFallback>
+        <AvatarFallback>{getInitials(playerName)}</AvatarFallback>
       </Avatar>
 
       <div className="min-w-0 flex-1">
