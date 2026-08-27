@@ -5,7 +5,9 @@ use std::{
 
 use color_eyre::{Result, eyre::eyre};
 use fbkl_entity::{
-    contract, contract_queries, deadline_queries, draft_pick, draft_pick_option,
+    contract, contract_queries,
+    deadline::{self, DeadlineKind},
+    deadline_queries, draft_pick, draft_pick_option,
     sea_orm::{
         ActiveModelTrait, ActiveValue, ConnectionTrait, LoaderTrait, prelude::DateTimeWithTimeZone,
     },
@@ -144,6 +146,9 @@ where
         league_id: trade_model.league_id,
         end_of_season_year: trade_model.end_of_season_year,
     })?;
+    let salary_snapshot_deadline =
+        find_trade_salary_snapshot_deadline(&trade_model, trade_datetime, &upcoming_lock, db)
+            .await?;
     let traded_trade_assets = trade_model.get_trade_assets(db).await?;
     let mut all_team_ids = HashSet::new();
     for traded_trade_asset in &traded_trade_assets {
@@ -164,9 +169,13 @@ where
         let team_active_contracts = active_contracts_by_team_id
             .get_vec(team_id)
             .unwrap_or(EMPTY_VEC);
-        let team_salary_and_cap =
-            calculate_team_contract_salary(*team_id, team_active_contracts, &upcoming_lock, db)
-                .await?;
+        let team_salary_and_cap = calculate_team_contract_salary(
+            *team_id,
+            team_active_contracts,
+            &salary_snapshot_deadline,
+            db,
+        )
+        .await?;
         team_salaries_before_trade.insert(*team_id, team_salary_and_cap);
     }
 
@@ -209,7 +218,7 @@ where
         team_update_assets_by_team_id,
         trade_datetime,
         &trade_transaction,
-        &upcoming_lock,
+        &salary_snapshot_deadline,
         &team_salaries_before_trade,
         all_team_ids.into_iter().collect(),
         db,
@@ -220,6 +229,44 @@ where
         .await?;
 
     Ok(updated_trade)
+}
+
+/// The deadline whose salary cap the trade's `team_update` snapshots report.
+///
+/// Normally the lock the trade is judged at, so the recorded cap is the one the roster has to be
+/// legal against. The exception is the §4.2.4 window from contract advancement to the keeper
+/// deadline: there is no cap there and §9.1 penalizes no drop made there, so a trade in that window
+/// reports the window's own uncapped deadline rather than the coming lock's $210 and drop penalty.
+#[instrument(skip(db))]
+async fn find_trade_salary_snapshot_deadline<C>(
+    trade_model: &trade::Model,
+    trade_datetime: &DateTimeWithTimeZone,
+    upcoming_lock: &deadline::Model,
+    db: &C,
+) -> Result<deadline::Model>
+where
+    C: ConnectionTrait,
+{
+    let is_before_keeper_deadline = deadline_queries::find_next_deadline_for_season_by_datetime(
+        trade_model.league_id,
+        trade_model.end_of_season_year,
+        *trade_datetime,
+        Some(DeadlineKind::PreseasonKeeper),
+        db,
+    )
+    .await?
+    .is_some();
+    if !is_before_keeper_deadline {
+        return Ok(upcoming_lock.clone());
+    }
+
+    deadline_queries::find_deadline_for_season_by_type(
+        trade_model.league_id,
+        trade_model.end_of_season_year,
+        DeadlineKind::PreseasonStart,
+        db,
+    )
+    .await
 }
 
 #[instrument(skip(db))]

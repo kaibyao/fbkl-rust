@@ -16,6 +16,7 @@ use fbkl_entity::{
     deadline::{self, DeadlineKind},
     deadline_queries,
     sea_orm::prelude::DateTimeWithTimeZone,
+    team_update::{TeamUpdateAssetSummary, TeamUpdateData},
     team_update_queries,
     team_user::{self, LeagueRole},
     trade, trade_asset,
@@ -100,6 +101,40 @@ async fn accepting_a_trade_with_no_lock_left_names_the_missing_lock_deadlines() 
     );
 }
 
+#[tokio::test]
+async fn a_preseason_trade_before_the_keeper_deadline_records_an_uncapped_snapshot() {
+    let Some(league) = TestLeague::create("trade_preseason_uncapped", END_OF_SEASON_YEAR).await
+    else {
+        return;
+    };
+    let now = Utc::now().fixed_offset();
+    // Rules 4.2.4: the window from contract advancement to the keeper deadline has no cap, even
+    // though the lock the trade is judged at (10 days out) carries the $210 regular-season one.
+    league
+        .add_deadline(DeadlineKind::PreseasonStart, days_ago(1))
+        .await;
+    league
+        .add_deadline(DeadlineKind::PreseasonKeeper, days_from_now(3))
+        .await;
+    league
+        .add_deadline(DeadlineKind::PreseasonFinalRosterLock, days_from_now(10))
+        .await;
+    let (proposed_trade, receiving_owner, receiving_team_id, _) =
+        propose_one_contract_trade(&league).await;
+    accept_trade(proposed_trade, &receiving_owner, &now, &league.db)
+        .await
+        .expect("accept trade")
+        .expect("both teams have responded, so the trade processes");
+
+    let lock = deadline_of_kind(&league, DeadlineKind::PreseasonFinalRosterLock).await;
+    let summary = week_asset_summary(&league, receiving_team_id, lock.id).await;
+    assert_eq!(
+        (summary.previous_salary_cap, summary.new_salary_cap),
+        (i16::MAX, i16::MAX),
+        "a trade in the uncapped window records that window, not the coming lock's $210"
+    );
+}
+
 /// One contract moving from the test league's own team to a second team, proposed and awaiting the
 /// receiving owner's response. Returns the trade, that owner, their team, and the traded contract.
 async fn propose_one_contract_trade(
@@ -155,6 +190,39 @@ async fn deadline_of_kind(league: &TestLeague, kind: DeadlineKind) -> deadline::
     )
     .await
     .expect("find deadline")
+}
+
+fn days_ago(days: u64) -> DateTimeWithTimeZone {
+    Utc::now()
+        .checked_sub_days(Days::new(days))
+        .expect("days ago")
+        .fixed_offset()
+}
+
+/// The one asset summary the team recorded under `deadline_id`.
+async fn week_asset_summary(
+    league: &TestLeague,
+    team_id: i64,
+    deadline_id: i64,
+) -> TeamUpdateAssetSummary {
+    let team_updates = team_update_queries::find_team_updates_by_team(
+        team_id,
+        None,
+        Some(deadline_id),
+        &league.db,
+    )
+    .await
+    .expect("find team updates");
+    let [team_update] = &team_updates[..] else {
+        panic!(
+            "expected exactly one team update, got {}",
+            team_updates.len()
+        );
+    };
+    match TeamUpdateData::from_json(team_update.data.clone()).expect("parse team update data") {
+        TeamUpdateData::Assets(summary) => summary,
+        TeamUpdateData::Settings(_) => panic!("a trade records an asset update"),
+    }
 }
 
 async fn week_move_count(league: &TestLeague, team_id: i64, deadline_id: i64) -> usize {

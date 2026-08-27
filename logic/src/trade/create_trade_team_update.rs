@@ -88,7 +88,7 @@ pub async fn insert_team_updates_from_completed_trade<C>(
     team_update_assets_by_team_id: MultiMap<i64, TeamUpdateAsset>,
     trade_datetime: &DateTimeWithTimeZone,
     trade_transaction: &transaction::Model,
-    deadline_model: &deadline::Model,
+    salary_snapshot_deadline: &deadline::Model,
     team_salaries_before_trade: &HashMap<i64, SalarySnapshot>,
     team_ids_involved_in_trade: Vec<i64>,
     db: &C,
@@ -110,9 +110,13 @@ where
             .iter()
             .map(|contract_model| contract_model.id)
             .collect();
-        let new_salary =
-            calculate_team_contract_salary(team_id, team_active_contracts, deadline_model, db)
-                .await?;
+        let new_salary = calculate_team_contract_salary(
+            team_id,
+            team_active_contracts,
+            salary_snapshot_deadline,
+            db,
+        )
+        .await?;
         let previous_salary = team_salaries_before_trade
             .get(&team_id)
             .ok_or(MissingPreTradeSalary { team_id })?;

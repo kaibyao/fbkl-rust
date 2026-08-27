@@ -10,7 +10,7 @@ use fbkl_entity::{
     deadline_queries, sea_orm::prelude::DateTimeWithTimeZone,
     team_update_queries::find_team_updates_by_team, team_user::LeagueRole,
 };
-use fbkl_logic::auction::start_new_auction_for_nba_player;
+use fbkl_logic::auction::{find_auction_mode_deadlines, start_new_auction_for_nba_player};
 use fbkl_test_support::{TestLeague, central};
 use fbkl_transaction_processor::{
     ProcessOutcome, ProcessableEvent, ProcessableEventKind, process_event,
@@ -164,6 +164,40 @@ async fn a_close_after_the_free_agency_freeze_is_refused() {
         upcoming_week.is_empty(),
         "a frozen pickup should not reach any week: {upcoming_week:?}"
     );
+}
+
+/// An in-season auction is bounded by whichever lock comes next, and `Week1RosterLock` is one.
+///
+/// The lookup used to filter on `InSeasonRosterLock` alone, so an auction running in week 1 clamped
+/// to the free agency freeze months away instead of Monday's lock.
+#[tokio::test]
+async fn the_in_season_hard_deadline_counts_the_week_1_lock_as_a_lock() {
+    let Some(league) = TestLeague::create("fa_auction_week_1_lock", END_OF_SEASON_YEAR).await
+    else {
+        return;
+    };
+    let week_1_lock = days_from_now(2);
+    league
+        .add_deadline(DeadlineKind::Week1RosterLock, week_1_lock)
+        .await;
+    league
+        .add_deadline(DeadlineKind::InSeasonRosterLock, days_from_now(9))
+        .await;
+    league
+        .add_deadline(DeadlineKind::FreeAgentAuctionEnd, days_from_now(60))
+        .await;
+
+    let mode_deadlines = find_auction_mode_deadlines(
+        AuctionKind::InSeasonFreeAgent,
+        league.league_id,
+        END_OF_SEASON_YEAR,
+        Utc::now().fixed_offset(),
+        &league.db,
+    )
+    .await
+    .expect("find the auction's mode deadlines");
+
+    assert_eq!(mode_deadlines.hard_deadline, Some(week_1_lock));
 }
 
 fn days_from_now(days: u64) -> DateTimeWithTimeZone {
