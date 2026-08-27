@@ -1,7 +1,7 @@
 import { useNavigate } from '@tanstack/react-router';
-import { Loader2 } from 'lucide-react';
 import { useMutation } from 'urql';
 import { Card, CardContent } from '@/components/ui/card';
+import { Spinner } from '@/components/ui/spinner';
 import {
   Stack,
   StackAlign,
@@ -69,7 +69,7 @@ export const LeagueListItem: React.FC<Props> = ({ league }) => {
               {league.currentTeamUser?.nickname}
             </span>
             <span>({league.currentTeamUser?.leagueRole})</span>
-            {fetching ? <Loader2 className="size-3 animate-spin" /> : null}
+            {fetching ? <Spinner size="sm" /> : null}
           </Stack>
         </Stack>
       </CardContent>

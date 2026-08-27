@@ -29,6 +29,7 @@
 
     --win:  oklch(0.72 0.17 150);   /* shipped as --success: green (up / win / gain) */
     --loss: oklch(0.63 0.2 18); /* destructive token reused (down / loss) */
+    --ring: oklch(0.552 0.016 285.938); /* shipped --ring, dark: the focus-visible colour */
 
     --radius: 0.625rem;
     --maxw: 1180px;
@@ -126,6 +127,63 @@
   .tag.fa{background:color-mix(in oklch,var(--primary) 20%,transparent);color:var(--primary-fg)}
   .spark{display:flex;align-items:flex-end;gap:3px;height:36px}
   .spark>i{flex:1;background:var(--chart-2);border-radius:2px 2px 0 0;opacity:.85}
+
+  /* ---------------- states ---------------- */
+  /* Every value below is copied from the shipped class in src/global.css, so a tile
+     and the real component are the same pixels. Comments name the class it came from. */
+
+  /* .empty-state: gap-3, px-6 py-12, centred */
+  .st-empty{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:12px;padding:48px 24px;text-align:center}
+  /* .empty-state-icon: size-12, rounded-lg, bg-muted, text-muted-foreground, svg size-6 */
+  .st-empty-icon{display:flex;align-items:center;justify-content:center;flex:none;width:48px;height:48px;
+    border-radius:var(--radius);background:var(--card-2);color:var(--muted-fg)}
+  .st-empty-icon svg{width:24px;height:24px}
+  /* Typography variant="heading3": Nunito Sans 1rem/700 */
+  .st-title{font-family:'Nunito Sans Variable',sans-serif;font-size:1rem;font-weight:700;margin:0}
+  /* .empty-state-description: max-w-[42ch] text-balance on top of variant="muted" */
+  .st-empty-desc{margin:0;max-width:42ch;text-wrap:balance;color:var(--muted-fg)}
+
+  /* The 62px roster row: 44px avatar + 9px padding top & bottom, gap-3 */
+  .st-row{display:flex;align-items:center;gap:12px;padding:9px 0}
+  /* .avatar-fallback at size="lg": 44px, rounded-lg, bg-muted, text-muted-foreground */
+  .st-ava-fallback{display:flex;align-items:center;justify-content:center;flex:none;width:44px;height:44px;
+    border-radius:var(--radius);background:var(--card-2);color:var(--muted-fg);
+    font-family:'Nunito Sans Variable',sans-serif;font-size:.875rem;font-weight:800}
+  .st-ava-fallback svg{width:20px;height:20px}
+
+  /* .skeleton: animate-pulse rounded-md bg-muted */
+  .sk{background:var(--card-2);border-radius:calc(var(--radius)*.8);
+    animation:sk-pulse 2s cubic-bezier(.4,0,.6,1) infinite}
+  @keyframes sk-pulse{0%,100%{opacity:1}50%{opacity:.5}}
+  @media (prefers-reduced-motion: reduce){.sk{animation:none}}
+  .sk-ava{width:44px;height:44px;border-radius:var(--radius);flex:none}
+
+  /* .toast + .toast--destructive: rounded-lg, p-4, gap-3, shadow-lg, destructive tint at 20/50% */
+  .st-toast{display:flex;align-items:flex-start;gap:12px;padding:16px;border-radius:var(--radius);
+    box-shadow:0 10px 15px -3px rgb(0 0 0/.35),0 4px 6px -4px rgb(0 0 0/.35);
+    border:1px solid color-mix(in oklch,var(--loss) 50%,transparent);
+    background:color-mix(in oklch,var(--loss) 20%,transparent);color:var(--fg)}
+  /* .toast-icon: size-5, inherits the toast's foreground so the glyph stays high-contrast */
+  .st-toast-icon{flex:none;line-height:0}
+  .st-toast-icon svg{width:20px;height:20px}
+  /* .toast-title: Nunito Sans 1rem/800 · .toast-description: .875rem/1.625 muted */
+  .st-toast-desc{margin:2px 0 0;font-size:.875rem;line-height:1.625;color:var(--muted-fg)}
+  /* Button size="sm": h-8, px-3, .875rem, rounded-md */
+  .btn-sm{height:32px;padding:0 12px;font-size:.875rem;border-radius:calc(var(--radius)*.8)}
+  /* Button size="icon-sm": size-8, rounded-md, ghost */
+  .btn-icon-sm{width:32px;height:32px;padding:0;border-radius:calc(var(--radius)*.8);
+    background:transparent;color:var(--muted-fg);justify-content:center}
+  .btn-icon-sm svg{width:16px;height:16px}
+
+  /* .btn disabled: / aria-disabled: opacity-50, pointer-events-none */
+  .btn-disabled{opacity:.5;pointer-events:none}
+
+  /* focus-visible:border-ring focus-visible:ring-1 focus-visible:ring-ring/50 */
+  .st-focus{border:1px solid var(--ring);border-radius:var(--radius);padding:8px 12px;
+    box-shadow:0 0 0 1px color-mix(in oklch,var(--ring) 50%,transparent);outline:none}
+  .st-focusable{border:1px solid transparent;border-radius:var(--radius);padding:8px 12px;outline:none}
+  .st-focusable:focus-visible{border-color:var(--ring);
+    box-shadow:0 0 0 1px color-mix(in oklch,var(--ring) 50%,transparent)}
 
   /* ---------------- board → component mapping ---------------- */
   .scroll-x{overflow-x:auto}
@@ -336,6 +394,141 @@
   </div>
 </section>
 
+<!-- ============ STATES: empty / loading / missing / failed / blocked ============ -->
+<section>
+  <span class="eyebrow">States · the other half of every screen</span>
+  <h2 style="margin:10px 0 6px">Empty, loading, missing, failed, blocked</h2>
+  <p class="muted" style="margin:0 0 22px;max-width:64ch">Most of a season is waiting on games, missing headshots and actions you cannot take yet. These six are the shipped treatments at shipped sizes. Each one names the problem in plain words and says what to do next. Colour is never the only signal, and no state is ever a blank screen.</p>
+  <div class="vg">
+
+    <!-- 1. Empty roster -->
+    <div class="card pad">
+      <h3 style="color:var(--muted-fg);font-size:.8rem">1 · Empty: nothing here yet</h3>
+      <div class="st-empty">
+        <div class="st-empty-icon" aria-hidden="true">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/>
+            <path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/>
+          </svg>
+        </div>
+        <h4 class="st-title">No players yet</h4>
+        <p class="st-empty-desc">Your roster is empty. Sign a free agent and they show up here.</p>
+        <button class="btn btn-primary">Scout free agents</button>
+      </div>
+      <p class="muted" style="margin:0">Never a blank panel. Icon, the fact in the user's words, one muted line, one orange CTA. The component stays neutral zinc; a screen that wants hype wraps it in a duotone (B) photo.</p>
+    </div>
+
+    <!-- 2. Loading skeleton row -->
+    <div class="card pad">
+      <h3 style="color:var(--muted-fg);font-size:.8rem">2 · Loading: hold the shape</h3>
+      <div style="margin:12px 0 14px">
+        <div class="st-row" style="border-bottom:1px solid var(--border)">
+          <div class="sk sk-ava"></div>
+          <div style="flex:1;min-width:0">
+            <div class="sk" style="height:16px;width:58%"></div>
+            <div class="sk" style="height:12px;width:38%;margin-top:8px"></div>
+          </div>
+        </div>
+        <div class="st-row" style="border-bottom:1px solid var(--border)">
+          <div class="sk sk-ava"></div>
+          <div style="flex:1;min-width:0">
+            <div class="sk" style="height:16px;width:44%"></div>
+            <div class="sk" style="height:12px;width:52%;margin-top:8px"></div>
+          </div>
+        </div>
+      </div>
+      <p class="muted" style="margin:0">A 62px roster row loads as a 62px skeleton row: same avatar square, same two lines. The page never reflows when data lands. Rows, cards and lists use Skeleton; a button mid-action uses Spinner instead.</p>
+    </div>
+
+    <!-- 3. Missing headshot -->
+    <div class="card pad">
+      <h3 style="color:var(--muted-fg);font-size:.8rem">3 · Missing: the photo that never came</h3>
+      <div style="margin:12px 0 14px">
+        <div class="st-row" style="border-bottom:1px solid var(--border)">
+          <div class="st-ava-fallback" aria-hidden="true">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/>
+            </svg>
+          </div>
+          <div style="flex:1;min-width:0">
+            <b>V. Wembanyama</b>
+            <div class="muted" style="font-size:.75rem">C – Spurs · $42 / 3 / V</div>
+          </div>
+        </div>
+        <div class="st-row">
+          <div class="st-ava-fallback" aria-hidden="true">AE</div>
+          <div style="flex:1;min-width:0">
+            <b>A. Edwards</b>
+            <div class="muted" style="font-size:.75rem">SG – Timberwolves · $38 / 2 / V</div>
+          </div>
+        </div>
+      </div>
+      <p class="muted" style="margin:0">The zinc fallback block the photo rules promise. Same 44px squircle, muted zinc fill, icon or initials. The row keeps its rhythm and the name still does the recognising. A broken image never leaves a hole.</p>
+    </div>
+
+    <!-- 4. Error toast -->
+    <div class="card pad">
+      <h3 style="color:var(--muted-fg);font-size:.8rem">4 · Failed: say what to do next</h3>
+      <div class="st-toast" style="margin:12px 0 14px">
+        <span class="st-toast-icon" aria-hidden="true">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="m15 9-6 6"/><path d="m9 9 6 6"/>
+            <path d="M2.586 16.726A2 2 0 0 1 2 15.312V8.688a2 2 0 0 1 .586-1.414l4.688-4.688A2 2 0 0 1 8.688 2h6.624a2 2 0 0 1 1.414.586l4.688 4.688A2 2 0 0 1 22 8.688v6.624a2 2 0 0 1-.586 1.414l-4.688 4.688a2 2 0 0 1-1.414.586H8.688a2 2 0 0 1-1.414-.586z"/>
+          </svg>
+        </span>
+        <div style="flex:1;min-width:0">
+          <b class="st-title" style="font-weight:800">Trade failed</b>
+          <p class="st-toast-desc">Denver's roster is full. Drop a player from their side, or send it as a 2-for-1.</p>
+        </div>
+        <button class="btn btn-outline btn-sm">Retry</button>
+        <button class="btn btn-icon-sm" aria-label="Close toast">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>
+        </button>
+      </div>
+      <p class="muted" style="margin:0">Darker tint, not a solid red slab. It still reads as a card. The glyph plus the word "Error" (carried for screen readers) mean colour never works alone. Never "Something went wrong": name the cause, then offer the fix.</p>
+    </div>
+
+    <!-- 5. Disabled action -->
+    <div class="card pad">
+      <h3 style="color:var(--muted-fg);font-size:.8rem">5 · Blocked: disabled, with a reason</h3>
+      <div class="row" style="gap:24px;margin:16px 0 14px;align-items:flex-start">
+        <div>
+          <button class="btn btn-primary btn-disabled" aria-disabled="true">Propose trade</button>
+          <div class="muted" style="font-size:.75rem;margin-top:6px">Roster locked until Tue</div>
+        </div>
+        <div>
+          <button class="btn btn-primary">Propose trade</button>
+          <div class="muted" style="font-size:.75rem;margin-top:6px">&nbsp;</div>
+        </div>
+      </div>
+      <p class="muted" style="margin:0">Disabled is 50% opacity and no pointer events, and it is never silent. One muted line under the control says why, so nobody hunts for a broken button. Same rule for a greyed row or a locked input.</p>
+    </div>
+
+    <!-- 6. Focus ring -->
+    <div class="card pad">
+      <h3 style="color:var(--muted-fg);font-size:.8rem">6 · Focus: the keyboard path, made visible</h3>
+      <div style="margin:12px 0 14px">
+        <div class="st-focus">
+          <div class="st-row" style="padding:0">
+            <img class="ava" src="https://cdn.nba.com/manage/2025/12/jokic3-2.jpg" alt="">
+            <div style="flex:1;min-width:0">
+              <b>N. Jokic</b>
+              <div class="muted" style="font-size:.75rem">C – Nuggets · 4 games</div>
+            </div>
+            <span class="tag">BENCH</span>
+          </div>
+        </div>
+        <div class="st-focusable" style="margin-top:6px" tabindex="0">
+          <span class="muted" style="font-size:.75rem">Tab to this row to see the same ring live.</span>
+        </div>
+      </div>
+      <p class="muted" style="margin:0">A 1px <code>--ring</code> border plus a 1px ring at 50%. Identical on buttons, inputs, badges, rows and toasts, so the keyboard path never disappears. <code>:focus-visible</code> only: clicking a row does not light it up.</p>
+    </div>
+
+  </div>
+  <p class="note">These six are shipped as <code>&lt;EmptyState&gt;</code>, <code>&lt;Skeleton&gt;</code>, <code>&lt;Avatar&gt;</code>'s fallback, <code>&lt;Toaster&gt;</code> / <code>&lt;Toast&gt;</code>, <code>&lt;Button disabled&gt;</code> and the shared <code>focus-visible</code> ring in <code>global.css</code>. Build a screen's empty, loading and failed states in the same pass as its happy path, not after.</p>
+</section>
+
 <!-- ============ BOARD → COMPONENT MAPPING ============ -->
 <section>
   <span class="eyebrow">Implementation · board class → shipped component</span>
@@ -362,6 +555,13 @@
         <tr><td><code>.bar</code> · value bar</td><td>Progress</td><td><span class="tag fa">To build</span></td></tr>
         <tr><td><code>.spark</code> · trajectory bars</td><td>Sparkline</td><td><span class="tag fa">To build</span></td></tr>
         <tr><td><code>.t-scrim</code> <code>.t-duo</code> <code>.t-spot</code> <code>.t-cool</code></td><td>PhotoTreatment classes (A to D)</td><td><span class="tag fa">To build</span></td></tr>
+        <tr><td><code>.st-empty</code> · empty state</td><td><code>&lt;EmptyState icon title description action&gt;</code></td><td><span class="tag">Shipped</span></td></tr>
+        <tr><td><code>.sk</code> · loading row / card</td><td><code>&lt;Skeleton&gt;</code>, sized to the row it replaces</td><td><span class="tag">Shipped</span></td></tr>
+        <tr><td><code>.st-ava-fallback</code> · missing headshot</td><td><code>&lt;AvatarFallback&gt;</code> with icon or initials on zinc</td><td><span class="tag">Shipped</span></td></tr>
+        <tr><td><code>.st-toast</code> · error / success toast</td><td><code>&lt;Toaster&gt;</code> once at the root, then <code>toast.add({ type: ToastKind.Error })</code></td><td><span class="tag">Shipped</span></td></tr>
+        <tr><td>in-flight button glyph</td><td><code>&lt;Spinner&gt;</code> + <code>disabled</code>. Never for a list, that is Skeleton</td><td><span class="tag">Shipped</span></td></tr>
+        <tr><td><code>.btn-disabled</code> + reason line</td><td><code>&lt;Button disabled&gt;</code> + <code>&lt;Typography variant="muted-sm"&gt;</code></td><td><span class="tag">Shipped</span></td></tr>
+        <tr><td><code>.st-focus</code> · focus ring</td><td>shared <code>focus-visible</code> ring in <code>global.css</code>, no per-component ring</td><td><span class="tag">Shipped</span></td></tr>
       </tbody>
     </table>
   </div>
@@ -379,6 +579,7 @@
     <div class="card"><b>Zinc = everything else</b><p class="muted" style="margin:.5rem 0 0">Surfaces, borders, secondary text. Whitespace is a feature. Quiet by default.</p></div>
     <div class="card"><b>Photos = moments</b><p class="muted" style="margin:.5rem 0 0">Players, matchups, hype. Always treated (A–D). Never raw, never load-bearing for legibility.</p></div>
     <div class="card"><b>Motion = restraint</b><p class="muted" style="margin:.5rem 0 0">A single pulse on "live". Fast, ≤200ms transitions. Numbers count up on change. No bounce, no confetti.</p></div>
+    <div class="card"><b>Every state is designed</b><p class="muted" style="margin:.5rem 0 0">Empty, loading, missing, failed and blocked ship with the happy path, not after it. Name the problem in plain words, then give the way out. A blank panel is a bug.</p></div>
     <div class="card"><b>Rounded = the shape system</b><p class="muted" style="margin:.5rem 0 0">The rounded ramp is canon: 6px on chips, 8px on controls, 10px on cards and buttons, 10px squircle avatars, full-round pills. Nothing ships square.</p></div>
   </div>
 </section>

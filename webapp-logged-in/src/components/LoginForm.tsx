@@ -1,9 +1,9 @@
 import { useNavigate } from '@tanstack/react-router';
-import { Loader2 } from 'lucide-react';
 import { useState } from 'react';
 import { SubmitHandler, useForm } from 'react-hook-form';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { Spinner } from '@/components/ui/spinner';
 import { Label } from '@/components/ui/label';
 import { Stack, StackGap } from '@/components/ui/stack';
 import { Typography, TypographyVariant } from '@/components/ui/typography';
@@ -67,7 +67,7 @@ export const LoginForm: React.FC = () => {
         disabled={isSubmitting}
         className="w-full"
       >
-        {isSubmitting && <Loader2 className="animate-spin" />}
+        {isSubmitting && <Spinner />}
         Sign in
       </Button>
 
