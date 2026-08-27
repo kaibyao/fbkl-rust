@@ -9,12 +9,16 @@ hooks:
       from: ".env" # Allowed even if gitignored. 'from' is always relative to the MAIN worktree
       to: ".env" # Destination is relative to the NEW worktree
 
-    - type: command
-      command: "direnv allow"
+    - type: copy
+      from: "infra/secrets.env" # Allowed even if gitignored. 'from' is always relative to the MAIN worktree
+      to: "infra/secrets.env" # Destination is relative to the NEW worktree
 
     - type: copy
       from: ".envrc" # Allowed even if gitignored. 'from' is always relative to the MAIN worktree
       to: ".envrc" # Destination is relative to the NEW worktree
+
+    - type: command
+      command: "direnv allow"
 
     - type: copy
       from: "target" # Allowed even if gitignored. 'from' is always relative to the MAIN worktree

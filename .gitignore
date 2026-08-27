@@ -15,6 +15,7 @@ node_modules
 
 # Project-wide
 .env
+.envrc
 *.log
 
 # generated assets
