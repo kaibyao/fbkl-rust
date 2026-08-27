@@ -553,8 +553,8 @@
       <div class="vg" style="margin-top:14px;align-items:center">
         <div>
           <div class="muted" style="font-size:.72rem;letter-spacing:.1em">YOU GIVE</div>
-          <div class="row" style="margin-top:8px"><img class="ava" src="assets/nba/13_Photos-of-the-Year-1536x1024.jpg" alt="Player A"><b>Player A</b><span class="muted num-tabular" style="margin-left:auto">24.1 val</span></div>
-          <div class="row" style="margin-top:8px"><img class="ava" src="assets/nba/95_Photos-of-the-Year-1536x1024.jpg" alt=""><b>2027 1st</b><span class="muted num-tabular" style="margin-left:auto">9.0 val</span></div>
+          <div class="row" style="margin-top:8px"><img class="ava" src="assets/nba/13_Photos-of-the-Year-1536x1024.jpg" alt="Player A"><b>Player A</b><span class="muted num-tabular" style="margin-left:auto">24.1 <span class="hlp-term">val</span></span></div>
+          <div class="row" style="margin-top:8px"><img class="ava" src="assets/nba/95_Photos-of-the-Year-1536x1024.jpg" alt=""><b class="hlp-term">2027 1st</b><span class="muted num-tabular" style="margin-left:auto">9.0 val</span></div>
         </div>
         <div>
           <div class="muted" style="font-size:.72rem;letter-spacing:.1em">YOU GET</div>
@@ -562,9 +562,10 @@
         </div>
       </div>
       <div class="row" style="justify-content:space-between;margin-top:18px;padding-top:16px;border-top:1px solid var(--border);flex-wrap:wrap;gap:12px">
-        <div class="stat" style="flex-wrap:wrap"><span class="muted">Net value</span><span class="v num-tabular up">+2.3</span><span class="tag" style="background:color-mix(in oklch,var(--win) 20%,transparent);color:var(--fg)">FAIR · LEANS YOU</span></div>
+        <div class="stat" style="flex-wrap:wrap"><span class="muted">Net value</span><span class="v num-tabular up">+2.3</span><span class="tag hlp-term" style="background:color-mix(in oklch,var(--win) 20%,transparent);color:var(--fg)">FAIR · LEANS YOU</span></div>
         <div class="row"><button class="btn btn-outline">Counter</button><button class="btn btn-primary">Propose trade</button></div>
       </div>
+      <div class="hlp-tip" style="margin-top:10px;display:block">val = projected fantasy value over the rest of the contract. 2027 1st = a first-round rookie draft pick in the 2027 draft. FAIR · LEANS YOU = the trade analyzer's verdict, naming which side the projected value favors.</div>
       <p class="muted" style="margin:14px 0 0">The verdict is the loudest element: one big signed number + a plain-language judgment. Analysis is blue/neutral; the commit action is the single orange button. The other manager is named above the assets, because you are asking a person, not a market. See <a href="#league">League identity</a>.</p>
     </div>
 
@@ -831,7 +832,7 @@
     </div>
 
   </div>
-  <p class="note">Ship these as <code>&lt;ContractChip&gt;</code> (a <code>&lt;Badge variant="secondary"&gt;</code> plus the kind → label table) and <code>&lt;CapBar&gt;</code>. One table maps <code>ContractKind</code> to its abbreviation, its spelled-out name and its last year, so a new kind on the backend is a compile error in the UI, not a silently missing chip.</p>
+  <p class="note">Ship these as a <code>&lt;TermTip&gt;</code> wrapping a <code>&lt;Badge variant="secondary"&gt;</code>, fed by the <code>CONTRACT_KIND_DISPLAY</code> table in <code>lib/contract.utils.ts</code>, and <code>&lt;CapBar&gt;</code>. One table maps <code>ContractKind</code> to its abbreviation, its spelled-out name and its last year, so a new kind on the backend is a compile error in the UI, not a silently missing chip.</p>
 </section>
 
 <!-- ============ HELP & DOCUMENTATION ============ -->
@@ -1294,7 +1295,7 @@
 <section id="auction">
   <span class="eyebrow">Live auction · the one screen that is allowed to feel hot</span>
   <h2 style="margin:10px 0 6px">Four numbers, and the clock owns the orange</h2>
-  <p class="muted" style="margin:0 0 22px;max-width:64ch">Auctions are the loudest thing the backend does, and the board has never drawn one. A bidder needs four answers at a glance: how long is left, what the bid stands at, who put it there, and how much of my cap survives if I go over the top. Everything else on this screen is furniture. This is the home of <code>--primary-hot</code> and the live pulse: they mark time running out, and they are not allowed anywhere else on the screen.</p>
+  <p class="muted" style="margin:0 0 22px;max-width:64ch">Auctions are the loudest thing the backend does, and the board has never drawn one. A bidder needs four answers at a glance: how long is left, what the bid stands at, who put it there, and how much of my cap survives if I go over the top. Everything else on this screen is furniture. The live pulse and the ambient hot state display here: <code>--primary-hot</code> stays on for as long as time is running out. Per the One orange rule (see <a href="#charts">Charts &amp; data viz</a>), it shows up elsewhere only as a chart's "now" marker, never as a second ambient state.</p>
   <div class="vg">
 
     <!-- 1 · the auction card -->
@@ -1348,7 +1349,7 @@
         <div><div class="auc-clock hot" style="font-size:1.6rem">4:12<small>MIN</small></div><div class="muted" style="font-size:.72rem;margin-top:4px">Under five · hot orange</div></div>
       </div>
       <p class="muted" style="margin:0 0 10px">Colour is the only thing that changes. The digits keep one size and tabular widths, so the row never jumps while you are reading it. Only the last tier pulses, and the pulse is the same <code>.live-dot</code> the pill uses, so <code>prefers-reduced-motion</code> already turns it off.</p>
-      <p class="muted" style="margin:0"><b>What the clock counts to</b> comes from <code>config_settings.rs</code>, not from the design: a bid keeps an auction alive another 24 hours, in-season auctions all end Sunday 8:00pm CT, and a bid in the last hour pushes that end out 30 minutes. In the preseason crunch window a bid buys one hour, not 24. A clock that can move has to say so before it moves, so the card prints the closing time next to the pill.</p>
+      <p class="muted" style="margin:0"><b>What the clock counts to</b> comes from <code>config_settings.rs</code>, not from the design: an in-season auction closes only after a 24-hour quiet window with no new bid, in-season auctions all end Sunday 8:00pm CT, and a bid in the last hour pushes that end out 30 minutes. In the preseason crunch window the quiet window shrinks to one hour, not 24. A clock that can move has to say so before it moves, so the card prints the closing time next to the pill.</p>
     </div>
 
     <!-- 3 · who is bidding -->
@@ -1525,7 +1526,7 @@
         <tr><td>in-flight button glyph</td><td><code>&lt;Spinner&gt;</code> + <code>disabled</code>. Never for a list, that is Skeleton</td><td><span class="tag">Shipped</span></td></tr>
         <tr><td><code>.btn-disabled</code> + reason line</td><td><code>&lt;Button disabled&gt;</code> + <code>&lt;Typography variant="muted-sm"&gt;</code></td><td><span class="tag">Shipped</span></td></tr>
         <tr><td><code>.st-focus</code> · focus ring</td><td>shared <code>focus-visible</code> ring in <code>global.css</code>, no per-component ring</td><td><span class="tag">Shipped</span></td></tr>
-        <tr><td><code>.tag</code> as <code>V Y2/3</code> · contract chip</td><td><code>&lt;ContractChip kind yearNumber&gt;</code> — <code>&lt;Badge variant="secondary"&gt;</code> over the <code>ContractKind</code> table in <code>lib/contract.utils.ts</code></td><td><span class="tag">Shipped</span></td></tr>
+        <tr><td><code>.tag</code> as <code>V Y2/3</code> · contract chip</td><td><code>&lt;TermTip label render=&lt;Badge variant="secondary"&gt;&gt;</code> over the <code>ContractKind</code> table in <code>lib/contract.utils.ts</code></td><td><span class="tag">Shipped</span></td></tr>
         <tr><td><code>.tag.outline</code> · "Final yr"</td><td><code>&lt;Badge variant="outline"&gt;</code>, shown when <code>isFinalContractYear(contract)</code></td><td><span class="tag">Shipped</span></td></tr>
         <tr><td><code>.st-salary</code> · row salary</td><td><code>&lt;Typography variant="stat"&gt;</code>, muted when <code>contract.isIr</code></td><td><span class="tag">Shipped</span></td></tr>
         <tr><td><code>.capbar</code> · salary vs cap</td><td><code>&lt;CapBar salaryUsed salaryCap&gt;</code> on top of Progress — same component as <code>.bar</code>, feeds ron.12</td><td><span class="tag fa">To build</span></td></tr>
