@@ -185,6 +185,27 @@
   .st-focusable:focus-visible{border-color:var(--ring);
     box-shadow:0 0 0 1px color-mix(in oklch,var(--ring) 50%,transparent)}
 
+  /* ---------------- contract & cap ---------------- */
+  /* The right rail of a roster row: salary stat + chips. It never shrinks, so the name column
+     is the only thing that can lose width. */
+  .st-money{display:flex;align-items:center;gap:8px;flex:none}
+  /* Typography variant="stat" at its row size: font-heading, 1rem, 900, tabular lining nums. */
+  .st-salary{font-family:'Nunito Sans Variable',sans-serif;font-size:1rem;font-weight:900;
+    font-variant-numeric:tabular-nums lining-nums}
+  .st-salary.off-books{color:var(--muted-fg)}
+  /* .badge--outline: transparent fill, 1px border, foreground text. The attention chip. */
+  .tag.outline{background:transparent;border:1px solid var(--border);color:var(--fg);padding:2px 7px}
+  /* The name column. min-w-0 is what lets a flex child shrink below its text width. */
+  .st-name{flex:1;min-width:0}
+  .st-name b,.st-name .sub{display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .st-name .sub{font-size:.75rem;color:var(--muted-fg)}
+  /* Cap bar: the blue analytical ramp for committed salary, zinc for what is left. */
+  .capbar{position:relative;height:12px;border-radius:99px;background:var(--card-2);overflow:hidden}
+  .capbar>i{display:block;height:100%;background:linear-gradient(90deg,var(--chart-3),var(--chart-1))}
+  .capbar.over>i{background:linear-gradient(90deg,var(--primary),var(--primary-hot))}
+  /* The cap line itself, drawn over the fill so an over-cap bar shows how far past it went. */
+  .capline{position:absolute;top:-3px;bottom:-3px;width:2px;background:var(--fg);opacity:.85;border-radius:2px}
+
   /* ---------------- board → component mapping ---------------- */
   .scroll-x{overflow-x:auto}
   .map{width:100%;border-collapse:collapse;font-size:.88rem;min-width:560px}
@@ -529,6 +550,134 @@
   <p class="note">These six are shipped as <code>&lt;EmptyState&gt;</code>, <code>&lt;Skeleton&gt;</code>, <code>&lt;Avatar&gt;</code>'s fallback, <code>&lt;Toaster&gt;</code> / <code>&lt;Toast&gt;</code>, <code>&lt;Button disabled&gt;</code> and the shared <code>focus-visible</code> ring in <code>global.css</code>. Build a screen's empty, loading and failed states in the same pass as its happy path, not after.</p>
 </section>
 
+<!-- ============ CONTRACTS & CAP ============ -->
+<section>
+  <span class="eyebrow">Contracts &amp; cap · what makes this a keeper league</span>
+  <h2 style="margin:10px 0 6px">Every row carries a salary and a contract year</h2>
+  <p class="muted" style="margin:0 0 22px;max-width:64ch">A player here is really a contract: a dollar value against your cap, a year number inside a fixed span, and a kind that says what happens to him next season. That is the whole game, so it belongs in the row itself, not behind a click. The vocabulary below is the backend's: <code>kind</code>, <code>year_number</code>, <code>salary</code>, <code>is_ir</code>.</p>
+  <div class="vg">
+
+    <!-- 1. The roster row, with money -->
+    <div class="card pad" style="grid-column:1/-1">
+      <h3 style="color:var(--muted-fg);font-size:.8rem">1 · The roster row, with money</h3>
+      <div style="margin:12px 0 14px">
+
+        <div class="st-row" style="border-bottom:1px solid var(--border)">
+          <img class="ava" src="https://cdn.nba.com/manage/2025/12/0GettyImages-2182344606-952x1176.jpg" alt="">
+          <div class="st-name"><b>A. Edwards</b><span class="sub">SG – Timberwolves</span></div>
+          <div class="st-money">
+            <span class="st-salary">$38</span>
+            <span class="tag">V Y2/3</span>
+          </div>
+        </div>
+
+        <div class="st-row" style="border-bottom:1px solid var(--border)">
+          <div class="st-ava-fallback" aria-hidden="true">BM</div>
+          <div class="st-name"><b>B. Miller</b><span class="sub">SF – Hornets</span></div>
+          <div class="st-money">
+            <span class="st-salary">$4</span>
+            <span class="tag">RD Y1/3</span>
+          </div>
+        </div>
+
+        <div class="st-row" style="border-bottom:1px solid var(--border)">
+          <img class="ava" src="https://cdn.nba.com/manage/2025/12/jokic3-2.jpg" alt="">
+          <div class="st-name"><b>J. Williams</b><span class="sub">PF – Grizzlies</span></div>
+          <div class="st-money">
+            <span class="st-salary">$22</span>
+            <span class="tag">RFA</span>
+            <span class="tag outline">Final yr</span>
+          </div>
+        </div>
+
+        <div class="st-row" style="border-bottom:1px solid var(--border)">
+          <img class="ava" src="https://cdn.nba.com/manage/2025/12/13_Photos-of-the-Year-1536x1024.jpg" alt="">
+          <div class="st-name"><b>D. Fox</b><span class="sub">PG – Spurs</span></div>
+          <div class="st-money">
+            <span class="st-salary">TBD</span>
+            <span class="tag">UFA-20%</span>
+            <span class="tag outline">Final yr</span>
+          </div>
+        </div>
+
+        <div class="st-row">
+          <img class="ava" src="https://cdn.nba.com/manage/2025/12/Kawhi_1920x1080.jpg" alt="" style="opacity:.7">
+          <div class="st-name"><b>K. Leonard</b><span class="sub">SF – Clippers</span></div>
+          <div class="st-money">
+            <span class="st-salary off-books">$30</span>
+            <span class="tag">V Y1/3</span>
+            <span class="tag">IR</span>
+          </div>
+        </div>
+
+      </div>
+      <p class="muted" style="margin:0">Same 62px row, same 44px avatar, name still doing the recognising. The right rail adds the two facts a keeper league runs on and never shrinks: the salary as a stat (<code>font-heading</code>, black, tabular) and a zinc chip reading <code>kind</code> + <code>Y</code><code>year_number</code>/last year. Kinds are the backend's own: <b>RD</b> and <b>RDI</b> (rookie development, years 1–3, international stash), <b>R</b> (rookie 1–3, extension 4–5), <b>V</b> (veteran 1–3), <b>RFA</b>, <b>UFA-20%</b>, <b>UFA-10%</b>, <b>FA</b>.</p>
+      <p class="muted" style="margin:.6rem 0 0"><b>Three rules the rows above are showing.</b> A last year says so in words — "Final yr" as an outline chip, because a colour alone cannot tell you a contract is about to convert to RFA or UFA. A salary the server sends as <code>null</code> prints "TBD", never <code>$0</code>: a fresh UFA has no number until the veteran auction sets one. An IR contract is off the books, so its dollars go muted and its photo dims, while the name stays full strength — you still have to recognise the guy.</p>
+    </div>
+
+    <!-- 2. Cap bar -->
+    <div class="card pad">
+      <h3 style="color:var(--muted-fg);font-size:.8rem">2 · Team salary against the cap</h3>
+
+      <div class="row" style="justify-content:space-between;align-items:flex-end;margin:14px 0 8px">
+        <div>
+          <div class="muted" style="font-size:.75rem">CAP SPACE</div>
+          <div class="num-tabular" style="font-size:2.6rem">$28</div>
+        </div>
+        <div class="muted num-tabular" style="text-align:right">$182 used / $210 cap</div>
+      </div>
+      <div class="capbar"><i style="width:86.7%"></i></div>
+
+      <div class="row" style="justify-content:space-between;align-items:flex-end;margin:26px 0 8px">
+        <div>
+          <div class="muted" style="font-size:.75rem">OVER THE CAP</div>
+          <div class="num-tabular" style="font-size:2.6rem;color:var(--primary-hot)">$8</div>
+        </div>
+        <div class="muted num-tabular" style="text-align:right">$218 used / $210 cap</div>
+      </div>
+      <div class="capbar over">
+        <i style="width:100%"></i>
+        <span class="capline" style="left:96.3%"></span>
+      </div>
+
+      <p class="muted" style="margin:14px 0 0">One bar, blue while the roster is legal, because a cap is analysis and not a scoreboard. Going over is the one moment it turns orange, and even then the words carry it: the big number is labelled "over the cap" and a white line marks where the cap sat. Numbers are tabular so twelve teams stack into a readable column.</p>
+      <p class="muted" style="margin:.6rem 0 0">Real values, from <code>constants</code>: $100 at the keeper deadline, $200 in the preseason, $210 in the regular season, $230 once the FA auction ends. The cap is per team and it can shrink — dropping a contract costs you 20% of its salary. RD, RDI and IR contracts do not count against it.</p>
+    </div>
+
+    <!-- 3. Long names -->
+    <div class="card pad">
+      <h3 style="color:var(--muted-fg);font-size:.8rem">3 · Names longer than the column</h3>
+      <div style="max-width:320px;margin:12px 0 14px">
+        <div class="st-row" style="border-bottom:1px solid var(--border)">
+          <div class="st-ava-fallback" aria-hidden="true">SG</div>
+          <div class="st-name">
+            <b title="Shai Gilgeous-Alexander">Shai Gilgeous-Alexander</b>
+            <span class="sub" title="PG – Thunder">PG – Thunder</span>
+          </div>
+          <div class="st-money">
+            <span class="st-salary">$52</span>
+            <span class="tag">V Y1/3</span>
+          </div>
+        </div>
+        <div class="st-row">
+          <div class="st-ava-fallback" aria-hidden="true">NA</div>
+          <div class="st-name">
+            <b title="Nickeil Alexander-Walker">Nickeil Alexander-Walker</b>
+            <span class="sub" title="SG – Hawks">SG – Hawks</span>
+          </div>
+          <div class="st-money">
+            <span class="st-salary">$9</span>
+            <span class="tag">V Y3/3</span>
+          </div>
+        </div>
+      </div>
+      <p class="muted" style="margin:0"><b>The rule:</b> one line, ellipsis, and the name is the only thing allowed to lose. The text column carries <code>min-w-0 flex-1</code> (without <code>min-w-0</code> a flex child refuses to shrink below its text and pushes the money off the row), the name span carries <code>truncate</code>, and <code>title</code> holds the full name for hover. The avatar, the salary and the chips are <code>shrink-0</code>. Never wrap to a second line: a roster of 22 rows has to keep its rhythm.</p>
+    </div>
+
+  </div>
+  <p class="note">Ship these as <code>&lt;ContractChip&gt;</code> (a <code>&lt;Badge variant="secondary"&gt;</code> plus the kind → label table) and <code>&lt;CapBar&gt;</code>. One table maps <code>ContractKind</code> to its abbreviation, its spelled-out name and its last year, so a new kind on the backend is a compile error in the UI, not a silently missing chip.</p>
+</section>
+
 <!-- ============ BOARD → COMPONENT MAPPING ============ -->
 <section>
   <span class="eyebrow">Implementation · board class → shipped component</span>
@@ -562,6 +711,11 @@
         <tr><td>in-flight button glyph</td><td><code>&lt;Spinner&gt;</code> + <code>disabled</code>. Never for a list, that is Skeleton</td><td><span class="tag">Shipped</span></td></tr>
         <tr><td><code>.btn-disabled</code> + reason line</td><td><code>&lt;Button disabled&gt;</code> + <code>&lt;Typography variant="muted-sm"&gt;</code></td><td><span class="tag">Shipped</span></td></tr>
         <tr><td><code>.st-focus</code> · focus ring</td><td>shared <code>focus-visible</code> ring in <code>global.css</code>, no per-component ring</td><td><span class="tag">Shipped</span></td></tr>
+        <tr><td><code>.tag</code> as <code>V Y2/3</code> · contract chip</td><td><code>&lt;ContractChip kind yearNumber&gt;</code> — <code>&lt;Badge variant="secondary"&gt;</code> over the <code>ContractKind</code> table in <code>lib/contract.utils.ts</code></td><td><span class="tag">Shipped</span></td></tr>
+        <tr><td><code>.tag.outline</code> · "Final yr"</td><td><code>&lt;Badge variant="outline"&gt;</code>, shown when <code>isFinalContractYear(contract)</code></td><td><span class="tag">Shipped</span></td></tr>
+        <tr><td><code>.st-salary</code> · row salary</td><td><code>&lt;Typography variant="stat"&gt;</code>, muted when <code>contract.isIr</code></td><td><span class="tag">Shipped</span></td></tr>
+        <tr><td><code>.capbar</code> · salary vs cap</td><td><code>&lt;CapBar salaryUsed salaryCap&gt;</code> on top of Progress — same component as <code>.bar</code>, feeds ron.12</td><td><span class="tag fa">To build</span></td></tr>
+        <tr><td><code>.st-name</code> · truncating name column</td><td><code>min-w-0 flex-1</code> wrapper + <code>truncate</code> + <code>title</code>. No component, it is a rule</td><td><span class="tag">Shipped</span></td></tr>
       </tbody>
     </table>
   </div>
@@ -580,6 +734,7 @@
     <div class="card"><b>Photos = moments</b><p class="muted" style="margin:.5rem 0 0">Players, matchups, hype. Always treated (A–D). Never raw, never load-bearing for legibility.</p></div>
     <div class="card"><b>Motion = restraint</b><p class="muted" style="margin:.5rem 0 0">A single pulse on "live". Fast, ≤200ms transitions. Numbers count up on change. No bounce, no confetti.</p></div>
     <div class="card"><b>Every state is designed</b><p class="muted" style="margin:.5rem 0 0">Empty, loading, missing, failed and blocked ship with the happy path, not after it. Name the problem in plain words, then give the way out. A blank panel is a bug.</p></div>
+    <div class="card"><b>Money is zinc</b><p class="muted" style="margin:.5rem 0 0">A salary is a fact, not a verdict: neutral stat type, tabular. Contract chips are zinc too. Colour arrives only when the number becomes a state — over the cap, a trade's net value, a win or a loss.</p></div>
     <div class="card"><b>Rounded = the shape system</b><p class="muted" style="margin:.5rem 0 0">The rounded ramp is canon: 6px on chips, 8px on controls, 10px on cards and buttons, 10px squircle avatars, full-round pills. Nothing ships square.</p></div>
   </div>
 </section>

@@ -66,11 +66,7 @@ export const LeagueTeamRoster: FunctionComponent<Props> = ({ team }) => {
                 <LeagueRosterListPlayer key={contract.id} contract={contract} />
               ))}
               {activeButIrContracts.map((contract) => (
-                <LeagueRosterListPlayer
-                  key={contract.id}
-                  contract={contract}
-                  isIr
-                />
+                <LeagueRosterListPlayer key={contract.id} contract={contract} />
               ))}
             </Stack>
 
