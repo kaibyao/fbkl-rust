@@ -9,9 +9,11 @@ import {
   StackDirection,
   StackGap,
 } from '@/components/ui/stack';
+import { TermTip } from '@/components/ui/term-tip';
 import { Typography, TypographyVariant } from '@/components/ui/typography';
 import { ContractForRosterListFragment } from '@/generated/graphql';
 import { isFinalContractYear } from '@/lib/contract.utils';
+import { TERMS } from '@/lib/terms';
 import { cn } from '@/lib/utils';
 
 interface Props {
@@ -88,7 +90,14 @@ export const LeagueRosterListPlayer: FunctionComponent<Props> = ({
         {isFinalContractYear(contract) && (
           <Badge variant="outline">Final yr</Badge>
         )}
-        {contract.isIr && <Badge variant="secondary">IR</Badge>}
+        {contract.isIr && (
+          <TermTip
+            label={TERMS.IR}
+            render={<Badge variant="secondary" className="cursor-help" />}
+          >
+            IR
+          </TermTip>
+        )}
       </Stack>
     </Stack>
   );

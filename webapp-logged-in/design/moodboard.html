@@ -206,6 +206,31 @@
   /* The cap line itself, drawn over the fill so an over-cap bar shows how far past it went. */
   .capline{position:absolute;top:-3px;bottom:-3px;width:2px;background:var(--fg);opacity:.85;border-radius:2px}
 
+  /* ---------------- help & documentation ---------------- */
+  /* .term-tip: the dotted underline that marks a word as "there are longer words behind this one". */
+  .hlp-term{border-bottom:1px dotted var(--muted-fg);cursor:help}
+  /* A tooltip drawn the way .tooltip-content draws it: foreground fill, background text, text-xs. */
+  .hlp-tip{display:inline-block;background:var(--fg);color:var(--bg);font-size:.75rem;
+    padding:6px 12px;border-radius:calc(var(--radius)*.8);max-width:22rem;line-height:1.45}
+  /* .explainer-note: zinc surface, muted info glyph, one sentence. Never orange — it teaches, it does not sell. */
+  .hlp-expl{display:flex;align-items:flex-start;gap:12px;padding:12px 14px;border:1px solid var(--border);
+    border-radius:var(--radius);background:var(--card-2);font-size:.875rem}
+  .hlp-expl-icon{flex:none;line-height:0;color:var(--muted-fg)}
+  .hlp-expl-icon svg{width:20px;height:20px}
+  .hlp-expl p{margin:0;flex:1;min-width:0}
+  /* The rules page sketch: contents down the left, the open section on the right. */
+  .hlp-rules{display:grid;grid-template-columns:190px 1fr;gap:16px;border:1px solid var(--border);
+    border-radius:var(--radius);padding:14px;background:var(--card-2)}
+  @media(max-width:640px){.hlp-rules{grid-template-columns:1fr}}
+  .hlp-toc{list-style:none;margin:0;padding:0;font-size:.8rem}
+  .hlp-toc li{padding:6px 8px;border-radius:calc(var(--radius)*.6);color:var(--muted-fg)}
+  .hlp-toc li.on{background:var(--card);color:var(--fg);font-weight:800}
+  /* .sidebar-menu-button at rest: 36px tall, 8px radius, 16px glyph, .875rem label. */
+  .hlp-nav{display:flex;align-items:center;gap:8px;height:36px;padding:0 8px;
+    border-radius:calc(var(--radius)*.8);font-size:.875rem;color:var(--muted-fg)}
+  .hlp-nav svg{width:16px;height:16px;flex:none}
+  .hlp-nav.on{background:var(--card-2);color:var(--fg)}
+
   /* ---------------- board → component mapping ---------------- */
   .scroll-x{overflow-x:auto}
   .map{width:100%;border-collapse:collapse;font-size:.88rem;min-width:560px}
@@ -678,6 +703,122 @@
   <p class="note">Ship these as <code>&lt;ContractChip&gt;</code> (a <code>&lt;Badge variant="secondary"&gt;</code> plus the kind → label table) and <code>&lt;CapBar&gt;</code>. One table maps <code>ContractKind</code> to its abbreviation, its spelled-out name and its last year, so a new kind on the backend is a compile error in the UI, not a silently missing chip.</p>
 </section>
 
+<!-- ============ HELP & DOCUMENTATION ============ -->
+<section>
+  <span class="eyebrow">Help &amp; documentation · the league is the hard part, not the app</span>
+  <h2 style="margin:10px 0 6px">Three tiers, and nothing in between</h2>
+  <p class="muted" style="margin:0 0 22px;max-width:64ch">This league runs on rules a new owner has never met: contracts that convert, a cap that shrinks when you drop someone, two auctions with different clocks. The interface prints that vocabulary in abbreviations — <b>V Y2/3</b>, <b>UFA-20%</b>, <b>GTD</b>, <b>vs proj</b> — and today it prints them bare. So help is not a page we add later; it is three tiers sized to how much explaining a thing needs. A word gets a tooltip. A moment gets one line. A system gets a rules page.</p>
+  <div class="vg">
+
+    <!-- Tier 1 -->
+    <div class="card pad">
+      <h3 style="color:var(--muted-fg);font-size:.8rem">Tier 1 · Inline term help</h3>
+      <p class="muted" style="margin:10px 0 14px">Every abbreviation the app prints carries the words it stands for. A dotted underline marks it, the cursor turns to <code>help</code>, and Tab reaches it — hover is never the only way in.</p>
+
+      <div style="margin-bottom:14px">
+        <div class="stat"><span class="v num-tabular up" style="font-size:1.4rem">+3.1</span><span class="muted hlp-term">vs proj</span></div>
+        <div class="hlp-tip" style="margin-top:8px">Versus projection: how the player performs against their preseason projection.</div>
+      </div>
+
+      <div style="margin-bottom:14px">
+        <div class="st-row" style="padding:0">
+          <div class="st-ava-fallback" aria-hidden="true">VW</div>
+          <div class="st-name"><b>V. Wembanyama</b><span class="sub">C – Spurs · 3 games · <span class="hlp-term">GTD</span></span></div>
+        </div>
+        <div class="hlp-tip" style="margin-top:8px">Game-time decision: his NBA team decides whether he plays shortly before tipoff.</div>
+      </div>
+
+      <div>
+        <div class="row"><span class="muted" style="font-size:.75rem">A. Edwards</span><span class="tag" style="cursor:help">V Y2/3</span><span class="tag" style="cursor:help">IR</span></div>
+        <div class="hlp-tip" style="margin-top:8px">Veteran</div>
+      </div>
+
+      <p class="muted" style="margin:14px 0 0"><b>The rule.</b> An abbreviation may ship only with its tooltip; a bare one is a bug, the same way a blank panel is. Body copy spells the term out the first time it appears and puts the short form in brackets after it, so the tooltip is a reminder rather than the only source. The tooltip carries the words, not a paragraph: anything longer than a sentence is tier 2.</p>
+      <p class="muted" style="margin:.6rem 0 0">A chip skips the underline — its shape already says it is a term — but it keeps the help cursor, the focus ring and the tooltip. That is the one variation, and it is a <code>render</code> prop rather than a second component, so there is exactly one place an abbreviation's words come from.</p>
+    </div>
+
+    <!-- Tier 2 -->
+    <div class="card pad">
+      <h3 style="color:var(--muted-fg);font-size:.8rem">Tier 2 · Contextual explainers</h3>
+      <p class="muted" style="margin:10px 0 14px">One zinc line where the rule bites, not in a FAQ nobody opens. Info glyph, one sentence of real rule, an optional "Learn more" into the matching rules section, and an optional dismiss for the ones that are a first-visit greeting.</p>
+
+      <div class="hlp-expl" style="margin-bottom:10px">
+        <span class="hlp-expl-icon" aria-hidden="true">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4"/><path d="M12 8h.01"/></svg>
+        </span>
+        <p>A trade goes through the moment every team on it has accepted — there is no league vote. Only the commissioner can undo one, and only in extreme cases. <a href="#">Learn more</a></p>
+        <button class="btn btn-icon-sm" aria-label="Dismiss">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>
+        </button>
+      </div>
+
+      <div class="hlp-expl" style="margin-bottom:10px">
+        <span class="hlp-expl-icon" aria-hidden="true">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4"/><path d="M12 8h.01"/></svg>
+        </span>
+        <p>Open an auction on a free agent by Friday 11:59pm CT, and bid on open ones until Sunday 8pm CT. Every bid keeps its auction alive another 24 hours, and a bid in the last hour pushes Sunday's deadline out 30 minutes. <a href="#">Learn more</a></p>
+      </div>
+
+      <div class="hlp-expl">
+        <span class="hlp-expl-icon" aria-hidden="true">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4"/><path d="M12 8h.01"/></svg>
+        </span>
+        <p>Your cap shrinks when you drop a player mid-season: 20% of his salary, rounded up, gone for the rest of the season. RD, RDI and IR contracts drop free. <a href="#">Learn more</a></p>
+      </div>
+
+      <p class="muted" style="margin:14px 0 0"><b>The rule.</b> Zinc, never orange: an explainer teaches, it does not sell, and the one orange thing on screen stays the action. One sentence of a real rule with real numbers — "you may not be able to do this" is not an explainer. Dismissal is the caller's business: the note takes an <code>onDismiss</code> and remembers nothing itself, so a first-visit note and a permanent one are the same component.</p>
+    </div>
+
+    <!-- Tier 3 -->
+    <div class="card pad" style="grid-column:1/-1">
+      <h3 style="color:var(--muted-fg);font-size:.8rem">Tier 3 · The League rules surface</h3>
+      <p class="muted" style="margin:10px 0 14px">Job zero for a new owner is "understand this league's rules", and right now that job has no home in the app. It gets one nav item and one page.</p>
+
+      <div class="vg" style="align-items:start">
+        <div>
+          <div style="max-width:220px;background:var(--card-2);border:1px solid var(--border);border-radius:var(--radius);padding:8px">
+            <div class="hlp-nav on">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="8" height="4" x="8" y="2" rx="1"/><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/><path d="M12 11h4"/><path d="M12 16h4"/><path d="M8 11h.01"/><path d="M8 16h.01"/></svg>
+              <span>Rosters</span>
+            </div>
+            <div class="hlp-nav">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19.5v-15A2.5 2.5 0 0 1 6.5 2H19a1 1 0 0 1 1 1v18a1 1 0 0 1-1 1H6.5a1 1 0 0 1 0-5H20"/></svg>
+              <span>League rules</span>
+            </div>
+          </div>
+          <p class="muted" style="margin:12px 0 0">A permanent sidebar item, not a link buried in a settings page. It sits under the same "League" group as Rosters because it is league state, not app help.</p>
+        </div>
+
+        <div>
+          <div class="hlp-rules">
+            <ul class="hlp-toc">
+              <li class="on">Contracts</li>
+              <li>Salary cap</li>
+              <li>Auctions</li>
+              <li>Rookie development</li>
+              <li>Injured reserve</li>
+              <li>Weekly moves</li>
+            </ul>
+            <div>
+              <h4 class="st-title" style="margin-bottom:8px">Contracts</h4>
+              <p class="muted" style="margin:0 0 10px;font-size:.875rem">A player here is a contract: a salary, a year inside a fixed span, and a kind that decides what happens to him next season.</p>
+              <div class="row" style="gap:6px;flex-wrap:wrap;margin-bottom:10px">
+                <span class="tag">RD Y1/3</span><span class="tag">R Y1/3</span><span class="tag">V Y1/3</span><span class="tag">RFA</span><span class="tag">UFA-20%</span>
+              </div>
+              <p class="muted" style="margin:0;font-size:.875rem">A rookie sits on <span class="hlp-term">RD</span> for up to three years, converts to <span class="hlp-term">R</span> on activation, and becomes an <span class="hlp-term">RFA</span> after his third rookie season.</p>
+            </div>
+          </div>
+          <p class="muted" style="margin:12px 0 0"><b>Read mode.</b> Contents down the left, short scannable sections on the right, one custom system per section. Every section is written with the same chips, bars and rows the app uses, so reading the rules teaches the interface and the interface reminds you of the rules. Sections are deep-linkable, because that is what every tier-2 "Learn more" points at.</p>
+        </div>
+      </div>
+
+      <p class="note">This page is a future route. The tile fixes its pattern only: the nav item, the two-column read layout, and the six sections that are custom to this league. The prose itself is the league rules document, not new writing.</p>
+    </div>
+
+  </div>
+  <p class="note">Rule facts on this board are the shipped ones: cap by period and the auction clocks come from <code>constants/src/league_rules/config_settings.rs</code>, the contract kinds from <code>entity/src/entities/contract/contract_entity.rs</code>, and the 20% drop penalty from the league rules document. Help copy that invents a rule is worse than no help at all.</p>
+</section>
+
 <!-- ============ BOARD → COMPONENT MAPPING ============ -->
 <section>
   <span class="eyebrow">Implementation · board class → shipped component</span>
@@ -716,6 +857,9 @@
         <tr><td><code>.st-salary</code> · row salary</td><td><code>&lt;Typography variant="stat"&gt;</code>, muted when <code>contract.isIr</code></td><td><span class="tag">Shipped</span></td></tr>
         <tr><td><code>.capbar</code> · salary vs cap</td><td><code>&lt;CapBar salaryUsed salaryCap&gt;</code> on top of Progress — same component as <code>.bar</code>, feeds ron.12</td><td><span class="tag fa">To build</span></td></tr>
         <tr><td><code>.st-name</code> · truncating name column</td><td><code>min-w-0 flex-1</code> wrapper + <code>truncate</code> + <code>title</code>. No component, it is a rule</td><td><span class="tag">Shipped</span></td></tr>
+        <tr><td><code>.hlp-term</code> · tier 1, dotted abbreviation</td><td><code>&lt;TermTip label&gt;</code> — <code>.term-tip</code> span by default, <code>render</code> for a chip trigger. Glosses live in <code>lib/terms.ts</code></td><td><span class="tag">Shipped</span></td></tr>
+        <tr><td><code>.hlp-expl</code> · tier 2, inline explainer</td><td><code>&lt;ExplainerNote action onDismiss&gt;</code> — the caller owns where "dismissed" is stored</td><td><span class="tag">Shipped</span></td></tr>
+        <tr><td><code>.hlp-rules</code> · tier 3, League rules page</td><td>Route <code>/league/rules</code> + a <code>&lt;SidebarMenuItem&gt;</code> in <code>LeagueMenu</code>; sections are the deep-link targets for every "Learn more"</td><td><span class="tag fa">To build</span></td></tr>
       </tbody>
     </table>
   </div>
@@ -735,6 +879,7 @@
     <div class="card"><b>Motion = restraint</b><p class="muted" style="margin:.5rem 0 0">A single pulse on "live". Fast, ≤200ms transitions. Numbers count up on change. No bounce, no confetti.</p></div>
     <div class="card"><b>Every state is designed</b><p class="muted" style="margin:.5rem 0 0">Empty, loading, missing, failed and blocked ship with the happy path, not after it. Name the problem in plain words, then give the way out. A blank panel is a bug.</p></div>
     <div class="card"><b>Money is zinc</b><p class="muted" style="margin:.5rem 0 0">A salary is a fact, not a verdict: neutral stat type, tabular. Contract chips are zinc too. Colour arrives only when the number becomes a state — over the cap, a trade's net value, a win or a loss.</p></div>
+    <div class="card"><b>Help lives in three tiers</b><p class="muted" style="margin:.5rem 0 0">A word gets a tooltip, a moment gets one zinc line, a system gets a rules section. Nothing in between: a tooltip that grew into a paragraph belongs on the rules page with a "Learn more" pointing at it. No abbreviation ships bare.</p></div>
     <div class="card"><b>Rounded = the shape system</b><p class="muted" style="margin:.5rem 0 0">The rounded ramp is canon: 6px on chips, 8px on controls, 10px on cards and buttons, 10px squircle avatars, full-round pills. Nothing ships square.</p></div>
   </div>
 </section>
