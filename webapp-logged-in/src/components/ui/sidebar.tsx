@@ -584,10 +584,7 @@ function SidebarMenuSkeleton({
       {...props}
     >
       {showIcon && (
-        <Skeleton
-          className="size-4 rounded-none"
-          data-sidebar="menu-skeleton-icon"
-        />
+        <Skeleton className="size-4" data-sidebar="menu-skeleton-icon" />
       )}
       <Skeleton
         className="h-4 max-w-(--skeleton-width) flex-1"

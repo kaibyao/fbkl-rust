@@ -1,9 +1,9 @@
 import { createFileRoute, useNavigate } from '@tanstack/react-router';
-import { Loader2 } from 'lucide-react';
 import { SubmitHandler, useForm } from 'react-hook-form';
 import { useMutation } from 'urql';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { Spinner } from '@/components/ui/spinner';
 import { Label } from '@/components/ui/label';
 import { Stack, StackGap } from '@/components/ui/stack';
 import { Typography, TypographyVariant } from '@/components/ui/typography';
@@ -125,9 +125,9 @@ function CreateLeaguePage() {
           type="submit"
           size="lg"
           disabled={isSubmitting || fetching}
-          className="w-full hover:bg-primary-hot"
+          className="w-full"
         >
-          {(isSubmitting || fetching) && <Loader2 className="animate-spin" />}
+          {(isSubmitting || fetching) && <Spinner />}
           Create league
         </Button>
 

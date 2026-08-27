@@ -6,58 +6,9 @@
 
 @custom-variant dark (&:is(.dark *));
 
-body {
-  background-color: #212121;
-  color: #fff;
-  margin: 0;
-  font-family:
-    -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen', 'Ubuntu',
-    'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue', sans-serif;
-  -webkit-font-smoothing: antialiased;
-  -moz-osx-font-smoothing: grayscale;
-}
-
-code {
-  font-family:
-    source-code-pro, Menlo, Monaco, Consolas, 'Courier New', monospace;
-}
-
+/* Ruling: this app is dark only, so the light token palette was deleted as unreachable dead code (index.html hardcodes class="dark" and nothing anywhere reads a theme setting); bring it back only with a real toggle and a fresh contrast check. */
 :root {
-  --background: oklch(1 0 0);
-  --foreground: oklch(0.141 0.005 285.823);
-  --card: oklch(1 0 0);
-  --card-foreground: oklch(0.141 0.005 285.823);
-  --popover: oklch(1 0 0);
-  --popover-foreground: oklch(0.141 0.005 285.823);
-  --primary: oklch(0.553 0.195 38.402);
-  --primary-foreground: oklch(0.98 0.016 73.684);
-  --primary-hot: oklch(0.62 0.21 40);
-  --success: oklch(0.55 0.15 150);
-  --success-foreground: oklch(0.985 0 0);
-  --secondary: oklch(0.967 0.001 286.375);
-  --secondary-foreground: oklch(0.21 0.006 285.885);
-  --muted: oklch(0.967 0.001 286.375);
-  --muted-foreground: oklch(0.552 0.016 285.938);
-  --accent: oklch(0.967 0.001 286.375);
-  --accent-foreground: oklch(0.21 0.006 285.885);
-  --destructive: oklch(0.577 0.245 27.325);
-  --border: oklch(0.92 0.004 286.32);
-  --input: oklch(0.92 0.004 286.32);
-  --ring: oklch(0.705 0.015 286.067);
-  --chart-1: oklch(0.809 0.105 251.813);
-  --chart-2: oklch(0.623 0.214 259.815);
-  --chart-3: oklch(0.546 0.245 262.881);
-  --chart-4: oklch(0.488 0.243 264.376);
-  --chart-5: oklch(0.424 0.199 265.638);
   --radius: 0.625rem;
-  --sidebar: oklch(0.985 0 0);
-  --sidebar-foreground: oklch(0.141 0.005 285.823);
-  --sidebar-primary: oklch(0.646 0.222 41.116);
-  --sidebar-primary-foreground: oklch(0.98 0.016 73.684);
-  --sidebar-accent: oklch(0.967 0.001 286.375);
-  --sidebar-accent-foreground: oklch(0.21 0.006 285.885);
-  --sidebar-border: oklch(0.92 0.004 286.32);
-  --sidebar-ring: oklch(0.705 0.015 286.067);
 }
 
 .dark {
@@ -67,7 +18,7 @@ code {
   --card-foreground: oklch(0.985 0 0);
   --popover: oklch(0.21 0.006 285.885);
   --popover-foreground: oklch(0.985 0 0);
-  --primary: oklch(0.47 0.157 37.304);
+  --primary: oklch(0.553 0.195 38.402);
   --primary-foreground: oklch(0.98 0.016 73.684);
   --primary-hot: oklch(0.7 0.205 41);
   --success: oklch(0.72 0.17 150);
@@ -78,7 +29,9 @@ code {
   --muted-foreground: oklch(0.705 0.015 286.067);
   --accent: oklch(0.274 0.006 286.033);
   --accent-foreground: oklch(0.985 0 0);
-  --destructive: oklch(0.704 0.191 22.216);
+  --destructive: oklch(0.63 0.2 18);
+  /* Dark text on the red, because white on it is only 3.70:1. This pairing is 5.14:1. */
+  --destructive-foreground: oklch(0.141 0.005 285.823);
   --border: oklch(1 0 0 / 10%);
   --input: oklch(1 0 0 / 15%);
   --ring: oklch(0.552 0.016 285.938);
@@ -89,7 +42,7 @@ code {
   --chart-5: oklch(0.424 0.199 265.638);
   --sidebar: oklch(0.21 0.006 285.885);
   --sidebar-foreground: oklch(0.985 0 0);
-  --sidebar-primary: oklch(0.705 0.213 47.604);
+  --sidebar-primary: var(--primary-hot);
   --sidebar-primary-foreground: oklch(0.98 0.016 73.684);
   --sidebar-accent: oklch(0.274 0.006 286.033);
   --sidebar-accent-foreground: oklch(0.985 0 0);
@@ -117,6 +70,7 @@ code {
   --color-input: var(--input);
   --color-border: var(--border);
   --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
   --color-accent-foreground: var(--accent-foreground);
   --color-accent: var(--accent);
   --color-muted-foreground: var(--muted-foreground);
@@ -148,7 +102,7 @@ code {
     @apply border-border outline-ring/50;
   }
   body {
-    @apply bg-background text-foreground;
+    @apply bg-background text-foreground antialiased;
   }
   html {
     @apply font-sans;
@@ -162,7 +116,7 @@ code {
 /* Semantic component classes: CVA maps variant props to these; marker classes (group/*, peer/*, @container/*) stay inline since @apply can't resolve them. */
 @layer components {
   .btn {
-    @apply inline-flex shrink-0 items-center justify-center rounded-none border border-transparent bg-clip-padding text-xs font-medium whitespace-nowrap transition-all outline-none select-none focus-visible:border-ring focus-visible:ring-1 focus-visible:ring-ring/50 active:not-aria-[haspopup]:translate-y-px disabled:pointer-events-none disabled:opacity-50 aria-invalid:border-destructive aria-invalid:ring-1 aria-invalid:ring-destructive/20 dark:aria-invalid:border-destructive/50 dark:aria-invalid:ring-destructive/40 [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4;
+    @apply inline-flex shrink-0 items-center justify-center rounded-lg border border-transparent bg-clip-padding text-base font-extrabold whitespace-nowrap transition-all outline-none select-none focus-visible:border-ring focus-visible:ring-1 focus-visible:ring-ring/50 active:not-aria-[haspopup]:translate-y-px disabled:pointer-events-none disabled:opacity-50 aria-disabled:pointer-events-none aria-disabled:opacity-50 aria-invalid:border-destructive aria-invalid:ring-1 aria-invalid:ring-destructive/20 dark:aria-invalid:border-destructive/50 dark:aria-invalid:ring-destructive/40 [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4;
   }
   .btn--default {
     @apply bg-primary text-primary-foreground hover:bg-primary/80;
@@ -176,39 +130,41 @@ code {
   .btn--ghost {
     @apply hover:bg-muted hover:text-foreground aria-expanded:bg-muted aria-expanded:text-foreground dark:hover:bg-muted/50;
   }
+  /* Solid, not a tint: no tint of --destructive on --card reaches 4.5:1 (20% measured 3.68:1, and even 0% only gets to 4.3:1). Solid is 5.14:1, hover 6.17:1, and it stays distinct from --primary-hot because that token is reserved for the auction screen. */
   .btn--destructive {
-    @apply bg-destructive/10 text-destructive hover:bg-destructive/20 focus-visible:border-destructive/40 focus-visible:ring-destructive/20 dark:bg-destructive/20 dark:hover:bg-destructive/30 dark:focus-visible:ring-destructive/40;
+    @apply bg-destructive text-destructive-foreground hover:bg-[color-mix(in_oklch,var(--destructive),var(--foreground)_12%)] focus-visible:border-destructive/40 focus-visible:ring-destructive/40;
   }
   .btn--link {
     @apply text-primary underline-offset-4 hover:underline;
   }
+  /* Default is the board's 40px button (padding 10px 16px); every other size steps off it. */
   .btn--size-default {
-    @apply h-8 gap-1.5 px-2.5 has-data-[icon=inline-end]:pr-2 has-data-[icon=inline-start]:pl-2;
+    @apply h-10 gap-2 px-4 has-data-[icon=inline-end]:pr-3 has-data-[icon=inline-start]:pl-3;
   }
   .btn--size-xs {
-    @apply h-6 gap-1 rounded-none px-2 text-xs has-data-[icon=inline-end]:pr-1.5 has-data-[icon=inline-start]:pl-1.5 [&_svg:not([class*='size-'])]:size-3;
+    @apply h-7 gap-1 rounded-md px-2 text-xs has-data-[icon=inline-end]:pr-1.5 has-data-[icon=inline-start]:pl-1.5 [&_svg:not([class*='size-'])]:size-3;
   }
   .btn--size-sm {
-    @apply h-7 gap-1 rounded-none px-2.5 has-data-[icon=inline-end]:pr-1.5 has-data-[icon=inline-start]:pl-1.5 [&_svg:not([class*='size-'])]:size-3.5;
+    @apply h-8 gap-1.5 rounded-md px-3 text-sm has-data-[icon=inline-end]:pr-2 has-data-[icon=inline-start]:pl-2 [&_svg:not([class*='size-'])]:size-3.5;
   }
   .btn--size-lg {
-    @apply h-9 gap-1.5 px-2.5 has-data-[icon=inline-end]:pr-2 has-data-[icon=inline-start]:pl-2;
+    @apply h-11 gap-2 px-5 has-data-[icon=inline-end]:pr-4 has-data-[icon=inline-start]:pl-4 [&_svg:not([class*='size-'])]:size-5;
   }
   .btn--size-icon {
-    @apply size-8;
+    @apply size-10;
   }
   .btn--size-icon-xs {
-    @apply size-6 rounded-none [&_svg:not([class*='size-'])]:size-3;
+    @apply size-7 rounded-md [&_svg:not([class*='size-'])]:size-3;
   }
   .btn--size-icon-sm {
-    @apply size-7 rounded-none;
+    @apply size-8 rounded-md [&_svg:not([class*='size-'])]:size-3.5;
   }
   .btn--size-icon-lg {
-    @apply size-9;
+    @apply size-11 [&_svg:not([class*='size-'])]:size-5;
   }
 
   .badge {
-    @apply inline-flex h-5 w-fit shrink-0 items-center justify-center gap-1 overflow-hidden rounded-none border border-transparent px-2 py-0.5 text-xs font-medium whitespace-nowrap transition-all focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50 has-data-[icon=inline-end]:pr-1.5 has-data-[icon=inline-start]:pl-1.5 aria-invalid:border-destructive aria-invalid:ring-destructive/20 dark:aria-invalid:ring-destructive/40 [&>svg]:pointer-events-none [&>svg]:size-3!;
+    @apply inline-flex h-6 w-fit shrink-0 items-center justify-center gap-1 overflow-hidden rounded-sm border border-transparent px-2 text-xs font-extrabold tracking-[0.1em] whitespace-nowrap uppercase transition-all focus-visible:border-ring focus-visible:ring-1 focus-visible:ring-ring/50 has-data-[icon=inline-end]:pr-1.5 has-data-[icon=inline-start]:pl-1.5 aria-invalid:border-destructive aria-invalid:ring-destructive/20 dark:aria-invalid:ring-destructive/40 [&>svg]:pointer-events-none [&>svg]:size-3!;
   }
   .badge--default {
     @apply bg-primary text-primary-foreground [a]:hover:bg-primary/80;
@@ -228,43 +184,160 @@ code {
   .badge--link {
     @apply text-primary underline-offset-4 hover:underline;
   }
+  /* Board .tag.fa: a 20% primary wash, with primary-foreground text for the AA pass. */
+  .badge--tint {
+    @apply bg-primary/20 text-primary-foreground [a]:hover:bg-primary/30;
+  }
+  /* Board .pill: same wash, full round, and a 50% primary edge so it holds its shape on a photo. */
+  .badge--pill {
+    @apply rounded-full border-primary/50 bg-primary/20 px-3 tracking-[0.12em] text-primary-foreground [a]:hover:bg-primary/30;
+  }
+  /* The ring is a scaled pseudo-element, not an animated box-shadow, so the pulse runs on the compositor. */
+  .badge-dot {
+    @apply relative size-2 shrink-0 rounded-full bg-primary-hot;
+  }
+  .badge-dot::after {
+    @apply absolute inset-0 rounded-full bg-primary-hot content-[''];
+    animation: badge-dot-pulse 1.8s infinite;
+  }
+  @keyframes badge-dot-pulse {
+    0% {
+      opacity: 0.7;
+      transform: scale(1);
+    }
+    70%,
+    100% {
+      opacity: 0;
+      transform: scale(3.5);
+    }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .badge-dot::after {
+      animation: none;
+      opacity: 0;
+    }
+  }
 
-  /* Typography: `variant` prop on <Typography> maps to these bundles (see typography.tsx). */
+  /* Board .bar: the blue analytical ramp for what is committed, zinc for what is left. */
+  .progress {
+    @apply w-full;
+  }
+  .progress-track {
+    @apply relative h-2 w-full overflow-hidden rounded-full bg-muted;
+  }
+  .progress-indicator {
+    @apply absolute rounded-full bg-linear-to-r from-chart-3 to-chart-1;
+  }
+
+  /* Sparkline: the chart marks at a fixed pixel size, with no chrome and no interaction. */
+  .sparkline {
+    @apply block flex-none align-middle;
+  }
+  .sparkline-series {
+    @apply fill-none stroke-chart-2 stroke-2;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+  }
+  /* 2px surface ring, so the end marker stays legible where it sits on its own line. */
+  .sparkline-dot {
+    @apply stroke-card stroke-2;
+  }
+  .sparkline-bar {
+    @apply fill-chart-2 opacity-85;
+  }
+
+  /* Photo treatments A to D. Every photo lands on the zinc base, so the orange stays the loudest thing on screen. */
+  .photo-treatment {
+    @apply relative isolate overflow-hidden rounded-lg bg-card ring-1 ring-foreground/10;
+  }
+  .photo-treatment > img {
+    @apply absolute inset-0 block size-full object-cover;
+  }
+  /* ::before applies the variant's overlay. */
+  .photo-treatment::before {
+    content: '';
+    @apply pointer-events-none absolute inset-0 z-1;
+  }
+  /* ::after is the same mood scrim on every variant. It settles the photo onto the zinc base; it is not what makes a label legible, .photo-treatment-label does that. */
+  .photo-treatment::after {
+    content: '';
+    @apply pointer-events-none absolute inset-0 z-1;
+    background: linear-gradient(to top, var(--background) 6%, transparent 55%);
+  }
+  .photo-treatment > :not(img) {
+    @apply relative z-2;
+  }
+  /* Any text over a photo goes in this label, which carries its own scrim, so the contrast sum is one fixed number on all four variants and at every card size: --foreground on --background, 19:1. The 2rem pad above the text is where the scrim fades out, so the photo still shows through above the words. Test it by reading the label's computed background: the bottom stop must be an opaque --background. */
+  .photo-treatment-label {
+    @apply absolute inset-x-0 bottom-0 z-2 px-3 pt-8 pb-3;
+    background: linear-gradient(
+      to top,
+      var(--background) 0 calc(100% - 2rem),
+      transparent 100%
+    );
+  }
+  /* A: zinc scrim, the default treatment for player cards. The shared scrim is the whole treatment. */
+  /* B: orange duotone, for hype, empty states and marketing moments. */
+  .photo-treatment--duotone > img {
+    filter: grayscale(1) contrast(1.1);
+  }
+  .photo-treatment--duotone::before {
+    background: color-mix(in oklch, var(--primary) 55%, transparent);
+    mix-blend-mode: color;
+  }
+  /* C: spotlight, a radial focus that dims the edges, for player of the week. */
+  .photo-treatment--spotlight::before {
+    background: radial-gradient(
+      120% 80% at 50% 35%,
+      transparent,
+      var(--background) 105%
+    );
+  }
+  /* D: cool and analytical, desaturated with a blue cast, for data-heavy screens. */
+  .photo-treatment--analytical > img {
+    filter: saturate(0.55) brightness(0.9);
+  }
+  .photo-treatment--analytical::before {
+    background: color-mix(in oklch, var(--chart-2) 20%, transparent);
+  }
+
+  /* Typography: `variant` prop on <Typography> maps to these bundles (see typography.tsx); sizes/weights come from design/moodboard.html, which wins any disagreement. */
   .typography-display {
-    @apply font-heading text-4xl font-black tracking-tight;
+    @apply font-heading text-[clamp(2.4rem,6vw,4.4rem)] leading-[1.05] font-black tracking-[-0.02em];
   }
   .typography-heading1 {
-    @apply font-heading text-3xl font-black tracking-tight;
+    @apply font-heading text-[clamp(1.5rem,3vw,2.2rem)] leading-[1.05] font-extrabold tracking-[-0.02em];
   }
   .typography-heading2 {
-    @apply font-heading text-base font-bold;
+    @apply font-heading text-xl font-extrabold tracking-[-0.02em];
   }
   .typography-heading3 {
-    @apply font-heading text-sm font-bold;
+    @apply font-heading text-base font-bold;
   }
   .typography-heading4 {
-    @apply font-heading text-xs font-bold;
+    @apply font-heading text-sm font-bold;
   }
+  /* text-base is the board's row-stat size; callers override it for hero figures (2-2.6rem). */
   .typography-stat {
-    @apply font-heading text-sm font-bold tabular-nums;
+    @apply font-heading text-base font-black tabular-nums lining-nums;
   }
   .typography-eyebrow {
-    @apply text-xs font-semibold tracking-[0.22em] text-primary-hot uppercase;
+    @apply text-xs font-extrabold tracking-[0.22em] text-primary-hot uppercase;
   }
   .typography-section-label {
-    @apply text-xs font-semibold tracking-wide text-muted-foreground uppercase;
+    @apply text-xs font-extrabold tracking-[0.04em] text-muted-foreground uppercase;
   }
   .typography-body {
-    @apply text-sm;
+    @apply text-base;
   }
   .typography-body-sm {
     @apply text-xs;
   }
   .typography-body-strong {
-    @apply text-xs font-medium;
+    @apply text-base font-bold;
   }
   .typography-muted {
-    @apply text-sm text-muted-foreground;
+    @apply text-base text-muted-foreground;
   }
   .typography-muted-sm {
     @apply text-xs text-muted-foreground;
@@ -273,7 +346,7 @@ code {
     @apply text-muted-foreground;
   }
   .typography-error {
-    @apply text-sm text-destructive;
+    @apply text-base text-destructive;
   }
   .typography-error-sm {
     @apply text-xs text-destructive;
@@ -342,11 +415,11 @@ code {
   }
 
   .input {
-    @apply h-8 w-full min-w-0 rounded-none border border-input bg-transparent px-2.5 py-1 text-xs transition-colors outline-none file:inline-flex file:h-6 file:border-0 file:bg-transparent file:text-xs file:font-medium file:text-foreground placeholder:text-muted-foreground focus-visible:border-ring focus-visible:ring-1 focus-visible:ring-ring/50 disabled:pointer-events-none disabled:cursor-not-allowed disabled:bg-input/50 disabled:opacity-50 aria-invalid:border-destructive aria-invalid:ring-1 aria-invalid:ring-destructive/20 md:text-xs dark:bg-input/30 dark:disabled:bg-input/80 dark:aria-invalid:border-destructive/50 dark:aria-invalid:ring-destructive/40;
+    @apply h-10 w-full min-w-0 rounded-md border border-input bg-transparent px-3 py-1 text-base transition-colors outline-none file:inline-flex file:h-8 file:border-0 file:bg-transparent file:text-sm file:font-medium file:text-foreground placeholder:text-muted-foreground focus-visible:border-ring focus-visible:ring-1 focus-visible:ring-ring/50 disabled:pointer-events-none disabled:cursor-not-allowed disabled:bg-input/50 disabled:opacity-50 aria-invalid:border-destructive aria-invalid:ring-1 aria-invalid:ring-destructive/20 dark:bg-input/30 dark:disabled:bg-input/80 dark:aria-invalid:border-destructive/50 dark:aria-invalid:ring-destructive/40;
   }
 
   .label {
-    @apply flex items-center gap-2 text-xs leading-none select-none group-data-[disabled=true]:pointer-events-none group-data-[disabled=true]:opacity-50 peer-disabled:cursor-not-allowed peer-disabled:opacity-50;
+    @apply flex items-center gap-2 text-sm leading-none select-none group-data-[disabled=true]:pointer-events-none group-data-[disabled=true]:opacity-50 peer-disabled:cursor-not-allowed peer-disabled:opacity-50;
   }
 
   .separator {
@@ -354,17 +427,31 @@ code {
   }
 
   .skeleton {
-    @apply animate-pulse rounded-none bg-muted;
+    @apply animate-pulse rounded-md bg-muted;
+  }
+
+  /* Loading: <Skeleton> holds the shape of a list/row/card while it loads; <Spinner> is the inline glyph for a button or action mid-flight. */
+  .spinner {
+    @apply animate-spin;
+  }
+  .spinner--sm {
+    @apply size-3.5;
+  }
+  .spinner--default {
+    @apply size-4;
+  }
+  .spinner--lg {
+    @apply size-5;
   }
 
   .avatar {
-    @apply relative flex size-8 shrink-0 rounded-full select-none after:absolute after:inset-0 after:rounded-full after:border after:border-border after:mix-blend-darken data-[size=lg]:size-10 data-[size=sm]:size-6 dark:after:mix-blend-lighten;
+    @apply relative flex size-8 shrink-0 rounded-lg select-none after:absolute after:inset-0 after:rounded-lg after:border after:border-border after:mix-blend-darken data-[size=lg]:size-11 data-[size=sm]:size-6 dark:after:mix-blend-lighten;
   }
   .avatar-image {
-    @apply aspect-square size-full rounded-full object-cover;
+    @apply aspect-square size-full rounded-lg object-cover;
   }
   .avatar-fallback {
-    @apply flex size-full items-center justify-center rounded-full bg-muted text-sm text-muted-foreground group-data-[size=sm]/avatar:text-xs;
+    @apply flex size-full items-center justify-center rounded-lg bg-muted text-sm text-muted-foreground group-data-[size=sm]/avatar:text-xs;
   }
   .avatar-badge {
     @apply absolute right-0 bottom-0 z-10 inline-flex items-center justify-center rounded-full bg-primary text-primary-foreground bg-blend-color ring-2 ring-background select-none group-data-[size=sm]/avatar:size-2 group-data-[size=sm]/avatar:[&>svg]:hidden group-data-[size=default]/avatar:size-2.5 group-data-[size=default]/avatar:[&>svg]:size-2 group-data-[size=lg]/avatar:size-3 group-data-[size=lg]/avatar:[&>svg]:size-2;
@@ -373,20 +460,20 @@ code {
     @apply flex -space-x-2 *:data-[slot=avatar]:ring-2 *:data-[slot=avatar]:ring-background;
   }
   .avatar-group-count {
-    @apply relative flex size-8 shrink-0 items-center justify-center rounded-full bg-muted text-xs text-muted-foreground ring-2 ring-background group-has-data-[size=lg]/avatar-group:size-10 group-has-data-[size=sm]/avatar-group:size-6 [&>svg]:size-4 group-has-data-[size=lg]/avatar-group:[&>svg]:size-5 group-has-data-[size=sm]/avatar-group:[&>svg]:size-3;
+    @apply relative flex size-8 shrink-0 items-center justify-center rounded-lg bg-muted text-xs text-muted-foreground ring-2 ring-background group-has-data-[size=lg]/avatar-group:size-11 group-has-data-[size=sm]/avatar-group:size-6 [&>svg]:size-4 group-has-data-[size=lg]/avatar-group:[&>svg]:size-5 group-has-data-[size=sm]/avatar-group:[&>svg]:size-3;
   }
 
   .card {
-    @apply flex flex-col gap-(--card-spacing) overflow-hidden rounded-none bg-card py-(--card-spacing) text-xs/relaxed text-card-foreground ring-1 ring-foreground/10 [--card-spacing:--spacing(4)] has-data-[slot=card-footer]:pb-0 has-[>img:first-child]:pt-0 data-[size=sm]:[--card-spacing:--spacing(3)] data-[size=sm]:has-data-[slot=card-footer]:pb-0 *:[img:first-child]:rounded-none *:[img:last-child]:rounded-none;
+    @apply flex flex-col gap-(--card-spacing) overflow-hidden rounded-lg bg-card py-(--card-spacing) text-base/relaxed text-card-foreground ring-1 ring-foreground/10 [--card-spacing:--spacing(4)] has-data-[slot=card-footer]:pb-0 has-[>img:first-child]:pt-0 data-[size=sm]:[--card-spacing:--spacing(3)] data-[size=sm]:has-data-[slot=card-footer]:pb-0 *:[img:first-child]:rounded-lg *:[img:last-child]:rounded-lg;
   }
   .card-header {
-    @apply grid auto-rows-min items-start gap-1 rounded-none px-(--card-spacing) has-data-[slot=card-action]:grid-cols-[1fr_auto] has-data-[slot=card-description]:grid-rows-[auto_auto] [.border-b]:pb-(--card-spacing);
+    @apply grid auto-rows-min items-start gap-1 px-(--card-spacing) has-data-[slot=card-action]:grid-cols-[1fr_auto] has-data-[slot=card-description]:grid-rows-[auto_auto] [.border-b]:pb-(--card-spacing);
   }
   .card-title {
-    @apply font-heading text-sm font-medium group-data-[size=sm]/card:text-sm;
+    @apply font-heading text-lg font-extrabold group-data-[size=sm]/card:text-base;
   }
   .card-description {
-    @apply text-xs/relaxed text-muted-foreground;
+    @apply text-sm/relaxed text-muted-foreground;
   }
   .card-action {
     @apply col-start-2 row-span-2 row-start-1 self-start justify-self-end;
@@ -395,21 +482,81 @@ code {
     @apply px-(--card-spacing);
   }
   .card-footer {
-    @apply flex items-center rounded-none border-t p-(--card-spacing);
+    @apply flex items-center border-t p-(--card-spacing);
+  }
+
+  /* Empty state: neutral zinc on its own. The icon tile reuses the .avatar-fallback treatment so a missing photo and a missing list read as one family. */
+  .empty-state {
+    @apply flex flex-col items-center justify-center gap-3 px-6 py-12 text-center;
+  }
+  .empty-state-icon {
+    @apply flex size-12 items-center justify-center rounded-lg bg-muted text-muted-foreground [&>svg]:size-6;
+  }
+  .empty-state-description {
+    @apply max-w-[42ch] text-balance;
+  }
+
+  /* Help tier 1: a dotted underline marks a term as having longer words behind it. Tab-reachable, so hover is never the only way in. */
+  .term-tip {
+    @apply cursor-help underline decoration-dotted decoration-muted-foreground underline-offset-4 outline-none focus-visible:rounded-xs focus-visible:ring-1 focus-visible:ring-ring/50;
+  }
+
+  /* Help tier 2: one zinc line where a league rule bites. Stays neutral so the screen's one orange thing is still the action. */
+  .explainer-note {
+    @apply flex items-start gap-3 rounded-lg border border-border bg-muted px-3.5 py-3 text-sm/relaxed;
+  }
+  .explainer-note-icon {
+    @apply mt-0.5 shrink-0 text-muted-foreground [&_svg]:pointer-events-none [&_svg:not([class*='size-'])]:size-5;
   }
 
   .tooltip-content {
-    @apply z-50 inline-flex w-fit max-w-xs origin-(--transform-origin) items-center gap-1.5 rounded-none bg-foreground px-3 py-1.5 text-xs text-background has-data-[slot=kbd]:pr-1.5 data-[side=bottom]:slide-in-from-top-2 data-[side=inline-end]:slide-in-from-left-2 data-[side=inline-start]:slide-in-from-right-2 data-[side=left]:slide-in-from-right-2 data-[side=right]:slide-in-from-left-2 data-[side=top]:slide-in-from-bottom-2 **:data-[slot=kbd]:relative **:data-[slot=kbd]:isolate **:data-[slot=kbd]:z-50 **:data-[slot=kbd]:rounded-none data-[state=delayed-open]:animate-in data-[state=delayed-open]:fade-in-0 data-[state=delayed-open]:zoom-in-95 data-open:animate-in data-open:fade-in-0 data-open:zoom-in-95 data-closed:animate-out data-closed:fade-out-0 data-closed:zoom-out-95;
+    @apply z-50 inline-flex w-fit max-w-xs origin-(--transform-origin) items-center gap-1.5 rounded-md bg-foreground px-3 py-1.5 text-xs text-background has-data-[slot=kbd]:pr-1.5 data-[side=bottom]:slide-in-from-top-2 data-[side=inline-end]:slide-in-from-left-2 data-[side=inline-start]:slide-in-from-right-2 data-[side=left]:slide-in-from-right-2 data-[side=right]:slide-in-from-left-2 data-[side=top]:slide-in-from-bottom-2 **:data-[slot=kbd]:relative **:data-[slot=kbd]:isolate **:data-[slot=kbd]:z-50 **:data-[slot=kbd]:rounded-sm data-[state=delayed-open]:animate-in data-[state=delayed-open]:fade-in-0 data-[state=delayed-open]:zoom-in-95 data-open:animate-in data-open:fade-in-0 data-open:zoom-in-95 data-closed:animate-out data-closed:fade-out-0 data-closed:zoom-out-95;
   }
   .tooltip-arrow {
-    @apply z-50 size-2.5 translate-y-[calc(-50%-2px)] rotate-45 rounded-none bg-foreground fill-foreground data-[side=bottom]:top-1 data-[side=inline-end]:top-1/2! data-[side=inline-end]:-left-1 data-[side=inline-end]:-translate-y-1/2 data-[side=inline-start]:top-1/2! data-[side=inline-start]:-right-1 data-[side=inline-start]:-translate-y-1/2 data-[side=left]:top-1/2! data-[side=left]:-right-1 data-[side=left]:-translate-y-1/2 data-[side=right]:top-1/2! data-[side=right]:-left-1 data-[side=right]:-translate-y-1/2 data-[side=top]:-bottom-2.5;
+    @apply z-50 size-2.5 translate-y-[calc(-50%-2px)] rotate-45 bg-foreground fill-foreground data-[side=bottom]:top-1 data-[side=inline-end]:top-1/2! data-[side=inline-end]:-left-1 data-[side=inline-end]:-translate-y-1/2 data-[side=inline-start]:top-1/2! data-[side=inline-start]:-right-1 data-[side=inline-start]:-translate-y-1/2 data-[side=left]:top-1/2! data-[side=left]:-right-1 data-[side=left]:-translate-y-1/2 data-[side=right]:top-1/2! data-[side=right]:-left-1 data-[side=right]:-translate-y-1/2 data-[side=top]:-bottom-2.5;
+  }
+
+  /* Toast: the long transform/swipe block is Base UI's stacking maths, driven by its own --toast-* vars; only the surface, radius and tint below are ours. */
+  .toast {
+    @apply pointer-events-auto absolute right-0 bottom-0 z-[calc(1000-var(--toast-index))] h-(--height) w-full origin-bottom rounded-lg border text-base/relaxed shadow-lg will-change-transform outline-none select-none focus-visible:border-ring focus-visible:ring-1 focus-visible:ring-ring/50 [--gap:0.75rem] [--height:var(--toast-frontmost-height,var(--toast-height))] [--offset-y:calc(var(--toast-offset-y)*-1+calc(var(--toast-index)*var(--gap)*-1)+var(--toast-swipe-movement-y))] [--peek:0.75rem] [--scale:calc(max(0,1-(var(--toast-index)*0.1)))] [--shrink:calc(1-var(--scale))] [transform:translateX(var(--toast-swipe-movement-x))_translateY(calc(var(--toast-swipe-movement-y)-(var(--toast-index)*var(--peek))-(var(--shrink)*var(--height))))_scale(var(--scale))] [transition:transform_500ms_cubic-bezier(0.22,1,0.36,1),opacity_500ms,height_150ms] after:absolute after:top-full after:left-0 after:h-[calc(var(--gap)+1px)] after:w-full after:content-[''] data-expanded:h-(--toast-height) data-expanded:[transform:translateX(var(--toast-swipe-movement-x))_translateY(var(--offset-y))] data-limited:opacity-0 data-starting-style:[transform:translateY(150%)] [&[data-ending-style]:not([data-limited]):not([data-swipe-direction])]:[transform:translateY(150%)] data-ending-style:data-[swipe-direction=down]:[transform:translateY(calc(var(--toast-swipe-movement-y)+150%))] data-ending-style:data-[swipe-direction=left]:[transform:translateX(calc(var(--toast-swipe-movement-x)-150%))_translateY(var(--offset-y))] data-ending-style:data-[swipe-direction=right]:[transform:translateX(calc(var(--toast-swipe-movement-x)+150%))_translateY(var(--offset-y))] data-ending-style:data-[swipe-direction=up]:[transform:translateY(calc(var(--toast-swipe-movement-y)-150%))] data-expanded:data-ending-style:data-[swipe-direction=down]:[transform:translateY(calc(var(--toast-swipe-movement-y)+150%))] data-expanded:data-ending-style:data-[swipe-direction=left]:[transform:translateX(calc(var(--toast-swipe-movement-x)-150%))_translateY(var(--offset-y))] data-expanded:data-ending-style:data-[swipe-direction=right]:[transform:translateX(calc(var(--toast-swipe-movement-x)+150%))_translateY(var(--offset-y))] data-expanded:data-ending-style:data-[swipe-direction=up]:[transform:translateY(calc(var(--toast-swipe-movement-y)-150%))];
+  }
+  .toast--default {
+    @apply border-border bg-card text-card-foreground;
+  }
+  /* Darker tint, not a solid fill: the toast still reads as a card, and the glyph plus its sr-only word carry the meaning without the colour. */
+  .toast--destructive {
+    @apply border-destructive/50 bg-destructive/20 text-foreground;
+  }
+  .toast--success {
+    @apply border-success/50 bg-success/20 text-foreground;
+  }
+  .toast-viewport {
+    @apply pointer-events-none fixed inset-x-4 bottom-4 z-50 mx-auto w-auto max-w-sm outline-none sm:right-4 sm:left-auto sm:mx-0 sm:w-full;
+  }
+  .toast-content {
+    @apply flex h-full items-center gap-3 overflow-hidden p-4 transition-opacity duration-250 ease-[cubic-bezier(0.22,1,0.36,1)] data-behind:opacity-0 data-expanded:opacity-100;
+  }
+  .toast-title {
+    @apply font-heading text-base font-extrabold;
+  }
+  .toast-description {
+    @apply text-sm/relaxed text-muted-foreground;
+  }
+  .toast-action {
+    @apply shrink-0;
+  }
+  .toast-close {
+    @apply relative shrink-0 text-muted-foreground after:absolute after:-inset-2 after:content-[''] hover:text-foreground;
+  }
+  .toast-icon {
+    @apply shrink-0 self-start [&_svg]:pointer-events-none [&_svg:not([class*='size-'])]:size-5;
   }
 
   .sheet-overlay {
-    @apply fixed inset-0 z-50 bg-black/10 text-xs/relaxed transition-opacity duration-150 data-ending-style:opacity-0 data-starting-style:opacity-0 supports-backdrop-filter:backdrop-blur-xs;
+    @apply fixed inset-0 z-50 bg-black/10 text-base/relaxed transition-opacity duration-150 data-ending-style:opacity-0 data-starting-style:opacity-0 supports-backdrop-filter:backdrop-blur-xs;
   }
   .sheet-content {
-    @apply fixed z-50 flex flex-col bg-popover bg-clip-padding text-xs/relaxed text-popover-foreground shadow-lg transition duration-200 ease-in-out data-ending-style:opacity-0 data-starting-style:opacity-0 data-[side=bottom]:inset-x-0 data-[side=bottom]:bottom-0 data-[side=bottom]:h-auto data-[side=bottom]:border-t data-[side=bottom]:data-ending-style:translate-y-[2.5rem] data-[side=bottom]:data-starting-style:translate-y-[2.5rem] data-[side=left]:inset-y-0 data-[side=left]:left-0 data-[side=left]:h-full data-[side=left]:w-3/4 data-[side=left]:border-r data-[side=left]:data-ending-style:translate-x-[-2.5rem] data-[side=left]:data-starting-style:translate-x-[-2.5rem] data-[side=right]:inset-y-0 data-[side=right]:right-0 data-[side=right]:h-full data-[side=right]:w-3/4 data-[side=right]:border-l data-[side=right]:data-ending-style:translate-x-[2.5rem] data-[side=right]:data-starting-style:translate-x-[2.5rem] data-[side=top]:inset-x-0 data-[side=top]:top-0 data-[side=top]:h-auto data-[side=top]:border-b data-[side=top]:data-ending-style:translate-y-[-2.5rem] data-[side=top]:data-starting-style:translate-y-[-2.5rem] data-[side=left]:sm:max-w-sm data-[side=right]:sm:max-w-sm;
+    @apply fixed z-50 flex flex-col bg-popover bg-clip-padding text-base/relaxed text-popover-foreground shadow-lg transition duration-200 ease-in-out data-ending-style:opacity-0 data-starting-style:opacity-0 data-[side=bottom]:inset-x-0 data-[side=bottom]:bottom-0 data-[side=bottom]:h-auto data-[side=bottom]:border-t data-[side=bottom]:data-ending-style:translate-y-[2.5rem] data-[side=bottom]:data-starting-style:translate-y-[2.5rem] data-[side=left]:inset-y-0 data-[side=left]:left-0 data-[side=left]:h-full data-[side=left]:w-3/4 data-[side=left]:border-r data-[side=left]:data-ending-style:translate-x-[-2.5rem] data-[side=left]:data-starting-style:translate-x-[-2.5rem] data-[side=right]:inset-y-0 data-[side=right]:right-0 data-[side=right]:h-full data-[side=right]:w-3/4 data-[side=right]:border-l data-[side=right]:data-ending-style:translate-x-[2.5rem] data-[side=right]:data-starting-style:translate-x-[2.5rem] data-[side=top]:inset-x-0 data-[side=top]:top-0 data-[side=top]:h-auto data-[side=top]:border-b data-[side=top]:data-ending-style:translate-y-[-2.5rem] data-[side=top]:data-starting-style:translate-y-[-2.5rem] data-[side=left]:sm:max-w-sm data-[side=right]:sm:max-w-sm;
   }
   .sheet-header {
     @apply flex flex-col gap-0.5 p-4;
@@ -418,10 +565,10 @@ code {
     @apply mt-auto flex flex-col gap-2 p-4;
   }
   .sheet-title {
-    @apply font-heading text-sm font-medium text-foreground;
+    @apply font-heading text-lg font-extrabold text-foreground;
   }
   .sheet-description {
-    @apply text-xs/relaxed text-muted-foreground;
+    @apply text-sm/relaxed text-muted-foreground;
   }
 
   .sidebar-wrapper {
@@ -443,16 +590,16 @@ code {
     @apply fixed inset-y-0 z-10 hidden h-svh w-(--sidebar-width) transition-[left,right,width] duration-200 ease-linear data-[side=left]:left-0 data-[side=left]:group-data-[collapsible=offcanvas]:left-[calc(var(--sidebar-width)*-1)] data-[side=right]:right-0 data-[side=right]:group-data-[collapsible=offcanvas]:right-[calc(var(--sidebar-width)*-1)] md:flex;
   }
   .sidebar-inner {
-    @apply flex size-full flex-col bg-sidebar group-data-[variant=floating]:rounded-none group-data-[variant=floating]:shadow-sm group-data-[variant=floating]:ring-1 group-data-[variant=floating]:ring-sidebar-border;
+    @apply flex size-full flex-col bg-sidebar group-data-[variant=floating]:rounded-lg group-data-[variant=floating]:shadow-sm group-data-[variant=floating]:ring-1 group-data-[variant=floating]:ring-sidebar-border;
   }
   .sidebar-rail {
     @apply absolute inset-y-0 z-20 hidden w-4 transition-all ease-linear group-data-[side=left]:-right-4 group-data-[side=right]:left-0 after:absolute after:inset-y-0 after:start-1/2 after:w-[2px] hover:after:bg-sidebar-border sm:flex ltr:-translate-x-1/2 rtl:-translate-x-1/2 in-data-[side=left]:cursor-w-resize in-data-[side=right]:cursor-e-resize [[data-side=left][data-state=collapsed]_&]:cursor-e-resize [[data-side=right][data-state=collapsed]_&]:cursor-w-resize group-data-[collapsible=offcanvas]:translate-x-0 group-data-[collapsible=offcanvas]:after:left-full hover:group-data-[collapsible=offcanvas]:bg-sidebar [[data-side=left][data-collapsible=offcanvas]_&]:-right-2 [[data-side=right][data-collapsible=offcanvas]_&]:-left-2;
   }
   .sidebar-inset {
-    @apply relative flex w-full flex-1 flex-col bg-background md:peer-data-[variant=inset]:m-2 md:peer-data-[variant=inset]:ml-0 md:peer-data-[variant=inset]:rounded-none md:peer-data-[variant=inset]:shadow-sm md:peer-data-[variant=inset]:peer-data-[state=collapsed]:ml-2;
+    @apply relative flex w-full flex-1 flex-col bg-background md:peer-data-[variant=inset]:m-2 md:peer-data-[variant=inset]:ml-0 md:peer-data-[variant=inset]:rounded-lg md:peer-data-[variant=inset]:shadow-sm md:peer-data-[variant=inset]:peer-data-[state=collapsed]:ml-2;
   }
   .sidebar-input {
-    @apply h-8 w-full bg-background shadow-none;
+    @apply h-9 w-full bg-background shadow-none;
   }
   .sidebar-header {
     @apply flex flex-col gap-2 p-2;
@@ -470,13 +617,13 @@ code {
     @apply relative flex w-full min-w-0 flex-col p-2;
   }
   .sidebar-group-label {
-    @apply flex h-8 shrink-0 items-center rounded-none px-2 text-xs text-sidebar-foreground/70 ring-sidebar-ring outline-hidden transition-[margin,opacity] duration-200 ease-linear group-data-[collapsible=icon]:-mt-8 group-data-[collapsible=icon]:opacity-0 focus-visible:ring-2 [&>svg]:size-4 [&>svg]:shrink-0;
+    @apply flex h-9 shrink-0 items-center rounded-md px-2 text-xs text-sidebar-foreground/70 ring-sidebar-ring outline-hidden transition-[margin,opacity] duration-200 ease-linear group-data-[collapsible=icon]:-mt-9 group-data-[collapsible=icon]:opacity-0 focus-visible:ring-2 [&>svg]:size-4 [&>svg]:shrink-0;
   }
   .sidebar-group-action {
-    @apply absolute top-3.5 right-3 flex aspect-square w-5 items-center justify-center rounded-none p-0 text-sidebar-foreground ring-sidebar-ring outline-hidden transition-transform group-data-[collapsible=icon]:hidden after:absolute after:-inset-2 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground focus-visible:ring-2 md:after:hidden [&>svg]:size-4 [&>svg]:shrink-0;
+    @apply absolute top-4 right-3 flex aspect-square w-5 items-center justify-center rounded-md p-0 text-sidebar-foreground ring-sidebar-ring outline-hidden transition-transform group-data-[collapsible=icon]:hidden after:absolute after:-inset-2 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground focus-visible:ring-2 md:after:hidden [&>svg]:size-4 [&>svg]:shrink-0;
   }
   .sidebar-group-content {
-    @apply w-full text-xs;
+    @apply w-full text-sm;
   }
   .sidebar-menu {
     @apply flex w-full min-w-0 flex-col gap-0;
@@ -485,7 +632,7 @@ code {
     @apply relative;
   }
   .sidebar-menu-button {
-    @apply flex w-full items-center gap-2 overflow-hidden rounded-none p-2 text-left text-xs ring-sidebar-ring outline-hidden transition-[width,height,padding] group-has-data-[sidebar=menu-action]/menu-item:pr-8 group-data-[collapsible=icon]:size-8! group-data-[collapsible=icon]:p-2! hover:bg-sidebar-accent hover:text-sidebar-accent-foreground focus-visible:ring-2 active:bg-sidebar-accent active:text-sidebar-accent-foreground disabled:pointer-events-none disabled:opacity-50 aria-disabled:pointer-events-none aria-disabled:opacity-50 data-open:hover:bg-sidebar-accent data-open:hover:text-sidebar-accent-foreground data-active:bg-sidebar-accent data-active:font-medium data-active:text-sidebar-accent-foreground [&_svg]:size-4 [&_svg]:shrink-0 [&>span:last-child]:truncate;
+    @apply flex w-full items-center gap-2 overflow-hidden rounded-md p-2 text-left text-sm ring-sidebar-ring outline-hidden transition-[width,height,padding] group-has-data-[sidebar=menu-action]/menu-item:pr-8 group-data-[collapsible=icon]:size-8! group-data-[collapsible=icon]:p-2! hover:bg-sidebar-accent hover:text-sidebar-accent-foreground focus-visible:ring-2 active:bg-sidebar-accent active:text-sidebar-accent-foreground disabled:pointer-events-none disabled:opacity-50 aria-disabled:pointer-events-none aria-disabled:opacity-50 data-open:hover:bg-sidebar-accent data-open:hover:text-sidebar-accent-foreground data-active:bg-sidebar-accent data-active:font-medium data-active:text-sidebar-accent-foreground [&_svg]:size-4 [&_svg]:shrink-0 [&>span:last-child]:truncate;
   }
   .sidebar-menu-button--default {
     @apply hover:bg-sidebar-accent hover:text-sidebar-accent-foreground;
@@ -494,22 +641,22 @@ code {
     @apply bg-background shadow-[0_0_0_1px_var(--sidebar-border)] hover:bg-sidebar-accent hover:text-sidebar-accent-foreground hover:shadow-[0_0_0_1px_var(--sidebar-accent)];
   }
   .sidebar-menu-button--size-default {
-    @apply h-8 text-xs;
+    @apply h-9 text-sm;
   }
   .sidebar-menu-button--size-sm {
-    @apply h-7 text-xs;
+    @apply h-8 text-sm;
   }
   .sidebar-menu-button--size-lg {
-    @apply h-12 text-xs group-data-[collapsible=icon]:p-0!;
+    @apply h-12 text-sm group-data-[collapsible=icon]:p-0!;
   }
   .sidebar-menu-action {
-    @apply absolute top-1.5 right-1 flex aspect-square w-5 items-center justify-center rounded-none p-0 text-sidebar-foreground ring-sidebar-ring outline-hidden transition-transform group-data-[collapsible=icon]:hidden peer-hover/menu-button:text-sidebar-accent-foreground peer-data-[size=default]/menu-button:top-1.5 peer-data-[size=lg]/menu-button:top-2.5 peer-data-[size=sm]/menu-button:top-1 after:absolute after:-inset-2 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground focus-visible:ring-2 md:after:hidden [&>svg]:size-4 [&>svg]:shrink-0;
+    @apply absolute top-1.5 right-1 flex aspect-square w-5 items-center justify-center rounded-md p-0 text-sidebar-foreground ring-sidebar-ring outline-hidden transition-transform group-data-[collapsible=icon]:hidden peer-hover/menu-button:text-sidebar-accent-foreground peer-data-[size=default]/menu-button:top-2 peer-data-[size=lg]/menu-button:top-2.5 peer-data-[size=sm]/menu-button:top-1.5 after:absolute after:-inset-2 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground focus-visible:ring-2 md:after:hidden [&>svg]:size-4 [&>svg]:shrink-0;
   }
   .sidebar-menu-badge {
-    @apply pointer-events-none absolute right-1 flex h-5 min-w-5 items-center justify-center rounded-none px-1 text-xs font-medium text-sidebar-foreground tabular-nums select-none group-data-[collapsible=icon]:hidden peer-hover/menu-button:text-sidebar-accent-foreground peer-data-[size=default]/menu-button:top-1.5 peer-data-[size=lg]/menu-button:top-2.5 peer-data-[size=sm]/menu-button:top-1 peer-data-active/menu-button:text-sidebar-accent-foreground;
+    @apply pointer-events-none absolute right-1 flex h-5 min-w-5 items-center justify-center rounded-md px-1 text-xs font-medium text-sidebar-foreground tabular-nums select-none group-data-[collapsible=icon]:hidden peer-hover/menu-button:text-sidebar-accent-foreground peer-data-[size=default]/menu-button:top-2 peer-data-[size=lg]/menu-button:top-2.5 peer-data-[size=sm]/menu-button:top-1.5 peer-data-active/menu-button:text-sidebar-accent-foreground;
   }
   .sidebar-menu-skeleton {
-    @apply flex h-8 items-center gap-2 rounded-none px-2;
+    @apply flex h-9 items-center gap-2 rounded-md px-2;
   }
   .sidebar-menu-sub {
     @apply mx-3.5 flex min-w-0 translate-x-px flex-col gap-1 border-l border-sidebar-border px-2.5 py-0.5 group-data-[collapsible=icon]:hidden;
@@ -518,6 +665,6 @@ code {
     @apply relative;
   }
   .sidebar-menu-sub-button {
-    @apply flex h-7 min-w-0 -translate-x-px items-center gap-2 overflow-hidden rounded-none px-2 text-sidebar-foreground ring-sidebar-ring outline-hidden group-data-[collapsible=icon]:hidden hover:bg-sidebar-accent hover:text-sidebar-accent-foreground focus-visible:ring-2 active:bg-sidebar-accent active:text-sidebar-accent-foreground disabled:pointer-events-none disabled:opacity-50 aria-disabled:pointer-events-none aria-disabled:opacity-50 data-[size=md]:text-xs data-[size=sm]:text-xs data-active:bg-sidebar-accent data-active:text-sidebar-accent-foreground [&>span:last-child]:truncate [&>svg]:size-4 [&>svg]:shrink-0 [&>svg]:text-sidebar-accent-foreground;
+    @apply flex h-8 min-w-0 -translate-x-px items-center gap-2 overflow-hidden rounded-md px-2 text-sidebar-foreground ring-sidebar-ring outline-hidden group-data-[collapsible=icon]:hidden hover:bg-sidebar-accent hover:text-sidebar-accent-foreground focus-visible:ring-2 active:bg-sidebar-accent active:text-sidebar-accent-foreground disabled:pointer-events-none disabled:opacity-50 aria-disabled:pointer-events-none aria-disabled:opacity-50 data-[size=md]:text-sm data-[size=sm]:text-xs data-active:bg-sidebar-accent data-active:text-sidebar-accent-foreground [&>span:last-child]:truncate [&>svg]:size-4 [&>svg]:shrink-0 [&>svg]:text-sidebar-accent-foreground;
   }
 }

@@ -1,7 +1,7 @@
 import { createFileRoute, Link } from '@tanstack/react-router';
-import { Loader2 } from 'lucide-react';
 import { useQuery } from 'urql';
 import { LeagueListItem } from '@/components/leagues/LeagueListItem';
+import { Spinner } from '@/components/ui/spinner';
 import {
   Stack,
   StackAlign,
@@ -58,7 +58,7 @@ function LeaguesPage() {
           gap={StackGap.Sm}
           className="text-sm text-muted-foreground"
         >
-          <Loader2 className="size-4 animate-spin" />
+          <Spinner />
           Loading leagues...
         </Stack>
       ) : error ? (

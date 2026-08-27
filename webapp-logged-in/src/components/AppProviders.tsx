@@ -5,6 +5,7 @@ import {
   fetchExchange,
   Provider as GraphQlProvider,
 } from 'urql';
+import { Toaster } from '@/components/ui/toast';
 import { TooltipProvider } from '@/components/ui/tooltip';
 
 // Same-origin in both dev (vite proxy) and prod (Pages Function proxies /api/* to the Lambda).
@@ -22,6 +23,8 @@ export const AppProviders: FunctionComponent<PropsWithChildren> = ({
   children,
 }) => (
   <GraphQlProvider value={client}>
-    <TooltipProvider>{children}</TooltipProvider>
+    <TooltipProvider>
+      <Toaster>{children}</Toaster>
+    </TooltipProvider>
   </GraphQlProvider>
 );

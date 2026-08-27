@@ -1,4 +1,3 @@
-import { User } from 'lucide-react';
 import { FunctionComponent } from 'react';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
@@ -8,23 +7,23 @@ import {
   StackDirection,
   StackGap,
 } from '@/components/ui/stack';
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipTrigger,
-} from '@/components/ui/tooltip';
+import { TermTip } from '@/components/ui/term-tip';
 import { Typography, TypographyVariant } from '@/components/ui/typography';
-import { ContractKind } from '@/generated/enums';
 import { ContractForRosterListFragment } from '@/generated/graphql';
+import {
+  CONTRACT_KIND_DISPLAY,
+  isFinalContractYear,
+} from '@/lib/contract.utils';
+import { getInitials } from '@/lib/name.utils';
+import { TERMS } from '@/lib/terms';
+import { cn } from '@/lib/utils';
 
 interface Props {
   contract: ContractForRosterListFragment;
-  isIr?: boolean;
 }
 
 export const LeagueRosterListPlayer: FunctionComponent<Props> = ({
   contract,
-  isIr,
 }) => {
   let photoUrl = undefined;
   let position = undefined;
@@ -44,85 +43,78 @@ export const LeagueRosterListPlayer: FunctionComponent<Props> = ({
     position,
     realTeamName,
   });
+  const playerName = contract.leagueOrRealPlayer.name;
+  const { abbreviation, label, finalYearNumber } =
+    CONTRACT_KIND_DISPLAY[contract.kind];
 
   return (
     <Stack
       render={<li />}
       direction={StackDirection.Row}
       align={StackAlign.Center}
-      gap={StackGap.Sm}
-      className="py-1.5"
+      gap={StackGap.Md}
+      className="py-[9px]"
     >
-      <Avatar size="sm">
+      <Avatar size="lg" className={cn(contract.isIr && 'opacity-70')}>
         {photoUrl ? <AvatarImage src={photoUrl} alt="" /> : null}
-        <AvatarFallback>
-          <User className="size-3.5" />
-        </AvatarFallback>
+        <AvatarFallback>{getInitials(playerName)}</AvatarFallback>
       </Avatar>
 
       <div className="min-w-0 flex-1">
-        <Typography variant={TypographyVariant.BodyStrong} className="truncate">
-          {contract.leagueOrRealPlayer.name}{' '}
-          {positionTeamNameString && (
-            <Typography
-              variant={TypographyVariant.InlineMuted}
-              render={<span />}
-            >
-              ({positionTeamNameString})
-            </Typography>
-          )}
-        </Typography>
         <Typography
-          variant={TypographyVariant.MutedSm}
-          className="tabular-nums"
+          variant={TypographyVariant.BodyStrong}
+          className="truncate"
+          title={playerName}
         >
-          {contract.salary == null ? 'TBD' : `$${contract.salary}`} /{' '}
-          {contract.yearNumber} /{' '}
-          <Tooltip>
-            <TooltipTrigger
-              render={
-                <span className="cursor-default underline decoration-dotted" />
-              }
-            >
-              {abbreviateContractKind(contract.kind)}
-            </TooltipTrigger>
-            <TooltipContent>{contract.kind}</TooltipContent>
-          </Tooltip>
+          {playerName}
         </Typography>
+        {positionTeamNameString && (
+          <Typography variant={TypographyVariant.MutedSm} className="truncate">
+            {positionTeamNameString}
+          </Typography>
+        )}
       </div>
 
-      {isIr && (
-        <Badge variant="outline" className="border-amber-500/40 text-amber-500">
-          IR
-        </Badge>
-      )}
+      <Stack
+        direction={StackDirection.Row}
+        align={StackAlign.Center}
+        gap={StackGap.Sm}
+        className="shrink-0"
+      >
+        <Typography
+          variant={TypographyVariant.Stat}
+          // An IR salary is inactive, so display it as secondary.
+          className={cn(contract.isIr && 'text-muted-foreground')}
+        >
+          {contract.salary == null ? (
+            <TermTip label={TERMS.TBD}>TBD</TermTip>
+          ) : (
+            `$${contract.salary}`
+          )}
+        </Typography>
+        <TermTip
+          label={label}
+          render={<Badge variant="secondary" className="cursor-help" />}
+        >
+          {finalYearNumber === null
+            ? abbreviation
+            : `${abbreviation} Y${contract.yearNumber}/${finalYearNumber}`}
+        </TermTip>
+        {isFinalContractYear(contract) && (
+          <Badge variant="outline">Final yr</Badge>
+        )}
+        {contract.isIr && (
+          <TermTip
+            label={TERMS.IR}
+            render={<Badge variant="secondary" className="cursor-help" />}
+          >
+            IR
+          </TermTip>
+        )}
+      </Stack>
     </Stack>
   );
 };
-
-function abbreviateContractKind(kind: ContractKind): string {
-  switch (kind) {
-    case ContractKind.FreeAgent:
-      return 'FA';
-    case ContractKind.RestrictedFreeAgent:
-      return 'RFA';
-    case ContractKind.Rookie:
-    case ContractKind.RookieExtension:
-      return 'R';
-    case ContractKind.RookieDevelopment:
-      return 'RD';
-    case ContractKind.RookieDevelopmentInternational:
-      return 'RDI';
-    case ContractKind.Veteran:
-      return 'V';
-    case ContractKind.UnrestrictedFreeAgentOriginalTeam:
-      return 'UFA-20%';
-    case ContractKind.UnrestrictedFreeAgentVeteran:
-      return 'UFA-10%';
-    default:
-      return 'Unknown';
-  }
-}
 
 function generatePositionTeamNameString({
   position,

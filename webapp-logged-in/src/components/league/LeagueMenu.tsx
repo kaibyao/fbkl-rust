@@ -1,4 +1,5 @@
-import { ClipboardList } from 'lucide-react';
+import { Link, useMatchRoute } from '@tanstack/react-router';
+import { BookOpen, ClipboardList } from 'lucide-react';
 import { FunctionComponent } from 'react';
 import {
   Sidebar,
@@ -11,7 +12,14 @@ import {
   SidebarMenuItem,
 } from '@/components/ui/sidebar';
 
+const LEAGUE_MENU_ITEMS = [
+  { to: '/league', label: 'Rosters', icon: ClipboardList },
+  { to: '/league/rules', label: 'League rules', icon: BookOpen },
+] as const;
+
 export const LeagueMenu: FunctionComponent = () => {
+  const matchRoute = useMatchRoute();
+
   return (
     <Sidebar collapsible="icon">
       <SidebarHeader>
@@ -23,12 +31,18 @@ export const LeagueMenu: FunctionComponent = () => {
         <SidebarGroup>
           <SidebarGroupLabel>League</SidebarGroupLabel>
           <SidebarMenu>
-            <SidebarMenuItem>
-              <SidebarMenuButton isActive tooltip="Rosters">
-                <ClipboardList />
-                <span>Rosters</span>
-              </SidebarMenuButton>
-            </SidebarMenuItem>
+            {LEAGUE_MENU_ITEMS.map(({ to, label, icon: Icon }) => (
+              <SidebarMenuItem key={to}>
+                <SidebarMenuButton
+                  isActive={Boolean(matchRoute({ to }))}
+                  tooltip={label}
+                  render={<Link to={to} />}
+                >
+                  <Icon />
+                  <span>{label}</span>
+                </SidebarMenuButton>
+              </SidebarMenuItem>
+            ))}
           </SidebarMenu>
         </SidebarGroup>
       </SidebarContent>
