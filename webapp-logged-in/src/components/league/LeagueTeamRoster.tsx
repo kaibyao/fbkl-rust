@@ -25,11 +25,6 @@ export const LeagueTeamRoster: FunctionComponent<Props> = ({ team }) => {
   const { activeContracts, activeButIrContracts, rookieDevelopmentContracts } =
     partitionContracts(team.contracts);
 
-  const activeSalary = activeContracts.reduce(
-    (acc, contract) => acc + (contract.salary ?? 0),
-    0,
-  );
-
   return (
     <Card>
       <CardContent>
@@ -44,7 +39,8 @@ export const LeagueTeamRoster: FunctionComponent<Props> = ({ team }) => {
               {team.name}
             </Typography>
             <Typography variant={TypographyVariant.Stat}>
-              ${activeSalary}
+              {/* Server-side figure: it takes IR contracts off the books and adds the 20% penalty for a dropped player, neither of which a sum of the rows can see. */}
+              ${team.salaryCap.salaryUsed}
               <Typography
                 variant={TypographyVariant.InlineMuted}
                 render={<span />}

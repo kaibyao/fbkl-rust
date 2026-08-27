@@ -213,6 +213,113 @@
   .badge--link {
     @apply text-primary underline-offset-4 hover:underline;
   }
+  /* Board .tag.fa: a 20% primary wash, with primary-foreground text for the AA pass. */
+  .badge--tint {
+    @apply bg-primary/20 text-primary-foreground [a]:hover:bg-primary/30;
+  }
+  /* Board .pill: same wash, full round, and a 50% primary edge so it holds its shape on a photo. */
+  .badge--pill {
+    @apply rounded-full border-primary/50 bg-primary/20 px-3 tracking-[0.12em] text-primary-foreground [a]:hover:bg-primary/30;
+  }
+  .badge-dot {
+    @apply size-2 shrink-0 rounded-full bg-primary-hot;
+    animation: badge-dot-pulse 1.8s infinite;
+  }
+  @keyframes badge-dot-pulse {
+    0% {
+      box-shadow: 0 0 0 0
+        color-mix(in oklch, var(--primary-hot) 70%, transparent);
+    }
+    70% {
+      box-shadow: 0 0 0 10px transparent;
+    }
+    100% {
+      box-shadow: 0 0 0 0 transparent;
+    }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .badge-dot {
+      animation: none;
+    }
+  }
+
+  /* Board .bar: the blue analytical ramp for what is committed, zinc for what is left. */
+  .progress {
+    @apply w-full;
+  }
+  .progress-track {
+    @apply relative h-2 w-full overflow-hidden rounded-full bg-muted;
+  }
+  .progress-indicator {
+    @apply absolute rounded-full bg-linear-to-r from-chart-3 to-chart-1;
+  }
+
+  /* Sparkline: the chart marks at a fixed pixel size, with no chrome and no interaction. */
+  .sparkline {
+    @apply block flex-none align-middle;
+  }
+  .sparkline-series {
+    @apply fill-none stroke-chart-2 stroke-2;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+  }
+  /* 2px surface ring, so the end marker stays legible where it sits on its own line. */
+  .sparkline-dot {
+    @apply stroke-card stroke-2;
+  }
+  .sparkline-bar {
+    @apply fill-chart-2 opacity-85;
+  }
+
+  /* Photo treatments A to D. Every photo lands on the zinc base, so the orange stays the loudest thing on screen. */
+  .photo-treatment {
+    @apply relative isolate overflow-hidden rounded-lg bg-card ring-1 ring-foreground/10;
+  }
+  .photo-treatment > img {
+    @apply absolute inset-0 block size-full object-cover;
+  }
+  .photo-treatment::after {
+    content: '';
+    @apply pointer-events-none absolute inset-0 z-1;
+  }
+  .photo-treatment > :not(img) {
+    @apply relative z-2;
+  }
+  /* A: zinc scrim, the workhorse for player cards. */
+  .photo-treatment--scrim::after {
+    background: linear-gradient(to top, var(--background) 2%, transparent 55%);
+  }
+  /* B: orange duotone, for hype, empty states and marketing moments. */
+  .photo-treatment--duotone > img {
+    filter: grayscale(1) contrast(1.1);
+  }
+  .photo-treatment--duotone::after {
+    background: color-mix(in oklch, var(--primary) 55%, transparent);
+    mix-blend-mode: color;
+  }
+  /* The colour blend takes ::after, so the bottom scrim rides on ::before. */
+  .photo-treatment--duotone::before {
+    content: '';
+    @apply pointer-events-none absolute inset-0 z-1;
+    background: linear-gradient(to top, var(--background) 2%, transparent 60%);
+  }
+  /* C: spotlight, a radial focus that dims the edges, for player of the week. */
+  .photo-treatment--spotlight::after {
+    background: radial-gradient(
+      120% 80% at 50% 35%,
+      transparent,
+      var(--background) 105%
+    );
+  }
+  /* D: cool and analytical, desaturated with a blue cast, for data-heavy screens. */
+  .photo-treatment--analytical > img {
+    filter: saturate(0.55) brightness(0.9);
+  }
+  .photo-treatment--analytical::after {
+    background:
+      linear-gradient(to top, var(--background) 2%, transparent 55%),
+      color-mix(in oklch, var(--chart-2) 20%, transparent);
+  }
 
   /* Typography: `variant` prop on <Typography> maps to these bundles (see typography.tsx); sizes/weights come from design/moodboard.html, which wins any disagreement. */
   .typography-display {
