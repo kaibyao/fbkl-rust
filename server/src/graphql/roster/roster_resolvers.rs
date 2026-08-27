@@ -16,7 +16,6 @@ use fbkl_entity::{
     roster_lock_violation_queries::find_violations_for_league,
     sea_orm::{ConnectionTrait, DatabaseConnection, DatabaseTransaction, TransactionTrait},
     team_queries::find_team_by_id_in_league,
-    team_update::TeamUpdateStatus,
     team_update_queries::{find_team_updates_by_team, update_team_update_sequences},
     team_user::LeagueRole,
 };
@@ -387,9 +386,10 @@ pub struct RosterQuery;
 
 #[Object]
 impl RosterQuery {
-    /// A team's roster for one deadline, with that week's pending moves and a flag per roster rule.
+    /// A team's roster for one deadline, with every move recorded for that week and a flag per roster rule.
     ///
-    /// Reads only. Rules 13.1.1 make move order presentational, so nothing here reads it.
+    /// Reads only. The move list is the set `reorderWeeklyMoves` accepts, in the order the owner
+    /// chose (rules 13.1.1); order is presentational, so no rule here reads it.
     #[graphql(guard = "LeagueRoleGuard(RoleRequirement::Member)")]
     async fn team_week(
         &self,
@@ -422,14 +422,9 @@ impl RosterQuery {
             .collect::<std::result::Result<Vec<_>, _>>()
             .map_err(|_| code_error(ErrorCode::Internal))?;
 
-        let pending_move_models = find_team_updates_by_team(
-            team_id,
-            Some(TeamUpdateStatus::Pending),
-            Some(deadline_id),
-            db,
-        )
-        .await
-        .map_err(|err| internal("failed to load this week's pending moves", &err))?;
+        let week_move_models = find_team_updates_by_team(team_id, None, Some(deadline_id), db)
+            .await
+            .map_err(|err| internal("failed to load this week's moves", &err))?;
 
         let violations = team_roster_violations(team_id, &deadline_model, db).await?;
         let rule_legality = TeamWeek::rule_legality_for_team(team_id, &violations);
@@ -439,7 +434,7 @@ impl RosterQuery {
             team_id,
             deadline_id,
             contracts,
-            pending_moves: TeamWeek::in_owner_order(&pending_move_models),
+            moves: TeamWeek::in_owner_order(&week_move_models),
             rule_legality,
             is_legal,
         })

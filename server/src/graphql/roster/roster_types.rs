@@ -61,13 +61,18 @@ pub struct RosterRuleLegality {
     pub message: Option<String>,
 }
 
-/// A team's roster as it stands for one deadline, plus the moves still pending for that week.
+/// A team's roster as it stands for one deadline, plus every move recorded for that week.
 #[derive(SimpleObject)]
 pub struct TeamWeek {
     pub team_id: i64,
     pub deadline_id: i64,
     pub contracts: Vec<Contract>,
-    pub pending_moves: Vec<TeamUpdate>,
+    /// The week's moves whatever their status, which is the set `reorderWeeklyMoves` accepts.
+    ///
+    /// Drops, trades and auction wins are Done as soon as they are recorded, but rules §13.1.1
+    /// order covers the whole week, so a Pending-only list could not be reordered. Each move
+    /// carries its own `status` for a client that wants only the pending ones.
+    pub moves: Vec<TeamUpdate>,
     pub rule_legality: Vec<RosterRuleLegality>,
     pub is_legal: bool,
 }
