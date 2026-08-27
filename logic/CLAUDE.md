@@ -44,7 +44,8 @@ values from there; do not duplicate literals into logic.
    should not build raw SeaORM statements. If a query is missing, add it to `entity`, not here.
 
 4. **Validate eligibility before mutating.** `drop_contract` and `ir` check `ContractStatus` /
-   `is_ir` first and `bail!`/`ensure!` on violation. `rookie_development_activation` checks
+   `is_ir` first and return a `roster::RosterMoveRejection` on violation, so the GraphQL layer can
+   tell a refused move from a server fault instead of coding both INTERNAL. `rookie_development_activation` checks
    kind/status/latest-in-chain, and `rookie_development_international` checks the source contract
    kind plus (for RD → RDI only) `eligibility::validate_rdi_eligible`. Add guards to new mutators.
 

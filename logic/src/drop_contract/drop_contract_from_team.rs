@@ -1,6 +1,6 @@
 use std::collections::HashSet;
 
-use color_eyre::eyre::{Result, ensure, eyre};
+use color_eyre::eyre::{Result, eyre};
 use fbkl_entity::{
     contract::{self, ContractStatus},
     contract_queries, deadline,
@@ -14,7 +14,7 @@ use tracing::instrument;
 
 use crate::{
     deadline_processing::roster_lock::validate_team_roster,
-    roster::{SalarySnapshot, calculate_team_contract_salary_with_model},
+    roster::{RosterMoveRejection, SalarySnapshot, calculate_team_contract_salary_with_model},
 };
 
 use super::drop_contract_team_update::create_drop_contract_team_update;
@@ -81,12 +81,15 @@ where
 }
 
 fn validate_contract_eligibility(contract_model: &contract::Model) -> Result<()> {
-    ensure!(
-        contract_model.status == ContractStatus::Active,
-        "Cannot drop a contract that's not active. (contract_id = {})",
-        contract_model.id
-    );
-    Ok(())
+    if contract_model.status == ContractStatus::Active {
+        Ok(())
+    } else {
+        Err(RosterMoveRejection::ContractNotActive {
+            contract_id: contract_model.id,
+            status: contract_model.status,
+        }
+        .into())
+    }
 }
 
 /// Rejects dropping a contract the team added this week before that week's adds sit legally on the
@@ -128,16 +131,17 @@ where
 
     // Rules 8.3.5/8.3.7: an added player must sit legally on the roster before he can be dropped, so the drop is illegal only while the roster carrying every add is still illegal.
     let violations = validate_team_roster(team_id, deadline_model, db).await?;
-    ensure!(
-        violations.is_empty(),
-        "Cannot drop a contract added this week while the roster holding this week's adds is still illegal. (contract_id = {})\n{}",
-        contract_model.id,
-        violations
-            .iter()
-            .map(|violation| violation.message.as_str())
-            .collect::<Vec<_>>()
-            .join("\n")
-    );
+    if !violations.is_empty() {
+        return Err(RosterMoveRejection::DropSameWeekAdd {
+            contract_id: contract_model.id,
+            violations: violations
+                .iter()
+                .map(|violation| violation.message.as_str())
+                .collect::<Vec<_>>()
+                .join("\n"),
+        }
+        .into());
+    }
 
     Ok(())
 }

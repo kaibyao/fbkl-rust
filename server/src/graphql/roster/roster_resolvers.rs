@@ -28,6 +28,7 @@ use fbkl_logic::{
         move_rookie_development_contract_to_international,
         move_rookie_development_international_contract_to_stateside,
     },
+    roster::RosterMoveRejection,
 };
 
 use super::super::{contract::Contract, team::TeamUpdate};
@@ -230,7 +231,7 @@ impl RosterMutation {
                         .await
                 }
             }
-            .map_err(|err| internal("roster move failed", &err))?;
+            .map_err(|err| roster_move_error(&err))?;
 
             updated_contracts
                 .push(Contract::from_model(&updated).map_err(|_| code_error(ErrorCode::Internal))?);
@@ -293,7 +294,7 @@ where
         .map_err(|err| internal("failed to start transaction", &err.into()))?;
     let updated = op(contract_model, &deadline_model, &db_txn)
         .await
-        .map_err(|err| internal("roster move failed", &err))?;
+        .map_err(|err| roster_move_error(&err))?;
     db_txn
         .commit()
         .await
@@ -364,6 +365,15 @@ where
     }
 
     Ok(deadline_model)
+}
+
+/// A move a league rule refuses is the caller's fault and keeps the rule message; the rest is ours.
+fn roster_move_error(error: &Report) -> GraphQlError {
+    let Some(rejection) = error.downcast_ref::<RosterMoveRejection>() else {
+        return internal("roster move failed", error);
+    };
+
+    graphql_error(ErrorCode::RosterMoveRejected, rejection.to_string())
 }
 
 fn internal(message: &str, error: &Report) -> GraphQlError {
@@ -455,4 +465,64 @@ where
     validate_team_roster(team_id, deadline_model, db)
         .await
         .map_err(|err| internal("failed to validate the team's roster", &err))
+}
+
+#[cfg(test)]
+mod tests {
+    use fbkl_entity::{contract::ContractStatus, deadline::DeadlineKind};
+
+    use super::*;
+
+    fn code_of(error: &GraphQlError) -> Option<async_graphql::Value> {
+        error
+            .extensions
+            .as_ref()
+            .and_then(|ext| ext.get("code"))
+            .cloned()
+    }
+
+    #[test]
+    fn rule_rejections_carry_a_client_code_and_the_rule_message() {
+        let cases = [
+            (
+                RosterMoveRejection::StraightToIr {
+                    contract_id: 7,
+                    deadline_kind: DeadlineKind::Week1RosterLock,
+                },
+                "straight to IR",
+            ),
+            (
+                RosterMoveRejection::DropSameWeekAdd {
+                    contract_id: 7,
+                    violations: "roster is over the 22-man limit".to_owned(),
+                },
+                "added this week",
+            ),
+            (
+                RosterMoveRejection::ContractNotActive {
+                    contract_id: 7,
+                    status: ContractStatus::Replaced,
+                },
+                "Replaced",
+            ),
+        ];
+
+        for (rejection, expected_phrase) in cases {
+            let error = roster_move_error(&Report::new(rejection));
+
+            assert_eq!(code_of(&error), Some("ROSTER_MOVE_REJECTED".into()));
+            assert!(
+                error.message.contains(expected_phrase),
+                "the owner should be told which rule stopped the move: {error:?}"
+            );
+        }
+    }
+
+    #[test]
+    fn a_database_fault_stays_internal_and_says_nothing() {
+        let error = roster_move_error(&color_eyre::eyre::eyre!("connection reset"));
+
+        assert_eq!(code_of(&error), Some("INTERNAL".into()));
+        assert_eq!(error.message, "internal server error");
+    }
 }

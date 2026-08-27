@@ -1,4 +1,4 @@
-use color_eyre::eyre::{Result, ensure, eyre};
+use color_eyre::eyre::{Result, eyre};
 use fbkl_entity::{
     contract, contract_queries, deadline,
     sea_orm::{ActiveValue, ConnectionTrait},
@@ -8,7 +8,9 @@ use fbkl_entity::{
 };
 use tracing::instrument;
 
-use crate::roster::{SalarySnapshot, calculate_team_contract_salary_with_model};
+use crate::roster::{
+    RosterMoveRejection, SalarySnapshot, calculate_team_contract_salary_with_model,
+};
 
 use super::ir_team_update::create_ir_team_update;
 
@@ -65,10 +67,12 @@ where
 }
 
 fn validate_contract_eligibility(contract_model: &contract::Model) -> Result<()> {
-    ensure!(
-        contract_model.is_ir,
-        "Cannot activate a contract from IR when it is not in IR. (contract_id = {})",
-        contract_model.id
-    );
-    Ok(())
+    if contract_model.is_ir {
+        Ok(())
+    } else {
+        Err(RosterMoveRejection::NotInIr {
+            contract_id: contract_model.id,
+        }
+        .into())
+    }
 }

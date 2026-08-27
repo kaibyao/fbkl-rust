@@ -1,6 +1,6 @@
 use std::collections::HashSet;
 
-use color_eyre::eyre::{Result, ensure, eyre};
+use color_eyre::eyre::{Result, eyre};
 use fbkl_entity::{
     contract, contract_queries,
     deadline::{self, DeadlineKind},
@@ -15,7 +15,9 @@ use fbkl_entity::{
 };
 use tracing::instrument;
 
-use crate::roster::{SalarySnapshot, calculate_team_contract_salary_with_model};
+use crate::roster::{
+    RosterMoveRejection, SalarySnapshot, calculate_team_contract_salary_with_model,
+};
 
 use super::ir_team_update::create_ir_team_update;
 
@@ -86,11 +88,12 @@ async fn validate_ir_eligible_in_season<C>(
 where
     C: ConnectionTrait,
 {
-    ensure!(
-        !contract_model.is_ir,
-        "Cannot move a contract to IR when it is already in IR. (contract_id = {})",
-        contract_model.id
-    );
+    if contract_model.is_ir {
+        return Err(RosterMoveRejection::AlreadyInIr {
+            contract_id: contract_model.id,
+        }
+        .into());
+    }
 
     if deadline_model.kind == DeadlineKind::PreseasonFinalRosterLock {
         return Ok(());
@@ -147,12 +150,13 @@ where
         }
     }
 
-    ensure!(
-        is_previously_committed_without_ir,
-        "Cannot move a contract straight to IR outside of the preseason final roster lock. The contract must first be committed to the team without IR. (contract_id = {}, deadline_kind = {:?})",
-        contract_model.id,
-        deadline_model.kind
-    );
+    if !is_previously_committed_without_ir {
+        return Err(RosterMoveRejection::StraightToIr {
+            contract_id: contract_model.id,
+            deadline_kind: deadline_model.kind,
+        }
+        .into());
+    }
 
     Ok(())
 }

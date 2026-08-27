@@ -5,20 +5,23 @@ mod rdi_team_update;
 pub use move_rd_contract_to_international::*;
 pub use move_rdi_contract_from_international::*;
 
-use color_eyre::eyre::{Result, ensure};
+use color_eyre::eyre::Result;
 use fbkl_entity::contract::{self, ContractKind};
+
+use crate::roster::RosterMoveRejection;
 
 /// Guards an RD↔RDI move against being applied to the wrong contract kind (rules §11.3.1).
 fn validate_contract_kind(contract_model: &contract::Model, expected: ContractKind) -> Result<()> {
-    ensure!(
-        contract_model.kind == expected,
-        "Contract (id = {}) is a {:?} contract, but this move requires a {:?} contract.",
-        contract_model.id,
-        contract_model.kind,
-        expected
-    );
-
-    Ok(())
+    if contract_model.kind == expected {
+        Ok(())
+    } else {
+        Err(RosterMoveRejection::WrongContractKind {
+            contract_id: contract_model.id,
+            kind: contract_model.kind,
+            expected,
+        }
+        .into())
+    }
 }
 
 #[cfg(test)]
