@@ -1,10 +1,13 @@
 //! GraphQL shapes for a team's week: its committed roster, its pending moves, and per-rule legality.
 
 use async_graphql::{
-    Enum, Error as GraphQlError, ErrorExtensions, InputObject, SimpleObject, Value, value,
+    Enum, Error as GraphQlError, ErrorExtensions, InputObject, SimpleObject, Value,
+    resolver_utils::enum_value, value,
 };
 use fbkl_entity::team_update;
-use fbkl_logic::deadline_processing::roster_lock::{RosterRule, TeamRosterViolation};
+use fbkl_logic::deadline_processing::roster_lock::{
+    RosterRule as DomainRosterRule, TeamRosterViolation,
+};
 
 use super::super::{contract::Contract, team::TeamUpdate};
 use crate::graphql::{ErrorCode, code_error};
@@ -19,7 +22,7 @@ pub fn roster_illegal_error(violations: &[TeamRosterViolation]) -> GraphQlError 
         .map(|violation| {
             value!({
                 "teamId": violation.team_id,
-                "rule": roster_rule_name(violation.rule),
+                "rule": enum_value(RosterRule::from(violation.rule)),
                 "message": violation.message.clone(),
             })
         })
@@ -29,15 +32,30 @@ pub fn roster_illegal_error(violations: &[TeamRosterViolation]) -> GraphQlError 
         .extend_with(|_, extensions| extensions.set("violations", Value::List(payload)))
 }
 
-/// The GraphQL enum value for a rule. Exhaustive so a new rule cannot ship unnamed.
-const fn roster_rule_name(rule: RosterRule) -> &'static str {
-    match rule {
-        RosterRule::IrSlots => "IR_SLOTS",
-        RosterRule::PreseasonRosterLimit => "PRESEASON_ROSTER_LIMIT",
-        RosterRule::RookieDevelopmentLimit => "ROOKIE_DEVELOPMENT_LIMIT",
-        RosterRule::IntlRookieDevelopmentLimit => "INTL_ROOKIE_DEVELOPMENT_LIMIT",
-        RosterRule::VeteranOrRookieLimit => "VETERAN_OR_ROOKIE_LIMIT",
-        RosterRule::SalaryCap => "SALARY_CAP",
+/// A roster rule that a team's roster can break at lock time.
+///
+/// Kept per-rule so callers can show a legality flag for each rule instead of one pass/fail.
+// Mirrors the domain enum; the exhaustive `From` below keeps the two lists the same.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Enum)]
+pub enum RosterRule {
+    IrSlots,
+    PreseasonRosterLimit,
+    RookieDevelopmentLimit,
+    IntlRookieDevelopmentLimit,
+    VeteranOrRookieLimit,
+    SalaryCap,
+}
+
+impl From<DomainRosterRule> for RosterRule {
+    fn from(rule: DomainRosterRule) -> Self {
+        match rule {
+            DomainRosterRule::IrSlots => Self::IrSlots,
+            DomainRosterRule::PreseasonRosterLimit => Self::PreseasonRosterLimit,
+            DomainRosterRule::RookieDevelopmentLimit => Self::RookieDevelopmentLimit,
+            DomainRosterRule::IntlRookieDevelopmentLimit => Self::IntlRookieDevelopmentLimit,
+            DomainRosterRule::VeteranOrRookieLimit => Self::VeteranOrRookieLimit,
+            DomainRosterRule::SalaryCap => Self::SalaryCap,
+        }
     }
 }
 
@@ -76,7 +94,7 @@ impl TeamWeek {
         team_id: i64,
         violations: &[TeamRosterViolation],
     ) -> Vec<RosterRuleLegality> {
-        RosterRule::ALL
+        DomainRosterRule::ALL
             .into_iter()
             .map(|rule| {
                 let message = violations
@@ -84,7 +102,7 @@ impl TeamWeek {
                     .find(|violation| violation.team_id == team_id && violation.rule == rule)
                     .map(|violation| violation.message.clone());
                 RosterRuleLegality {
-                    rule,
+                    rule: rule.into(),
                     is_legal: message.is_none(),
                     message,
                 }
@@ -149,7 +167,7 @@ mod tests {
         assert_eq!(ordered_ids, vec![12, 11, 9, 10]);
     }
 
-    fn violation(team_id: i64, rule: RosterRule) -> TeamRosterViolation {
+    fn violation(team_id: i64, rule: DomainRosterRule) -> TeamRosterViolation {
         TeamRosterViolation {
             team_id,
             rule,
@@ -159,9 +177,10 @@ mod tests {
 
     #[test]
     fn every_rule_gets_a_flag_and_only_the_broken_one_is_illegal() {
-        let flags = TeamWeek::rule_legality_for_team(1, &[violation(1, RosterRule::SalaryCap)]);
+        let flags =
+            TeamWeek::rule_legality_for_team(1, &[violation(1, DomainRosterRule::SalaryCap)]);
 
-        assert_eq!(flags.len(), RosterRule::ALL.len());
+        assert_eq!(flags.len(), DomainRosterRule::ALL.len());
         let illegal: Vec<_> = flags.iter().filter(|flag| !flag.is_legal).collect();
         assert_eq!(illegal.len(), 1);
         assert_eq!(illegal[0].rule, RosterRule::SalaryCap);
@@ -170,7 +189,7 @@ mod tests {
 
     #[test]
     fn the_illegal_roster_error_names_every_broken_rule() {
-        let error = roster_illegal_error(&[violation(7, RosterRule::VeteranOrRookieLimit)]);
+        let error = roster_illegal_error(&[violation(7, DomainRosterRule::VeteranOrRookieLimit)]);
         let extensions = error.extensions.expect("the error carries extensions");
 
         assert_eq!(extensions.get("code"), Some(&"ROSTER_ILLEGAL".into()));
@@ -186,7 +205,7 @@ mod tests {
 
     #[test]
     fn another_teams_violation_does_not_mark_this_team_illegal() {
-        let flags = TeamWeek::rule_legality_for_team(1, &[violation(2, RosterRule::IrSlots)]);
+        let flags = TeamWeek::rule_legality_for_team(1, &[violation(2, DomainRosterRule::IrSlots)]);
 
         assert!(flags.iter().all(|flag| flag.is_legal));
     }

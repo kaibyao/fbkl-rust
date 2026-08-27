@@ -1,4 +1,3 @@
-use async_graphql::Enum;
 use color_eyre::eyre::{Result, bail};
 use fbkl_constants::league_rules::{
     PRE_SEASON_CONTRACTS_PER_ROSTER_LIMIT,
@@ -21,7 +20,7 @@ use crate::roster::{SalarySnapshot, calculate_team_contract_salary};
 /// A roster rule that a team's roster can break at lock time.
 ///
 /// Kept per-rule so callers can show a legality flag for each rule instead of one pass/fail.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Enum)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum RosterRule {
     IrSlots,
     PreseasonRosterLimit,
