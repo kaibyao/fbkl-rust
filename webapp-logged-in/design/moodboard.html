@@ -278,6 +278,28 @@
     font-variant-numeric:tabular-nums lining-nums;line-height:1}
   .chart-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));gap:18px}
 
+  /* ---------------- live auction ---------------- */
+  /* One clock, three temperatures. Only the colour changes: the digits keep the same
+     tabular width and the same size, so nothing on the row moves as time runs out. */
+  .auc-clock{font-family:'Nunito Sans Variable',sans-serif;font-variant-numeric:tabular-nums lining-nums;
+    font-weight:900;font-size:2.6rem;line-height:1;letter-spacing:-0.02em}
+  .auc-clock.calm{color:var(--muted-fg)}     /* over an hour left · 6.74:1 on --card */
+  .auc-clock.warm{color:var(--fg)}           /* under an hour · 15.8:1 */
+  .auc-clock.hot{color:var(--primary-hot)}   /* under five minutes · 6.03:1 */
+  .auc-clock small{font-size:.75rem;font-weight:800;color:var(--muted-fg);letter-spacing:.12em;margin-left:8px}
+  /* A bid line reads avatar, manager, team, amount. The manager is never dropped for space. */
+  .bid-row{display:flex;align-items:center;gap:10px;padding:9px 0;border-bottom:1px solid var(--border);font-size:.85rem}
+  .bid-row:last-child{border-bottom:none}
+  .bid-row .amt{margin-left:auto;font-variant-numeric:tabular-nums lining-nums;font-weight:900;font-size:1rem}
+  .bid-row.beat{opacity:.65}
+  .bid-row.beat .amt{color:var(--muted-fg)}
+  .ava-sm{width:28px;height:28px;border-radius:8px;object-fit:cover;border:1px solid var(--border);flex:none}
+  /* Bid entry: what you are about to allocate sits next to what you have left, never alone. */
+  .bid-field{display:flex;align-items:center;gap:8px;background:var(--card-2);border:1px solid var(--border);
+    border-radius:var(--radius);padding:10px 12px}
+  .bid-field .cur{color:var(--muted-fg);font-weight:800}
+  .bid-field b{font-size:1.3rem;font-variant-numeric:tabular-nums lining-nums}
+
   /* ---------------- board → component mapping ---------------- */
   .scroll-x{overflow-x:auto}
   .map{width:100%;border-collapse:collapse;font-size:.88rem;min-width:560px}
@@ -1208,6 +1230,114 @@
   <p class="note">Ship as <code>&lt;Chart&gt;</code> (axis, baseline, band, readout, keyboard selection) and <code>&lt;Sparkline&gt;</code>, both feeding ron.12. The chart chrome (gridline, baseline, target line, band opacity, context hairline) lives in one place and is never picked per chart. Contrast figures here were computed against <code>--card</code>, not judged by eye, and the same sums have to be redone before any of this ships in light mode.</p>
 </section>
 
+<!-- ============ LIVE AUCTION ============ -->
+<section id="auction">
+  <span class="eyebrow">Live auction · the one screen that is allowed to feel hot</span>
+  <h2 style="margin:10px 0 6px">Four numbers, and the clock owns the orange</h2>
+  <p class="muted" style="margin:0 0 22px;max-width:64ch">Auctions are the loudest thing the backend does, and the board has never drawn one. A bidder needs four answers at a glance: how long is left, what the bid stands at, who put it there, and how much of my cap survives if I go over the top. Everything else on this screen is furniture. This is the home of <code>--primary-hot</code> and the live pulse: they mark time running out, and they are not allowed anywhere else on the screen.</p>
+  <div class="vg">
+
+    <!-- 1 · the auction card -->
+    <div class="card" style="grid-column:1/-1">
+      <div class="vg" style="gap:0">
+        <div class="pcard t-scrim" style="aspect-ratio:16/11;border:none;border-radius:0">
+          <img src="https://cdn.nba.com/manage/2025/12/wemby-vassell.jpg" alt="">
+          <div class="lbl" style="bottom:14px">
+            <span class="pill"><span class="live-dot"></span>Live</span>
+            <b style="font-size:1.5rem;margin-top:8px">Victor Wembanyama</b>
+            <span class="muted">C · free agent · opened by Dave · closes Sunday 8:00pm CT</span>
+          </div>
+        </div>
+        <div class="pad">
+          <h3 style="color:var(--muted-fg);font-size:.8rem">The four answers, in reading order</h3>
+          <div class="row" style="justify-content:space-between;align-items:flex-start;margin-top:14px;gap:18px;flex-wrap:wrap">
+            <div>
+              <div class="muted" style="font-size:.75rem;letter-spacing:.1em">TIME LEFT</div>
+              <div class="auc-clock hot">4:12<small>MIN</small></div>
+            </div>
+            <div style="text-align:right">
+              <div class="muted" style="font-size:.75rem;letter-spacing:.1em">CURRENT BID</div>
+              <div class="auc-clock warm">$24</div>
+            </div>
+          </div>
+          <div class="row" style="margin-top:16px;gap:10px">
+            <img class="ava-sm" src="https://cdn.nba.com/manage/2025/12/0GettyImages-2182344606-952x1176.jpg" alt="">
+            <div class="st-name"><b>Dave</b><span class="sub">Sicko Mode · 7:58pm</span></div>
+            <span class="tag">LEADING</span>
+          </div>
+          <div style="margin-top:18px">
+            <div class="row" style="justify-content:space-between;font-size:.78rem"><span class="muted">Your cap after a $25 bid</span><span class="num-tabular">$211 <span class="muted">/ $210</span></span></div>
+            <div class="capbar over" style="margin-top:6px"><i style="width:100%"></i></div>
+            <p class="muted" style="margin:8px 0 0;font-size:.78rem">Your cap remaining is <b class="num-tabular">$24</b>, so $24 is the highest bid you can place. A team cannot bid past its own cap, and the disabled button says which number stopped it.</p>
+          </div>
+          <div class="row" style="margin-top:14px;gap:10px;flex-wrap:wrap">
+            <div class="bid-field"><span class="cur">$</span><b>25</b></div>
+            <button class="btn btn-primary" disabled style="opacity:.5;cursor:not-allowed">Place bid</button>
+          </div>
+          <p class="muted" style="margin:8px 0 0;font-size:.78rem">$25 puts you $1 over the $210 in-season cap.</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- 2 · the clock -->
+    <div class="card pad">
+      <h3 style="color:var(--muted-fg);font-size:.8rem">The clock, and the three temperatures</h3>
+      <div class="row" style="justify-content:space-between;gap:14px;margin:14px 0;flex-wrap:wrap">
+        <div><div class="auc-clock calm" style="font-size:1.6rem">21:40<small>HRS</small></div><div class="muted" style="font-size:.72rem;margin-top:4px">Over an hour · zinc</div></div>
+        <div><div class="auc-clock warm" style="font-size:1.6rem">38:04<small>MIN</small></div><div class="muted" style="font-size:.72rem;margin-top:4px">Under an hour · white</div></div>
+        <div><div class="auc-clock hot" style="font-size:1.6rem">4:12<small>MIN</small></div><div class="muted" style="font-size:.72rem;margin-top:4px">Under five · hot orange</div></div>
+      </div>
+      <p class="muted" style="margin:0 0 10px">Colour is the only thing that changes. The digits keep one size and tabular widths, so the row never jumps while you are reading it. Only the last tier pulses, and the pulse is the same <code>.live-dot</code> the pill uses, so <code>prefers-reduced-motion</code> already turns it off.</p>
+      <p class="muted" style="margin:0"><b>What the clock counts to</b> comes from <code>config_settings.rs</code>, not from the design: a bid keeps an auction alive another 24 hours, in-season auctions all end Sunday 8:00pm CT, and a bid in the last hour pushes that end out 30 minutes. In the preseason crunch window a bid buys one hour, not 24. A clock that can move has to say so before it moves, so the card prints the closing time next to the pill.</p>
+    </div>
+
+    <!-- 3 · who is bidding -->
+    <div class="card pad">
+      <h3 style="color:var(--muted-fg);font-size:.8rem">Who is bidding</h3>
+      <div style="margin-top:12px">
+        <div class="bid-row">
+          <img class="ava-sm" src="https://cdn.nba.com/manage/2025/12/0GettyImages-2182344606-952x1176.jpg" alt="">
+          <div class="st-name"><b>Dave</b><span class="sub">Sicko Mode · 7:58pm</span></div>
+          <span class="amt">$24</span>
+        </div>
+        <div class="bid-row beat">
+          <img class="ava-sm" src="https://cdn.nba.com/manage/2025/12/0GettyImages-2220907031-941x1176.jpg" alt="">
+          <div class="st-name"><b>You</b><span class="sub">Bricklayers · 7:41pm</span></div>
+          <span class="amt">$21</span>
+        </div>
+        <div class="bid-row beat">
+          <img class="ava-sm" src="https://cdn.nba.com/manage/2025/12/wemby-vassell.jpg" alt="">
+          <div class="st-name"><b>Marcus</b><span class="sub">Rim Rattlers · 6:12pm</span></div>
+          <span class="amt">$18</span>
+        </div>
+      </div>
+      <p class="muted" style="margin:14px 0 0">A bid is a person, not an amount. Every line carries the manager's name and his team, because "outbid by Dave" is what makes anyone come back and bid again. Beaten bids stay on the list at 65% and keep their number: the history is the reason the price is where it is.</p>
+    </div>
+
+    <!-- 4 · the list -->
+    <div class="card pad" style="grid-column:1/-1">
+      <h3 style="color:var(--muted-fg);font-size:.8rem">The open-auctions list</h3>
+      <div style="margin-top:12px">
+        <div class="row" style="justify-content:space-between;padding:10px 0;border-bottom:1px solid var(--border);gap:12px">
+          <div class="row" style="flex:1;min-width:0"><img class="ava" src="https://cdn.nba.com/manage/2025/12/wemby-vassell.jpg" alt=""><div class="st-name"><b>V. Wembanyama</b><span class="sub">C · Dave leads</span></div></div>
+          <div class="row" style="gap:14px"><span class="num-tabular">$24</span><span class="auc-clock hot" style="font-size:1rem">4:12</span><span class="tag fa">OUTBID</span></div>
+        </div>
+        <div class="row" style="justify-content:space-between;padding:10px 0;border-bottom:1px solid var(--border);gap:12px">
+          <div class="row" style="flex:1;min-width:0"><img class="ava" src="https://cdn.nba.com/manage/2025/12/0GettyImages-2220907031-941x1176.jpg" alt=""><div class="st-name"><b>J. Poole</b><span class="sub">SG · you lead</span></div></div>
+          <div class="row" style="gap:14px"><span class="num-tabular">$6</span><span class="auc-clock calm" style="font-size:1rem">21:40</span><span class="tag">LEADING</span></div>
+        </div>
+        <div class="row" style="justify-content:space-between;padding:10px 0;gap:12px">
+          <div class="row" style="flex:1;min-width:0"><img class="ava" src="https://cdn.nba.com/manage/2025/12/0GettyImages-2182344606-952x1176.jpg" alt=""><div class="st-name"><b>A. Edwards</b><span class="sub">SG · no bids yet</span></div></div>
+          <div class="row" style="gap:14px"><span class="num-tabular">$1</span><span class="auc-clock calm" style="font-size:1rem">44:02</span><span class="tag">OPEN</span></div>
+        </div>
+      </div>
+      <p class="muted" style="margin:14px 0 0">The list is a roster row with a clock and a price bolted on, so it inherits the 44px avatar and the truncating name column. One orange clock at a time: the row closest to closing is hot, every other clock is zinc, and the standing of your own bid is a chip, not a colour. An auction with no bids yet prints the $1 opening floor rather than an empty cell.</p>
+    </div>
+
+  </div>
+  <p class="note">Bid amounts, the $210 in-season cap, the $1 opening floor and every window quoted here come from <code>constants/src/league_rules/config_settings.rs</code> and the league rules document. The screen never computes cap remaining itself: it reads <code>salaryCap.salaryUsed</code> from the server, which already subtracts IR and applies the 20% drop penalty.</p>
+</section>
+
 <!-- ============ BOARD → COMPONENT MAPPING ============ -->
 <section>
   <span class="eyebrow">Implementation · board class → shipped component</span>
@@ -1247,6 +1377,9 @@
         <tr><td><code>.tag.outline</code> · "Final yr"</td><td><code>&lt;Badge variant="outline"&gt;</code>, shown when <code>isFinalContractYear(contract)</code></td><td><span class="tag">Shipped</span></td></tr>
         <tr><td><code>.st-salary</code> · row salary</td><td><code>&lt;Typography variant="stat"&gt;</code>, muted when <code>contract.isIr</code></td><td><span class="tag">Shipped</span></td></tr>
         <tr><td><code>.capbar</code> · salary vs cap</td><td><code>&lt;CapBar salaryUsed salaryCap&gt;</code> on top of Progress — same component as <code>.bar</code>, feeds ron.12</td><td><span class="tag fa">To build</span></td></tr>
+        <tr><td><code>.auc-clock</code> · countdown, three temperatures</td><td><code>&lt;AuctionClock closesAt&gt;</code>: zinc over an hour, white under an hour, <code>--primary-hot</code> and pulsing under five minutes. Rules in <a href="#auction">Live auction</a></td><td><span class="tag fa">To build</span></td></tr>
+        <tr><td><code>.bid-row</code> · one bid, one manager</td><td><code>&lt;BidHistory bids&gt;</code>: avatar, manager, team, amount. Beaten bids stay at 65% and keep their number</td><td><span class="tag fa">To build</span></td></tr>
+        <tr><td><code>.bid-field</code> + disabled CTA</td><td><code>&lt;BidField max=capRemaining&gt;</code> — <code>&lt;Button disabled&gt;</code> plus the reason line, same pattern as every other blocked action</td><td><span class="tag fa">To build</span></td></tr>
         <tr><td><code>.st-name</code> · truncating name column</td><td><code>min-w-0 flex-1</code> wrapper + <code>truncate</code> + <code>title</code>. No component, it is a rule</td><td><span class="tag">Shipped</span></td></tr>
         <tr><td><code>.hlp-term</code> · tier 1, dotted abbreviation</td><td><code>&lt;TermTip label&gt;</code> — <code>.term-tip</code> span by default, <code>render</code> for a chip trigger. Glosses live in <code>lib/terms.ts</code></td><td><span class="tag">Shipped</span></td></tr>
         <tr><td><code>.hlp-expl</code> · tier 2, inline explainer</td><td><code>&lt;ExplainerNote action onDismiss&gt;</code> — the caller owns where "dismissed" is stored</td><td><span class="tag">Shipped</span></td></tr>
