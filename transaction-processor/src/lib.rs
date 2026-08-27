@@ -315,17 +315,30 @@ where
 {
     let ProcessableEvent {
         league_id,
+        end_of_season_year,
         subject_id,
         kind,
-        ..
     } = event;
     let now = chrono::Utc::now().fixed_offset();
     match kind {
         ProcessableEventKind::FaAuctionClose | ProcessableEventKind::FaExtensionExpiry => {
-            // The most recently passed deadline supplies the signed contract's effective date.
-            let deadline_model =
-                deadline_queries::find_most_recent_deadline_by_datetime(league_id, now, txn)
-                    .await?;
+            // A signing joins the week it lands in, i.e. the lock it is judged at (spec 08), the
+            // same deadline the owner-facing moves are stamped with. Only once no lock is left to
+            // fire does the deadline that already passed date the contract.
+            let deadline_model = match deadline_queries::find_upcoming_roster_lock(
+                league_id,
+                end_of_season_year,
+                now,
+                txn,
+            )
+            .await?
+            {
+                Some(upcoming_lock) => upcoming_lock,
+                None => {
+                    deadline_queries::find_most_recent_deadline_by_datetime(league_id, now, txn)
+                        .await?
+                }
+            };
             end_fa_auction(&deadline_model, subject_id, None, txn).await?;
             Ok(())
         }

@@ -108,6 +108,29 @@ where
     Ok(maybe_deadline_model)
 }
 
+/// The lock a roster move made at `datetime` counts towards: the season's next one still to fire.
+///
+/// Spec 08 files a move under the lock it will be judged at, not the deadline that already passed,
+/// so both the owner-facing mutations and server-side processing (an auction close) bucket their
+/// transaction with this deadline. `None` once the season has no lock left to fire.
+#[instrument(skip(db))]
+pub async fn find_upcoming_roster_lock<C>(
+    league_id: i64,
+    end_of_season_year: i16,
+    datetime: DateTimeWithTimeZone,
+    db: &C,
+) -> Result<Option<deadline::Model>>
+where
+    C: ConnectionTrait,
+{
+    let deadlines =
+        find_sorted_deadlines_for_league_season(league_id, end_of_season_year, db).await?;
+
+    Ok(deadlines
+        .into_iter()
+        .find(|candidate| candidate.date_time >= datetime && candidate.is_roster_lock()))
+}
+
 /// Finds deadlines (across all leagues) that are due at or before `now` and have no `Succeeded` job run.
 ///
 /// I.e. work the scheduler still needs to dispatch. Ordered oldest

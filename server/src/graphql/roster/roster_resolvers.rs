@@ -12,7 +12,7 @@ use fbkl_entity::{
     contract,
     contract_queries::{find_active_contracts_for_team, find_contract_by_id},
     deadline,
-    deadline_queries::{find_deadline_by_id, find_sorted_deadlines_for_league_season},
+    deadline_queries::{find_deadline_by_id, find_upcoming_roster_lock},
     sea_orm::{ConnectionTrait, DatabaseConnection, DatabaseTransaction, TransactionTrait},
     team_queries::find_team_by_id_in_league,
     team_update::TeamUpdateStatus,
@@ -348,16 +348,15 @@ where
 {
     let deadline_model = resolve_roster_lock(deadline_id, league_id, db).await?;
 
-    let now = Utc::now().fixed_offset();
-    let season_deadlines =
-        find_sorted_deadlines_for_league_season(league_id, deadline_model.end_of_season_year, db)
-            .await
-            .map_err(|err| internal("failed to load the league's deadlines", &err))?;
-    let upcoming_lock_id = season_deadlines
-        .iter()
-        .find(|candidate| candidate.date_time >= now && candidate.is_roster_lock())
-        .map(|lock| lock.id);
-    if upcoming_lock_id != Some(deadline_id) {
+    let upcoming_lock = find_upcoming_roster_lock(
+        league_id,
+        deadline_model.end_of_season_year,
+        Utc::now().fixed_offset(),
+        db,
+    )
+    .await
+    .map_err(|err| internal("failed to load the league's deadlines", &err))?;
+    if upcoming_lock.map(|lock| lock.id) != Some(deadline_id) {
         return Err(graphql_error(
             ErrorCode::BadRequest,
             "roster moves count towards the upcoming roster lock, and this is not it".to_owned(),
