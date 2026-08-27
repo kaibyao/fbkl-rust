@@ -14,7 +14,9 @@ use lambda_http::{Error, run, tracing};
 
 #[tokio::main]
 async fn main() -> Result<(), Error> {
-    // JSON, no ANSI — CloudWatch-friendly structured logs.
+    // Emits JSON when Lambda sets AWS_LAMBDA_LOG_FORMAT=JSON, which the
+    // function's `logging_config` block in infra/lambdas.tf turns on. Text
+    // format falls back to the ANSI-colored tracing formatter.
     tracing::init_default_subscriber();
 
     let db = db().await?.clone();

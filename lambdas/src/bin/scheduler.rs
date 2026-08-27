@@ -13,16 +13,22 @@ use serde_json::Value;
 
 #[tokio::main]
 async fn main() -> Result<(), Error> {
-    // JSON, no ANSI — CloudWatch-friendly structured logs.
+    // Emits JSON when Lambda sets AWS_LAMBDA_LOG_FORMAT=JSON, which the
+    // function's `logging_config` block in infra/lambdas.tf turns on. Text
+    // format falls back to the ANSI-colored tracing formatter.
     tracing::init_default_subscriber();
     run(service_fn(handler)).await
 }
 
 async fn handler(_event: LambdaEvent<Value>) -> Result<(), Error> {
     let db = db().await?;
-    let summary = run_scheduler_tick(db)
-        .await
-        .map_err(|tick_error| format!("scheduler tick failed: {tick_error:?}"))?;
+    // color_eyre's Report is not a std::error::Error, so it cannot become a
+    // lambda_runtime::Error directly. The runtime logs whatever we return, so the
+    // detail goes in the structured event and the returned error stays short.
+    let summary = run_scheduler_tick(db).await.map_err(|tick_error| {
+        tracing::error!(error = ?tick_error, "scheduler tick failed");
+        "scheduler tick failed"
+    })?;
 
     tracing::info!(
         processed = summary.processed,

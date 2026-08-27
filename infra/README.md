@@ -51,13 +51,13 @@ tofu apply
 Apply needs these inputs (pass via env, never commit — keep in `infra/secrets.env`):
 
 ```bash
-export TF_VAR_supabase_database_url='postgresql://…pooler.supabase.com:6543/postgres'  # Supabase TRANSACTION pooler → Lambda FBKL_DATABASE_URL
+export TF_VAR_supabase_database_url='postgresql://…pooler.supabase.com:5432/postgres'  # Supabase SESSION pooler → Lambda FBKL_DATABASE_URL
 export CLOUDFLARE_API_TOKEN='…'                    # Account · Cloudflare Pages · Edit
 export TF_VAR_cloudflare_account_id='…'            # not secret; dashboard sidebar
 ```
 
 The DB lives on Supabase (created in the Supabase dashboard, not managed here);
-its transaction-pooler URL is passed in via `TF_VAR_supabase_database_url`. The
+its session-pooler URL is passed in via `TF_VAR_supabase_database_url`. The
 session secret and SPA origin are NOT inputs — `secrets.tf` generates a stable
 session secret, and the API CORS origin is sourced from the logged-in app's
 Pages subdomain.
