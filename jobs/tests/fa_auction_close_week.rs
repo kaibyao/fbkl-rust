@@ -113,3 +113,73 @@ async fn deadline_id(league: &TestLeague, kind: DeadlineKind) -> i64 {
     .expect("find deadline")
     .id
 }
+
+/// Weekly locks run through the playoff weeks to `SeasonEnd`, and rules §12.3 stop auctions once
+/// the first playoff week starts, so a close with no lock left to fire is a broken season: it must
+/// fail loudly instead of dating the signing with a week that has already been locked.
+#[tokio::test]
+async fn an_auction_close_with_no_lock_left_fails_instead_of_joining_a_settled_week() {
+    let Some(league) = TestLeague::create("fa_auction_close_no_lock", END_OF_SEASON_YEAR).await
+    else {
+        return;
+    };
+    league
+        .add_deadline(DeadlineKind::Week1RosterLock, central(PASSED_LOCK))
+        .await;
+    league
+        .add_deadline(DeadlineKind::FreeAgentAuctionEnd, central(PASSED_LOCK))
+        .await;
+
+    let bidder = league.add_team_user(LeagueRole::TeamOwner).await;
+    let player_id = league.add_veteran_player("Late Waiver Vet").await;
+    let pooled_contract = league
+        .add_unowned_contract(
+            player_id,
+            ContractKind::UnrestrictedFreeAgentVeteran,
+            WINNING_BID,
+        )
+        .await;
+    let auction = start_new_auction_for_nba_player(
+        &pooled_contract,
+        league.league_id,
+        END_OF_SEASON_YEAR,
+        central(PASSED_LOCK),
+        AuctionKind::InSeasonFreeAgent,
+        WINNING_BID,
+        &league.db,
+    )
+    .await
+    .expect("start the in-season FA auction");
+    auction_queries::insert_auction_bid(auction.id, bidder.id, WINNING_BID, None, &league.db)
+        .await
+        .expect("insert the winning bid");
+
+    let outcome = process_event(
+        &league.db,
+        ProcessableEvent {
+            league_id: league.league_id,
+            end_of_season_year: END_OF_SEASON_YEAR,
+            subject_id: auction.id,
+            kind: ProcessableEventKind::FaAuctionClose,
+        },
+    )
+    .await
+    .expect("run the auction close");
+    let ProcessOutcome::Failed { error, .. } = &outcome else {
+        panic!("expected the close to fail: {outcome:?}");
+    };
+    assert!(
+        error.contains("no roster lock is still to fire"),
+        "the failure should name the missing lock: {error}"
+    );
+
+    let passed_lock_id = deadline_id(&league, DeadlineKind::Week1RosterLock).await;
+    let settled_week =
+        find_team_updates_by_team(league.team_id, None, Some(passed_lock_id), &league.db)
+            .await
+            .expect("read the settled week's moves");
+    assert!(
+        settled_week.is_empty(),
+        "a settled week should not gain the signing: {settled_week:?}"
+    );
+}

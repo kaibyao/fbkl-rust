@@ -323,22 +323,22 @@ where
     match kind {
         ProcessableEventKind::FaAuctionClose | ProcessableEventKind::FaExtensionExpiry => {
             // A signing joins the week it lands in, i.e. the lock it is judged at (spec 08), the
-            // same deadline the owner-facing moves are stamped with. Only once no lock is left to
-            // fire does the deadline that already passed date the contract.
-            let deadline_model = match deadline_queries::find_upcoming_roster_lock(
+            // same deadline the owner-facing moves are stamped with. Weekly locks run through the
+            // playoff weeks to `SeasonEnd`, and no auction may close after the first playoff lock
+            // anyway, so no lock left means the season's deadlines are wrong: refuse rather than
+            // date the signing with a week that is already settled.
+            let deadline_model = deadline_queries::find_upcoming_roster_lock(
                 league_id,
                 end_of_season_year,
                 now,
                 txn,
             )
             .await?
-            {
-                Some(upcoming_lock) => upcoming_lock,
-                None => {
-                    deadline_queries::find_most_recent_deadline_by_datetime(league_id, now, txn)
-                        .await?
-                }
-            };
+            .ok_or_else(|| {
+                eyre!(
+                    "Cannot close an auction for league (id = {league_id}) season {end_of_season_year} at {now}: no roster lock is still to fire, so the signing has no week to join."
+                )
+            })?;
             end_fa_auction(&deadline_model, subject_id, None, txn).await?;
             Ok(())
         }

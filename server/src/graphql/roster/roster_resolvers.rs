@@ -357,14 +357,22 @@ where
     )
     .await
     .map_err(|err| internal("failed to load the league's deadlines", &err))?;
-    if upcoming_lock.map(|lock| lock.id) != Some(deadline_id) {
-        return Err(graphql_error(
+    match upcoming_lock {
+        // In-roster moves stay legal through the playoff weeks, so weekly locks run to `SeasonEnd`
+        // and a season with none left to fire is missing deadline rows rather than closed for moves.
+        None => Err(graphql_error(
+            ErrorCode::BadRequest,
+            "this league season has no roster lock still to fire, so a move has no week to be \
+             judged in; weekly locks run through the playoff weeks to the end of the season, so \
+             ask the commissioner to add the season's missing lock deadlines"
+                .to_owned(),
+        )),
+        Some(lock) if lock.id != deadline_id => Err(graphql_error(
             ErrorCode::BadRequest,
             "roster moves count towards the upcoming roster lock, and this is not it".to_owned(),
-        ));
+        )),
+        Some(_) => Ok(deadline_model),
     }
-
-    Ok(deadline_model)
 }
 
 /// A move a league rule refuses is the caller's fault and keeps the rule message; the rest is ours.
