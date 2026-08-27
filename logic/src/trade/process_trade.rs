@@ -117,17 +117,19 @@ pub async fn process_trade<C>(
 where
     C: ConnectionTrait,
 {
-    let next_deadline = deadline_queries::find_next_deadline_for_season_by_datetime(
+    // Spec 08: an add joins the week it will be judged in, so the trade files under the lock still
+    // to fire - not the next deadline of any kind, which can sit before that lock and drop the add
+    // out of its own week (rules 8.3.7, 10.3.1).
+    let upcoming_lock = deadline_queries::find_upcoming_roster_lock(
         trade_model.league_id,
         trade_model.end_of_season_year,
         *trade_datetime,
-        None,
         db,
     )
     .await?
     .ok_or_else(|| {
         eyre!(
-            "Could not find a deadline for league (id = {}) season {} after {trade_datetime}.",
+            "Cannot process a trade for league (id = {}) season {}: no roster lock is still to fire after {trade_datetime}.",
             trade_model.league_id,
             trade_model.end_of_season_year
         )
@@ -153,7 +155,7 @@ where
             .get_vec(team_id)
             .unwrap_or(EMPTY_VEC);
         let team_salary_and_cap =
-            calculate_team_contract_salary(*team_id, team_active_contracts, &next_deadline, db)
+            calculate_team_contract_salary(*team_id, team_active_contracts, &upcoming_lock, db)
                 .await?;
         team_salaries_before_trade.insert(*team_id, team_salary_and_cap);
     }
@@ -164,7 +166,7 @@ where
 
     // create transaction
     let trade_transaction =
-        transaction_queries::insert_trade_transaction(&next_deadline, updated_trade.id, db).await?;
+        transaction_queries::insert_trade_transaction(&upcoming_lock, updated_trade.id, db).await?;
 
     // Create team_update
     let trade_asset_contracts: Vec<(trade_asset::Model, contract::Model)> =
@@ -197,7 +199,7 @@ where
         team_update_assets_by_team_id,
         trade_datetime,
         &trade_transaction,
-        &next_deadline,
+        &upcoming_lock,
         &team_salaries_before_trade,
         all_team_ids.into_iter().collect(),
         db,
