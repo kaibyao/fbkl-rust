@@ -12,10 +12,7 @@ use fbkl_entity::{
     contract,
     contract_queries::{find_active_contracts_for_team, find_contract_by_id},
     deadline,
-    deadline_queries::{
-        find_deadline_by_id, find_most_recent_deadline_by_datetime,
-        find_sorted_deadlines_for_league_season,
-    },
+    deadline_queries::{find_deadline_by_id, find_sorted_deadlines_for_league_season},
     sea_orm::{ConnectionTrait, DatabaseConnection, DatabaseTransaction, TransactionTrait},
     team_queries::find_team_by_id_in_league,
     team_update::TeamUpdateStatus,
@@ -45,8 +42,13 @@ pub struct RosterMutation;
 #[Object]
 impl RosterMutation {
     #[graphql(guard = "LeagueRoleGuard(RoleRequirement::Member)")]
-    async fn move_contract_to_ir(&self, ctx: &Context<'_>, contract_id: i64) -> Result<Contract> {
-        roster_op(ctx, contract_id, move_contract_to_ir).await
+    async fn move_contract_to_ir(
+        &self,
+        ctx: &Context<'_>,
+        contract_id: i64,
+        deadline_id: i64,
+    ) -> Result<Contract> {
+        roster_op(ctx, contract_id, deadline_id, move_contract_to_ir).await
     }
 
     #[graphql(guard = "LeagueRoleGuard(RoleRequirement::Member)")]
@@ -54,13 +56,19 @@ impl RosterMutation {
         &self,
         ctx: &Context<'_>,
         contract_id: i64,
+        deadline_id: i64,
     ) -> Result<Contract> {
-        roster_op(ctx, contract_id, activate_contract_from_ir).await
+        roster_op(ctx, contract_id, deadline_id, activate_contract_from_ir).await
     }
 
     #[graphql(guard = "LeagueRoleGuard(RoleRequirement::Member)")]
-    async fn drop_contract(&self, ctx: &Context<'_>, contract_id: i64) -> Result<Contract> {
-        roster_op(ctx, contract_id, drop_contract_from_team).await
+    async fn drop_contract(
+        &self,
+        ctx: &Context<'_>,
+        contract_id: i64,
+        deadline_id: i64,
+    ) -> Result<Contract> {
+        roster_op(ctx, contract_id, deadline_id, drop_contract_from_team).await
     }
 
     #[graphql(guard = "LeagueRoleGuard(RoleRequirement::Member)")]
@@ -68,8 +76,15 @@ impl RosterMutation {
         &self,
         ctx: &Context<'_>,
         contract_id: i64,
+        deadline_id: i64,
     ) -> Result<Contract> {
-        roster_op(ctx, contract_id, activate_rookie_development_contract).await
+        roster_op(
+            ctx,
+            contract_id,
+            deadline_id,
+            activate_rookie_development_contract,
+        )
+        .await
     }
 
     #[graphql(guard = "LeagueRoleGuard(RoleRequirement::Member)")]
@@ -77,10 +92,12 @@ impl RosterMutation {
         &self,
         ctx: &Context<'_>,
         contract_id: i64,
+        deadline_id: i64,
     ) -> Result<Contract> {
         roster_op(
             ctx,
             contract_id,
+            deadline_id,
             move_rookie_development_contract_to_international,
         )
         .await
@@ -91,10 +108,12 @@ impl RosterMutation {
         &self,
         ctx: &Context<'_>,
         contract_id: i64,
+        deadline_id: i64,
     ) -> Result<Contract> {
         roster_op(
             ctx,
             contract_id,
+            deadline_id,
             move_rookie_development_international_contract_to_stateside,
         )
         .await
@@ -235,7 +254,16 @@ impl RosterMutation {
 ///
 /// Ownership is re-derived from the stored contract, never from the request. Each logic fn writes a
 /// contract row, a transaction, and a team update, so they share one database transaction.
-async fn roster_op<F>(ctx: &Context<'_>, contract_id: i64, op: F) -> Result<Contract>
+///
+/// `deadline_id` names the lock the move counts towards, the same argument `legalize_roster` takes
+/// and validated the same way: a single move and a batched one have to agree on which week they
+/// belong to, or the same-week guards and the limits read a different period for each.
+async fn roster_op<F>(
+    ctx: &Context<'_>,
+    contract_id: i64,
+    deadline_id: i64,
+    op: F,
+) -> Result<Contract>
 where
     F: AsyncFnOnce(
         contract::Model,
@@ -257,9 +285,7 @@ where
     }
 
     let deadline_model =
-        find_most_recent_deadline_by_datetime(caller_team.league_id, Utc::now().fixed_offset(), db)
-            .await
-            .map_err(|err| internal("failed to resolve the current deadline", &err))?;
+        resolve_upcoming_roster_lock(deadline_id, caller_team.league_id, db).await?;
 
     let db_txn = db
         .begin()

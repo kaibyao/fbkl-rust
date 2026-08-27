@@ -5,6 +5,9 @@
 //! Naming the deadline is not choosing it, though: only the upcoming roster lock is a legal
 //! argument, so a passed lock, a keeper deadline or a post-season kind cannot be named to run the
 //! batch under another period's rules.
+//!
+//! The single-move mutations take the same argument and validate it the same way: one move and a
+//! batched one have to agree on which week they belong to.
 
 use std::sync::Arc;
 
@@ -16,6 +19,7 @@ use fbkl_entity::{
     deadline::{self, DeadlineKind},
     deadline_queries, league,
     sea_orm::{ActiveValue, EntityTrait},
+    team_update_queries,
     team_user::LeagueRole,
 };
 use fbkl_server::{AppSchema, build_graphql_schema};
@@ -185,6 +189,79 @@ async fn only_the_upcoming_roster_lock_is_a_legal_argument() {
         accepted.is_ok(),
         "expected the batch to apply: {accepted:?}"
     );
+}
+
+/// A single move used to read the clock, so in the window before a lock fires it ran under the
+/// previous week's rules and filed itself under the previous week. It names its lock now, and the
+/// row it writes is stamped with that lock, which is what the week filter reads back.
+#[tokio::test]
+async fn a_single_move_counts_towards_the_named_upcoming_lock() {
+    let Some(league) = TestLeague::create("single_move_deadline", END_OF_SEASON_YEAR).await else {
+        return;
+    };
+    // The last passed deadline is a settled week's lock, so reading the clock names the wrong one.
+    league
+        .add_deadline(
+            DeadlineKind::Week1RosterLock,
+            central("2025-10-20T18:00:00"),
+        )
+        .await;
+    let upcoming_lock = Utc::now()
+        .checked_add_days(Days::new(7))
+        .expect("7 days from now")
+        .fixed_offset();
+    league
+        .add_deadline(DeadlineKind::PreseasonFinalRosterLock, upcoming_lock)
+        .await;
+    let owner = league.add_team_user(LeagueRole::TeamOwner).await;
+
+    let contracts = add_roster_contracts(&league, 1).await;
+    let to_ir = contracts[0].id;
+    let schema = build_graphql_schema(league.db.clone());
+    let session = session_for(owner.user_id, league.league_id).await;
+
+    let settled_id = deadline_id(&league, DeadlineKind::Week1RosterLock).await;
+    let settled = move_to_ir(to_ir, settled_id);
+    assert_eq!(
+        run(&schema, &settled, &session).await,
+        Err("BAD_REQUEST".to_owned()),
+        "a settled week's lock should be rejected"
+    );
+    assert_eq!(
+        message(&schema, &settled, &session).await,
+        "roster moves count towards the upcoming roster lock, and this is not it"
+    );
+    assert_eq!(
+        ir_contract_count(&league).await,
+        0,
+        "the rejected call should not have applied its move"
+    );
+
+    let lock_id = deadline_id(&league, DeadlineKind::PreseasonFinalRosterLock).await;
+    let accepted = run(&schema, &move_to_ir(to_ir, lock_id), &session).await;
+    assert!(accepted.is_ok(), "expected the move to apply: {accepted:?}");
+    assert_eq!(ir_contract_count(&league).await, 1);
+
+    // The week filter reads the transaction's deadline, so the move has to be filed under the lock.
+    let filed_under_lock = team_update_queries::find_team_updates_by_team(
+        league.team_id,
+        None,
+        Some(lock_id),
+        &league.db,
+    )
+    .await
+    .expect("load the week's moves");
+    assert_eq!(
+        filed_under_lock.len(),
+        1,
+        "the move should be filed under the lock it named: {filed_under_lock:?}"
+    );
+}
+
+fn move_to_ir(contract_id: i64, deadline_id: i64) -> String {
+    format!(
+        "mutation {{ moveContractToIr(contractId: {contract_id}, deadlineId: {deadline_id}) {{ id }} }}"
+    )
 }
 
 fn legalize(team_id: i64, deadline_id: i64, moves: &str) -> String {
