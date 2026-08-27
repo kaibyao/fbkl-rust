@@ -16,11 +16,15 @@ static DB: OnceCell<DatabaseConnection> = OnceCell::const_new();
 /// Return the shared `SeaORM` connection, initializing the pool on first call and
 /// reusing it across warm invocations within the same execution environment.
 ///
-/// `FBKL_DATABASE_URL` MUST point at Supabase's TRANSACTION pooler (port 6543,
-/// Supavisor) at runtime. Bypassing the pooler (direct endpoint) risks
-/// `FATAL: too many connections` with no queue. The pool is deliberately tiny
-/// (one connection per execution env) so that Lambda reserved concurrency bounds
-/// the worst-case number of client connections to the pooler.
+/// `FBKL_DATABASE_URL` MUST point at Supabase's SESSION pooler (port 5432,
+/// Supavisor) at runtime. The transaction pooler (6543) hands successive
+/// transactions to different Postgres backends, and sqlx names its prepared
+/// statements `sqlx_s_N` counting from 1 per client connection — two execution
+/// environments then send the same name for different SQL and the backend
+/// rejects it with `prepared statement "sqlx_s_N" already exists`. Session mode
+/// pins one backend per client connection, so the names stay unique. The pool is
+/// deliberately tiny (one connection per execution env) so that Lambda reserved
+/// concurrency bounds the worst-case number of backends held.
 pub async fn db() -> Result<&'static DatabaseConnection, DbErr> {
     DB.get_or_try_init(init_db).await
 }
@@ -30,7 +34,9 @@ async fn init_db() -> Result<DatabaseConnection, DbErr> {
     opts.max_connections(1)
         .min_connections(0)
         .acquire_timeout(Duration::from_secs(8))
-        .idle_timeout(Duration::from_mins(5))
+        // Short, because a session-mode backend is held for the connection's life
+        // and the pooler only has 15: an idle warm env must give its slot back fast.
+        .idle_timeout(Duration::from_secs(60))
         .max_lifetime(Duration::from_mins(10))
         .sqlx_logging(false);
     Database::connect(opts).await

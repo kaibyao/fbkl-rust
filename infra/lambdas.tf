@@ -44,7 +44,12 @@ locals {
   lambda_runtime      = "provided.al2023"
   lambda_architecture = "arm64"
 
-  # FBKL_DATABASE_URL must be the Supabase TRANSACTION pooler (6543) for every Lambda.
+  # FBKL_DATABASE_URL must be the Supabase SESSION pooler (5432) for every Lambda.
+  # The transaction pooler (6543) multiplexes client connections onto shared
+  # backends, and sqlx names prepared statements sqlx_s_N counting from 1 per
+  # client connection — two execution envs collide on the same name for
+  # different SQL and Postgres rejects the PARSE. Session mode pins one backend
+  # per client connection, so the names stay unique.
   worker_env = {
     FBKL_DATABASE_URL = var.supabase_database_url
   }
@@ -73,6 +78,15 @@ resource "aws_lambda_function" "api" {
 
   environment {
     variables = local.api_env
+  }
+
+  # lambda_runtime's default tracing subscriber reads AWS_LAMBDA_LOG_FORMAT /
+  # AWS_LAMBDA_LOG_LEVEL, which Lambda injects from this block. Without it the
+  # format is Text and the subscriber writes ANSI color escapes into CloudWatch.
+  logging_config {
+    log_format            = "JSON"
+    application_log_level = "INFO"
+    system_log_level      = "INFO"
   }
 }
 
@@ -103,6 +117,15 @@ resource "aws_lambda_function" "scheduler" {
   environment {
     variables = local.worker_env
   }
+
+  # lambda_runtime's default tracing subscriber reads AWS_LAMBDA_LOG_FORMAT /
+  # AWS_LAMBDA_LOG_LEVEL, which Lambda injects from this block. Without it the
+  # format is Text and the subscriber writes ANSI color escapes into CloudWatch.
+  logging_config {
+    log_format            = "JSON"
+    application_log_level = "INFO"
+    system_log_level      = "INFO"
+  }
 }
 
 # --- fbkl-session-gc (96e.5) --------------------------------------------------
@@ -124,6 +147,15 @@ resource "aws_lambda_function" "session_gc" {
 
   environment {
     variables = local.worker_env
+  }
+
+  # lambda_runtime's default tracing subscriber reads AWS_LAMBDA_LOG_FORMAT /
+  # AWS_LAMBDA_LOG_LEVEL, which Lambda injects from this block. Without it the
+  # format is Text and the subscriber writes ANSI color escapes into CloudWatch.
+  logging_config {
+    log_format            = "JSON"
+    application_log_level = "INFO"
+    system_log_level      = "INFO"
   }
 }
 
