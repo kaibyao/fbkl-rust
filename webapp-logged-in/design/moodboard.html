@@ -59,7 +59,7 @@
   /* ---------------- HERO ---------------- */
   .hero{position:relative;min-height:88vh;display:flex;align-items:flex-end;overflow:hidden}
   .hero-img{position:absolute;inset:0;background:var(--card);
-    background-image:url('https://cdn.nba.com/manage/2025/12/Kawhi_1920x1080.jpg');
+    background-image:url('assets/nba/Kawhi_1920x1080.jpg');
     background-size:cover;background-position:center 22%;
     filter:saturate(1.05) contrast(1.05)}
   /* Signature treatment: dark zinc scrim from bottom + a hot-orange light-leak from one corner */
@@ -420,34 +420,34 @@
   <p class="muted" style="margin:0 0 22px;max-width:64ch">Photos are the excitement engine — but raw photos fight the UI. Every image runs through one of four treatments so it always lands on a dark zinc base and the orange stays the loudest thing on screen. (Live photos pulled from NBA.com Top-25 of 2025.)</p>
   <div class="treat">
     <div class="pcard t-scrim">
-      <img src="https://cdn.nba.com/manage/2025/12/GettyImages-2219089020-1024x1536.jpg" alt="">
+      <img src="assets/nba/GettyImages-2219089020-1024x1536.jpg" alt="">
       <div class="lbl"><b>A · Zinc Scrim</b><span class="muted">Workhorse. Player & roster cards. Text stays legible.</span></div>
     </div>
     <div class="pcard t-duo">
-      <img src="https://cdn.nba.com/manage/2025/12/GettyImages-2220888872-1024x1536.jpg" alt="">
+      <img src="assets/nba/GettyImages-2220888872-1024x1536.jpg" alt="">
       <div class="over"></div>
       <div class="lbl"><b>B · Orange Duotone</b><span class="muted">Hype / empty-states / marketing beats.</span></div>
     </div>
     <div class="pcard t-spot">
-      <img src="https://cdn.nba.com/manage/2025/12/0GettyImages-2220907031-941x1176.jpg" alt="">
+      <img src="assets/nba/0GettyImages-2220907031-941x1176.jpg" alt="">
       <div class="lbl"><b>C · Spotlight</b><span class="muted">"Player of the week" — radial focus, dim edges.</span></div>
     </div>
     <div class="pcard t-cool">
-      <img src="https://cdn.nba.com/manage/2025/12/0GettyImages-2182344606-952x1176.jpg" alt="">
+      <img src="assets/nba/0GettyImages-2182344606-952x1176.jpg" alt="">
       <div class="lbl"><b>D · Cool / Analytical</b><span class="muted">Data-heavy screens — desaturated, blue cast, recedes.</span></div>
     </div>
   </div>
 
   <h3 style="margin:34px 0 12px;color:var(--muted-fg)">Hero / matchup strip — landscape moments</h3>
   <div class="strip">
-    <div class="pcard t-scrim"><img src="https://cdn.nba.com/manage/2025/12/jokic3-2.jpg" alt=""></div>
-    <div class="pcard t-scrim"><img src="https://cdn.nba.com/manage/2025/12/13_Photos-of-the-Year-1536x1024.jpg" alt=""></div>
-    <div class="pcard t-scrim"><img src="https://cdn.nba.com/manage/2025/12/77_Photos-of-the-Year-1536x1024.jpg" alt=""></div>
-    <div class="pcard t-scrim"><img src="https://cdn.nba.com/manage/2025/12/95_Photos-of-the-Year-1536x1024.jpg" alt=""></div>
-    <div class="pcard t-scrim"><img src="https://cdn.nba.com/manage/2025/12/wemby-vassell.jpg" alt=""></div>
-    <div class="pcard t-scrim"><img src="https://cdn.nba.com/manage/2025/12/GettyImages-2211632004-1536x1024.jpg" alt=""></div>
+    <div class="pcard t-scrim"><img src="assets/nba/jokic3-2.jpg" alt=""></div>
+    <div class="pcard t-scrim"><img src="assets/nba/13_Photos-of-the-Year-1536x1024.jpg" alt=""></div>
+    <div class="pcard t-scrim"><img src="assets/nba/77_Photos-of-the-Year-1536x1024.jpg" alt=""></div>
+    <div class="pcard t-scrim"><img src="assets/nba/95_Photos-of-the-Year-1536x1024.jpg" alt=""></div>
+    <div class="pcard t-scrim"><img src="assets/nba/wemby-vassell.jpg" alt=""></div>
+    <div class="pcard t-scrim"><img src="assets/nba/GettyImages-2211632004-1536x1024.jpg" alt=""></div>
   </div>
-  <p class="note">Production note: serve via your own CDN with team-licensed/Getty-licensed assets + headshot API; these URLs are reference only. Always ship a zinc fallback block so a missing photo degrades gracefully.</p>
+  <p class="note">Production note: the board now loads local copies from <code>design/assets/nba/</code>, downloaded from cdn.nba.com so the board stops breaking when those URLs move. They are reference only and are not cleared for production. Shipping still needs team-licensed or Getty-licensed assets plus a headshot API, served from your own CDN. Always ship a zinc fallback block so a missing photo degrades gracefully.</p>
 </section>
 
 <!-- ============ UI VIGNETTES — the 5 jobs ============ -->
@@ -459,7 +459,7 @@
     <!-- 1. Recognize your players -->
     <div class="card">
       <div class="pcard t-scrim" style="aspect-ratio:16/10;border:none;border-radius:0">
-        <img src="https://cdn.nba.com/manage/2025/12/Kawhi_1920x1080.jpg" alt="">
+        <img src="assets/nba/Kawhi_1920x1080.jpg" alt="">
         <div class="lbl" style="bottom:14px">
           <span class="tag" style="background:color-mix(in oklch,var(--primary) 25%,transparent);color:var(--primary-fg)">SF · YOUR STARTER</span>
           <b style="font-size:1.4rem;margin-top:4px">Kawhi Leonard</b>
@@ -496,11 +496,11 @@
       <h3 style="color:var(--muted-fg);font-size:.8rem">3 · Plan your roster, week by week</h3>
       <div style="margin-top:12px">
         <div class="row" style="justify-content:space-between;padding:9px 0;border-bottom:1px solid var(--border)">
-          <div class="row"><img class="ava" src="https://cdn.nba.com/manage/2025/12/0GettyImages-2182344606-952x1176.jpg" alt="A. Edwards"><div><b>A. Edwards</b><div class="muted" style="font-size:.75rem">SG · 4 games</div></div></div>
+          <div class="row"><img class="ava" src="assets/nba/0GettyImages-2182344606-952x1176.jpg" alt="A. Edwards"><div><b>A. Edwards</b><div class="muted" style="font-size:.75rem">SG · 4 games</div></div></div>
           <span class="tag" style="background:color-mix(in oklch,var(--win) 20%,transparent);color:var(--fg)">START</span>
         </div>
         <div class="row" style="justify-content:space-between;padding:9px 0;border-bottom:1px solid var(--border)">
-          <div class="row"><img class="ava" src="https://cdn.nba.com/manage/2025/12/wemby-vassell.jpg" alt="V. Wembanyama"><div><b>V. Wembanyama</b><div class="muted" style="font-size:.75rem">C · 3 games · GTD</div></div></div>
+          <div class="row"><img class="ava" src="assets/nba/wemby-vassell.jpg" alt="V. Wembanyama"><div><b>V. Wembanyama</b><div class="muted" style="font-size:.75rem">C · 3 games · GTD</div></div></div>
           <span class="tag">BENCH</span>
         </div>
       </div>
@@ -511,7 +511,7 @@
     <div class="card pad">
       <h3 style="color:var(--muted-fg);font-size:.8rem">4 · Scout & sign free agents</h3>
       <div class="row" style="justify-content:space-between;margin-top:12px">
-        <div class="row"><img class="ava" src="https://cdn.nba.com/manage/2025/12/0GettyImages-2220907031-941x1176.jpg" alt=""><div><b>Free Agent</b><span class="tag fa" style="margin-left:6px">AVAILABLE</span><div class="muted" style="font-size:.75rem;margin-top:2px">trending ↑ last 7d</div></div></div>
+        <div class="row"><img class="ava" src="assets/nba/0GettyImages-2220907031-941x1176.jpg" alt=""><div><b>Free Agent</b><span class="tag fa" style="margin-left:6px">AVAILABLE</span><div class="muted" style="font-size:.75rem;margin-top:2px">trending ↑ last 7d</div></div></div>
         <button class="btn btn-primary">+ Sign</button>
       </div>
       <div style="margin-top:16px">
@@ -534,12 +534,12 @@
       <div class="vg" style="margin-top:14px;align-items:center">
         <div>
           <div class="muted" style="font-size:.72rem;letter-spacing:.1em">YOU GIVE</div>
-          <div class="row" style="margin-top:8px"><img class="ava" src="https://cdn.nba.com/manage/2025/12/13_Photos-of-the-Year-1536x1024.jpg" alt="Player A"><b>Player A</b><span class="muted num-tabular" style="margin-left:auto">24.1 val</span></div>
-          <div class="row" style="margin-top:8px"><img class="ava" src="https://cdn.nba.com/manage/2025/12/95_Photos-of-the-Year-1536x1024.jpg" alt=""><b>2027 1st</b><span class="muted num-tabular" style="margin-left:auto">9.0 val</span></div>
+          <div class="row" style="margin-top:8px"><img class="ava" src="assets/nba/13_Photos-of-the-Year-1536x1024.jpg" alt="Player A"><b>Player A</b><span class="muted num-tabular" style="margin-left:auto">24.1 val</span></div>
+          <div class="row" style="margin-top:8px"><img class="ava" src="assets/nba/95_Photos-of-the-Year-1536x1024.jpg" alt=""><b>2027 1st</b><span class="muted num-tabular" style="margin-left:auto">9.0 val</span></div>
         </div>
         <div>
           <div class="muted" style="font-size:.72rem;letter-spacing:.1em">YOU GET</div>
-          <div class="row" style="margin-top:8px"><img class="ava" src="https://cdn.nba.com/manage/2025/12/jokic3-2.jpg" alt="Player B"><b>Player B</b><span class="muted num-tabular" style="margin-left:auto">35.4 val</span></div>
+          <div class="row" style="margin-top:8px"><img class="ava" src="assets/nba/jokic3-2.jpg" alt="Player B"><b>Player B</b><span class="muted num-tabular" style="margin-left:auto">35.4 val</span></div>
         </div>
       </div>
       <div class="row" style="justify-content:space-between;margin-top:18px;padding-top:16px;border-top:1px solid var(--border);flex-wrap:wrap;gap:12px">
@@ -668,7 +668,7 @@
       <div style="margin:12px 0 14px">
         <div class="st-focus">
           <div class="st-row" style="padding:0">
-            <img class="ava" src="https://cdn.nba.com/manage/2025/12/jokic3-2.jpg" alt="">
+            <img class="ava" src="assets/nba/jokic3-2.jpg" alt="">
             <div style="flex:1;min-width:0">
               <b>N. Jokic</b>
               <div class="muted" style="font-size:.75rem">C – Nuggets · 4 games</div>
@@ -700,7 +700,7 @@
       <div style="margin:12px 0 14px">
 
         <div class="st-row" style="border-bottom:1px solid var(--border)">
-          <img class="ava" src="https://cdn.nba.com/manage/2025/12/0GettyImages-2182344606-952x1176.jpg" alt="">
+          <img class="ava" src="assets/nba/0GettyImages-2182344606-952x1176.jpg" alt="">
           <div class="st-name"><b>A. Edwards</b><span class="sub">SG – Timberwolves</span></div>
           <div class="st-money">
             <span class="st-salary">$38</span>
@@ -718,7 +718,7 @@
         </div>
 
         <div class="st-row" style="border-bottom:1px solid var(--border)">
-          <img class="ava" src="https://cdn.nba.com/manage/2025/12/jokic3-2.jpg" alt="">
+          <img class="ava" src="assets/nba/jokic3-2.jpg" alt="">
           <div class="st-name"><b>J. Williams</b><span class="sub">PF – Grizzlies</span></div>
           <div class="st-money">
             <span class="st-salary">$22</span>
@@ -728,7 +728,7 @@
         </div>
 
         <div class="st-row" style="border-bottom:1px solid var(--border)">
-          <img class="ava" src="https://cdn.nba.com/manage/2025/12/13_Photos-of-the-Year-1536x1024.jpg" alt="">
+          <img class="ava" src="assets/nba/13_Photos-of-the-Year-1536x1024.jpg" alt="">
           <div class="st-name"><b>D. Fox</b><span class="sub">PG – Spurs</span></div>
           <div class="st-money">
             <span class="st-salary">TBD</span>
@@ -738,7 +738,7 @@
         </div>
 
         <div class="st-row">
-          <img class="ava" src="https://cdn.nba.com/manage/2025/12/Kawhi_1920x1080.jpg" alt="" style="opacity:.7">
+          <img class="ava" src="assets/nba/Kawhi_1920x1080.jpg" alt="" style="opacity:.7">
           <div class="st-name"><b>K. Leonard</b><span class="sub">SF – Clippers</span></div>
           <div class="st-money">
             <span class="st-salary off-books">$30</span>
@@ -1282,7 +1282,7 @@
     <div class="card" style="grid-column:1/-1">
       <div class="vg" style="gap:0">
         <div class="pcard t-scrim" style="aspect-ratio:16/11;border:none;border-radius:0">
-          <img src="https://cdn.nba.com/manage/2025/12/wemby-vassell.jpg" alt="">
+          <img src="assets/nba/wemby-vassell.jpg" alt="">
           <div class="lbl" style="bottom:14px">
             <span class="pill"><span class="live-dot"></span>Live</span>
             <b style="font-size:1.5rem;margin-top:8px">Victor Wembanyama</b>
@@ -1302,7 +1302,7 @@
             </div>
           </div>
           <div class="row" style="margin-top:16px;gap:10px">
-            <img class="ava-sm" src="https://cdn.nba.com/manage/2025/12/0GettyImages-2182344606-952x1176.jpg" alt="">
+            <img class="ava-sm" src="assets/nba/0GettyImages-2182344606-952x1176.jpg" alt="">
             <div class="st-name"><b>Dave</b><span class="sub">Sicko Mode · 7:58pm</span></div>
             <span class="tag">LEADING</span>
           </div>
@@ -1337,17 +1337,17 @@
       <h3 style="color:var(--muted-fg);font-size:.8rem">Who is bidding</h3>
       <div style="margin-top:12px">
         <div class="bid-row">
-          <img class="ava-sm" src="https://cdn.nba.com/manage/2025/12/0GettyImages-2182344606-952x1176.jpg" alt="">
+          <img class="ava-sm" src="assets/nba/0GettyImages-2182344606-952x1176.jpg" alt="">
           <div class="st-name"><b>Dave</b><span class="sub">Sicko Mode · 7:58pm</span></div>
           <span class="amt">$24</span>
         </div>
         <div class="bid-row beat">
-          <img class="ava-sm" src="https://cdn.nba.com/manage/2025/12/0GettyImages-2220907031-941x1176.jpg" alt="">
+          <img class="ava-sm" src="assets/nba/0GettyImages-2220907031-941x1176.jpg" alt="">
           <div class="st-name"><b>You</b><span class="sub">Bricklayers · 7:41pm</span></div>
           <span class="amt">$21</span>
         </div>
         <div class="bid-row beat">
-          <img class="ava-sm" src="https://cdn.nba.com/manage/2025/12/wemby-vassell.jpg" alt="">
+          <img class="ava-sm" src="assets/nba/wemby-vassell.jpg" alt="">
           <div class="st-name"><b>Marcus</b><span class="sub">Rim Rattlers · 6:12pm</span></div>
           <span class="amt">$18</span>
         </div>
@@ -1360,15 +1360,15 @@
       <h3 style="color:var(--muted-fg);font-size:.8rem">The open-auctions list</h3>
       <div style="margin-top:12px">
         <div class="row" style="justify-content:space-between;padding:10px 0;border-bottom:1px solid var(--border);gap:12px">
-          <div class="row" style="flex:1;min-width:0"><img class="ava" src="https://cdn.nba.com/manage/2025/12/wemby-vassell.jpg" alt=""><div class="st-name"><b>V. Wembanyama</b><span class="sub">C · Dave leads</span></div></div>
+          <div class="row" style="flex:1;min-width:0"><img class="ava" src="assets/nba/wemby-vassell.jpg" alt=""><div class="st-name"><b>V. Wembanyama</b><span class="sub">C · Dave leads</span></div></div>
           <div class="row" style="gap:14px"><span class="num-tabular">$24</span><span class="auc-clock hot" style="font-size:1rem">4:12</span><span class="tag fa">OUTBID</span></div>
         </div>
         <div class="row" style="justify-content:space-between;padding:10px 0;border-bottom:1px solid var(--border);gap:12px">
-          <div class="row" style="flex:1;min-width:0"><img class="ava" src="https://cdn.nba.com/manage/2025/12/0GettyImages-2220907031-941x1176.jpg" alt=""><div class="st-name"><b>J. Poole</b><span class="sub">SG · you lead</span></div></div>
+          <div class="row" style="flex:1;min-width:0"><img class="ava" src="assets/nba/0GettyImages-2220907031-941x1176.jpg" alt=""><div class="st-name"><b>J. Poole</b><span class="sub">SG · you lead</span></div></div>
           <div class="row" style="gap:14px"><span class="num-tabular">$6</span><span class="auc-clock calm" style="font-size:1rem">21:40</span><span class="tag">LEADING</span></div>
         </div>
         <div class="row" style="justify-content:space-between;padding:10px 0;gap:12px">
-          <div class="row" style="flex:1;min-width:0"><img class="ava" src="https://cdn.nba.com/manage/2025/12/0GettyImages-2182344606-952x1176.jpg" alt=""><div class="st-name"><b>A. Edwards</b><span class="sub">SG · no bids yet</span></div></div>
+          <div class="row" style="flex:1;min-width:0"><img class="ava" src="assets/nba/0GettyImages-2182344606-952x1176.jpg" alt=""><div class="st-name"><b>A. Edwards</b><span class="sub">SG · no bids yet</span></div></div>
           <div class="row" style="gap:14px"><span class="num-tabular">$1</span><span class="auc-clock calm" style="font-size:1rem">44:02</span><span class="tag">OPEN</span></div>
         </div>
       </div>
@@ -1548,7 +1548,7 @@
 <footer>
   FBKL · design direction draft · tokens sourced from <code>webapp-logged-in/src/global.css</code> (dark mode) ·
   fonts: Nunito Sans Variable + Figtree Variable (already bundled) ·
-  imagery: NBA.com Top-25 Photos 2025 (reference only — license before shipping).
+  imagery: NBA.com Top-25 Photos 2025, local copies in <code>design/assets/nba/</code> (reference only — license before shipping).
   <br>Note: CLAUDE.md lists "Space Grotesk headings"; actual loaded heading font is Nunito Sans Variable. This board follows the code.
 </footer>
 
