@@ -330,6 +330,50 @@ async fn one_illegal_team_does_not_block_the_rest_of_the_league() {
     );
 }
 
+/// Rules 13.1.1: an owner may re-order a week's moves however they like.
+#[tokio::test]
+async fn a_weeks_moves_keep_the_order_their_owner_chose() {
+    let Some(league) = weekly_moves_league("weekly_move_order").await else {
+        return;
+    };
+    let team_id = league.team_id;
+    let week_1_lock = deadline_of(&league, DeadlineKind::Week1RosterLock).await;
+
+    let contracts = add_roster_contracts(&league, team_id, 3, "Ordered").await;
+    let mut added_ids = Vec::with_capacity(contracts.len());
+    for contract_model in &contracts {
+        added_ids.push(
+            record_auction_add(&league, contract_model, &week_1_lock)
+                .await
+                .id,
+        );
+    }
+
+    team_update_queries::update_team_update_sequences(&added_ids[..2], &league.db)
+        .await
+        .expect("save the owner's order");
+
+    let team_updates = team_update_queries::find_team_updates_by_team(
+        team_id,
+        None,
+        Some(week_1_lock.id),
+        &league.db,
+    )
+    .await
+    .expect("read this week's moves");
+
+    let sequence_of = |team_update_id: i64| {
+        team_updates
+            .iter()
+            .find(|model| model.id == team_update_id)
+            .expect("the moved update is still there")
+            .sequence
+    };
+    assert_eq!(sequence_of(added_ids[0]), Some(0));
+    assert_eq!(sequence_of(added_ids[1]), Some(1));
+    assert_eq!(sequence_of(added_ids[2]), None);
+}
+
 async fn read_team_update_status(league: &TestLeague, team_update_id: i64) -> TeamUpdateStatus {
     team_update::Entity::find_by_id(team_update_id)
         .one(&league.db)

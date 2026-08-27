@@ -103,6 +103,27 @@ where
     Ok(status_set_to_in_progress)
 }
 
+/// Writes the owner's chosen order over one week's `team_updates` (rules §13.1.1).
+///
+/// The position in `ordered_team_update_ids` becomes the stored sequence. Ordering is
+/// presentational and for the audit log, so no roster validator reads what this writes.
+#[instrument(skip(db))]
+pub async fn update_team_update_sequences<C>(ordered_team_update_ids: &[i64], db: &C) -> Result<()>
+where
+    C: ConnectionTrait,
+{
+    for (index, team_update_id) in ordered_team_update_ids.iter().enumerate() {
+        let sequence = i16::try_from(index)?;
+        team_update::Entity::update_many()
+            .col_expr(team_update::Column::Sequence, Expr::value(sequence))
+            .filter(team_update::Column::Id.eq(*team_update_id))
+            .exec(db)
+            .await?;
+    }
+
+    Ok(())
+}
+
 #[instrument(skip(db))]
 pub async fn update_team_updates_with_status<C>(
     team_update_model_ids: Vec<i64>,

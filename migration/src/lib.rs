@@ -33,6 +33,7 @@ mod m20260731_000003_create_rookie_draft_lottery_tables;
 mod m20260815_000001_create_rfa_resolution_tables;
 mod m20260815_000002_alter_rfa_resolution_raise_deadline_nullable;
 mod m20260817_000001_require_rfa_compensation_pick;
+mod m20260827_000001_add_team_update_sequence;
 
 pub struct Migrator;
 
@@ -66,6 +67,7 @@ impl MigratorTrait for Migrator {
             Box::new(m20260815_000001_create_rfa_resolution_tables::Migration),
             Box::new(m20260815_000002_alter_rfa_resolution_raise_deadline_nullable::Migration),
             Box::new(m20260817_000001_require_rfa_compensation_pick::Migration),
+            Box::new(m20260827_000001_add_team_update_sequence::Migration),
         ]
     }
 }

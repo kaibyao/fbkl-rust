@@ -3,6 +3,8 @@
 //! The rookie-development moves have no eligibility guards in `logic/` yet (see
 //! `logic/CLAUDE.md`); fbkl-rust-22o adds them, and they belong there rather than here.
 
+use std::collections::HashSet;
+
 use async_graphql::{Context, Error as GraphQlError, Object, Result};
 use chrono::Utc;
 use color_eyre::Report;
@@ -14,7 +16,7 @@ use fbkl_entity::{
     sea_orm::{ConnectionTrait, DatabaseConnection, DatabaseTransaction, TransactionTrait},
     team_queries::find_team_by_id_in_league,
     team_update::TeamUpdateStatus,
-    team_update_queries::find_team_updates_by_team,
+    team_update_queries::{find_team_updates_by_team, update_team_update_sequences},
     team_user::LeagueRole,
 };
 use fbkl_logic::{
@@ -93,6 +95,61 @@ impl RosterMutation {
             move_rookie_development_international_contract_to_stateside,
         )
         .await
+    }
+
+    /// Saves the owner's chosen order for their team's moves (rules §13.1.1).
+    ///
+    /// Order is presentational and for the audit log only: the same set of moves stays legal or
+    /// illegal whatever order it is put in, so nothing is re-validated here.
+    #[graphql(guard = "LeagueRoleGuard(RoleRequirement::Member)")]
+    async fn reorder_weekly_moves(
+        &self,
+        ctx: &Context<'_>,
+        team_id: i64,
+        ordered_team_update_ids: Vec<i64>,
+    ) -> Result<Vec<TeamUpdate>> {
+        let db = ctx.data_unchecked::<DatabaseConnection>();
+        let (team_user, _) = require_league_role(ctx, RoleRequirement::Member).await?;
+        if team_user.team_id != team_id {
+            return Err(code_error(ErrorCode::Forbidden));
+        }
+
+        let requested_ids: HashSet<i64> = ordered_team_update_ids.iter().copied().collect();
+        if requested_ids.len() != ordered_team_update_ids.len() {
+            return Err(graphql_error(
+                ErrorCode::BadRequest,
+                "a move cannot be listed twice in an order".to_owned(),
+            ));
+        }
+
+        let team_update_models = find_team_updates_by_team(team_id, None, None, db)
+            .await
+            .map_err(|err| internal("failed to load the team's moves", &err))?;
+        let owned_ids: HashSet<i64> = team_update_models.iter().map(|model| model.id).collect();
+        if !requested_ids.is_subset(&owned_ids) {
+            return Err(code_error(ErrorCode::NotFound));
+        }
+
+        let db_txn = db
+            .begin()
+            .await
+            .map_err(|err| internal("failed to start transaction", &err.into()))?;
+        update_team_update_sequences(&ordered_team_update_ids, &db_txn)
+            .await
+            .map_err(|err| internal("failed to save the move order", &err))?;
+        let reordered = find_team_updates_by_team(team_id, None, None, &db_txn)
+            .await
+            .map_err(|err| internal("failed to reload the team's moves", &err))?;
+        db_txn
+            .commit()
+            .await
+            .map_err(|err| internal("failed to commit the move order", &err.into()))?;
+
+        let reordered: Vec<_> = reordered
+            .into_iter()
+            .filter(|model| requested_ids.contains(&model.id))
+            .collect();
+        Ok(TeamWeek::in_owner_order(&reordered))
     }
 
     /// Applies a batch of roster moves in one database transaction for the season-start wizard.
@@ -285,10 +342,7 @@ impl RosterQuery {
             team_id,
             deadline_id,
             contracts,
-            pending_moves: pending_move_models
-                .iter()
-                .map(TeamUpdate::from_model)
-                .collect(),
+            pending_moves: TeamWeek::in_owner_order(&pending_move_models),
             rule_legality,
             is_legal,
         })
