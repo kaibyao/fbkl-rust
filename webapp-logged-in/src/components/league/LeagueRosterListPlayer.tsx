@@ -50,13 +50,13 @@ export const LeagueRosterListPlayer: FunctionComponent<Props> = ({
       render={<li />}
       direction={StackDirection.Row}
       align={StackAlign.Center}
-      gap={StackGap.Sm}
-      className="py-1.5"
+      gap={StackGap.Md}
+      className="py-[9px]"
     >
-      <Avatar size="sm">
+      <Avatar size="lg">
         {photoUrl ? <AvatarImage src={photoUrl} alt="" /> : null}
         <AvatarFallback>
-          <User className="size-3.5" />
+          <User className="size-5" />
         </AvatarFallback>
       </Avatar>
 
