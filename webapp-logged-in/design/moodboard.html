@@ -125,7 +125,8 @@
   .bar>i{display:block;height:100%;background:linear-gradient(90deg,var(--chart-3),var(--chart-1))}
   .tag{font-size:.75rem;font-weight:800;letter-spacing:.1em;text-transform:uppercase;padding:3px 8px;border-radius:6px;background:var(--card-2);color:var(--muted-fg)}
   .tag.fa{background:color-mix(in oklch,var(--primary) 20%,transparent);color:var(--primary-fg)}
-  .spark{display:flex;align-items:flex-end;gap:3px;height:36px}
+  /* Bar sparkline. 2px surface gap between bars; .85 keeps chart-2 at 3.74:1 on the card. */
+  .spark{display:flex;align-items:flex-end;gap:2px;height:36px}
   .spark>i{flex:1;background:var(--chart-2);border-radius:2px 2px 0 0;opacity:.85}
 
   /* ---------------- states ---------------- */
@@ -230,6 +231,52 @@
     border-radius:calc(var(--radius)*.8);font-size:.875rem;color:var(--muted-fg)}
   .hlp-nav svg{width:16px;height:16px;flex:none}
   .hlp-nav.on{background:var(--card-2);color:var(--fg)}
+
+  /* ---------------- charts & data viz ---------------- */
+  /* Every grey, opacity and stroke a chart is allowed to use lives here. Ratios in the
+     comments are WCAG contrast against --card oklch(0.21 0.006 285.885), measured, not guessed. */
+  .chart{display:block;width:100%;height:auto;max-width:500px}
+  .chart--mini{max-width:280px}
+  .chart text{font-family:'Figtree Variable',sans-serif;font-variant-numeric:tabular-nums lining-nums}
+  /* Gridline: the shipped --border, white/10% = 1.33:1. Visible, never readable as data. */
+  .chart .grid-line{stroke:var(--border);stroke-width:1}
+  /* Baseline: always drawn, twice the gridline. --muted-fg at 45% = 2.38:1. */
+  .chart .base-line{stroke:var(--muted-fg);stroke-opacity:.45;stroke-width:1}
+  /* Target / cap line: the same white-at-85% ink as .capline in Contracts. 12.98:1. */
+  .chart .ref-line{stroke:var(--fg);stroke-opacity:.85;stroke-width:1}
+  .chart .axis{fill:var(--muted-fg);font-size:11.5px}  /* label band · 6.74:1 */
+  .chart .axis.val,.chart .axis.fg{fill:var(--fg);font-weight:700}
+  .chart .axis.up{fill:var(--win)}
+  .chart .anno{fill:var(--muted-fg);font-size:11.5px}
+  .chart .series{fill:none;stroke:var(--chart-2);stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
+  .chart .series.s1{stroke:var(--chart-1)}
+  .chart .series.s3{stroke:var(--chart-3)}
+  .chart .series.proj{stroke-dasharray:5 4}
+  /* The field behind one emphasised series: zinc hairlines, never a second blue. 3.59:1. */
+  .chart .context{fill:none;stroke:var(--muted-fg);stroke-opacity:.65;stroke-width:1}
+  /* Projection band: 18% wash, not the 10% a light surface uses; 10% here is 1.11:1, invisible. */
+  .chart .band{fill:var(--chart-2);fill-opacity:.18}
+  .chart .band-edge{fill:none;stroke:var(--chart-2);stroke-width:1;stroke-dasharray:4 3}
+  .chart .col{fill:var(--chart-2)}
+  .chart .col-now{fill:var(--primary-hot)}
+  .chart .col-up{fill:var(--win)}
+  .chart .col-down{fill:var(--loss)}
+  /* 2px surface ring, so a marker stays legible where it sits on its own line. */
+  .chart .dot{stroke:var(--card);stroke-width:2}
+  /* The selected slot is the tap target and the selection mark at once. */
+  .chart .hit{fill:var(--card-2)}
+  /* Sparkline: the same marks, fixed pixel size, no chrome. */
+  .spark-line{width:auto;max-width:none;flex:none;vertical-align:middle}
+  /* Readout row: what a tap pins. text-xs on the muted surface, where --muted-fg reads 5.66:1. */
+  .chart-readout{display:flex;align-items:center;gap:10px;padding:8px 12px;margin-top:10px;
+    border-radius:calc(var(--radius)*.8);background:var(--card-2);font-size:.75rem}
+  .chart-readout .key{flex:none;width:14px;height:2px;border-radius:2px;background:var(--chart-2)}
+  .chart-readout b{font-variant-numeric:tabular-nums lining-nums}
+  /* The headline value: the board's stat treatment, and it is on screen before any interaction. */
+  .chart-head{display:flex;align-items:flex-end;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-bottom:14px}
+  .chart-head .v{display:block;font-family:'Nunito Sans Variable',sans-serif;font-size:2.6rem;font-weight:900;
+    font-variant-numeric:tabular-nums lining-nums;line-height:1}
+  .chart-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));gap:18px}
 
   /* ---------------- board → component mapping ---------------- */
   .scroll-x{overflow-x:auto}
@@ -378,12 +425,14 @@
       <h3 style="color:var(--muted-fg);font-size:.8rem">2 · Standing & league trajectory</h3>
       <div class="row" style="justify-content:space-between;margin:12px 0">
         <div><div class="muted" style="font-size:.75rem">YOUR RANK</div><div class="num-tabular" style="font-size:2.6rem">2<span class="muted" style="font-size:1rem">/12</span></div></div>
-        <div style="text-align:right"><div class="muted" style="font-size:.75rem">PLAYOFF ODDS</div><div class="num-tabular up" style="font-size:2.6rem">91%</div></div>
+        <div style="text-align:right"><div class="muted" style="font-size:.75rem">PLAYOFF ODDS</div><div class="num-tabular" style="font-size:2.6rem">91%</div></div>
       </div>
-      <div class="spark" style="height:60px;margin:8px 0 14px">
+      <div class="muted" style="font-size:.75rem;letter-spacing:.1em;margin-top:14px">PLAYOFF ODDS · W1 TO NOW</div>
+      <div class="spark" style="height:48px;margin:6px 0 4px">
         <i style="height:30%"></i><i style="height:45%"></i><i style="height:40%"></i><i style="height:62%"></i><i style="height:55%"></i><i style="height:78%"></i><i style="height:70%"></i><i style="height:92%;background:var(--primary-hot)"></i>
       </div>
-      <p class="muted" style="margin:0">Cool blue charts = analysis mode. One orange bar marks "now". Trajectory reads at a glance; detail on hover.</p>
+      <div class="muted" style="font-size:.75rem;margin-bottom:14px">Week 1 · 30% → now · 91%</div>
+      <p class="muted" style="margin:0">Cool blue charts = analysis mode. One orange bar marks "now". This is a sparkline, so it carries the shape only: the odds are printed above it, the span is named under it, and nothing here waits on a hover. Read the full contract in <a href="#charts">Charts &amp; data viz</a>.</p>
     </div>
 
     <!-- 3. Plan rosters weekly -->
@@ -819,6 +868,346 @@
   <p class="note">Rule facts on this board are the shipped ones: cap by period and the auction clocks come from <code>constants/src/league_rules/config_settings.rs</code>, the contract kinds from <code>entity/src/entities/contract/contract_entity.rs</code>, and the 20% drop penalty from the league rules document. Help copy that invents a rule is worse than no help at all.</p>
 </section>
 
+<!-- ============ CHARTS & DATA VIZ ============ -->
+<section id="charts">
+  <span class="eyebrow">Charts &amp; data viz · the contract for every number that moves</span>
+  <h2 style="margin:10px 0 6px">A chart never hides its number</h2>
+  <p class="muted" style="margin:0 0 22px;max-width:64ch">Five blue chart tokens ship and nothing yet says how to spend them. This section is that ruling, written before the first chart is built. Charts here answer two questions. How did this go, and where is it heading. Both get read one-handed on a phone with no pointer anywhere near the screen. So most of what follows is about what a chart says before anybody touches it. Every ratio quoted below is measured against <code>--card</code>, not judged by eye.</p>
+  <div class="vg">
+
+    <!-- 1 · Anatomy -->
+    <div class="card pad" style="grid-column:1/-1">
+      <h3 style="color:var(--muted-fg);font-size:.8rem">1 · Anatomy of the canonical chart</h3>
+      <div class="vg" style="margin-top:14px;align-items:start">
+        <div>
+          <div class="chart-head">
+            <div>
+              <div class="muted" style="font-size:.75rem;letter-spacing:.1em">FANTASY POINTS · WEEK 10</div>
+              <span class="v">184.6</span>
+            </div>
+            <div class="stat"><span class="num-tabular up" style="font-size:1.1rem;font-weight:900">+21.6</span><span class="muted" style="font-size:.75rem">vs week 9</span></div>
+          </div>
+          <svg class="chart" viewBox="0 0 500 206" role="img" aria-label="Fantasy points per week, weeks 1 to 10. Week 10 is 185, the season high is 208 in week 7.">
+            <clipPath id="c-anat"><rect x="0" y="0" width="500" height="168"/></clipPath>
+            <line class="grid-line" x1="40" x2="492" y1="114.7" y2="114.7"/>
+            <line class="grid-line" x1="40" x2="492" y1="61.3" y2="61.3"/>
+            <line class="grid-line" x1="40" x2="492" y1="8" y2="8"/>
+            <line class="base-line" x1="40" x2="492" y1="168" y2="168"/>
+            <g clip-path="url(#c-anat)">
+              <rect class="col" x="51.6" y="73.3" width="22" height="98.7" rx="4"/>
+              <rect class="col" x="96.8" y="56" width="22" height="116" rx="4"/>
+              <rect class="col" x="142" y="80.7" width="22" height="91.3" rx="4"/>
+              <rect class="col" x="187.2" y="64.7" width="22" height="107.3" rx="4"/>
+              <rect class="col" x="232.4" y="42" width="22" height="130" rx="4"/>
+              <rect class="col" x="277.6" y="52" width="22" height="120" rx="4"/>
+              <rect class="col" x="322.8" y="29.3" width="22" height="142.7" rx="4"/>
+              <rect class="col" x="368" y="59.3" width="22" height="112.7" rx="4"/>
+              <rect class="col" x="413.2" y="36.7" width="22" height="135.3" rx="4"/>
+              <rect class="col-now" x="458.4" y="44.7" width="22" height="127.3" rx="4"/>
+            </g>
+            <text class="axis val" x="333.8" y="22.3" text-anchor="middle">208</text>
+            <text class="axis" x="32" y="172" text-anchor="end">0</text>
+            <text class="axis" x="32" y="118.7" text-anchor="end">80</text>
+            <text class="axis" x="32" y="65.3" text-anchor="end">160</text>
+            <text class="axis" x="32" y="12" text-anchor="end">240</text>
+            <text class="axis" x="62.6" y="188" text-anchor="middle">W1</text>
+            <text class="axis" x="107.8" y="188" text-anchor="middle">W2</text>
+            <text class="axis" x="153" y="188" text-anchor="middle">W3</text>
+            <text class="axis" x="198.2" y="188" text-anchor="middle">W4</text>
+            <text class="axis" x="243.4" y="188" text-anchor="middle">W5</text>
+            <text class="axis" x="288.6" y="188" text-anchor="middle">W6</text>
+            <text class="axis" x="333.8" y="188" text-anchor="middle">W7</text>
+            <text class="axis" x="379" y="188" text-anchor="middle">W8</text>
+            <text class="axis" x="424.2" y="188" text-anchor="middle">W9</text>
+            <text class="axis" x="469.4" y="188" text-anchor="middle">W10</text>
+          </svg>
+        </div>
+        <div>
+          <p class="muted" style="margin:0 0 10px"><b>The value comes first, top left.</b> The board's stat treatment at 2.6rem, the label band above it naming the measure and the period, the change beside it as a signed number with the period it is measured against. Units are stated once, in that label, and never repeated on the axis or in a tooltip. If a reader only ever looks at the top-left corner, they still got the answer.</p>
+          <p class="muted" style="margin:0 0 10px"><b>Gridlines are horizontal, solid, and <code>--border</code></b>, white at 10%, which measures 1.33:1 on the card. Present enough to carry your eye across, quiet enough that they never read as data. No vertical gridlines: the x labels already mark the slots. No dashed gridlines ever, because dashed means projection here and nothing else.</p>
+          <p class="muted" style="margin:0 0 10px"><b>The baseline is always drawn</b>, at zero, in <code>--muted-fg</code> at 45%, which measures 2.38:1, about twice the gridline. It is the floor every bar stands on, so it cannot look like one more gridline. A bar chart starts at zero. A bounded rate (odds, percentages, share) starts at zero. Nothing on this board gets a truncated axis.</p>
+          <p class="muted" style="margin:0 0 10px"><b>Axis labels live in the label band</b>: 11.5px, <code>--muted-fg</code>, 6.74:1 on the card, with tabular lining numerals, so a column of ticks lines up and a live-updating value never shifts its neighbours.</p>
+          <p class="muted" style="margin:0"><b>Bars cap at 22px</b> with a 4px rounded top and a square foot on the baseline; the leftover slot width stays as air. One direct label only, on the extreme or the endpoint, here the season high. The axis carries the rest, and the readout carries the exact number on demand.</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- 2 · The ramp -->
+    <div class="card pad" style="grid-column:1/-1">
+      <h3 style="color:var(--muted-fg);font-size:.8rem">2 · Spending the blue ramp</h3>
+      <p class="muted" style="margin:10px 0 16px;max-width:74ch">The five chart tokens are one blue hue getting darker: <code>--chart-1</code> through <code>--chart-5</code>. That makes them a sequential ramp, not a set of categories, and it decides everything below. Adjacent steps mean "more of the same thing", so they can never mean "a different team".</p>
+      <div class="chart-grid">
+
+        <div>
+          <div class="muted" style="font-size:.75rem;letter-spacing:.1em;margin-bottom:6px">ONE SERIES</div>
+          <svg class="chart chart--mini" viewBox="0 0 240 92" role="img" aria-label="One series: your weekly fantasy points, rising.">
+            <line class="base-line" x1="6" x2="234" y1="78" y2="78"/>
+            <polyline class="series" points="6,51.8 38.6,41.3 71.1,44.8 103.7,29.9 136.3,34.3 168.9,18.5 201.4,23.8 234,13.3"/>
+            <circle class="dot" cx="234" cy="13.3" r="4" fill="var(--primary-hot)"/>
+            <text class="axis" x="6" y="90">W1</text><text class="axis" x="234" y="90" text-anchor="end">now</text>
+          </svg>
+          <p class="muted" style="margin:8px 0 0;font-size:.8rem"><code>--chart-2</code>, the middle of the ramp, 4.71:1 on the card. <code>--chart-1</code> is too pale to be the only ink and <code>--chart-3</code> down is too dark. One series needs no legend: the headline names it.</p>
+        </div>
+
+        <div>
+          <div class="muted" style="font-size:.75rem;letter-spacing:.1em;margin-bottom:6px">TWO SERIES</div>
+          <svg class="chart chart--mini" viewBox="0 0 240 92" role="img" aria-label="Two series: you at 74 points, Bruno at 43 points.">
+            <line class="base-line" x1="6" x2="196" y1="78" y2="78"/>
+            <polyline class="series s1" points="6,51.8 33.1,41.3 60.3,44.8 87.4,29.9 114.6,34.3 141.7,18.5 168.9,23.8 196,13.3"/>
+            <polyline class="series s3" points="6,27.3 33.1,32.5 60.3,24.6 87.4,35.1 114.6,29.9 141.7,39.5 168.9,34.3 196,40.4"/>
+            <text class="axis val" x="202" y="17.3">You</text>
+            <text class="axis" x="202" y="44.4">Bruno</text>
+          </svg>
+          <p class="muted" style="margin:8px 0 0;font-size:.8rem"><code>--chart-1</code> and <code>--chart-3</code>: 30 apart in OKLab, so anyone can split them. Skip a step, always. Neighbours on the ramp sit 6 to 8 apart and read as one colour. Each line is named at its own end, in text ink, never in the line's colour.</p>
+        </div>
+
+        <div>
+          <div class="muted" style="font-size:.75rem;letter-spacing:.1em;margin-bottom:6px">THREE OR MORE</div>
+          <svg class="chart chart--mini" viewBox="0 0 240 92" role="img" aria-label="Your team against the rest of the field: you finish top of the league at 74 points.">
+            <line class="base-line" x1="6" x2="234" y1="78" y2="78"/>
+            <polyline class="context" points="6,32.5 38.6,36 71.1,29.9 103.7,38.6 136.3,34.3 168.9,41.3 201.4,36.9 234,43"/>
+            <polyline class="context" points="6,60.5 38.6,55.3 71.1,58.8 103.7,51.8 136.3,53.5 168.9,49.1 201.4,51.8 234,46.5"/>
+            <polyline class="context" points="6,24.6 38.6,27.3 71.1,23.8 103.7,28.1 136.3,25.5 168.9,29.9 201.4,27.3 234,30.8"/>
+            <polyline class="context" points="6,39.5 38.6,43 71.1,37.8 103.7,44.8 136.3,40.4 168.9,46.5 201.4,42.1 234,48.3"/>
+            <polyline class="context" points="6,67.5 38.6,62.3 71.1,64.9 103.7,58.8 136.3,61.4 168.9,56.1 201.4,59.6 234,53.5"/>
+            <polyline class="series" points="6,51.8 38.6,41.3 71.1,44.8 103.7,29.9 136.3,34.3 168.9,18.5 201.4,23.8 234,13.3"/>
+            <circle class="dot" cx="234" cy="13.3" r="4" fill="var(--primary-hot)"/>
+            <text class="axis" x="6" y="90">You vs the field</text>
+          </svg>
+          <p class="muted" style="margin:8px 0 0;font-size:.8rem">Not by colour. One series in <code>--chart-2</code>, the rest as zinc hairlines (<code>--muted-fg</code> at 65%, 3.59:1). A twelve-team league is never twelve lines. The alternative is small multiples, one small chart per team.</p>
+        </div>
+
+        <div>
+          <div class="muted" style="font-size:.75rem;letter-spacing:.1em;margin-bottom:6px">OUTCOME, NOT IDENTITY</div>
+          <svg class="chart chart--mini" viewBox="0 0 240 92" role="img" aria-label="Points over or under projection by week; week 8 is 14 over.">
+            <line class="base-line" x1="6" x2="234" y1="46" y2="46"/>
+            <clipPath id="c-up"><rect x="0" y="0" width="240" height="46"/></clipPath>
+            <clipPath id="c-dn"><rect x="0" y="46" width="240" height="92"/></clipPath>
+            <rect class="col-up" clip-path="url(#c-up)" x="12.3" y="29" width="16" height="20" rx="3"/>
+            <rect class="col-down" clip-path="url(#c-dn)" x="40.8" y="43" width="16" height="14.3" rx="3"/>
+            <rect class="col-up" clip-path="url(#c-up)" x="69.3" y="40.3" width="16" height="8.7" rx="3"/>
+            <rect class="col-down" clip-path="url(#c-dn)" x="97.8" y="43" width="16" height="24.3" rx="3"/>
+            <rect class="col-up" clip-path="url(#c-up)" x="126.3" y="33.2" width="16" height="15.8" rx="3"/>
+            <rect class="col-up" clip-path="url(#c-up)" x="154.8" y="16.2" width="16" height="32.8" rx="3"/>
+            <rect class="col-down" clip-path="url(#c-dn)" x="183.3" y="43" width="16" height="7.3" rx="3"/>
+            <rect class="col-up" clip-path="url(#c-up)" x="211.8" y="26.2" width="16" height="22.8" rx="3"/>
+            <text class="axis up" x="6" y="88">+14 over</text><text class="axis" x="234" y="88" text-anchor="end">this week</text>
+          </svg>
+          <p class="muted" style="margin:8px 0 0;font-size:.8rem">Green and red only when the bar <b>is</b> the verdict: over or under projection, won or lost. The sign and the word carry it (&ldquo;+14 over&rdquo;), colour only agrees. A green bar with no label is colour working alone, which is a bug.</p>
+        </div>
+
+      </div>
+      <p class="muted" style="margin:16px 0 0"><b>Two hard limits, both measured.</b> <code>--chart-4</code> reads 2.60:1 on the card and <code>--chart-5</code> reads 2.01:1, under the 3:1 a mark needs. In dark mode they are washes and fills sitting under a label: a heat cell, a stacked area, a band. Never a line, a dot or a thin bar. And the ramp's own neighbours are 6 to 8 apart in OKLab where 15 is the floor for telling two things apart, so the ramp carries at most two series by colour. Adjacent steps are correct for exactly one job: data that is itself sequential, a tier ladder or a heat grid, where the closeness is the meaning.</p>
+      <p class="muted" style="margin:.6rem 0 0"><b>One orange, and it always means now.</b> Exactly one element in a view wears <code>--primary-hot</code>: the current bar, the latest point, the live marker. It is 40 apart from <code>--chart-2</code> in OKLab and 6.03:1 on the card, so it lands. It is never a second series, never a hover state, never "the important one". A view with two orange marks has no orange marks.</p>
+    </div>
+
+    <!-- 3 · Reference marks -->
+    <div class="card pad">
+      <h3 style="color:var(--muted-fg);font-size:.8rem">3 · Reference marks: zero, band, target</h3>
+      <div class="chart-head" style="margin-top:14px">
+        <div>
+          <div class="muted" style="font-size:.75rem;letter-spacing:.1em">PLAYOFF ODDS · WEEK 9</div>
+          <span class="v">91%</span>
+        </div>
+        <div class="stat"><span class="num-tabular" style="font-size:1.1rem;font-weight:900">95%</span><span class="muted" style="font-size:.75rem">projected, week 13</span></div>
+      </div>
+      <svg class="chart" viewBox="0 0 500 206" role="img" aria-label="Playoff odds by week: 91 percent now, projected 95 percent by week 13, cut line at 50 percent.">
+        <line class="grid-line" x1="40" x2="492" y1="128" y2="128"/>
+        <line class="grid-line" x1="40" x2="492" y1="48" y2="48"/>
+        <line class="grid-line" x1="40" x2="492" y1="8" y2="8"/>
+        <line class="base-line" x1="40" x2="492" y1="168" y2="168"/>
+        <polygon class="band" points="341.3,22.4 379,12.8 416.7,9.6 454.3,8 492,8 492,40 454.3,35.2 416.7,32 379,28.8 341.3,22.4"/>
+        <polyline class="band-edge" points="341.3,22.4 379,12.8 416.7,9.6 454.3,8 492,8"/>
+        <polyline class="band-edge" points="341.3,22.4 379,28.8 416.7,32 454.3,35.2 492,40"/>
+        <polyline class="series proj" points="341.3,22.4 379,19.2 416.7,17.6 454.3,16 492,16"/>
+        <line class="ref-line" x1="40" x2="492" y1="88" y2="88"/>
+        <text class="axis fg" x="492" y="82" text-anchor="end">Cut line · top 6</text>
+        <polyline class="series" points="40,84.8 77.7,91.2 115.3,70.4 153,76.8 190.7,56 228.3,62.4 266,43.2 303.7,33.6 341.3,22.4"/>
+        <circle class="dot" cx="341.3" cy="22.4" r="4" fill="var(--primary-hot)"/>
+        <text class="anno" x="492" y="60" text-anchor="end">Projected 95% · range 80 to 100</text>
+        <text class="axis" x="32" y="172" text-anchor="end">0</text>
+        <text class="axis" x="32" y="92" text-anchor="end">50</text>
+        <text class="axis" x="32" y="12" text-anchor="end">100</text>
+        <text class="axis" x="40" y="188">W1</text>
+        <text class="axis" x="341.3" y="188" text-anchor="middle">W9 · now</text>
+        <text class="axis" x="492" y="188" text-anchor="end">W13</text>
+      </svg>
+      <p class="muted" style="margin:14px 0 0"><b>Dashed means "not measured yet", and only that.</b> A projection renders as a wash of the series token at 18%, a 1px dashed edge top and bottom in the full token, and a dashed centre line in the same 2px stroke the solid line uses. 18% and not the 10% a light surface would take: on this zinc, a 10% blue measures 1.11:1 and disappears. The band starts at the last real point, so the join says where measurement stopped.</p>
+      <p class="muted" style="margin:.6rem 0 0"><b>The target line is the cap line from Contracts</b>, turned on its side: 1px, <code>--fg</code> at 85%, 12.98:1, and always labelled in words. One per chart, and it is a threshold that matters: the playoff cut, the salary cap, a projection to beat. Zero is not a target line; zero is the baseline and always drawn. Annotations sit inside the plot in the label band, one per chart, and say what a reader would otherwise have to work out.</p>
+    </div>
+
+    <!-- 4 · Touch and hover -->
+    <div class="card pad">
+      <h3 style="color:var(--muted-fg);font-size:.8rem">4 · Tap pins it, hover only hurries it</h3>
+      <div class="chart-head" style="margin-top:14px">
+        <div>
+          <div class="muted" style="font-size:.75rem;letter-spacing:.1em">FANTASY POINTS · WEEK 10</div>
+          <span class="v">184.6</span>
+        </div>
+      </div>
+      <svg class="chart" viewBox="0 0 500 170" role="img" aria-label="Fantasy points per week with week 6 selected at 174 points.">
+        <clipPath id="c-touch"><rect x="0" y="0" width="500" height="132"/></clipPath>
+        <line class="grid-line" x1="40" x2="492" y1="70" y2="70"/>
+        <line class="grid-line" x1="40" x2="492" y1="8" y2="8"/>
+        <line class="base-line" x1="40" x2="492" y1="132" y2="132"/>
+        <rect class="hit" x="266" y="8" width="45.2" height="124" rx="4"/>
+        <g clip-path="url(#c-touch)">
+          <rect class="col" x="51.6" y="58.6" width="22" height="77.4" rx="4"/>
+          <rect class="col" x="96.8" y="45.2" width="22" height="90.8" rx="4"/>
+          <rect class="col" x="142" y="64.3" width="22" height="71.7" rx="4"/>
+          <rect class="col" x="187.2" y="51.9" width="22" height="84.1" rx="4"/>
+          <rect class="col" x="232.4" y="34.4" width="22" height="101.6" rx="4"/>
+          <rect class="col" x="277.6" y="42.1" width="22" height="93.9" rx="4"/>
+          <rect class="col" x="322.8" y="24.5" width="22" height="111.5" rx="4"/>
+          <rect class="col" x="368" y="47.8" width="22" height="88.2" rx="4"/>
+          <rect class="col" x="413.2" y="30.2" width="22" height="105.8" rx="4"/>
+          <rect class="col-now" x="458.4" y="36.4" width="22" height="99.6" rx="4"/>
+        </g>
+        <text class="axis" x="32" y="136" text-anchor="end">0</text>
+        <text class="axis" x="32" y="74" text-anchor="end">120</text>
+        <text class="axis" x="32" y="12" text-anchor="end">240</text>
+        <text class="axis" x="62.6" y="152" text-anchor="middle">W1</text>
+        <text class="axis" x="107.8" y="152" text-anchor="middle">W2</text>
+        <text class="axis" x="153" y="152" text-anchor="middle">W3</text>
+        <text class="axis" x="198.2" y="152" text-anchor="middle">W4</text>
+        <text class="axis" x="243.4" y="152" text-anchor="middle">W5</text>
+        <text class="axis fg" x="288.6" y="152" text-anchor="middle">W6</text>
+        <text class="axis" x="333.8" y="152" text-anchor="middle">W7</text>
+        <text class="axis" x="379" y="152" text-anchor="middle">W8</text>
+        <text class="axis" x="424.2" y="152" text-anchor="middle">W9</text>
+        <text class="axis" x="469.4" y="152" text-anchor="middle">W10</text>
+      </svg>
+      <div class="chart-readout">
+        <span class="key" aria-hidden="true"></span>
+        <span><b>174.0</b> <span class="muted">fantasy points · week 6 · 4th best week</span></span>
+        <button class="btn btn-icon-sm" style="margin-left:auto" aria-label="Clear selection">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>
+        </button>
+      </div>
+      <p class="muted" style="margin:14px 0 0"><b>"Detail on hover" is banned as the only path.</b> Half this app gets read on a phone, and a phone has no hover. So: the current value is printed above the chart at all times, a tap or a click selects a slot and pins its readout in the zinc row under the plot, and the pin stays until another slot is tapped or the row is dismissed. Hover previews the same row without pinning it. It is an accelerator for people with a mouse, never the door.</p>
+      <p class="muted" style="margin:.6rem 0 0"><b>The tap target is the slot, not the mark.</b> The lit zinc block is both: 45px wide here against a 22px bar, so it takes in the air either side and clears the 24px minimum on the narrowest chart we would ship. It doubles as the selection mark, which is why the selected column needs no outline of its own.</p>
+      <p class="muted" style="margin:.6rem 0 0"><b>Keyboard, to build with it.</b> The plot is one tab stop, not one per bar. Left and right arrows move the selection, Home and End jump to the first and last slot, Escape clears the pin. The readout row is <code>aria-live="polite"</code>, so moving the selection announces the value. Every chart carries an <code>aria-label</code> that states the current value in a sentence, so a screen reader gets the headline without walking the data. Any chart with more than one series also ships a "Show as table" toggle. That is the relief channel when colour cannot do the work.</p>
+    </div>
+
+    <!-- 5 · States -->
+    <div class="card pad" style="grid-column:1/-1">
+      <h3 style="color:var(--muted-fg);font-size:.8rem">5 · Not enough data, empty, loading, failed</h3>
+      <p class="muted" style="margin:10px 0 16px;max-width:74ch">A season starts with no games in it and a provider that misses weeks. These four are the chart's half of the states section, and the first one is the rule this board most wants kept.</p>
+      <div class="chart-grid">
+
+        <div>
+          <div class="muted" style="font-size:.75rem;letter-spacing:.1em;margin-bottom:10px">NOT ENOUGH DATA</div>
+          <div style="border:1px solid var(--border);border-radius:var(--radius);padding:14px">
+            <div class="row" style="gap:20px">
+              <div><div class="num-tabular" style="font-size:1.6rem;font-weight:900">142</div><div class="muted" style="font-size:.75rem">W1</div></div>
+              <div><div class="num-tabular" style="font-size:1.6rem;font-weight:900">168</div><div class="muted" style="font-size:.75rem">W2</div></div>
+              <div><div class="num-tabular" style="font-size:1.6rem;font-weight:900">131</div><div class="muted" style="font-size:.75rem">W3</div></div>
+            </div>
+            <p class="muted" style="margin:10px 0 0;font-size:.875rem">Not enough games yet. A trend needs five.</p>
+          </div>
+          <p class="muted" style="margin:10px 0 0;font-size:.8rem">Under five points there is no chart. Print the values as stats and say why in one line. Two points joined by a line is a trend the data has not earned, and people act on it.</p>
+        </div>
+
+        <div>
+          <div class="muted" style="font-size:.75rem;letter-spacing:.1em;margin-bottom:10px">EMPTY</div>
+          <div class="st-empty" style="padding:24px 12px;min-height:150px">
+            <div class="st-empty-icon" aria-hidden="true">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v16a2 2 0 0 0 2 2h16"/><path d="M18 17V9"/><path d="M13 17V5"/><path d="M8 17v-3"/></svg>
+            </div>
+            <h4 class="st-title">No games played</h4>
+            <p class="st-empty-desc" style="font-size:.875rem">Your season starts Tue 21 Oct. Points land here after the first game.</p>
+          </div>
+          <p class="muted" style="margin:10px 0 0;font-size:.8rem">Zero points is the empty state, at the chart's own height, so the card keeps its size and the page does not jump when week one lands.</p>
+        </div>
+
+        <div>
+          <div class="muted" style="font-size:.75rem;letter-spacing:.1em;margin-bottom:10px">LOADING</div>
+          <div class="sk" style="height:14px;width:46%"></div>
+          <div class="sk" style="height:34px;width:32%;margin-top:8px"></div>
+          <div class="sk" style="height:150px;margin-top:12px"></div>
+          <p class="muted" style="margin:10px 0 0;font-size:.8rem">One Skeleton at the chart's exact height, plus one for the headline value, so nothing reflows. Never a spinner. On a refetch there is no skeleton at all: the old chart holds at 60% opacity until the new one lands.</p>
+        </div>
+
+        <div>
+          <div class="muted" style="font-size:.75rem;letter-spacing:.1em;margin-bottom:10px">FAILED</div>
+          <div class="hlp-expl">
+            <span class="hlp-expl-icon" aria-hidden="true">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4"/><path d="M12 8h.01"/></svg>
+            </span>
+            <p>Week 10 has not arrived from the stats provider. The chart is showing weeks 1 to 9. <a href="#">Retry</a></p>
+          </div>
+          <p class="muted" style="margin:10px 0 0;font-size:.8rem">A partial failure is an ExplainerNote above the chart, naming what is missing and what is still on screen. A chart missing one week does not become a blank card, and it never quietly draws nine weeks as if that were all of them.</p>
+        </div>
+
+      </div>
+    </div>
+
+    <!-- 6 · Sparklines -->
+    <div class="card pad" style="grid-column:1/-1">
+      <h3 style="color:var(--muted-fg);font-size:.8rem">6 · The sparkline subset</h3>
+      <div class="vg" style="margin-top:14px;align-items:start">
+        <div>
+          <div class="st-row" style="border-bottom:1px solid var(--border)">
+            <div class="st-ava-fallback" aria-hidden="true">AE</div>
+            <div class="st-name"><b>A. Edwards</b><span class="sub">SG – Timberwolves</span></div>
+            <div class="st-money">
+              <svg class="chart spark-line" viewBox="0 0 96 28" width="96" height="28" aria-hidden="true">
+                <polyline class="series" points="4,15.2 16.6,13.6 29.1,14.4 41.7,11.8 54.3,12.4 66.9,10 79.4,10.8 92,8.4"/>
+                <circle class="dot" cx="92" cy="8.4" r="3" fill="var(--chart-2)"/>
+              </svg>
+              <span class="st-salary">41.2</span>
+            </div>
+          </div>
+          <div class="st-row" style="border-bottom:1px solid var(--border)">
+            <div class="st-ava-fallback" aria-hidden="true">VW</div>
+            <div class="st-name"><b>V. Wembanyama</b><span class="sub">C – Spurs</span></div>
+            <div class="st-money">
+              <svg class="chart spark-line" viewBox="0 0 96 28" width="96" height="28" aria-hidden="true">
+                <polyline class="series" points="4,9.6 16.6,10.4 29.1,10 41.7,11.8 54.3,12.4 66.9,14 79.4,14.8 92,16.4"/>
+                <circle class="dot" cx="92" cy="16.4" r="3" fill="var(--chart-2)"/>
+              </svg>
+              <span class="st-salary">33.8</span>
+            </div>
+          </div>
+          <div class="st-row">
+            <div class="st-ava-fallback" aria-hidden="true">NJ</div>
+            <div class="st-name"><b>N. Jokic</b><span class="sub">C – Nuggets</span></div>
+            <div class="st-money">
+              <svg class="chart spark-line" viewBox="0 0 96 28" width="96" height="28" aria-hidden="true">
+                <polyline class="series" points="4,14 16.6,13 29.1,13.6 41.7,13.2 54.3,13.8 66.9,12.8 79.4,13.4 92,13"/>
+                <circle class="dot" cx="92" cy="13" r="3" fill="var(--chart-2)"/>
+              </svg>
+              <span class="st-salary">52.1</span>
+            </div>
+          </div>
+          <p class="muted" style="margin:12px 0 0;font-size:.8rem">28px in a roster or standings row, always to the left of the number it describes, always the same eight weeks across every row so the shapes compare.</p>
+
+          <div style="margin-top:22px;max-width:260px">
+            <div class="muted" style="font-size:.75rem;letter-spacing:.1em">PLAYOFF ODDS</div>
+            <div class="row" style="gap:14px;align-items:flex-end;margin-top:4px">
+              <span class="num-tabular" style="font-size:2.6rem;font-weight:900;line-height:1">91%</span>
+              <svg class="chart spark-line" viewBox="0 0 160 48" width="160" height="48" aria-hidden="true">
+                <polyline class="series" points="4,23.2 23,24.8 42,19.6 61,21.2 80,16 99,17.6 118,12.8 137,10.4 156,7.6"/>
+                <circle class="dot" cx="156" cy="7.6" r="3" fill="var(--primary-hot)"/>
+              </svg>
+            </div>
+            <div class="muted" style="font-size:.75rem;margin-top:6px">Week 1 to now</div>
+          </div>
+          <p class="muted" style="margin:12px 0 0;font-size:.8rem">48px in a stat tile, beside the value, with the span named underneath. The orange dot is the one-orange rule doing its job: last point, and it means now.</p>
+        </div>
+        <div>
+          <p class="muted" style="margin:0 0 10px"><b>What a sparkline keeps:</b> the shape, a last-value dot at r=3 with the 2px card ring, and the orange now-marker when the last point is live. The same 2px stroke and the same <code>--chart-2</code> as a real chart, so the two never look like different systems.</p>
+          <p class="muted" style="margin:0 0 10px"><b>What it drops:</b> axes, gridlines, the baseline, tick labels, tooltips and interaction of every kind. A sparkline is not clickable and never carries a hover. It is a shape, and shapes do not need to be tapped.</p>
+          <p class="muted" style="margin:0 0 10px"><b>Two heights, and nothing else.</b> 28px in a row, 48px in a stat tile. Past 48px it is a chart and owes the reader an axis. Every sparkline sits next to a printed current value: the sparkline is the adjective, the number is the noun, and it never holds the only copy of a number.</p>
+          <p class="muted" style="margin:0"><b>Where it may go:</b> row-level trends in a roster, standings or free-agent table, and the trend slot of a stat tile. <b>Where it may not:</b> anywhere the reader has to judge how much. Trade value, cap space, auction bids, playoff odds on their own screen. Those are decisions with a magnitude in them, and they get a real chart with an axis and a readout.</p>
+        </div>
+      </div>
+    </div>
+
+  </div>
+  <p class="note">Ship as <code>&lt;Chart&gt;</code> (axis, baseline, band, readout, keyboard selection) and <code>&lt;Sparkline&gt;</code>, both feeding ron.12. The chart chrome (gridline, baseline, target line, band opacity, context hairline) lives in one place and is never picked per chart. Contrast figures here were computed against <code>--card</code>, not judged by eye, and the same sums have to be redone before any of this ships in light mode.</p>
+</section>
+
 <!-- ============ BOARD → COMPONENT MAPPING ============ -->
 <section>
   <span class="eyebrow">Implementation · board class → shipped component</span>
@@ -843,7 +1232,9 @@
         <tr><td><code>.ava</code> · 44px, 10px squircle</td><td><code>&lt;Avatar size="lg"&gt;</code> (40px today, resize to 44px)</td><td><span class="tag">Shipped</span></td></tr>
         <tr><td><code>.row</code></td><td><code>&lt;Stack direction="row"&gt;</code></td><td><span class="tag">Shipped</span></td></tr>
         <tr><td><code>.bar</code> · value bar</td><td>Progress</td><td><span class="tag fa">To build</span></td></tr>
-        <tr><td><code>.spark</code> · trajectory bars</td><td>Sparkline</td><td><span class="tag fa">To build</span></td></tr>
+        <tr><td><code>.chart</code> · axis, baseline, band, readout</td><td><code>&lt;Chart&gt;</code>: chrome, ramp, reference marks and tap-to-pin all fixed by <a href="#charts">Charts &amp; data viz</a></td><td><span class="tag fa">To build</span></td></tr>
+        <tr><td><code>.spark</code> · trajectory bars · <code>.spark-line</code></td><td><code>&lt;Sparkline&gt;</code>: bars or line, 28px in a row / 48px in a tile, no axes, no interaction. Subset rules in <a href="#charts">Charts &amp; data viz</a></td><td><span class="tag fa">To build</span></td></tr>
+        <tr><td><code>.chart-readout</code> · the value a tap pins</td><td>part of <code>&lt;Chart&gt;</code>, never a standalone tooltip; <code>aria-live="polite"</code></td><td><span class="tag fa">To build</span></td></tr>
         <tr><td><code>.t-scrim</code> <code>.t-duo</code> <code>.t-spot</code> <code>.t-cool</code></td><td>PhotoTreatment classes (A to D)</td><td><span class="tag fa">To build</span></td></tr>
         <tr><td><code>.st-empty</code> · empty state</td><td><code>&lt;EmptyState icon title description action&gt;</code></td><td><span class="tag">Shipped</span></td></tr>
         <tr><td><code>.sk</code> · loading row / card</td><td><code>&lt;Skeleton&gt;</code>, sized to the row it replaces</td><td><span class="tag">Shipped</span></td></tr>
@@ -880,6 +1271,7 @@
     <div class="card"><b>Every state is designed</b><p class="muted" style="margin:.5rem 0 0">Empty, loading, missing, failed and blocked ship with the happy path, not after it. Name the problem in plain words, then give the way out. A blank panel is a bug.</p></div>
     <div class="card"><b>Money is zinc</b><p class="muted" style="margin:.5rem 0 0">A salary is a fact, not a verdict: neutral stat type, tabular. Contract chips are zinc too. Colour arrives only when the number becomes a state — over the cap, a trade's net value, a win or a loss.</p></div>
     <div class="card"><b>Help lives in three tiers</b><p class="muted" style="margin:.5rem 0 0">A word gets a tooltip, a moment gets one zinc line, a system gets a rules section. Nothing in between: a tooltip that grew into a paragraph belongs on the rules page with a "Learn more" pointing at it. No abbreviation ships bare.</p></div>
+    <div class="card"><b>A chart shows its number</b><p class="muted" style="margin:.5rem 0 0">The current value is printed before anyone touches anything. A tap pins a point's readout, hover only hurries it, and "detail on hover" alone is a bug on a phone. Fewer than five points is not a trend: print the numbers instead.</p></div>
     <div class="card"><b>Rounded = the shape system</b><p class="muted" style="margin:.5rem 0 0">The rounded ramp is canon: 6px on chips, 8px on controls, 10px on cards and buttons, 10px squircle avatars, full-round pills. Nothing ships square.</p></div>
   </div>
 </section>
