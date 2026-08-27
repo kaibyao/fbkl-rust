@@ -12,7 +12,10 @@ use fbkl_entity::{
 };
 use tracing::instrument;
 
-use crate::roster::{SalarySnapshot, calculate_team_contract_salary_with_model};
+use crate::{
+    deadline_processing::roster_lock::validate_team_roster,
+    roster::{SalarySnapshot, calculate_team_contract_salary_with_model},
+};
 
 use super::drop_contract_team_update::create_drop_contract_team_update;
 
@@ -86,12 +89,13 @@ fn validate_contract_eligibility(contract_model: &contract::Model) -> Result<()>
     Ok(())
 }
 
-/// Rejects dropping a contract that this team added earlier in the same week to make room for a
-/// different contract it also added this week (rules §8.3.7).
+/// Rejects dropping a contract the team added this week before that week's adds sit legally on the
+/// roster (rules §8.3.5 and §8.3.7).
 ///
 /// The week is the set of `team_updates` whose transaction points at `deadline_model`, i.e. the
 /// moves not yet locked in. A contract counts as a same-week add when every one of its updates
-/// this week is an auction or trade add.
+/// this week is an auction or trade add. Because the adds are already applied and the drop is not,
+/// the team's current roster is the roster §8.3.7 asks about: with every add, without the drop.
 #[instrument(skip(db))]
 pub async fn validate_not_dropping_same_week_add<C>(
     contract_model: &contract::Model,
@@ -104,6 +108,9 @@ where
     let Some(team_id) = contract_model.team_id else {
         return Ok(());
     };
+    if deadline_model.is_preseason_keeper_or_before() {
+        return Ok(());
+    }
 
     let this_week_team_updates =
         team_update_queries::find_team_updates_by_team(team_id, None, Some(deadline_model.id), db)
@@ -115,23 +122,33 @@ where
             .map(|chain_contract| chain_contract.id)
             .collect();
 
+    if !is_added_this_week(&this_week_team_updates, &target_chain_contract_ids)? {
+        return Ok(());
+    }
+
+    // Rules 8.3.5/8.3.7: an added player must sit legally on the roster before he can be dropped, so the drop is illegal only while the roster carrying every add is still illegal.
+    let violations = validate_team_roster(team_id, deadline_model, db).await?;
     ensure!(
-        !is_dropping_same_week_add(&this_week_team_updates, &target_chain_contract_ids)?,
-        "Cannot drop a contract added this week to make room for a different contract also added this week. (contract_id = {})",
-        contract_model.id
+        violations.is_empty(),
+        "Cannot drop a contract added this week while the roster holding this week's adds is still illegal. (contract_id = {})\n{}",
+        contract_model.id,
+        violations
+            .iter()
+            .map(|violation| violation.message.as_str())
+            .collect::<Vec<_>>()
+            .join("\n")
     );
 
     Ok(())
 }
 
-/// ponytail: any other same-week add counts, even one already dropped again this week - the chain
-/// rewrite on drop makes matching those back to their add row costly. Upgrade when it bites.
-fn is_dropping_same_week_add(
+/// Whether this week's moves added the target contract to the roster, i.e. whether rule 8.3.7's
+/// "legally added before being dropped" clause applies to dropping it.
+fn is_added_this_week(
     team_update_models: &[team_update::Model],
     target_chain_contract_ids: &HashSet<i64>,
 ) -> Result<bool> {
     let mut target_update_types = Vec::new();
-    let mut is_other_contract_added_this_week = false;
 
     for team_update_model in team_update_models {
         let TeamUpdateData::Assets(asset_summary) = team_update_model.get_data()? else {
@@ -144,17 +161,12 @@ fn is_dropping_same_week_add(
             for contract_update in contract_updates {
                 if target_chain_contract_ids.contains(&contract_update.contract_id) {
                     target_update_types.push(contract_update.update_type);
-                } else if is_add(contract_update.update_type) {
-                    is_other_contract_added_this_week = true;
                 }
             }
         }
     }
 
-    let is_target_added_this_week =
-        !target_update_types.is_empty() && target_update_types.iter().copied().all(is_add);
-
-    Ok(is_target_added_this_week && is_other_contract_added_this_week)
+    Ok(!target_update_types.is_empty() && target_update_types.iter().copied().all(is_add))
 }
 
 const fn is_add(update_type: ContractUpdateType) -> bool {
@@ -206,18 +218,18 @@ mod tests {
     }
 
     #[test]
-    fn same_week_add_dropped_for_another_same_week_add_is_illegal() {
+    fn a_contract_added_this_week_is_recognised() {
         let team_updates = vec![
             team_update_with_contract_update(1, 100, ContractUpdateType::AddViaAuction),
             team_update_with_contract_update(2, 200, ContractUpdateType::AddViaTrade),
         ];
         let target_chain_contract_ids = HashSet::from([100]);
 
-        assert!(is_dropping_same_week_add(&team_updates, &target_chain_contract_ids).unwrap());
+        assert!(is_added_this_week(&team_updates, &target_chain_contract_ids).unwrap());
     }
 
     #[test]
-    fn contract_added_in_a_prior_week_is_droppable() {
+    fn a_contract_added_in_a_prior_week_is_not_added_this_week() {
         let team_updates = vec![team_update_with_contract_update(
             1,
             200,
@@ -225,17 +237,31 @@ mod tests {
         )];
         let target_chain_contract_ids = HashSet::from([100]);
 
-        assert!(!is_dropping_same_week_add(&team_updates, &target_chain_contract_ids).unwrap());
+        assert!(!is_added_this_week(&team_updates, &target_chain_contract_ids).unwrap());
     }
 
+    /// Rule 8.3.5 holds a lone add to the same "legally accommodated first" test, so being the
+    /// week's only add does not exempt it; roster legality decides whether the drop goes through.
     #[test]
-    fn same_week_add_is_droppable_when_nothing_else_was_added() {
+    fn the_weeks_only_add_still_counts_as_added_this_week() {
         let team_updates = vec![
             team_update_with_contract_update(1, 100, ContractUpdateType::AddViaAuction),
             team_update_with_contract_update(2, 200, ContractUpdateType::ToIR),
         ];
         let target_chain_contract_ids = HashSet::from([100]);
 
-        assert!(!is_dropping_same_week_add(&team_updates, &target_chain_contract_ids).unwrap());
+        assert!(is_added_this_week(&team_updates, &target_chain_contract_ids).unwrap());
+    }
+
+    #[test]
+    fn a_contract_moved_but_not_added_this_week_is_not_added_this_week() {
+        let team_updates = vec![team_update_with_contract_update(
+            1,
+            100,
+            ContractUpdateType::ToIR,
+        )];
+        let target_chain_contract_ids = HashSet::from([100]);
+
+        assert!(!is_added_this_week(&team_updates, &target_chain_contract_ids).unwrap());
     }
 }

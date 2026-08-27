@@ -86,22 +86,53 @@ where
 
     let mut violations = vec![];
     for (team_id, team_contracts) in league_contracts_by_team.iter_all() {
-        violations.extend(validate_roster_ir_slot_limits(*team_id, team_contracts, db).await?);
         violations.extend(
-            validate_roster_contract_type_limits_not_exceeded(
-                *team_id,
-                team_contracts,
-                roster_lock_deadline,
-                db,
-            )
-            .await?,
-        );
-        violations.extend(
-            validate_roster_cap_not_exceeded(*team_id, team_contracts, roster_lock_deadline, db)
-                .await?,
+            validate_roster_contracts(*team_id, team_contracts, roster_lock_deadline, db).await?,
         );
     }
 
+    Ok(violations)
+}
+
+/// Validate a single team's roster against the rules for a roster-lock deadline.
+///
+/// Use this when only one team's legality matters; `validate_league_rosters` sweeps the whole
+/// league. Returns one entry per broken rule; an empty list means the team is legal.
+#[instrument(skip(db))]
+pub async fn validate_team_roster<C>(
+    team_id: i64,
+    roster_lock_deadline: &deadline::Model,
+    db: &C,
+) -> Result<Vec<TeamRosterViolation>>
+where
+    C: ConnectionTrait,
+{
+    let team_contracts = contract_queries::find_active_contracts_for_team(team_id, db).await?;
+    validate_roster_contracts(team_id, &team_contracts, roster_lock_deadline, db).await
+}
+
+async fn validate_roster_contracts<C>(
+    team_id: i64,
+    team_contracts: &[contract::Model],
+    roster_lock_deadline: &deadline::Model,
+    db: &C,
+) -> Result<Vec<TeamRosterViolation>>
+where
+    C: ConnectionTrait,
+{
+    let mut violations = validate_roster_ir_slot_limits(team_id, team_contracts, db).await?;
+    violations.extend(
+        validate_roster_contract_type_limits_not_exceeded(
+            team_id,
+            team_contracts,
+            roster_lock_deadline,
+            db,
+        )
+        .await?,
+    );
+    violations.extend(
+        validate_roster_cap_not_exceeded(team_id, team_contracts, roster_lock_deadline, db).await?,
+    );
     Ok(violations)
 }
 

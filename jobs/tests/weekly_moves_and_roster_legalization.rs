@@ -387,9 +387,11 @@ async fn a_traded_ir_contract_needs_room_at_its_new_team() {
     );
 }
 
+/// Rule 8.3.7's Mitchell/Alvarado example: once both of the week's adds are legally on the roster,
+/// either of them may be dropped in the same week.
 #[tokio::test]
-async fn a_same_week_add_cannot_be_dropped_for_another_same_week_add() {
-    let Some(league) = weekly_moves_league("weekly_moves_drop_same_week_add").await else {
+async fn a_same_week_add_is_droppable_once_the_weeks_adds_fit_legally() {
+    let Some(league) = weekly_moves_league("weekly_moves_drop_legal_same_week_add").await else {
         return;
     };
     let week_1_lock = deadline_of(&league, DeadlineKind::Week1RosterLock).await;
@@ -398,9 +400,38 @@ async fn a_same_week_add_cannot_be_dropped_for_another_same_week_add() {
         record_auction_add(&league, added_contract, &week_1_lock).await;
     }
 
-    let rejection = drop_contract_from_team(adds[0].clone(), &week_1_lock, &league.db)
+    let dropped = drop_contract_from_team(adds[0].clone(), &week_1_lock, &league.db)
         .await
-        .expect_err("dropping a same-week add is rejected");
+        .expect("dropping a legally added same-week add is allowed");
+
+    assert_eq!(
+        dropped.team_id, None,
+        "the dropped contract left the roster"
+    );
+}
+
+/// The other half of rule 8.3.7: while the week's adds do not fit, dropping one of them to make
+/// room for another is still rejected.
+#[tokio::test]
+async fn a_same_week_add_cannot_be_dropped_to_make_room_for_another_same_week_add() {
+    let Some(league) = weekly_moves_league("weekly_moves_drop_same_week_add").await else {
+        return;
+    };
+    let week_1_lock = deadline_of(&league, DeadlineKind::Week1RosterLock).await;
+    let roster = add_roster_contracts(
+        &league,
+        league.team_id,
+        VET_OR_ROOKIE_LIMIT + 1,
+        "Auction win",
+    )
+    .await;
+    for added_contract in &roster[..2] {
+        record_auction_add(&league, added_contract, &week_1_lock).await;
+    }
+
+    let rejection = drop_contract_from_team(roster[0].clone(), &week_1_lock, &league.db)
+        .await
+        .expect_err("dropping a same-week add off an illegal roster is rejected");
 
     assert!(
         rejection.to_string().contains("added this week"),
