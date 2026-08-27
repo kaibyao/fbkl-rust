@@ -9,6 +9,10 @@ hooks:
       from: ".env" # Allowed even if gitignored. 'from' is always relative to the MAIN worktree
       to: ".env" # Destination is relative to the NEW worktree
 
+    - type: copy
+      from: ".envrc" # Allowed even if gitignored. 'from' is always relative to the MAIN worktree
+      to: ".envrc" # Destination is relative to the NEW worktree
+
     # Install node packages
     - type: command
       command: "pnpm install"
@@ -16,6 +20,9 @@ hooks:
     # Cargo build
     - type: command
       command: "cargo build"
+
+    - type: command
+      command: "cargo run -p fbkl-graphql-generation"
 
     # Prefer explicit, single-step setup commands
     # - type: command

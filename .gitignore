@@ -30,6 +30,7 @@ routeTree.gen.ts
 
 # AI-generated files
 .serena/
+.impeccable/
 
 # Beads / Dolt files (added by bd init)
 .dolt/
