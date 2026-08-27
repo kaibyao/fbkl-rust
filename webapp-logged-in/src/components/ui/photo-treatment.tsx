@@ -17,7 +17,19 @@ const photoTreatmentVariants = cva('photo-treatment', {
   },
 });
 
-/** Puts a photo on the dark zinc base so the orange stays the loudest thing on screen. `scrim` is the workhorse for player cards, `duotone` is for hype and marketing moments, `spotlight` is for a single player of the week, `analytical` is for data-heavy screens. Children sit above the treatment layer, so a label goes in as a child. */
+/**
+ * Puts a photo on the dark zinc base so the orange stays the loudest thing on screen. `scrim` is the
+ * default treatment for player cards, `duotone` is for hype and marketing moments, `spotlight` is for a single
+ * player of the week, `analytical` is for data-heavy screens. Children sit above the treatment layer,
+ * so a label goes in as a child.
+ *
+ * Label contrast rule, the same for all four variants: text over the photo goes in a child with
+ * `className="photo-treatment-label"`, which paints its own scrim, so the text always sits on an
+ * opaque `--background` whatever the photo does and whatever size the card is. The sum is therefore
+ * one fixed number, `--foreground` on `--background`, 15.9:1, and the check is to read the label's
+ * computed background and see an opaque `--background` at the bottom stop. Text that cannot take a
+ * scrim does not go on a photo.
+ */
 export function PhotoTreatment({
   className,
   variant,

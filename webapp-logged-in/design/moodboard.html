@@ -72,9 +72,11 @@
   .pill{display:inline-flex;align-items:center;gap:8px;font-size:.7rem;font-weight:800;letter-spacing:.12em;text-transform:uppercase;
     background:color-mix(in oklch,var(--primary) 22%,transparent);color:var(--primary-fg);
     border:1px solid color-mix(in oklch,var(--primary) 50%,transparent);padding:6px 12px;border-radius:999px}
-  .live-dot{width:8px;height:8px;border-radius:50%;background:var(--primary-hot);box-shadow:0 0 0 0 var(--primary-hot);animation:pulse 1.8s infinite}
-  @keyframes pulse{0%{box-shadow:0 0 0 0 color-mix(in oklch,var(--primary-hot) 70%,transparent)}70%{box-shadow:0 0 0 10px transparent}100%{box-shadow:0 0 0 0 transparent}}
-  @media (prefers-reduced-motion: reduce){.live-dot{animation:none}}
+  /* The ring is a scaled pseudo-element, not an animated box-shadow, so the pulse runs on the compositor. */
+  .live-dot{position:relative;width:8px;height:8px;border-radius:50%;background:var(--primary-hot);flex:none}
+  .live-dot::after{content:"";position:absolute;inset:0;border-radius:50%;background:var(--primary-hot);animation:pulse 1.8s infinite}
+  @keyframes pulse{0%{opacity:.7;transform:scale(1)}70%,100%{opacity:0;transform:scale(3.5)}}
+  @media (prefers-reduced-motion: reduce){.live-dot::after{animation:none;opacity:0}}
 
   /* ---------------- swatches ---------------- */
   .swatches{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:12px}
@@ -92,23 +94,38 @@
   .treat{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:18px}
   .pcard{position:relative;aspect-ratio:3/4;border-radius:var(--radius);overflow:hidden;border:1px solid var(--border);background:var(--card)}
   .pcard img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;display:block}
-  .pcard .lbl{position:absolute;left:12px;bottom:12px;right:12px;z-index:2;font-size:.78rem}
+  /* The label carries its own scrim, so text always sits on solid --bg whatever the photo does and
+     whatever size the card is. That makes the contrast rule one fixed sum instead of a per-card
+     judgement: --fg on --bg, 15.9:1. The 32px pad above the text is where the scrim fades out, so the
+     photo still shows through above the words. Test it by reading the label's computed background:
+     the bottom stop must be an opaque --bg. */
+  .pcard .lbl{position:absolute;left:0;bottom:0;right:0;z-index:2;font-size:.78rem;padding:32px 12px 12px;
+    background:linear-gradient(to top,var(--bg) 0 calc(100% - 32px),transparent 100%)}
   .pcard .lbl b{display:block;font-family:'Nunito Sans Variable',sans-serif;font-weight:900;font-size:.95rem}
-  .pcard::after{content:"";position:absolute;inset:0;z-index:1}
-  /* A: zinc scrim — the workhorse for player cards */
-  .t-scrim::after{background:linear-gradient(to top,var(--bg) 2%,transparent 55%)}
+  /* ::before carries what the treatment does to the photo. */
+  .pcard::before{content:"";position:absolute;inset:0;z-index:1;pointer-events:none}
+  /* ::after is the same mood scrim on all four treatments. It settles the photo onto the zinc base; it
+     is not what makes a label legible, the label's own scrim above does that. */
+  .pcard::after{content:"";position:absolute;inset:0;z-index:1;pointer-events:none;background:linear-gradient(to top,var(--bg) 6%,transparent 55%)}
+  /* A: zinc scrim — the main treatment for player cards. The shared scrim is the whole treatment. */
   /* B: orange duotone — for hype/empty-states/marketing moments */
   .t-duo img{filter:grayscale(1) contrast(1.1)}
-  .t-duo::after{background:color-mix(in oklch,var(--primary) 55%,transparent);mix-blend-mode:color}
-  .t-duo .over{position:absolute;inset:0;z-index:1;background:linear-gradient(to top,var(--bg) 2%,transparent 60%)}
+  .t-duo::before{background:color-mix(in oklch,var(--primary) 55%,transparent);mix-blend-mode:color}
   /* C: spotlight — radial focus, dims edges, for "player of the week" */
-  .t-spot::after{background:radial-gradient(120% 80% at 50% 35%,transparent,var(--bg) 105%)}
+  .t-spot::before{background:radial-gradient(120% 80% at 50% 35%,transparent,var(--bg) 105%)}
   /* D: cool/analytical — desaturated + blue cast, for data-heavy screens */
   .t-cool img{filter:saturate(.55) brightness(.9)}
-  .t-cool::after{background:linear-gradient(to top,var(--bg) 2%,transparent 55%),color-mix(in oklch,var(--chart-2) 20%,transparent)}
+  .t-cool::before{background:color-mix(in oklch,var(--chart-2) 20%,transparent)}
 
-  .strip{display:grid;grid-auto-flow:column;grid-auto-columns:minmax(160px,1fr);gap:10px;overflow-x:auto;padding-bottom:8px}
+  /* The strip is a focusable scroll box: tabindex=0 lets the browser's own arrow-key scrolling reach it,
+     and the visible scrollbar plus the fading right edge say there is more to the side. */
+  .strip{display:grid;grid-auto-flow:column;grid-auto-columns:minmax(160px,1fr);gap:10px;overflow-x:auto;padding-bottom:8px;
+    scrollbar-width:thin;scrollbar-color:var(--card-2) transparent;
+    -webkit-mask-image:linear-gradient(to right,#000 calc(100% - 48px),transparent);mask-image:linear-gradient(to right,#000 calc(100% - 48px),transparent)}
+  .strip:focus-visible{outline:2px solid var(--primary);outline-offset:3px;border-radius:8px}
   .strip .pcard{aspect-ratio:4/5}
+  /* Focus rings for the cards and rows the board shows as tappable. Keyboard only, so a mouse press stays quiet. */
+  [tabindex]:focus-visible,a:focus-visible,button:focus-visible{outline:2px solid var(--primary);outline-offset:3px;border-radius:8px}
 
   /* ---------------- UI vignettes ---------------- */
   .vg{display:grid;grid-template-columns:1fr 1fr;gap:18px}
@@ -425,7 +442,6 @@
     </div>
     <div class="pcard t-duo">
       <img src="assets/nba/GettyImages-2220888872-1024x1536.jpg" alt="">
-      <div class="over"></div>
       <div class="lbl"><b>B · Orange Duotone</b><span class="muted">Hype / empty-states / marketing beats.</span></div>
     </div>
     <div class="pcard t-spot">
@@ -439,7 +455,7 @@
   </div>
 
   <h3 style="margin:34px 0 12px;color:var(--muted-fg)">Hero / matchup strip — landscape moments</h3>
-  <div class="strip">
+  <div class="strip" tabindex="0" role="group" aria-label="Matchup photos, scroll sideways">
     <div class="pcard t-scrim"><img src="assets/nba/jokic3-2.jpg" alt=""></div>
     <div class="pcard t-scrim"><img src="assets/nba/13_Photos-of-the-Year-1536x1024.jpg" alt=""></div>
     <div class="pcard t-scrim"><img src="assets/nba/77_Photos-of-the-Year-1536x1024.jpg" alt=""></div>
@@ -447,6 +463,8 @@
     <div class="pcard t-scrim"><img src="assets/nba/wemby-vassell.jpg" alt=""></div>
     <div class="pcard t-scrim"><img src="assets/nba/GettyImages-2211632004-1536x1024.jpg" alt=""></div>
   </div>
+  <p class="note">Keyboard note: the strip carries <code>tabindex="0"</code>, which is all a scroll box needs for the browser's own arrow keys to move it, so no script is involved. Tab to it and the orange ring shows where you are. The right edge fades and the thin scrollbar stays visible, so it reads as scrollable before anyone touches it. Any real <code>&lt;PhotoStrip&gt;</code> ships the same three things.</p>
+  <p class="note">Contrast note: the four treatments differ in what they do to the photo, never in what a label sits on. Each label paints its own scrim, opaque <code>--bg</code> behind the text and fading out over the 32px above it, so the sum is the same on all four and at every card size: <code>--fg</code> on <code>--bg</code>, 15.9:1. The check needs no measuring of card heights, only the label's computed background, whose bottom stop must be an opaque <code>--bg</code>. Text that needs to float free of a scrim does not go on a photo.</p>
   <p class="note">Production note: the board now loads local copies from <code>design/assets/nba/</code>, downloaded from cdn.nba.com so the board stops breaking when those URLs move. They are reference only and are not cleared for production. Shipping still needs team-licensed or Getty-licensed assets plus a headshot API, served from your own CDN. Always ship a zinc fallback block so a missing photo degrades gracefully.</p>
 </section>
 
@@ -495,16 +513,17 @@
     <div class="card pad">
       <h3 style="color:var(--muted-fg);font-size:.8rem">3 · Plan your roster, week by week</h3>
       <div style="margin-top:12px">
-        <div class="row" style="justify-content:space-between;padding:9px 0;border-bottom:1px solid var(--border)">
+        <div class="row" tabindex="0" role="button" style="justify-content:space-between;padding:9px 0;border-bottom:1px solid var(--border)">
           <div class="row"><img class="ava" src="assets/nba/0GettyImages-2182344606-952x1176.jpg" alt="A. Edwards"><div><b>A. Edwards</b><div class="muted" style="font-size:.75rem">SG · 4 games</div></div></div>
           <span class="tag" style="background:color-mix(in oklch,var(--win) 20%,transparent);color:var(--fg)">START</span>
         </div>
-        <div class="row" style="justify-content:space-between;padding:9px 0;border-bottom:1px solid var(--border)">
+        <div class="row" tabindex="0" role="button" style="justify-content:space-between;padding:9px 0;border-bottom:1px solid var(--border)">
           <div class="row"><img class="ava" src="assets/nba/wemby-vassell.jpg" alt="V. Wembanyama"><div><b>V. Wembanyama</b><div class="muted" style="font-size:.75rem">C · 3 games · GTD</div></div></div>
           <span class="tag">BENCH</span>
         </div>
       </div>
-      <p class="muted" style="margin:14px 0 0">Quiet rows, tabular game-counts, one decisive colored verb (START / BENCH). Drag-to-set; the layout stays calm under a full bench.</p>
+      <p class="muted" style="margin:14px 0 0">Quiet rows, tabular game-counts, one decisive colored verb (START / BENCH). Drag-to-set; the layout remains stable under a full bench.</p>
+      <p class="note" style="margin-top:10px">Tab into these two rows to see the focus ring: a 2px <code>--primary</code> outline at 3px offset, on <code>:focus-visible</code> only, so a mouse press never draws it. Every card or row you can tap gets the same ring and nothing else. Drag-to-set needs a keyboard path of its own, and START / BENCH buttons on the focused row are the cheapest one.</p>
     </div>
 
     <!-- 4. Free agents -->
@@ -1268,7 +1287,7 @@
     </div>
 
   </div>
-  <p class="note">Ship as <code>&lt;Chart&gt;</code> (axis, baseline, band, readout, keyboard selection) and <code>&lt;Sparkline&gt;</code>, both feeding ron.12. The chart chrome (gridline, baseline, target line, band opacity, context hairline) lives in one place and is never picked per chart. Contrast figures here were computed against <code>--card</code>, not judged by eye, and the same sums have to be redone before any of this ships in light mode.</p>
+  <p class="note">Ship as <code>&lt;Chart&gt;</code> (axis, baseline, band, readout, keyboard selection) and <code>&lt;Sparkline&gt;</code>, both feeding ron.12. The chart chrome (gridline, baseline, target line, band opacity, context hairline) lives in one place and is never picked per chart. Contrast figures here were computed against <code>--card</code>, not judged by eye.</p>
 </section>
 
 <!-- ============ LIVE AUCTION ============ -->
@@ -1549,7 +1568,6 @@
   FBKL · design direction draft · tokens sourced from <code>webapp-logged-in/src/global.css</code> (dark mode) ·
   fonts: Nunito Sans Variable + Figtree Variable (already bundled) ·
   imagery: NBA.com Top-25 Photos 2025, local copies in <code>design/assets/nba/</code> (reference only — license before shipping).
-  <br>Note: CLAUDE.md lists "Space Grotesk headings"; actual loaded heading font is Nunito Sans Variable. This board follows the code.
 </footer>
 
 </div>

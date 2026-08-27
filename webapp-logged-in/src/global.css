@@ -30,6 +30,8 @@
   --accent: oklch(0.274 0.006 286.033);
   --accent-foreground: oklch(0.985 0 0);
   --destructive: oklch(0.63 0.2 18);
+  /* Dark text on the red, because white on it is only 3.70:1. This pairing is 5.14:1. */
+  --destructive-foreground: oklch(0.141 0.005 285.823);
   --border: oklch(1 0 0 / 10%);
   --input: oklch(1 0 0 / 15%);
   --ring: oklch(0.552 0.016 285.938);
@@ -68,6 +70,7 @@
   --color-input: var(--input);
   --color-border: var(--border);
   --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
   --color-accent-foreground: var(--accent-foreground);
   --color-accent: var(--accent);
   --color-muted-foreground: var(--muted-foreground);
@@ -127,8 +130,9 @@
   .btn--ghost {
     @apply hover:bg-muted hover:text-foreground aria-expanded:bg-muted aria-expanded:text-foreground dark:hover:bg-muted/50;
   }
+  /* Solid, not a tint: no tint of --destructive on --card reaches 4.5:1 (20% measured 3.68:1, and even 0% only gets to 4.3:1). Solid is 5.14:1, hover 6.17:1, and it stays distinct from --primary-hot because that token is reserved for the auction screen. */
   .btn--destructive {
-    @apply bg-destructive/10 text-destructive hover:bg-destructive/20 focus-visible:border-destructive/40 focus-visible:ring-destructive/20 dark:bg-destructive/20 dark:hover:bg-destructive/30 dark:focus-visible:ring-destructive/40;
+    @apply bg-destructive text-destructive-foreground hover:bg-[color-mix(in_oklch,var(--destructive),var(--foreground)_12%)] focus-visible:border-destructive/40 focus-visible:ring-destructive/40;
   }
   .btn--link {
     @apply text-primary underline-offset-4 hover:underline;
@@ -188,25 +192,29 @@
   .badge--pill {
     @apply rounded-full border-primary/50 bg-primary/20 px-3 tracking-[0.12em] text-primary-foreground [a]:hover:bg-primary/30;
   }
+  /* The ring is a scaled pseudo-element, not an animated box-shadow, so the pulse runs on the compositor. */
   .badge-dot {
-    @apply size-2 shrink-0 rounded-full bg-primary-hot;
+    @apply relative size-2 shrink-0 rounded-full bg-primary-hot;
+  }
+  .badge-dot::after {
+    @apply absolute inset-0 rounded-full bg-primary-hot content-[''];
     animation: badge-dot-pulse 1.8s infinite;
   }
   @keyframes badge-dot-pulse {
     0% {
-      box-shadow: 0 0 0 0
-        color-mix(in oklch, var(--primary-hot) 70%, transparent);
+      opacity: 0.7;
+      transform: scale(1);
     }
-    70% {
-      box-shadow: 0 0 0 10px transparent;
-    }
+    70%,
     100% {
-      box-shadow: 0 0 0 0 transparent;
+      opacity: 0;
+      transform: scale(3.5);
     }
   }
   @media (prefers-reduced-motion: reduce) {
-    .badge-dot {
+    .badge-dot::after {
       animation: none;
+      opacity: 0;
     }
   }
 
@@ -245,33 +253,40 @@
   .photo-treatment > img {
     @apply absolute inset-0 block size-full object-cover;
   }
+  /* ::before applies the variant's overlay. */
+  .photo-treatment::before {
+    content: '';
+    @apply pointer-events-none absolute inset-0 z-1;
+  }
+  /* ::after is the same mood scrim on every variant. It settles the photo onto the zinc base; it is not what makes a label legible, .photo-treatment-label does that. */
   .photo-treatment::after {
     content: '';
     @apply pointer-events-none absolute inset-0 z-1;
+    background: linear-gradient(to top, var(--background) 6%, transparent 55%);
   }
   .photo-treatment > :not(img) {
     @apply relative z-2;
   }
-  /* A: zinc scrim, the workhorse for player cards. */
-  .photo-treatment--scrim::after {
-    background: linear-gradient(to top, var(--background) 2%, transparent 55%);
+  /* Any text over a photo goes in this label, which carries its own scrim, so the contrast sum is one fixed number on all four variants and at every card size: --foreground on --background, 15.9:1. The 2rem pad above the text is where the scrim fades out, so the photo still shows through above the words. Test it by reading the label's computed background: the bottom stop must be an opaque --background. */
+  .photo-treatment-label {
+    @apply absolute inset-x-0 bottom-0 z-2 px-3 pt-8 pb-3;
+    background: linear-gradient(
+      to top,
+      var(--background) 0 calc(100% - 2rem),
+      transparent 100%
+    );
   }
+  /* A: zinc scrim, the default treatment for player cards. The shared scrim is the whole treatment. */
   /* B: orange duotone, for hype, empty states and marketing moments. */
   .photo-treatment--duotone > img {
     filter: grayscale(1) contrast(1.1);
   }
-  .photo-treatment--duotone::after {
+  .photo-treatment--duotone::before {
     background: color-mix(in oklch, var(--primary) 55%, transparent);
     mix-blend-mode: color;
   }
-  /* The colour blend takes ::after, so the bottom scrim rides on ::before. */
-  .photo-treatment--duotone::before {
-    content: '';
-    @apply pointer-events-none absolute inset-0 z-1;
-    background: linear-gradient(to top, var(--background) 2%, transparent 60%);
-  }
   /* C: spotlight, a radial focus that dims the edges, for player of the week. */
-  .photo-treatment--spotlight::after {
+  .photo-treatment--spotlight::before {
     background: radial-gradient(
       120% 80% at 50% 35%,
       transparent,
@@ -282,10 +297,8 @@
   .photo-treatment--analytical > img {
     filter: saturate(0.55) brightness(0.9);
   }
-  .photo-treatment--analytical::after {
-    background:
-      linear-gradient(to top, var(--background) 2%, transparent 55%),
-      color-mix(in oklch, var(--chart-2) 20%, transparent);
+  .photo-treatment--analytical::before {
+    background: color-mix(in oklch, var(--chart-2) 20%, transparent);
   }
 
   /* Typography: `variant` prop on <Typography> maps to these bundles (see typography.tsx); sizes/weights come from design/moodboard.html, which wins any disagreement. */

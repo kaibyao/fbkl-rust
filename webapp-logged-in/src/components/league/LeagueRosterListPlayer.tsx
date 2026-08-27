@@ -1,6 +1,5 @@
 import { User } from 'lucide-react';
 import { FunctionComponent } from 'react';
-import { ContractChip } from '@/components/league/ContractChip';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
 import {
@@ -12,7 +11,10 @@ import {
 import { TermTip } from '@/components/ui/term-tip';
 import { Typography, TypographyVariant } from '@/components/ui/typography';
 import { ContractForRosterListFragment } from '@/generated/graphql';
-import { isFinalContractYear } from '@/lib/contract.utils';
+import {
+  CONTRACT_KIND_DISPLAY,
+  isFinalContractYear,
+} from '@/lib/contract.utils';
 import { TERMS } from '@/lib/terms';
 import { cn } from '@/lib/utils';
 
@@ -42,6 +44,8 @@ export const LeagueRosterListPlayer: FunctionComponent<Props> = ({
     realTeamName,
   });
   const playerName = contract.leagueOrRealPlayer.name;
+  const { abbreviation, label, finalYearNumber } =
+    CONTRACT_KIND_DISPLAY[contract.kind];
 
   return (
     <Stack
@@ -81,12 +85,23 @@ export const LeagueRosterListPlayer: FunctionComponent<Props> = ({
       >
         <Typography
           variant={TypographyVariant.Stat}
-          // An IR salary is off the books, so it reads as secondary info.
+          // An IR salary is inactive, so display it as secondary.
           className={cn(contract.isIr && 'text-muted-foreground')}
         >
-          {contract.salary == null ? 'TBD' : `$${contract.salary}`}
+          {contract.salary == null ? (
+            <TermTip label={TERMS.TBD}>TBD</TermTip>
+          ) : (
+            `$${contract.salary}`
+          )}
         </Typography>
-        <ContractChip kind={contract.kind} yearNumber={contract.yearNumber} />
+        <TermTip
+          label={label}
+          render={<Badge variant="secondary" className="cursor-help" />}
+        >
+          {finalYearNumber === null
+            ? abbreviation
+            : `${abbreviation} Y${contract.yearNumber}/${finalYearNumber}`}
+        </TermTip>
         {isFinalContractYear(contract) && (
           <Badge variant="outline">Final yr</Badge>
         )}
