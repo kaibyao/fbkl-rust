@@ -100,9 +100,11 @@ emitted as the `github_deploy_role_arn` output for the CI workflow.
 
 ## CI/CD (`.github/workflows/deploy.yml`, 96e.10)
 
-Push to `main` triggers a path-filtered deploy: gated migrations → Lambda code
-update (OIDC, no stored keys) → Cloudflare Pages deploy (wrangler). Configure in
-the GitHub repo before the first CI run:
+Push to `main` triggers a path-filtered deploy: migrations → Lambda code update
+(OIDC, no stored keys) → Cloudflare Pages deploy (wrangler). `migration up` runs
+on every deploy (not path-filtered) and the Lambda update is blocked if it
+fails, so code can never deploy against a stale schema. Configure in the GitHub
+repo before the first CI run:
 
 | Kind | Name | Value |
 |------|------|-------|
@@ -111,4 +113,4 @@ the GitHub repo before the first CI run:
 | Variable | `CLOUDFLARE_ACCOUNT_ID` | your account ID |
 | Secret | `PROD_DATABASE_MIGRATION_URL` | Supabase SESSION pooler URL (port 5432) |
 | Secret | `CLOUDFLARE_API_TOKEN` | Pages-edit token |
-| Environment | `production` | add required reviewers → this is the migration approval gate |
+| Environment | `production` | leave required reviewers off, or every push to `main` needs manual approval |

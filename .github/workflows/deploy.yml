@@ -1,15 +1,17 @@
 # Continuous deployment on push to main (epic fbkl-rust-96e.10).
 #
-# Path-filtered: only the changed parts deploy. Schema migrations run first,
-# gated behind the `production` GitHub Environment (configure required reviewers
-# on it for the manual approval gate). Lambdas deploy via OIDC (no stored AWS
-# keys); frontends deploy to Cloudflare Pages via wrangler.
+# agents-allow-block — workflow header
+# Path-filtered, except `migrate`: it runs on EVERY deploy and applies whatever
+# is pending. Never path-filter it — the pending set depends on what the DB has
+# applied, not on what this push changed, so one failed migration would stay
+# unapplied while every later push went green. Lambdas deploy via OIDC (no
+# stored AWS keys); frontends deploy to Cloudflare Pages via wrangler.
 #
 # Required repo config:
 #   Variables: AWS_DEPLOY_ROLE_ARN (= tofu output github_deploy_role_arn),
 #              AWS_REGION (us-east-1), CLOUDFLARE_ACCOUNT_ID
 #   Secrets:   PROD_DATABASE_MIGRATION_URL (Supabase session pooler — DDL-safe + IPv4), CLOUDFLARE_API_TOKEN
-#   Environment `production` with required reviewers (gates migrations).
+#   Environment `production`: leave required reviewers OFF, or approve every push.
 
 name: deploy
 
@@ -22,10 +24,6 @@ on:
         description: 'Deploy lambdas + both frontends regardless of changed paths'
         type: boolean
         default: true
-      run_migrations:
-        description: 'Also run DB migrations (still gated by production env approval)'
-        type: boolean
-        default: false
 
 concurrency:
   group: deploy-${{ github.ref }}
@@ -40,7 +38,6 @@ jobs:
     runs-on: ubuntu-latest
     outputs:
       rust: ${{ steps.filter.outputs.rust }}
-      migrations: ${{ steps.filter.outputs.migrations }}
       app: ${{ steps.filter.outputs.app }}
       public: ${{ steps.filter.outputs.public }}
     steps:
@@ -60,17 +57,12 @@ jobs:
               - 'transaction-processor/**'
               - 'Cargo.toml'
               - 'Cargo.lock'
-            migrations:
-              - 'migration/**'
-              - 'entity/**'
             app:
               - 'webapp-logged-in/**'
             public:
               - 'webapp-public/**'
 
   migrate:
-    needs: changes
-    if: needs.changes.outputs.migrations == 'true' || github.event.inputs.run_migrations == 'true'
     runs-on: ubuntu-latest
     environment: production
     env:
@@ -86,10 +78,7 @@ jobs:
 
   deploy-lambdas:
     needs: [changes, migrate]
-    if: |
-      always() &&
-      (needs.changes.outputs.rust == 'true' || github.event.inputs.force == 'true') &&
-      (needs.migrate.result == 'success' || needs.migrate.result == 'skipped')
+    if: needs.changes.outputs.rust == 'true' || github.event.inputs.force == 'true'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
