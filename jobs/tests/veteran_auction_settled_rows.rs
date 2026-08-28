@@ -7,17 +7,17 @@ use std::{
     sync::{Arc, Mutex},
 };
 
-use chrono::{NaiveDate, TimeDelta, Utc};
+use chrono::{NaiveDate, TimeDelta};
 use fbkl_entity::{
     auction::{self, AuctionStatus},
     auction_queries,
     deadline::DeadlineKind,
-    sea_orm::{ConnectionTrait, EntityTrait, prelude::DateTimeWithTimeZone},
+    sea_orm::{ConnectionTrait, EntityTrait},
     team_user::LeagueRole,
 };
 use fbkl_jobs::run_veteran_auction_release_tick;
 use fbkl_logic::auction::end_veteran_auction;
-use fbkl_test_support::{TestLeague, central};
+use fbkl_test_support::{TestLeague, central, now_storable};
 
 const END_OF_SEASON_YEAR: i16 = 2026;
 const TIER_MIN_BID_AMOUNTS: [i16; 4] = [20, 15, 10, 5];
@@ -168,8 +168,8 @@ async fn a_failing_schedule_row_is_skipped_rather_than_fatal() {
 /// live auctions their shortened reprieve.
 #[tokio::test]
 async fn a_failing_row_still_leaves_the_crunch_sweep_to_run() {
-    let now: DateTimeWithTimeZone = Utc::now().into();
-    // Bid timestamps come from the database clock, so this league's deadlines hang off wall-clock now.
+    // Bid timestamps come from the database clock, so this league's deadlines follow wall-clock now.
+    let now = now_storable();
     let hard_deadline = now + TimeDelta::hours(6);
     let Some(league) =
         TestLeague::create("vet_auction_crunch_after_failure", END_OF_SEASON_YEAR).await

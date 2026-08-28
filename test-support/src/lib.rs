@@ -19,6 +19,14 @@
 //! for the veteran auction tier slide. The trigger only stamps the wall clock when the UPDATE did
 //! not set `updated_at` itself, so writing it explicitly is what makes the rewind stick.
 //!
+//! # Timestamps a test asserts on
+//!
+//! Build every test timestamp from [`now_storable`], [`days_from_now`], [`days_ago`] or
+//! [`central`], never from a bare `Utc::now()`. A Postgres `timestamptz` only stores microseconds,
+//! and Linux clocks report nanoseconds, so an untruncated `now` written to a row and compared
+//! against the value read back fails in CI while passing on macOS, whose clock resolves to
+//! microseconds anyway.
+//!
 //! # Growing the harness
 //!
 //! New helpers default to methods on [`TestLeague`]. When the impl block gets long, split it across
