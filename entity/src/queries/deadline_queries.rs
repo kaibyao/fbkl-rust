@@ -12,6 +12,21 @@ use crate::{
     job_run::{self, JobRunStatus},
 };
 
+/// A league season is missing a deadline row the rules need, so the caller cannot say which
+/// window it is in.
+///
+/// Concrete (not an opaque `eyre!`) so a resolver can `downcast_ref` and name the missing row to
+/// the owner, instead of reporting a bare server fault.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, thiserror::Error)]
+#[error(
+    "league (id = {league_id}) season {end_of_season_year} has no {kind:?} deadline, so the rules window it sets cannot be read; ask the commissioner to add the season's missing deadline rows"
+)]
+pub struct MissingSeasonDeadline {
+    pub league_id: i64,
+    pub end_of_season_year: i16,
+    pub kind: DeadlineKind,
+}
+
 /// Returns a league season's deadlines ordered by `date_time`, ties broken by `id`.
 ///
 /// Insertion order (see `import-data` `import_deadlines`) encodes the intended processing order for
@@ -71,7 +86,11 @@ where
         )
         .one(db)
         .await?
-        .ok_or_else(|| eyre!("Could not find a deadline for league (id = {}) and end-of-season year ({}) of type: {:?}.", league_id, end_of_season_year, kind))?;
+        .ok_or(MissingSeasonDeadline {
+            league_id,
+            end_of_season_year,
+            kind,
+        })?;
     Ok(maybe_deadline_model)
 }
 

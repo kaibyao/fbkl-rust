@@ -10,6 +10,7 @@
 //! has to fail with a typed error the resolver can name, not an opaque one it reports as a 500.
 
 use chrono::{Days, Utc};
+use fbkl_constants::league_rules::PRE_SEASON_TOTAL_SALARY_LIMIT;
 use fbkl_entity::{
     contract::{self, ContractKind, ContractStatus},
     contract_queries,
@@ -132,6 +133,42 @@ async fn a_preseason_trade_before_the_keeper_deadline_records_an_uncapped_snapsh
         (summary.previous_salary_cap, summary.new_salary_cap),
         (i16::MAX, i16::MAX),
         "a trade in the uncapped window records that window, not the coming lock's $210"
+    );
+}
+
+#[tokio::test]
+async fn a_preseason_trade_after_the_keeper_deadline_records_the_200_cap() {
+    let Some(league) = TestLeague::create("trade_preseason_vet_auction", END_OF_SEASON_YEAR).await
+    else {
+        return;
+    };
+    let now = Utc::now().fixed_offset();
+    // Rules 4.2.1: $200 from the keeper deadline until the final roster lock (10 days out, $210).
+    league
+        .add_deadline(DeadlineKind::PreseasonStart, days_ago(10))
+        .await;
+    league
+        .add_deadline(DeadlineKind::PreseasonKeeper, days_ago(3))
+        .await;
+    league
+        .add_deadline(DeadlineKind::PreseasonRookieDraftStart, days_from_now(2))
+        .await;
+    league
+        .add_deadline(DeadlineKind::PreseasonFinalRosterLock, days_from_now(10))
+        .await;
+    let (proposed_trade, receiving_owner, receiving_team_id, _) =
+        propose_one_contract_trade(&league).await;
+    accept_trade(proposed_trade, &receiving_owner, &now, &league.db)
+        .await
+        .expect("accept trade")
+        .expect("both teams have responded, so the trade processes");
+
+    let lock = deadline_of_kind(&league, DeadlineKind::PreseasonFinalRosterLock).await;
+    let summary = week_asset_summary(&league, receiving_team_id, lock.id).await;
+    assert_eq!(
+        (summary.previous_salary_cap, summary.new_salary_cap),
+        (PRE_SEASON_TOTAL_SALARY_LIMIT, PRE_SEASON_TOTAL_SALARY_LIMIT),
+        "a trade during the veteran auction records $200, not the coming lock's $210"
     );
 }
 

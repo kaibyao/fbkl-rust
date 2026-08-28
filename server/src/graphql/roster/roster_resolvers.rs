@@ -29,6 +29,7 @@ use fbkl_logic::{
         move_rookie_development_international_contract_to_stateside,
     },
     roster::RosterMoveRejection,
+    trade::MISSING_ROSTER_LOCK_ADVICE,
 };
 
 use super::super::{contract::Contract, team::TeamUpdate};
@@ -362,10 +363,10 @@ where
         // and a season with none left to fire is missing deadline rows rather than closed for moves.
         None => Err(graphql_error(
             ErrorCode::BadRequest,
-            "this league season has no roster lock still to fire, so a move has no week to be \
-             judged in; weekly locks run through the playoff weeks to the end of the season, so \
-             ask the commissioner to add the season's missing lock deadlines"
-                .to_owned(),
+            format!(
+                "this league season has no roster lock still to fire, so a move has no week to be \
+                 judged in; {MISSING_ROSTER_LOCK_ADVICE}"
+            ),
         )),
         Some(lock) if lock.id != deadline_id => Err(graphql_error(
             ErrorCode::BadRequest,

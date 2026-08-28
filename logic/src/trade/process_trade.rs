@@ -29,13 +29,17 @@ use super::{
 
 static EMPTY_VEC: &Vec<contract::Model> = &vec![];
 
+/// What to tell an owner whose league season has no roster lock left to fire. Shared so the trade
+/// error and the roster resolver's message cannot drift apart.
+pub const MISSING_ROSTER_LOCK_ADVICE: &str = "weekly locks run through the playoff weeks to the end of the season, so ask the commissioner to add the season's missing lock deadlines";
+
 /// The trade's league season has no roster lock still to fire, so its adds have no week to join.
 ///
 /// Concrete (not an opaque `eyre!`) so the resolver can `downcast_ref` and tell the owner the
 /// league's lock deadlines are missing, instead of reporting a bare server fault.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, thiserror::Error)]
 #[error(
-    "cannot process a trade for league (id = {league_id}) season {end_of_season_year}: no roster lock is still to fire, so the trade's adds have no week to be judged in; weekly locks run through the playoff weeks to the end of the season, so ask the commissioner to add the season's missing lock deadlines"
+    "cannot process a trade for league (id = {league_id}) season {end_of_season_year}: no roster lock is still to fire, so the trade's adds have no week to be judged in; {MISSING_ROSTER_LOCK_ADVICE}"
 )]
 pub struct MissingUpcomingRosterLock {
     pub league_id: i64,
@@ -234,9 +238,11 @@ where
 /// The deadline whose salary cap the trade's `team_update` snapshots report.
 ///
 /// Normally the lock the trade is judged at, so the recorded cap is the one the roster has to be
-/// legal against. The exception is the §4.2.4 window from contract advancement to the keeper
-/// deadline: there is no cap there and §9.1 penalizes no drop made there, so a trade in that window
-/// reports the window's own uncapped deadline rather than the coming lock's $210 and drop penalty.
+/// legal against. Two preseason windows report their own cap instead, because the coming lock's
+/// $210 is not yet in force: the §4.2.4 window from contract advancement to the keeper deadline is
+/// uncapped (and §9.1 penalizes no drop made there), and §4.2.1 holds the cap at $200 from the
+/// keeper deadline until the veteran auction and rookie draft conclude, which is what the
+/// `PreseasonFinalRosterLock` marks the end of.
 #[instrument(skip(db))]
 async fn find_trade_salary_snapshot_deadline<C>(
     trade_model: &trade::Model,
@@ -256,14 +262,18 @@ where
     )
     .await?
     .is_some();
-    if !is_before_keeper_deadline {
+    let window_kind = if is_before_keeper_deadline {
+        DeadlineKind::PreseasonStart
+    } else if upcoming_lock.kind == DeadlineKind::PreseasonFinalRosterLock {
+        DeadlineKind::PreseasonRookieDraftStart
+    } else {
         return Ok(upcoming_lock.clone());
-    }
+    };
 
     deadline_queries::find_deadline_for_season_by_type(
         trade_model.league_id,
         trade_model.end_of_season_year,
-        DeadlineKind::PreseasonStart,
+        window_kind,
         db,
     )
     .await
