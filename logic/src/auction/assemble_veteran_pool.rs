@@ -315,7 +315,7 @@ where
                 now,
                 auction_quiet_window(now, None),
                 None,
-                mode_deadlines.hard_deadline,
+                Some(mode_deadlines.hard_deadline),
             )?,
             all_bid_deadline_timestamp: None,
             original_owner_team_id: maybe_original_owner_team_id,
@@ -383,7 +383,7 @@ where
         now,
         auction_quiet_window(now, None),
         None,
-        mode_deadlines.hard_deadline,
+        Some(mode_deadlines.hard_deadline),
     )?;
 
     let db_txn = db.begin().await?;

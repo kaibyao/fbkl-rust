@@ -64,7 +64,7 @@ where
             last_bid.created_at,
             crunch_quiet_window,
             open_auction.all_bid_deadline_timestamp,
-            mode_deadlines.hard_deadline,
+            Some(mode_deadlines.hard_deadline),
         )?;
         if shortened_close_at < open_auction.close_at_timestamp {
             shortened_auctions.push(

@@ -6,9 +6,14 @@
 
 use chrono::{Days, Utc};
 use fbkl_entity::{
-    auction::AuctionKind, auction_queries, contract::ContractKind, deadline::DeadlineKind,
-    deadline_queries, sea_orm::prelude::DateTimeWithTimeZone,
-    team_update_queries::find_team_updates_by_team, team_user::LeagueRole,
+    auction::{AuctionKind, AuctionStatus},
+    auction_queries,
+    contract::ContractKind,
+    deadline::DeadlineKind,
+    deadline_queries,
+    sea_orm::prelude::DateTimeWithTimeZone,
+    team_update_queries::find_team_updates_by_team,
+    team_user::LeagueRole,
 };
 use fbkl_logic::auction::{find_auction_mode_deadlines, start_new_auction_for_nba_player};
 use fbkl_test_support::{TestLeague, central};
@@ -166,6 +171,66 @@ async fn a_close_after_the_free_agency_freeze_is_refused() {
     );
 }
 
+/// The §8.1.3 freeze bars pickups, not expiries, so a no-bid auction past it must still expire.
+///
+/// It used to be refused before the close outcome was computed, which left the row due for close
+/// forever: every tick re-queued it and recorded another `Failed` run.
+#[tokio::test]
+async fn an_unbid_auction_past_the_free_agency_freeze_still_expires() {
+    let Some(league) =
+        TestLeague::create("fa_auction_close_unbid_frozen", END_OF_SEASON_YEAR).await
+    else {
+        return;
+    };
+    league
+        .add_deadline(DeadlineKind::InSeasonRosterLock, days_from_now(7))
+        .await;
+    league
+        .add_deadline(DeadlineKind::FreeAgentAuctionEnd, days_ago(1))
+        .await;
+
+    let player_id = league.add_veteran_player("Unbid Frozen Vet").await;
+    let pooled_contract = league
+        .add_unowned_contract(
+            player_id,
+            ContractKind::UnrestrictedFreeAgentVeteran,
+            WINNING_BID,
+        )
+        .await;
+    let auction = start_new_auction_for_nba_player(
+        &pooled_contract,
+        league.league_id,
+        END_OF_SEASON_YEAR,
+        Utc::now().fixed_offset(),
+        AuctionKind::InSeasonFreeAgent,
+        WINNING_BID,
+        &league.db,
+    )
+    .await
+    .expect("start the in-season FA auction");
+
+    let outcome = process_event(
+        &league.db,
+        ProcessableEvent {
+            league_id: league.league_id,
+            end_of_season_year: END_OF_SEASON_YEAR,
+            subject_id: auction.id,
+            kind: ProcessableEventKind::FaAuctionClose,
+        },
+    )
+    .await
+    .expect("run the auction close");
+    assert!(
+        matches!(outcome, ProcessOutcome::Processed { .. }),
+        "an unbid auction past the freeze should expire: {outcome:?}"
+    );
+
+    let closed_auction = auction_queries::find_auction_by_id(auction.id, &league.db)
+        .await
+        .expect("read the closed auction");
+    assert_eq!(closed_auction.status, AuctionStatus::Expired);
+}
+
 /// An in-season auction is bounded by whichever lock comes next, and `Week1RosterLock` is one.
 ///
 /// The lookup used to filter on `InSeasonRosterLock` alone, so an auction running in week 1 clamped
@@ -197,7 +262,7 @@ async fn the_in_season_hard_deadline_counts_the_week_1_lock_as_a_lock() {
     .await
     .expect("find the auction's mode deadlines");
 
-    assert_eq!(mode_deadlines.hard_deadline, Some(week_1_lock));
+    assert_eq!(mode_deadlines.hard_deadline, week_1_lock);
 }
 
 fn days_from_now(days: u64) -> DateTimeWithTimeZone {

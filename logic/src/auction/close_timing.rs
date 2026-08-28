@@ -125,8 +125,8 @@ pub struct AuctionModeDeadlines {
     /// The instant past which the auction cannot take bids, whatever its own clocks say: the final
     /// preseason roster lock, or in-season the earlier of the next lock still to fire (which is what
     /// bounds the §8.3.2 chain — the rules doc leaves it open-ended) and the §8.1.3 free agency
-    /// freeze. `None` when the season has no lock left.
-    pub hard_deadline: Option<DateTimeWithTimeZone>,
+    /// freeze. A season with no lock left still has the freeze, which may already be in the past.
+    pub hard_deadline: DateTimeWithTimeZone,
     /// When the quiet window shortens to 1h. `None` in-season: bidding is over by Sunday evening,
     /// well before Monday tipoff, so in-season never reaches a crunch window.
     pub crunch_window_start: Option<DateTimeWithTimeZone>,
@@ -153,7 +153,7 @@ where
         )
         .await?;
         return Ok(AuctionModeDeadlines {
-            hard_deadline: Some(final_roster_lock.date_time),
+            hard_deadline: final_roster_lock.date_time,
             crunch_window_start: Some(crunch_window_start(final_roster_lock.date_time)?),
         });
     }
@@ -170,11 +170,9 @@ where
     )
     .await?;
     Ok(AuctionModeDeadlines {
-        hard_deadline: Some(
-            maybe_next_roster_lock.map_or(fa_auction_end.date_time, |roster_lock| {
-                roster_lock.date_time.min(fa_auction_end.date_time)
-            }),
-        ),
+        hard_deadline: maybe_next_roster_lock.map_or(fa_auction_end.date_time, |roster_lock| {
+            roster_lock.date_time.min(fa_auction_end.date_time)
+        }),
         crunch_window_start: None,
     })
 }

@@ -173,7 +173,7 @@ where
                 now,
                 all_bid_deadline,
                 week_all_bid_deadline,
-                mode_deadlines.hard_deadline,
+                Some(mode_deadlines.hard_deadline),
             )
         }
         None => None,
@@ -187,7 +187,7 @@ where
         now,
         auction_quiet_window(now, mode_deadlines.crunch_window_start),
         maybe_rolled_deadline.or(auction_model.all_bid_deadline_timestamp),
-        mode_deadlines.hard_deadline,
+        Some(mode_deadlines.hard_deadline),
     )?;
     auction_queries::set_auction_close_at(auction_id, new_close_at, &db_txn).await?;
 
