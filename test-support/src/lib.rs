@@ -45,6 +45,7 @@
 mod scratch_db;
 
 use crate::scratch_db::scratch_db;
+use chrono::{Days, SubsecRound, Utc};
 use fbkl_constants::date::league_wall_clock;
 use fbkl_entity::{
     auction::{self, AuctionKind, AuctionStatus},
@@ -362,4 +363,42 @@ impl TestLeague {
 /// uses. DST included, so a September timestamp lands on CDT and a January one on CST.
 pub fn central(timestamp: &str) -> DateTimeWithTimeZone {
     league_wall_clock(timestamp.parse().expect("parse timestamp")).expect("central wall clock")
+}
+
+/// `now` truncated to the microsecond, the most a Postgres `timestamptz` column can store.
+///
+/// A test that writes a timestamp and then asserts on the value read back must start from a value
+/// the database can hold exactly. Linux clocks report nanoseconds, so an untruncated `Utc::now()`
+/// loses its last three digits on the round trip and the comparison fails there while passing on
+/// macOS, whose clock only resolves to microseconds anyway.
+pub fn now_storable() -> DateTimeWithTimeZone {
+    Utc::now().trunc_subsecs(6).fixed_offset()
+}
+
+/// [`now_storable`] moved `days` into the future.
+pub fn days_from_now(days: u64) -> DateTimeWithTimeZone {
+    now_storable()
+        .checked_add_days(Days::new(days))
+        .expect("a date in the future")
+}
+
+/// [`now_storable`] moved `days` into the past.
+pub fn days_ago(days: u64) -> DateTimeWithTimeZone {
+    now_storable()
+        .checked_sub_days(Days::new(days))
+        .expect("a date in the past")
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{days_ago, days_from_now, now_storable};
+    use chrono::Timelike;
+
+    /// The whole point of the helpers: a Postgres `timestamptz` cannot hold sub-microsecond digits.
+    #[test]
+    fn the_date_helpers_only_produce_timestamps_postgres_can_store() {
+        for timestamp in [now_storable(), days_from_now(2), days_ago(2)] {
+            assert_eq!(timestamp.nanosecond() % 1_000, 0, "{timestamp} kept nanos");
+        }
+    }
 }

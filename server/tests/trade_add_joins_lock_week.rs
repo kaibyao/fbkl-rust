@@ -9,14 +9,13 @@
 //! A season with no lock left has no week for the add either, so that case is pinned here too: it
 //! has to fail with a typed error the resolver can name, not an opaque one it reports as a 500.
 
-use chrono::{Days, Utc};
+use chrono::Utc;
 use fbkl_constants::league_rules::PRE_SEASON_TOTAL_SALARY_LIMIT;
 use fbkl_entity::{
     contract::{self, ContractKind, ContractStatus},
     contract_queries,
     deadline::{self, DeadlineKind},
     deadline_queries,
-    sea_orm::prelude::DateTimeWithTimeZone,
     team_update::{TeamUpdateAssetSummary, TeamUpdateData},
     team_update_queries,
     team_user::{self, LeagueRole},
@@ -26,7 +25,7 @@ use fbkl_logic::{
     ir::move_contract_to_ir,
     trade::{MissingUpcomingRosterLock, accept_trade, propose_trade},
 };
-use fbkl_test_support::TestLeague;
+use fbkl_test_support::{TestLeague, days_ago, days_from_now};
 
 const END_OF_SEASON_YEAR: i16 = 2026;
 
@@ -211,13 +210,6 @@ async fn propose_one_contract_trade(
     )
 }
 
-fn days_from_now(days: u64) -> DateTimeWithTimeZone {
-    Utc::now()
-        .checked_add_days(Days::new(days))
-        .expect("days from now")
-        .fixed_offset()
-}
-
 async fn deadline_of_kind(league: &TestLeague, kind: DeadlineKind) -> deadline::Model {
     deadline_queries::find_deadline_for_season_by_type(
         league.league_id,
@@ -227,13 +219,6 @@ async fn deadline_of_kind(league: &TestLeague, kind: DeadlineKind) -> deadline::
     )
     .await
     .expect("find deadline")
-}
-
-fn days_ago(days: u64) -> DateTimeWithTimeZone {
-    Utc::now()
-        .checked_sub_days(Days::new(days))
-        .expect("days ago")
-        .fixed_offset()
 }
 
 /// The one asset summary the team recorded under `deadline_id`.

@@ -4,19 +4,18 @@
 //! belongs to the lock still to fire, not the one that already went. The auction close runs
 //! server-side with no owner to name that deadline, so it has to look it up the same way.
 
-use chrono::{Days, Utc};
+use chrono::Utc;
 use fbkl_entity::{
     auction::{AuctionKind, AuctionStatus},
     auction_queries,
     contract::ContractKind,
     deadline::DeadlineKind,
     deadline_queries,
-    sea_orm::prelude::DateTimeWithTimeZone,
     team_update_queries::find_team_updates_by_team,
     team_user::LeagueRole,
 };
 use fbkl_logic::auction::{find_auction_mode_deadlines, start_new_auction_for_nba_player};
-use fbkl_test_support::{TestLeague, central};
+use fbkl_test_support::{TestLeague, central, days_ago, days_from_now};
 use fbkl_transaction_processor::{
     ProcessOutcome, ProcessableEvent, ProcessableEventKind, process_event,
 };
@@ -263,20 +262,6 @@ async fn the_in_season_hard_deadline_counts_the_week_1_lock_as_a_lock() {
     .expect("find the auction's mode deadlines");
 
     assert_eq!(mode_deadlines.hard_deadline, week_1_lock);
-}
-
-fn days_from_now(days: u64) -> DateTimeWithTimeZone {
-    Utc::now()
-        .checked_add_days(Days::new(days))
-        .expect("a date in the future")
-        .fixed_offset()
-}
-
-fn days_ago(days: u64) -> DateTimeWithTimeZone {
-    Utc::now()
-        .checked_sub_days(Days::new(days))
-        .expect("a date in the past")
-        .fixed_offset()
 }
 
 async fn deadline_id(league: &TestLeague, kind: DeadlineKind) -> i64 {

@@ -11,13 +11,12 @@
 use std::sync::Arc;
 
 use async_graphql::{Request, Value};
-use chrono::{Days, Utc};
 use fbkl_entity::{
     contract::{self, ContractKind},
     contract_queries,
     deadline::DeadlineKind,
     deadline_queries,
-    sea_orm::{ActiveValue, prelude::DateTimeWithTimeZone},
+    sea_orm::ActiveValue,
     team_update::{self, TeamUpdateData, TeamUpdateStatus},
     team_update_queries,
     team_user::LeagueRole,
@@ -25,7 +24,7 @@ use fbkl_entity::{
     transaction_queries,
 };
 use fbkl_server::{AppSchema, build_graphql_schema};
-use fbkl_test_support::TestLeague;
+use fbkl_test_support::{TestLeague, days_ago, days_from_now};
 use tower_sessions::{MemoryStore, Session};
 
 const END_OF_SEASON_YEAR: i16 = 2026;
@@ -229,20 +228,6 @@ async fn deadline_id(league: &TestLeague, kind: DeadlineKind) -> i64 {
     .await
     .expect("find deadline")
     .id
-}
-
-fn days_from_now(days: u64) -> DateTimeWithTimeZone {
-    Utc::now()
-        .checked_add_days(Days::new(days))
-        .expect("a date in the future")
-        .fixed_offset()
-}
-
-fn days_ago(days: u64) -> DateTimeWithTimeZone {
-    Utc::now()
-        .checked_sub_days(Days::new(days))
-        .expect("a date in the past")
-        .fixed_offset()
 }
 
 /// A logged-in session for one user in one league, i.e. what the session layer would have built.
