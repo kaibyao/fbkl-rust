@@ -12,6 +12,21 @@ use crate::{
     job_run::{self, JobRunStatus},
 };
 
+/// A league season is missing a deadline row the rules need, so the caller cannot say which
+/// window it is in.
+///
+/// Concrete (not an opaque `eyre!`) so a resolver can `downcast_ref` and name the missing row to
+/// the owner, instead of reporting a bare server fault.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, thiserror::Error)]
+#[error(
+    "league (id = {league_id}) season {end_of_season_year} has no {kind:?} deadline, so the rules window it sets cannot be read; ask the commissioner to add the season's missing deadline rows"
+)]
+pub struct MissingSeasonDeadline {
+    pub league_id: i64,
+    pub end_of_season_year: i16,
+    pub kind: DeadlineKind,
+}
+
 /// Returns a league season's deadlines ordered by `date_time`, ties broken by `id`.
 ///
 /// Insertion order (see `import-data` `import_deadlines`) encodes the intended processing order for
@@ -71,7 +86,11 @@ where
         )
         .one(db)
         .await?
-        .ok_or_else(|| eyre!("Could not find a deadline for league (id = {}) and end-of-season year ({}) of type: {:?}.", league_id, end_of_season_year, kind))?;
+        .ok_or(MissingSeasonDeadline {
+            league_id,
+            end_of_season_year,
+            kind,
+        })?;
     Ok(maybe_deadline_model)
 }
 
@@ -106,6 +125,29 @@ where
         .one(db)
         .await?;
     Ok(maybe_deadline_model)
+}
+
+/// The lock a roster move made at `datetime` counts towards: the season's next one still to fire.
+///
+/// Spec 08 files a move under the lock it will be judged at, not the deadline that already passed,
+/// so both the owner-facing mutations and server-side processing (an auction close) bucket their
+/// transaction with this deadline. `None` once the season has no lock left to fire.
+#[instrument(skip(db))]
+pub async fn find_upcoming_roster_lock<C>(
+    league_id: i64,
+    end_of_season_year: i16,
+    datetime: DateTimeWithTimeZone,
+    db: &C,
+) -> Result<Option<deadline::Model>>
+where
+    C: ConnectionTrait,
+{
+    let deadlines =
+        find_sorted_deadlines_for_league_season(league_id, end_of_season_year, db).await?;
+
+    Ok(deadlines
+        .into_iter()
+        .find(|candidate| candidate.date_time >= datetime && candidate.is_roster_lock()))
 }
 
 /// Finds deadlines (across all leagues) that are due at or before `now` and have no `Succeeded` job run.

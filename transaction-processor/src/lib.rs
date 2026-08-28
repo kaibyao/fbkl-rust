@@ -36,7 +36,7 @@ use fbkl_logic::{
         process_keeper_deadline_transaction,
     },
 };
-use tracing::{error, info, instrument};
+use tracing::{error, info, instrument, warn};
 
 /// A time-triggered event that is *not* backed by a row in the `deadline` table.
 ///
@@ -251,7 +251,19 @@ where
         }
         DeadlineKind::PreseasonFinalRosterLock
         | DeadlineKind::Week1RosterLock
-        | DeadlineKind::InSeasonRosterLock => lock_rosters(deadline_model, txn).await,
+        | DeadlineKind::InSeasonRosterLock => {
+            let violations = lock_rosters(deadline_model, txn).await?;
+            // `lock_rosters` persists these for the commissioner query; this log is for ops only.
+            if !violations.is_empty() {
+                warn!(
+                    "Roster lock for deadline {} left {} team(s) Pending: {:?}",
+                    deadline_model.id,
+                    violations.len(),
+                    violations
+                );
+            }
+            Ok(())
+        }
         // §6.3.1: this deadline builds the season's release schedule; the tick then opens each row on its date.
         DeadlineKind::PreseasonVeteranAuctionStart => {
             assemble_veteran_auction_pool(
@@ -303,17 +315,30 @@ where
 {
     let ProcessableEvent {
         league_id,
+        end_of_season_year,
         subject_id,
         kind,
-        ..
     } = event;
     let now = chrono::Utc::now().fixed_offset();
     match kind {
         ProcessableEventKind::FaAuctionClose | ProcessableEventKind::FaExtensionExpiry => {
-            // The most recently passed deadline supplies the signed contract's effective date.
-            let deadline_model =
-                deadline_queries::find_most_recent_deadline_by_datetime(league_id, now, txn)
-                    .await?;
+            // A signing joins the week it lands in, i.e. the lock it is judged at (spec 08), the
+            // same deadline the owner-facing moves are stamped with. Weekly locks run through the
+            // playoff weeks to `SeasonEnd`, so no lock left means the season's deadlines are wrong:
+            // refuse rather than date the signing with a week that is already settled. A close past
+            // the §8.1.3 free agency freeze is refused inside `end_fa_auction`.
+            let deadline_model = deadline_queries::find_upcoming_roster_lock(
+                league_id,
+                end_of_season_year,
+                now,
+                txn,
+            )
+            .await?
+            .ok_or_else(|| {
+                eyre!(
+                    "Cannot close an auction for league (id = {league_id}) season {end_of_season_year} at {now}: no roster lock is still to fire, so the signing has no week to join."
+                )
+            })?;
             end_fa_auction(&deadline_model, subject_id, None, txn).await?;
             Ok(())
         }

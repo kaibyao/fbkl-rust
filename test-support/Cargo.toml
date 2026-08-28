@@ -5,6 +5,7 @@ edition = "2024"
 publish = false
 
 [dependencies]
+chrono = "0.4"
 dotenvy = "0.15.7"
 fbkl-constants = {path = "../constants"}
 fbkl-entity = {path = "../entity"}

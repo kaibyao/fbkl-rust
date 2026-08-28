@@ -59,6 +59,10 @@ pub enum ErrorCode {
     DraftNoRosterSpace,
     /// The season's lottery has already been drawn and cannot be re-rolled (rules §7.2.5).
     DraftLotteryAlreadyRun,
+    /// The team's roster breaks a roster-lock rule (cap, roster limits, IR slots).
+    RosterIllegal,
+    /// A league rule refuses this single roster move (IR eligibility, same-week-add drop, contract kind).
+    RosterMoveRejected,
     /// Server-side fault; message is deliberately generic.
     Internal,
 }
@@ -89,6 +93,8 @@ impl ErrorCode {
             Self::DraftReDraftBanned => "DRAFT_RE_DRAFT_BANNED",
             Self::DraftNoRosterSpace => "DRAFT_NO_ROSTER_SPACE",
             Self::DraftLotteryAlreadyRun => "DRAFT_LOTTERY_ALREADY_RUN",
+            Self::RosterIllegal => "ROSTER_ILLEGAL",
+            Self::RosterMoveRejected => "ROSTER_MOVE_REJECTED",
             Self::Internal => "INTERNAL",
         }
     }
@@ -124,6 +130,8 @@ impl ErrorCode {
             Self::DraftReDraftBanned => "that player was dropped during this draft",
             Self::DraftNoRosterSpace => "drafting would exceed your roster limit",
             Self::DraftLotteryAlreadyRun => "this season's lottery has already been drawn",
+            Self::RosterIllegal => "this roster breaks a roster rule",
+            Self::RosterMoveRejected => "a league rule does not allow this roster move",
             Self::Internal => "internal server error",
         }
     }

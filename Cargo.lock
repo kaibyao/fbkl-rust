@@ -1610,6 +1610,7 @@ dependencies = [
  "sea-orm",
  "serde",
  "serde_json",
+ "thiserror",
  "tracing",
 ]
 
@@ -1710,6 +1711,7 @@ dependencies = [
 name = "fbkl-test-support"
 version = "0.1.0"
 dependencies = [
+ "chrono",
  "dotenvy",
  "fbkl-constants",
  "fbkl-entity",

@@ -29,6 +29,26 @@ use super::{
     find_auction_mode_deadlines, sign_auction_contract_to_team,
 };
 
+/// A free agent auction that would hand a team a player after the §8.1.3 freeze.
+///
+/// The freeze is the season-level end of free agency, not a weekly cutoff: after it "pickups will no
+/// longer be allowed for the rest of the season (including playoffs)". Nomination is already gated
+/// (see [`open_in_season_fa_auction`]) and every auction's clock is clamped to the freeze
+/// (`find_auction_mode_deadlines`), so this is the close-side backstop that keeps a stale row from
+/// signing a player into a frozen week. Only the signing arm is refused: an unbid auction still
+/// expires, or the close tick would re-queue it forever.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, thiserror::Error)]
+#[error(
+    "cannot close free agent auction {auction_id}: in-season pickups froze at {fa_auction_end} \
+     (rules §8.1.3) and are not allowed for the rest of the season, but the auction runs to \
+     {close_at}."
+)]
+pub struct FreeAgentPickupFrozen {
+    pub auction_id: i64,
+    pub close_at: DateTimeWithTimeZone,
+    pub fa_auction_end: DateTimeWithTimeZone,
+}
+
 /// Ends a free agent auction and creates the associated transaction + team contract OR expires the associated contract.
 #[instrument(skip(db))]
 pub async fn end_fa_auction<C>(
@@ -69,6 +89,22 @@ where
                 contract_queries::expire_contract(auction_contract_model, &db_txn).await?
             }
             AuctionCloseOutcome::Sign => {
+                let fa_auction_end = deadline_queries::find_deadline_for_season_by_type(
+                    deadline_model.league_id,
+                    deadline_model.end_of_season_year,
+                    DeadlineKind::FreeAgentAuctionEnd,
+                    &db_txn,
+                )
+                .await?;
+                if auction_model.close_at_timestamp > fa_auction_end.date_time {
+                    return Err(FreeAgentPickupFrozen {
+                        auction_id,
+                        close_at: auction_model.close_at_timestamp,
+                        fa_auction_end: fa_auction_end.date_time,
+                    }
+                    .into());
+                }
+
                 let winning_bid_model = maybe_latest_bid.ok_or_else(|| {
                     eyre!("Expected a winning bid for auction {}", auction_model.id)
                 })?;
@@ -164,7 +200,7 @@ where
                 now,
                 auction_quiet_window(now, mode_deadlines.crunch_window_start),
                 Some(all_bid_deadline),
-                mode_deadlines.hard_deadline,
+                Some(mode_deadlines.hard_deadline),
             )?,
             all_bid_deadline_timestamp: Some(all_bid_deadline),
             original_owner_team_id: None,

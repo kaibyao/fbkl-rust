@@ -165,6 +165,7 @@ where
         effective_date: ActiveValue::Set(
             maybe_override_effective_date.unwrap_or_else(|| deadline_model.date_time.date_naive()),
         ),
+        sequence: ActiveValue::NotSet,
         status: ActiveValue::Set(TeamUpdateStatus::Pending),
         team_id: ActiveValue::Set(team_model.id),
         transaction_id: ActiveValue::Set(Some(auction_transaction_model.id)),

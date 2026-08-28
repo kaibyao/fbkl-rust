@@ -5,7 +5,9 @@ use std::{
 
 use color_eyre::{Result, eyre::eyre};
 use fbkl_entity::{
-    contract, contract_queries, deadline_queries, draft_pick, draft_pick_option,
+    contract, contract_queries,
+    deadline::{self, DeadlineKind},
+    deadline_queries, draft_pick, draft_pick_option,
     sea_orm::{
         ActiveModelTrait, ActiveValue, ConnectionTrait, LoaderTrait, prelude::DateTimeWithTimeZone,
     },
@@ -26,6 +28,23 @@ use super::{
 };
 
 static EMPTY_VEC: &Vec<contract::Model> = &vec![];
+
+/// What to tell an owner whose league season has no roster lock left to fire. Shared so the trade
+/// error and the roster resolver's message cannot drift apart.
+pub const MISSING_ROSTER_LOCK_ADVICE: &str = "weekly locks run through the playoff weeks to the end of the season, so ask the commissioner to add the season's missing lock deadlines";
+
+/// The trade's league season has no roster lock still to fire, so its adds have no week to join.
+///
+/// Concrete (not an opaque `eyre!`) so the resolver can `downcast_ref` and tell the owner the
+/// league's lock deadlines are missing, instead of reporting a bare server fault.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, thiserror::Error)]
+#[error(
+    "cannot process a trade for league (id = {league_id}) season {end_of_season_year}: no roster lock is still to fire, so the trade's adds have no week to be judged in; {MISSING_ROSTER_LOCK_ADVICE}"
+)]
+pub struct MissingUpcomingRosterLock {
+    pub league_id: i64,
+    pub end_of_season_year: i16,
+}
 
 /// Stores the trade assets + their related models for a given trade. This exists so that we aren't constantly querying the DB for the same models all the time.
 #[derive(Debug)]
@@ -117,21 +136,23 @@ pub async fn process_trade<C>(
 where
     C: ConnectionTrait,
 {
-    let next_deadline = deadline_queries::find_next_deadline_for_season_by_datetime(
+    // Spec 08: an add joins the week it will be judged in, so the trade files under the lock still
+    // to fire - not the next deadline of any kind, which can sit before that lock and drop the add
+    // out of its own week (rules 8.3.7, 10.3.1).
+    let upcoming_lock = deadline_queries::find_upcoming_roster_lock(
         trade_model.league_id,
         trade_model.end_of_season_year,
         *trade_datetime,
-        None,
         db,
     )
     .await?
-    .ok_or_else(|| {
-        eyre!(
-            "Could not find a deadline for league (id = {}) season {} after {trade_datetime}.",
-            trade_model.league_id,
-            trade_model.end_of_season_year
-        )
+    .ok_or(MissingUpcomingRosterLock {
+        league_id: trade_model.league_id,
+        end_of_season_year: trade_model.end_of_season_year,
     })?;
+    let salary_snapshot_deadline =
+        find_trade_salary_snapshot_deadline(&trade_model, trade_datetime, &upcoming_lock, db)
+            .await?;
     let traded_trade_assets = trade_model.get_trade_assets(db).await?;
     let mut all_team_ids = HashSet::new();
     for traded_trade_asset in &traded_trade_assets {
@@ -152,9 +173,13 @@ where
         let team_active_contracts = active_contracts_by_team_id
             .get_vec(team_id)
             .unwrap_or(EMPTY_VEC);
-        let team_salary_and_cap =
-            calculate_team_contract_salary(*team_id, team_active_contracts, &next_deadline, db)
-                .await?;
+        let team_salary_and_cap = calculate_team_contract_salary(
+            *team_id,
+            team_active_contracts,
+            &salary_snapshot_deadline,
+            db,
+        )
+        .await?;
         team_salaries_before_trade.insert(*team_id, team_salary_and_cap);
     }
 
@@ -164,7 +189,7 @@ where
 
     // create transaction
     let trade_transaction =
-        transaction_queries::insert_trade_transaction(&next_deadline, updated_trade.id, db).await?;
+        transaction_queries::insert_trade_transaction(&upcoming_lock, updated_trade.id, db).await?;
 
     // Create team_update
     let trade_asset_contracts: Vec<(trade_asset::Model, contract::Model)> =
@@ -197,7 +222,7 @@ where
         team_update_assets_by_team_id,
         trade_datetime,
         &trade_transaction,
-        &next_deadline,
+        &salary_snapshot_deadline,
         &team_salaries_before_trade,
         all_team_ids.into_iter().collect(),
         db,
@@ -208,6 +233,50 @@ where
         .await?;
 
     Ok(updated_trade)
+}
+
+/// The deadline whose salary cap the trade's `team_update` snapshots report.
+///
+/// Normally the lock the trade is judged at, so the recorded cap is the one the roster has to be
+/// legal against. Two preseason windows report their own cap instead, because the coming lock's
+/// $210 is not yet in force: the §4.2.4 window from contract advancement to the keeper deadline is
+/// uncapped (and §9.1 penalizes no drop made there), and §4.2.1 holds the cap at $200 from the
+/// keeper deadline until the veteran auction and rookie draft conclude, which is what the
+/// `PreseasonFinalRosterLock` marks the end of.
+#[instrument(skip(db))]
+async fn find_trade_salary_snapshot_deadline<C>(
+    trade_model: &trade::Model,
+    trade_datetime: &DateTimeWithTimeZone,
+    upcoming_lock: &deadline::Model,
+    db: &C,
+) -> Result<deadline::Model>
+where
+    C: ConnectionTrait,
+{
+    let is_before_keeper_deadline = deadline_queries::find_next_deadline_for_season_by_datetime(
+        trade_model.league_id,
+        trade_model.end_of_season_year,
+        *trade_datetime,
+        Some(DeadlineKind::PreseasonKeeper),
+        db,
+    )
+    .await?
+    .is_some();
+    let window_kind = if is_before_keeper_deadline {
+        DeadlineKind::PreseasonStart
+    } else if upcoming_lock.kind == DeadlineKind::PreseasonFinalRosterLock {
+        DeadlineKind::PreseasonRookieDraftStart
+    } else {
+        return Ok(upcoming_lock.clone());
+    };
+
+    deadline_queries::find_deadline_for_season_by_type(
+        trade_model.league_id,
+        trade_model.end_of_season_year,
+        window_kind,
+        db,
+    )
+    .await
 }
 
 #[instrument(skip(db))]

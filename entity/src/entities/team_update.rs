@@ -18,6 +18,9 @@ pub struct Model {
     /// Data containing the update made to team settings or roster. Converted to/from `TeamUpdateData`.
     pub data: serde_json::Value,
     pub effective_date: Date,
+    /// The owner's chosen place for this move in its week (rules §13.1.1). Presentational and for
+    /// the audit log; no roster validator reads it. `None` = fall back to insertion order.
+    pub sequence: Option<i16>,
     pub status: TeamUpdateStatus,
     pub team_id: i64,
     /// This is always present unless the update was a configuration change.

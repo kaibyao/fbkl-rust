@@ -20,7 +20,7 @@ use fbkl_entity::{
         validate_min_bid_tiers,
     },
     deadline::DeadlineKind,
-    deadline_queries::find_sorted_deadlines_for_league_season,
+    deadline_queries::{MissingSeasonDeadline, find_sorted_deadlines_for_league_season},
     sea_orm::DatabaseConnection,
 };
 use fbkl_entity::{
@@ -386,8 +386,13 @@ async fn ensure_veteran_auction_not_started(
     }
 }
 
-/// A refused bid is the client's fault and gets its own code; anything else is a server fault.
+/// A refused bid is the client's fault and gets its own code; anything else is a server fault. A
+/// season missing a deadline row the bid path reads is named too, so the commissioner can add it.
 fn bid_error(error: &Report) -> GraphQlError {
+    if let Some(missing) = error.downcast_ref::<MissingSeasonDeadline>() {
+        return graphql_error(ErrorCode::BadRequest, missing.to_string());
+    }
+
     let Some(rejection) = error.downcast_ref::<BidRejection>() else {
         tracing::error!(error = ?error, "failed to place a bid");
         return code_error(ErrorCode::Internal);
@@ -494,6 +499,18 @@ mod tests {
             let error = bid_error(&Report::new(rejection));
             assert_eq!(code_of(&error), Some(expected_code.into()));
         }
+    }
+
+    #[test]
+    fn a_season_missing_a_deadline_row_is_named_not_a_server_fault() {
+        let error = bid_error(&Report::new(MissingSeasonDeadline {
+            league_id: 3,
+            end_of_season_year: 2026,
+            kind: DeadlineKind::FreeAgentAuctionEnd,
+        }));
+
+        assert_eq!(code_of(&error), Some("BAD_REQUEST".into()));
+        assert!(error.message.contains("FreeAgentAuctionEnd"));
     }
 
     #[test]

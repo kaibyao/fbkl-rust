@@ -7,14 +7,16 @@ use async_graphql::{Context, Error as GraphQlError, Object, Result};
 use chrono::Utc;
 use color_eyre::Report;
 use fbkl_entity::{
-    deadline_queries::find_most_recent_deadline_by_datetime,
+    deadline_queries::{MissingSeasonDeadline, find_most_recent_deadline_by_datetime},
     sea_orm::DatabaseConnection,
     trade,
     trade_asset::ToTeamId,
     trade_asset_queries::new_trade_asset_active_model_by_id,
     trade_queries::{find_active_trades_for_team, find_active_trades_in_league, find_trade_by_id},
 };
-use fbkl_logic::trade::{MissingPreTradeSalary, accept_trade, propose_trade, reject_trade};
+use fbkl_logic::trade::{
+    MissingPreTradeSalary, MissingUpcomingRosterLock, accept_trade, propose_trade, reject_trade,
+};
 
 use super::{ProposeTradeInput, Trade};
 use crate::graphql::{
@@ -229,10 +231,18 @@ async fn load_actionable_trade(
 }
 
 /// A trade whose teams have no cached pre-trade salary is a data problem the client can report,
-/// so it gets its own code rather than a bare server fault.
+/// so it gets its own code rather than a bare server fault. A season missing its lock deadlines is
+/// reported the same way owner-facing roster moves report it (see `resolve_upcoming_roster_lock`),
+/// and so is a season missing any other deadline row the trade needs.
 fn map_trade_processing_error(error: &Report) -> GraphQlError {
     if let Some(missing) = error.downcast_ref::<MissingPreTradeSalary>() {
         return graphql_error(ErrorCode::MissingPreTradeSalary, missing.to_string());
+    }
+    if let Some(missing) = error.downcast_ref::<MissingUpcomingRosterLock>() {
+        return graphql_error(ErrorCode::BadRequest, missing.to_string());
+    }
+    if let Some(missing) = error.downcast_ref::<MissingSeasonDeadline>() {
+        return graphql_error(ErrorCode::BadRequest, missing.to_string());
     }
 
     internal("failed to accept trade", error)
@@ -245,6 +255,8 @@ fn internal(message: &str, error: &Report) -> GraphQlError {
 
 #[cfg(test)]
 mod tests {
+    use fbkl_entity::deadline::DeadlineKind;
+
     use super::*;
 
     fn error_code(error: &GraphQlError) -> Option<async_graphql::Value> {
@@ -261,6 +273,30 @@ mod tests {
 
         assert_eq!(error_code(&error), Some("MISSING_PRE_TRADE_SALARY".into()));
         assert!(error.message.contains("team (id = 7)"));
+    }
+
+    #[test]
+    fn a_season_with_no_lock_left_is_a_named_failure_not_a_server_fault() {
+        let error = map_trade_processing_error(&Report::new(MissingUpcomingRosterLock {
+            league_id: 3,
+            end_of_season_year: 2026,
+        }));
+
+        assert_eq!(error_code(&error), Some("BAD_REQUEST".into()));
+        assert!(error.message.contains("no roster lock is still to fire"));
+        assert!(error.message.contains("missing lock deadlines"));
+    }
+
+    #[test]
+    fn a_season_missing_a_deadline_row_is_named_not_a_server_fault() {
+        let error = map_trade_processing_error(&Report::new(MissingSeasonDeadline {
+            league_id: 3,
+            end_of_season_year: 2026,
+            kind: DeadlineKind::PreseasonStart,
+        }));
+
+        assert_eq!(error_code(&error), Some("BAD_REQUEST".into()));
+        assert!(error.message.contains("PreseasonStart"));
     }
 
     #[test]

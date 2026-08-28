@@ -1,4 +1,4 @@
-use color_eyre::eyre::{Result, ensure, eyre};
+use color_eyre::eyre::{Result, eyre};
 use fbkl_entity::{
     contract::{self, ContractKind, ContractStatus},
     contract_queries, deadline,
@@ -8,7 +8,9 @@ use fbkl_entity::{
 };
 use tracing::instrument;
 
-use crate::roster::{SalarySnapshot, calculate_team_contract_salary_with_model};
+use crate::roster::{
+    RosterMoveRejection, SalarySnapshot, calculate_team_contract_salary_with_model,
+};
 
 use super::rookie_activation_team_update::create_rookie_activation_team_update;
 
@@ -22,7 +24,12 @@ where
     C: ConnectionTrait,
 {
     validate_contract_is_activatable(&contract_model)?;
-    contract_queries::validate_contract_is_latest_in_chain(&contract_model, db).await?;
+    if !contract_model.is_latest_in_chain(db).await? {
+        return Err(RosterMoveRejection::NotLatestInChain {
+            contract_id: contract_model.id,
+        }
+        .into());
+    }
 
     let team_model = contract_model.get_team(db).await?.ok_or_else(|| {
         eyre!(
@@ -66,21 +73,23 @@ where
 
 /// Guards activation against non-RD(I) or stale contracts.
 fn validate_contract_is_activatable(contract_model: &contract::Model) -> Result<()> {
-    ensure!(
-        matches!(
-            contract_model.kind,
-            ContractKind::RookieDevelopment | ContractKind::RookieDevelopmentInternational
-        ),
-        "Contract (id = {}) is a {:?} contract, so it cannot be activated as a rookie contract.",
-        contract_model.id,
-        contract_model.kind
-    );
-    ensure!(
-        contract_model.status == ContractStatus::Active,
-        "Contract (id = {}) has status {:?}, so it cannot be activated.",
-        contract_model.id,
-        contract_model.status
-    );
+    if !matches!(
+        contract_model.kind,
+        ContractKind::RookieDevelopment | ContractKind::RookieDevelopmentInternational
+    ) {
+        return Err(RosterMoveRejection::NotRookieDevelopment {
+            contract_id: contract_model.id,
+            kind: contract_model.kind,
+        }
+        .into());
+    }
+    if contract_model.status != ContractStatus::Active {
+        return Err(RosterMoveRejection::ContractNotActive {
+            contract_id: contract_model.id,
+            status: contract_model.status,
+        }
+        .into());
+    }
 
     Ok(())
 }

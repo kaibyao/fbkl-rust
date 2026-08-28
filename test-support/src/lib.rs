@@ -4,7 +4,8 @@
 //! failed run leaves the database behind for inspection (the next run drops it). The base
 //! connection string comes from `DATABASE_URL` (the repo `.env` is loaded automatically); when it
 //! is unset the harness returns `None` and the test skips, so the suite still passes without a
-//! database.
+//! database — except under `CI`, where a missing `DATABASE_URL` panics instead of quietly skipping
+//! every DB test.
 //!
 //! # Simulated time vs `created_at`/`updated_at`
 //!
@@ -17,6 +18,14 @@
 //! Rewind those columns before the tick that should act on them; `backdate_open_auctions` does it
 //! for the veteran auction tier slide. The trigger only stamps the wall clock when the UPDATE did
 //! not set `updated_at` itself, so writing it explicitly is what makes the rewind stick.
+//!
+//! # Timestamps a test asserts on
+//!
+//! Build every test timestamp from [`now_storable`], [`days_from_now`], [`days_ago`] or
+//! [`central`], never from a bare `Utc::now()`. A Postgres `timestamptz` only stores microseconds,
+//! and Linux clocks report nanoseconds, so an untruncated `now` written to a row and compared
+//! against the value read back fails in CI while passing on macOS, whose clock resolves to
+//! microseconds anyway.
 //!
 //! # Growing the harness
 //!
@@ -44,6 +53,7 @@
 mod scratch_db;
 
 use crate::scratch_db::scratch_db;
+use chrono::{Days, SubsecRound, Utc};
 use fbkl_constants::date::league_wall_clock;
 use fbkl_entity::{
     auction::{self, AuctionKind, AuctionStatus},
@@ -131,7 +141,9 @@ impl TestLeague {
         })
     }
 
-    pub async fn add_deadline(&self, kind: DeadlineKind, date_time: DateTimeWithTimeZone) {
+    /// Inserts one deadline row, returning its id — the caller may need it to name the row when a
+    /// season has two deadlines of the same kind.
+    pub async fn add_deadline(&self, kind: DeadlineKind, date_time: DateTimeWithTimeZone) -> i64 {
         deadline::Entity::insert(deadline::ActiveModel {
             date_time: ActiveValue::Set(date_time),
             kind: ActiveValue::Set(kind),
@@ -142,7 +154,8 @@ impl TestLeague {
         })
         .exec(&self.db)
         .await
-        .expect("insert deadline");
+        .expect("insert deadline")
+        .last_insert_id
     }
 
     /// Minimum-bid tiers in the given order, top tier first (rules §6.3.6).
@@ -358,4 +371,42 @@ impl TestLeague {
 /// uses. DST included, so a September timestamp lands on CDT and a January one on CST.
 pub fn central(timestamp: &str) -> DateTimeWithTimeZone {
     league_wall_clock(timestamp.parse().expect("parse timestamp")).expect("central wall clock")
+}
+
+/// `now` truncated to the microsecond, the most a Postgres `timestamptz` column can store.
+///
+/// A test that writes a timestamp and then asserts on the value read back must start from a value
+/// the database can hold exactly. Linux clocks report nanoseconds, so an untruncated `Utc::now()`
+/// loses its last three digits on the round trip and the comparison fails there while passing on
+/// macOS, whose clock only resolves to microseconds anyway.
+pub fn now_storable() -> DateTimeWithTimeZone {
+    Utc::now().trunc_subsecs(6).fixed_offset()
+}
+
+/// [`now_storable`] moved `days` into the future.
+pub fn days_from_now(days: u64) -> DateTimeWithTimeZone {
+    now_storable()
+        .checked_add_days(Days::new(days))
+        .expect("a date in the future")
+}
+
+/// [`now_storable`] moved `days` into the past.
+pub fn days_ago(days: u64) -> DateTimeWithTimeZone {
+    now_storable()
+        .checked_sub_days(Days::new(days))
+        .expect("a date in the past")
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{days_ago, days_from_now, now_storable};
+    use chrono::Timelike;
+
+    /// The whole point of the helpers: a Postgres `timestamptz` cannot hold sub-microsecond digits.
+    #[test]
+    fn the_date_helpers_only_produce_timestamps_postgres_can_store() {
+        for timestamp in [now_storable(), days_from_now(2), days_ago(2)] {
+            assert_eq!(timestamp.nanosecond() % 1_000, 0, "{timestamp} kept nanos");
+        }
+    }
 }

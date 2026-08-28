@@ -40,6 +40,8 @@ pub struct TeamUpdate {
     pub id: i64,
     pub team_id: i64,
     pub effective_date: String,
+    /// The owner's chosen place for this move in its week; `None` means insertion order.
+    pub sequence: Option<i16>,
     pub status: TeamUpdateStatus,
     pub transaction_id: Option<i64>,
     pub data: String,
@@ -51,6 +53,7 @@ impl TeamUpdate {
             id: entity.id,
             team_id: entity.team_id,
             effective_date: entity.effective_date.to_string(),
+            sequence: entity.sequence,
             status: entity.status,
             transaction_id: entity.transaction_id,
             data: entity.data.to_string(),
@@ -132,7 +135,7 @@ impl Team {
             return Err(code_error(ErrorCode::Forbidden));
         }
 
-        let team_update_models = find_team_updates_by_team(self.id, status, db)
+        let team_update_models = find_team_updates_by_team(self.id, status, None, db)
             .await
             .map_err(|db_err| {
                 tracing::error!(error = ?db_err, team_id = self.id, "failed to load team updates");
