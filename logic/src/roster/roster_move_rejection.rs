@@ -9,6 +9,7 @@
 use fbkl_entity::{
     contract::{ContractKind, ContractStatus},
     deadline::DeadlineKind,
+    team_update::ContractUpdateType,
 };
 
 /// A roster move a league rule refuses. Each variant is a distinct user-facing rejection reason.
@@ -55,6 +56,20 @@ pub enum RosterMoveRejection {
         contract_id: i64,
         kind: ContractKind,
     },
+    /// Rules §13.1.6 (T2): a contract acquired in a transaction stays on the roster until a later
+    /// transaction can remove it.
+    #[error(
+        "Contract {contract_id} was acquired in this transaction, so it cannot be {update_type:?} in the same transaction (rules §13.1.6). Drop a player the team already held, or make this move in a later transaction."
+    )]
+    SameTransactionAddThenRemove {
+        contract_id: i64,
+        update_type: ContractUpdateType,
+    },
+    /// Rules §13.1.6 (T1): the roster has to be legal once the transaction is applied.
+    #[error(
+        "This transaction leaves team {team_id}'s roster illegal, so none of it is applied.\n{violations}"
+    )]
+    TransactionLeavesRosterIllegal { team_id: i64, violations: String },
     /// Rules §11.3.1: an RD↔RDI move needs the contract kind that move starts from.
     #[error(
         "Contract {contract_id} is a {kind:?} contract, but this move requires a {expected:?} contract."
