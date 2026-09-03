@@ -138,6 +138,13 @@ pub enum AuctionStatus {
     /// Timer elapsed, awaiting `end_*_auction`. RFA auctions also park here for the spec 03 raise/match flow.
     #[sea_orm(string_value = "Closed")]
     Closed,
+    /// Closed with a winning bid the owner has not picked up yet (rules §8.3.6).
+    ///
+    /// In-season free agency only: the close records who won, and the win becomes a contract when
+    /// the owner submits the pickup that carries their accommodating drops - or when the roster lock
+    /// signs it for them.
+    #[sea_orm(string_value = "Won")]
+    Won,
     /// Winning bid signed to a team.
     #[sea_orm(string_value = "Completed")]
     Completed,

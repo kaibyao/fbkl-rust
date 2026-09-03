@@ -1,7 +1,7 @@
 use chrono::NaiveDate;
 use color_eyre::Result;
 use fbkl_entity::{
-    auction, auction_bid,
+    auction, auction_bid, auction_queries,
     contract::{self, ContractKind, FreeAgentException},
     contract_queries, deadline, league_event, league_event_queries, rfa_resolution_queries,
     sea_orm::{ActiveValue, ConnectionTrait, TransactionTrait},
@@ -72,6 +72,44 @@ where
         auction_league_event_model,
         team_update_model,
     ))
+}
+
+/// Signs a recorded auction win to the team that won it, completing the auction (rules §8.3.6).
+///
+/// An in-season free agent auction closes to [`auction::AuctionStatus::Won`] without a contract, so
+/// this is what turns a win into one: the owner's pickup calls it with the drops that make room,
+/// and the roster lock calls it for any win nobody picked up. Pairs the signing with the status
+/// change so a `Won` row cannot be signed twice.
+#[instrument(skip(db))]
+pub async fn sign_won_auction<C>(
+    auction_model: &auction::Model,
+    winning_bid_model: &auction_bid::Model,
+    deadline_model: &deadline::Model,
+    maybe_override_effective_date: Option<NaiveDate>,
+    db: &C,
+) -> Result<(contract::Model, team_update::Model)>
+where
+    C: ConnectionTrait + TransactionTrait,
+{
+    let (signed_contract_model, _, team_update_model) = sign_auction_contract_to_team(
+        auction_model,
+        winning_bid_model,
+        deadline_model,
+        None,
+        maybe_override_effective_date,
+        db,
+    )
+    .await?;
+    let team_update_model = team_update_queries::update_team_update_for_auction(
+        &team_update_model,
+        maybe_override_effective_date,
+        db,
+    )
+    .await?;
+    auction_queries::update_auction_status(auction_model.id, auction::AuctionStatus::Completed, db)
+        .await?;
+
+    Ok((signed_contract_model, team_update_model))
 }
 
 /// Whether the auction winner also holds the player's re-sign discount (rules §15.4.2, §16.4.1).

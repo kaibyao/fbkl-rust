@@ -69,7 +69,10 @@ values from there; do not duplicate literals into logic.
 - Trades validate **asset ownership only** — there is no cap/roster legality check at trade time.
 - `end_fa_auction` and `end_veteran_auction` both route through `auction_close_outcome`: no bid
   expires the contract (`AuctionStatus::Expired`), an RFA closes to `AuctionStatus::Closed`
-  WITHOUT signing (the raise/match flow completes it), anything else signs the winning bid.
+  WITHOUT signing (the raise/match flow completes it), anything else has a winner. The veteran
+  auction signs that winner immediately; an in-season FA auction only records it
+  (`AuctionStatus::Won`, rules §8.3.6) and `sign_won_auction` turns it into a contract when the
+  owner picks it up or when the roster lock signs it for them.
 - Auction opens/closes/tier slides are driven by `fbkl_jobs::{run_auction_close_tick,
   run_veteran_auction_release_tick}` on every scheduler tick, so both must stay idempotent:
   `open_scheduled_auction` returns an existing auction rather than opening a second one, the

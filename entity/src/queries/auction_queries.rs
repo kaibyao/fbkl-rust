@@ -45,8 +45,9 @@ where
 
 /// The `(auction_id, bid_amount)` commitments rules §6.4.1 counts against a new bid.
 ///
-/// Two sources: the team's currently-winning bids in the league/season's `Open` auctions, and every
-/// RFA auction it won that is still in the raise/match handshake (rules §15.3.4).
+/// Three sources: the team's currently-winning bids in the league/season's `Open` auctions, the
+/// in-season wins it has not picked up yet (`Won`, rules §8.3.6), and every RFA auction it won that
+/// is still in the raise/match handshake (rules §15.3.4).
 #[instrument(skip(db))]
 pub async fn find_winning_bids_for_team<C>(
     team_id: i64,
@@ -61,7 +62,7 @@ where
         .join(JoinType::InnerJoin, auction_bid::Relation::Auction.def())
         .join(JoinType::InnerJoin, auction::Relation::Contract.def())
         .join(JoinType::InnerJoin, auction_bid::Relation::TeamUser.def())
-        .filter(auction::Column::Status.eq(AuctionStatus::Open))
+        .filter(auction::Column::Status.is_in([AuctionStatus::Open, AuctionStatus::Won]))
         .filter(contract::Column::LeagueId.eq(league_id))
         .filter(contract::Column::EndOfSeasonYear.eq(end_of_season_year))
         .select_only()
@@ -128,6 +129,42 @@ where
             ))
         })
         .collect())
+}
+
+/// The team's recorded-but-unsigned in-season auction wins, each with the bid that won it (§8.3.6).
+///
+/// A `Won` row waits here from the auction's close until the owner's pickup signs it, or the roster
+/// lock signs it for them. The latest bid is the winning one, because that is what the close reads.
+#[instrument(skip(db))]
+pub async fn find_won_auctions_for_team<C>(
+    team_id: i64,
+    league_id: i64,
+    end_of_season_year: i16,
+    db: &C,
+) -> Result<Vec<(auction::Model, auction_bid::Model)>>
+where
+    C: ConnectionTrait,
+{
+    let won_auctions = auction::Entity::find()
+        .join(JoinType::InnerJoin, auction::Relation::Contract.def())
+        .filter(auction::Column::Status.eq(AuctionStatus::Won))
+        .filter(contract::Column::LeagueId.eq(league_id))
+        .filter(contract::Column::EndOfSeasonYear.eq(end_of_season_year))
+        .order_by_asc(auction::Column::Id)
+        .all(db)
+        .await?;
+
+    // A week's wins are a handful of rows, so the winner lookup stays a per-row read.
+    let mut team_wins = Vec::new();
+    for auction_model in won_auctions {
+        let Some(winning_bid) = auction_model.get_latest_bid(db).await? else {
+            continue;
+        };
+        if winning_bid.get_team(db).await?.id == team_id {
+            team_wins.push((auction_model, winning_bid));
+        }
+    }
+    Ok(team_wins)
 }
 
 /// Auctions in the league/season still taking bids, soonest close first, optionally of one kind

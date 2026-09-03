@@ -1,8 +1,8 @@
-//! Which week an in-season auction win lands in (spec 08).
+//! What an in-season auction close does, and what it leaves for the owner (spec 08).
 //!
-//! A week is the set of moves counting towards one roster lock, and a move made between two locks
-//! belongs to the lock still to fire, not the one that already went. The auction close runs
-//! server-side with no owner to name that deadline, so it has to look it up the same way.
+//! Rules §8.3.6: the close records who won and signs nothing. The win becomes a contract when the
+//! owner picks it up with the drops that make room for it, so the close writes no `team_update` and
+//! joins no week; the lock it resolves is only the week the pickup will file under.
 
 use chrono::Utc;
 use fbkl_entity::{
@@ -25,7 +25,7 @@ const WINNING_BID: i16 = 5;
 const PASSED_LOCK: &str = "2025-10-27T18:00:00";
 
 #[tokio::test]
-async fn an_auction_win_between_two_locks_is_filed_under_the_upcoming_lock() {
+async fn a_close_records_the_win_without_signing_it() {
     let Some(league) = TestLeague::create("fa_auction_close_week", END_OF_SEASON_YEAR).await else {
         return;
     };
@@ -80,25 +80,45 @@ async fn an_auction_win_between_two_locks_is_filed_under_the_upcoming_lock() {
         "expected the close to run: {outcome:?}"
     );
 
-    let upcoming_lock_id = deadline_id(&league, DeadlineKind::InSeasonRosterLock).await;
-    let passed_lock_id = deadline_id(&league, DeadlineKind::Week1RosterLock).await;
-    let upcoming_week =
-        find_team_updates_by_team(league.team_id, None, Some(upcoming_lock_id), &league.db)
-            .await
-            .expect("read the upcoming week's moves");
+    let closed_auction = auction_queries::find_auction_by_id(auction.id, &league.db)
+        .await
+        .expect("read the closed auction");
     assert_eq!(
-        upcoming_week.len(),
-        1,
-        "the auction win belongs to the week it landed in: {upcoming_week:?}"
+        closed_auction.status,
+        AuctionStatus::Won,
+        "the close should record the win and leave the signing to the pickup"
     );
-    let settled_week =
-        find_team_updates_by_team(league.team_id, None, Some(passed_lock_id), &league.db)
+
+    let team_wins = auction_queries::find_won_auctions_for_team(
+        league.team_id,
+        league.league_id,
+        END_OF_SEASON_YEAR,
+        &league.db,
+    )
+    .await
+    .expect("read the team's unsigned wins");
+    assert_eq!(
+        team_wins
+            .iter()
+            .map(|(won_auction, winning_bid)| (won_auction.id, winning_bid.bid_amount))
+            .collect::<Vec<_>>(),
+        vec![(auction.id, WINNING_BID)],
+        "the win should be queryable by the team that won it"
+    );
+
+    for lock in [
+        DeadlineKind::InSeasonRosterLock,
+        DeadlineKind::Week1RosterLock,
+    ] {
+        let lock_id = deadline_id(&league, lock).await;
+        let week = find_team_updates_by_team(league.team_id, None, Some(lock_id), &league.db)
             .await
-            .expect("read the settled week's moves");
-    assert!(
-        settled_week.is_empty(),
-        "the settled week should not gain a move: {settled_week:?}"
-    );
+            .expect("read the week's moves");
+        assert!(
+            week.is_empty(),
+            "an unsigned win writes no move to {lock:?}: {week:?}"
+        );
+    }
 }
 
 /// Rules §8.1.3: pickups freeze at `FreeAgentAuctionEnd` "for the rest of the season (including
@@ -278,7 +298,7 @@ async fn deadline_id(league: &TestLeague, kind: DeadlineKind) -> i64 {
 
 /// Weekly locks run through the playoff weeks to `SeasonEnd`, and rules §12.3 stop auctions once
 /// the first playoff week starts, so a close with no lock left to fire is a broken season: it must
-/// fail loudly instead of dating the signing with a week that has already been locked.
+/// fail loudly instead of recording a win for a week that has already been locked.
 #[tokio::test]
 async fn an_auction_close_with_no_lock_left_fails_instead_of_joining_a_settled_week() {
     let Some(league) = TestLeague::create("fa_auction_close_no_lock", END_OF_SEASON_YEAR).await
