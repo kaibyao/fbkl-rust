@@ -19,7 +19,7 @@ pub struct Trade {
     pub league_id: i64,
     pub original_trade_id: Option<i64>,
     pub previous_trade_id: Option<i64>,
-    pub transaction_id: Option<i64>,
+    pub league_event_id: Option<i64>,
     pub created_at: String,
     #[graphql(skip)]
     model: trade::Model,
@@ -34,7 +34,7 @@ impl Trade {
             league_id: entity.league_id,
             original_trade_id: entity.original_trade_id,
             previous_trade_id: entity.previous_trade_id,
-            transaction_id: entity.transaction_id,
+            league_event_id: entity.league_event_id,
             created_at: entity.created_at.to_string(),
             model: entity,
         }

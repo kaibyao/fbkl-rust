@@ -7,13 +7,12 @@ use color_eyre::{Result, eyre::eyre};
 use fbkl_entity::{
     contract, contract_queries,
     deadline::{self, DeadlineKind},
-    deadline_queries, draft_pick, draft_pick_option,
+    deadline_queries, draft_pick, draft_pick_option, league_event_queries,
     sea_orm::{
         ActiveModelTrait, ActiveValue, ConnectionTrait, LoaderTrait, prelude::DateTimeWithTimeZone,
     },
     trade::{self, TradeStatus},
     trade_asset::{self, TradeAssetType},
-    transaction_queries,
 };
 use tracing::instrument;
 
@@ -125,7 +124,7 @@ impl TradeAssetRelatedModelCache {
     }
 }
 
-/// Moves assets between teams for a created trade, updates the trade status to `completed`, creates the appropriate transaction, and invalidates all other pending trades that include any of the traded assets.
+/// Moves assets between teams for a created trade, updates the trade status to `completed`, creates the appropriate league event, and invalidates all other pending trades that include any of the traded assets.
 /// Returns the updated trade model.
 #[instrument(skip(db))]
 pub async fn process_trade<C>(
@@ -187,9 +186,10 @@ where
     let updated_trade_asset_models = process_trade_assets(&trade_asset_related_models, db).await?;
     let updated_trade = update_trade_status(trade_model, db).await?;
 
-    // create transaction
-    let trade_transaction =
-        transaction_queries::insert_trade_transaction(&upcoming_lock, updated_trade.id, db).await?;
+    // create league event
+    let trade_league_event =
+        league_event_queries::insert_trade_league_event(&upcoming_lock, updated_trade.id, db)
+            .await?;
 
     // Create team_update
     let trade_asset_contracts: Vec<(trade_asset::Model, contract::Model)> =
@@ -221,7 +221,7 @@ where
     insert_team_updates_from_completed_trade(
         team_update_assets_by_team_id,
         trade_datetime,
-        &trade_transaction,
+        &trade_league_event,
         &salary_snapshot_deadline,
         &team_salaries_before_trade,
         all_team_ids.into_iter().collect(),

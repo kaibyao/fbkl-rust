@@ -17,18 +17,18 @@ use fbkl_constants::league_rules::{
 };
 use fbkl_entity::{
     auction, auction_bid, contract,
+    league_event::LeagueEventKind,
     rfa_resolution::{self, RfaResolutionStatus},
     rfa_resolution_queries::{self, ClosedRfaAuctionResult},
     sea_orm::{
         ConnectionTrait, TransactionSession, TransactionTrait, prelude::DateTimeWithTimeZone,
     },
-    transaction::TransactionKind,
 };
 use tracing::{instrument, warn};
 
 use super::{
     find_eligible_compensation_pick, name_compensation_pick,
-    rfa_transaction::{find_rfa_handshake_deadline, insert_rfa_transaction},
+    rfa_league_event::{find_rfa_handshake_deadline, insert_rfa_league_event},
 };
 
 /// Fills the seeded resolution in from the auction that just closed and starts the raise window.
@@ -146,9 +146,9 @@ where
         &db_txn,
     )
     .await?;
-    insert_rfa_transaction(
+    insert_rfa_league_event(
         &rfa_resolution_model,
-        TransactionKind::RfaRaiseBid,
+        LeagueEventKind::RfaRaiseBid,
         None,
         &deadline_model,
         &db_txn,
@@ -169,7 +169,7 @@ where
 /// The winner stands pat (rules §15.3.2.1).
 ///
 /// That opens the original owner's window straight away instead of waiting the full 48h out.
-/// Standing pat writes no transaction: nothing changed, and the pick the winning bid named stands.
+/// Standing pat writes no league event: nothing changed, and the pick the winning bid named stands.
 #[instrument(skip(db))]
 pub async fn decline_to_raise<C>(
     rfa_resolution_id: i64,

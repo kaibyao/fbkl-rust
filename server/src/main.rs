@@ -63,10 +63,10 @@ async fn main() -> Result<()> {
     // TODO: Players change names.
     // TODO: Need some kind of storage for NBA dates (start of season, ASB start and end dates, MLK week early start times)
     // TODO: Maybe ping NBA API for game start times each week?
-    // TODO: Reconciling end dates of different transaction types w/ when they go into effect.
+    // TODO: Reconciling end dates of different league event types w/ when they go into effect.
     // TODO: Account for roster legalization (pre-season).
     // TODO: Account for roster legalization (weekly).
-    // TODO: import data (transactions)
+    // TODO: import data (league events)
     // TODO: Rest of DB migrations (incl. FK relations)
     // TODO: Auto-drop logic for weekly locks to ensure teams are legal.
     // TODO: login/registration needs validation (password length, email is correct, etc.)

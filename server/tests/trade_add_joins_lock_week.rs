@@ -1,6 +1,6 @@
 //! A trade add belongs to the week of the lock still to fire, not the next deadline of any kind.
 //!
-//! `process_trade` used to stamp its transaction with the next deadline of ANY kind, so a non-lock
+//! `process_trade` used to stamp its league event with the next deadline of ANY kind, so a non-lock
 //! deadline sitting between the trade and the Monday lock (a `FreeAgentAuctionEnd`, say) filed the
 //! `AddViaTrade` update outside the lock's week. Both same-week guards read the week off that
 //! deadline, so the acquiring owner could park the pickup straight on IR (rules 10.3.1/10.3.2,

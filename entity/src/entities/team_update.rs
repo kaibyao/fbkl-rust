@@ -24,7 +24,7 @@ pub struct Model {
     pub status: TeamUpdateStatus,
     pub team_id: i64,
     /// This is always present unless the update was a configuration change.
-    pub transaction_id: Option<i64>,
+    pub league_event_id: Option<i64>,
     pub created_at: DateTimeWithTimeZone,
     pub updated_at: DateTimeWithTimeZone,
 }
@@ -235,22 +235,22 @@ pub enum Relation {
     )]
     Team,
     #[sea_orm(
-        belongs_to = "super::transaction::Entity",
-        from = "Column::TransactionId",
-        to = "super::transaction::Column::Id",
+        belongs_to = "super::league_event::Entity",
+        from = "Column::LeagueEventId",
+        to = "super::league_event::Column::Id",
         on_update = "Cascade",
         on_delete = "Cascade"
     )]
-    Transaction,
+    LeagueEvent,
 }
 
 impl Related<super::deadline::Entity> for Entity {
     fn to() -> RelationDef {
-        super::transaction::Relation::Deadline.def()
+        super::league_event::Relation::Deadline.def()
     }
 
     fn via() -> Option<RelationDef> {
-        Some(Relation::Transaction.def())
+        Some(Relation::LeagueEvent.def())
     }
 }
 
@@ -260,9 +260,9 @@ impl Related<super::team::Entity> for Entity {
     }
 }
 
-impl Related<super::transaction::Entity> for Entity {
+impl Related<super::league_event::Entity> for Entity {
     fn to() -> RelationDef {
-        Relation::Transaction.def()
+        Relation::LeagueEvent.def()
     }
 }
 
@@ -272,35 +272,35 @@ impl ActiveModelBehavior for ActiveModel {
     where
         C: ConnectionTrait,
     {
-        roster_change_requires_transaction(&self)?;
-        setting_change_requires_no_transaction(&self)?;
+        roster_change_requires_league_event(&self)?;
+        setting_change_requires_no_league_event(&self)?;
 
         Ok(self)
     }
 }
 
-fn roster_change_requires_transaction(model: &ActiveModel) -> Result<(), DbErr> {
+fn roster_change_requires_league_event(model: &ActiveModel) -> Result<(), DbErr> {
     let decoded_data = TeamUpdateData::from_json(model.data.as_ref().clone())
         .map_err(|err| DbErr::Custom(err.to_string()))?;
     let is_assets_update = matches!(decoded_data, TeamUpdateData::Assets(_));
 
-    if is_assets_update && model.transaction_id.is_not_set() {
+    if is_assets_update && model.league_event_id.is_not_set() {
         Err(DbErr::Custom(
-            "a team update (roster change) requires a transaction id.".to_string(),
+            "a team update (roster change) requires a league_event id.".to_string(),
         ))
     } else {
         Ok(())
     }
 }
 
-fn setting_change_requires_no_transaction(model: &ActiveModel) -> Result<(), DbErr> {
+fn setting_change_requires_no_league_event(model: &ActiveModel) -> Result<(), DbErr> {
     let decoded_data = TeamUpdateData::from_json(model.data.as_ref().clone())
         .map_err(|err| DbErr::Custom(err.to_string()))?;
     let is_settings_update = matches!(decoded_data, TeamUpdateData::Settings(_));
 
-    if is_settings_update && model.transaction_id.is_set() {
+    if is_settings_update && model.league_event_id.is_set() {
         Err(DbErr::Custom(
-            "a team update (setting change) requires transaction id to be unset.".to_string(),
+            "a team update (setting change) requires league_event id to be unset.".to_string(),
         ))
     } else {
         Ok(())

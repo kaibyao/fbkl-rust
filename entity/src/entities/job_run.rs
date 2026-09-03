@@ -22,8 +22,8 @@ pub struct Model {
     pub attempts: i16,
     /// Stable rendering of `(league_id, end_of_season_year, kind[, auction_id])`; unique-indexed.
     pub idempotency_key: String,
-    /// Links the audit `transaction` row the handler produced, if any.
-    pub transaction_id: Option<i64>,
+    /// Links the audit `league_event` row the handler produced, if any.
+    pub league_event_id: Option<i64>,
     pub error: Option<String>,
     pub created_at: DateTimeWithTimeZone,
     pub updated_at: DateTimeWithTimeZone,
@@ -89,13 +89,13 @@ pub enum Relation {
     )]
     Deadline,
     #[sea_orm(
-        belongs_to = "super::transaction::Entity",
-        from = "Column::TransactionId",
-        to = "super::transaction::Column::Id",
+        belongs_to = "super::league_event::Entity",
+        from = "Column::LeagueEventId",
+        to = "super::league_event::Column::Id",
         on_update = "Cascade",
         on_delete = "SetNull"
     )]
-    Transaction,
+    LeagueEvent,
 }
 
 impl Related<super::league::Entity> for Entity {
@@ -110,9 +110,9 @@ impl Related<super::deadline::Entity> for Entity {
     }
 }
 
-impl Related<super::transaction::Entity> for Entity {
+impl Related<super::league_event::Entity> for Entity {
     fn to() -> RelationDef {
-        Relation::Transaction.def()
+        Relation::LeagueEvent.def()
     }
 }
 

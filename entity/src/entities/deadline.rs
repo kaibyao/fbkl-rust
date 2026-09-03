@@ -165,8 +165,8 @@ pub enum Relation {
     League,
     #[sea_orm(has_many = "super::team_update::Entity")]
     TeamUpdate,
-    #[sea_orm(has_many = "super::transaction::Entity")]
-    Transaction,
+    #[sea_orm(has_many = "super::league_event::Entity")]
+    LeagueEvent,
 }
 
 impl Related<super::league::Entity> for Entity {
@@ -176,20 +176,20 @@ impl Related<super::league::Entity> for Entity {
 }
 
 impl Related<super::team_update::Entity> for Entity {
-    // The original relation is TeamUpdate -> Transaction -> Deadline
-    // After `rev` it becomes Deadline -> Transaction -> TeamUpdate
+    // The original relation is TeamUpdate -> LeagueEvent -> Deadline
+    // After `rev` it becomes Deadline -> LeagueEvent -> TeamUpdate
     fn to() -> RelationDef {
-        super::team_update::Relation::Transaction.def().rev()
+        super::team_update::Relation::LeagueEvent.def().rev()
     }
 
     fn via() -> Option<RelationDef> {
-        Some(super::transaction::Relation::Deadline.def().rev())
+        Some(super::league_event::Relation::Deadline.def().rev())
     }
 }
 
-impl Related<super::transaction::Entity> for Entity {
+impl Related<super::league_event::Entity> for Entity {
     fn to() -> RelationDef {
-        Relation::Transaction.def()
+        Relation::LeagueEvent.def()
     }
 }
 

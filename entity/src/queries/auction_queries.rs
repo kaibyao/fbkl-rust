@@ -391,7 +391,7 @@ where
         all_bid_deadline_timestamp: ActiveValue::Set(new_auction.all_bid_deadline_timestamp),
         contract_id: ActiveValue::Set(new_auction.contract_id),
         original_owner_team_id: ActiveValue::Set(new_auction.original_owner_team_id),
-        transaction_id: ActiveValue::NotSet,
+        league_event_id: ActiveValue::NotSet,
         created_at: ActiveValue::NotSet,
         updated_at: ActiveValue::NotSet,
     };

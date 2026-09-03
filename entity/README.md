@@ -4,7 +4,7 @@
 
 ## Where does querying logic go?
 
-For the most part, they go into `*_queries.rs`. The times where you place querying logic in an `impl Model {}` function is when you are doing a simple retrieval of data related to an instance of a model, or you are generating the next `ActiveModel` in a historical chain (ex: `trade`, `transaction`).
+For the most part, they go into `*_queries.rs`. The times where you place querying logic in an `impl Model {}` function is when you are doing a simple retrieval of data related to an instance of a model, or you are generating the next `ActiveModel` in a historical chain (ex: `trade`, `league_event`).
 
 ## Which `*_queries.rs` file does my query live?
 

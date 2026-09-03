@@ -49,7 +49,7 @@ pub struct FreeAgentPickupFrozen {
     pub fa_auction_end: DateTimeWithTimeZone,
 }
 
-/// Ends a free agent auction and creates the associated transaction + team contract OR expires the associated contract.
+/// Ends a free agent auction and creates the associated league event + team contract OR expires the associated contract.
 #[instrument(skip(db))]
 pub async fn end_fa_auction<C>(
     deadline_model: &deadline::Model,

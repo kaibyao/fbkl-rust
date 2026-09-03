@@ -9,14 +9,14 @@ use fbkl_entity::{
     contract::{self, ContractKind},
     contract_queries,
     deadline::{self, DeadlineKind},
-    deadline_queries, roster_lock_violation_queries,
+    deadline_queries,
+    league_event::{self, LeagueEventKind},
+    league_event_queries, roster_lock_violation_queries,
     sea_orm::{ActiveValue, EntityTrait},
     team_update::{
         self, ContractUpdate, ContractUpdateType, TeamUpdateAsset, TeamUpdateData, TeamUpdateStatus,
     },
     team_update_queries,
-    transaction::{self, TransactionKind},
-    transaction_queries,
 };
 use fbkl_logic::{
     deadline_processing::{RosterRule, TeamRosterViolation, lock_rosters, validate_league_rosters},
@@ -86,7 +86,7 @@ async fn add_roster_contracts(
 /// One `team_update` to seed, i.e. a roster move recorded without running the code that makes it.
 struct RecordedMove<'a> {
     deadline_model: &'a deadline::Model,
-    kind: TransactionKind,
+    kind: LeagueEventKind,
     status: TeamUpdateStatus,
     /// The roster the update commits, i.e. `all_contract_ids`.
     roster_contract_ids: Vec<i64>,
@@ -108,8 +108,8 @@ async fn record_move(
         contract_moves,
     } = recorded;
 
-    let transaction_model = transaction_queries::insert_transaction(
-        transaction::ActiveModel {
+    let league_event_model = league_event_queries::insert_league_event(
+        league_event::ActiveModel {
             end_of_season_year: ActiveValue::Set(END_OF_SEASON_YEAR),
             kind: ActiveValue::Set(kind),
             league_id: ActiveValue::Set(league.league_id),
@@ -119,7 +119,7 @@ async fn record_move(
         &league.db,
     )
     .await
-    .expect("insert transaction");
+    .expect("insert league_event");
 
     let contract_updates = contract_moves
         .into_iter()
@@ -150,7 +150,7 @@ async fn record_move(
             effective_date: ActiveValue::Set(deadline_model.date_time.date_naive()),
             status: ActiveValue::Set(status),
             team_id: ActiveValue::Set(team_id),
-            transaction_id: ActiveValue::Set(Some(transaction_model.id)),
+            league_event_id: ActiveValue::Set(Some(league_event_model.id)),
             ..Default::default()
         },
         &league.db,
@@ -172,7 +172,7 @@ async fn record_auction_add(
         team_id,
         RecordedMove {
             deadline_model,
-            kind: TransactionKind::AuctionDone,
+            kind: LeagueEventKind::AuctionDone,
             status: TeamUpdateStatus::Pending,
             roster_contract_ids: vec![contract_model.id],
             contract_moves: vec![(contract_model.id, ContractUpdateType::AddViaAuction)],
@@ -273,12 +273,12 @@ async fn an_in_season_add_cannot_go_straight_to_ir() {
     };
     let week_1_lock = deadline_of(&league, DeadlineKind::Week1RosterLock).await;
 
-    for (add_kind, transaction_kind) in [
+    for (add_kind, league_event_kind) in [
         (
             ContractUpdateType::AddViaAuction,
-            TransactionKind::AuctionDone,
+            LeagueEventKind::AuctionDone,
         ),
-        (ContractUpdateType::AddViaTrade, TransactionKind::Trade),
+        (ContractUpdateType::AddViaTrade, LeagueEventKind::Trade),
     ] {
         let player_id = league
             .add_veteran_player(&format!("Acquired via {add_kind:?}"))
@@ -291,7 +291,7 @@ async fn an_in_season_add_cannot_go_straight_to_ir() {
             league.team_id,
             RecordedMove {
                 deadline_model: &week_1_lock,
-                kind: transaction_kind,
+                kind: league_event_kind,
                 status: TeamUpdateStatus::Done,
                 roster_contract_ids: vec![acquired.id],
                 contract_moves: vec![(acquired.id, add_kind)],
@@ -335,7 +335,7 @@ async fn a_quiet_team_can_ir_its_only_add_after_its_week_ends() {
         league.team_id,
         RecordedMove {
             deadline_model: &week_1_lock,
-            kind: TransactionKind::AuctionDone,
+            kind: LeagueEventKind::AuctionDone,
             status: TeamUpdateStatus::Done,
             roster_contract_ids: vec![signing.id],
             contract_moves: vec![(signing.id, ContractUpdateType::AddViaAuction)],
@@ -376,7 +376,7 @@ async fn a_contract_committed_to_the_active_roster_can_go_to_ir() {
         league.team_id,
         RecordedMove {
             deadline_model: &week_1_lock,
-            kind: TransactionKind::TeamUpdateDropContract,
+            kind: LeagueEventKind::TeamUpdateDropContract,
             status: TeamUpdateStatus::Done,
             roster_contract_ids: vec![committed.id, dropped[0].id],
             contract_moves: vec![(dropped[0].id, ContractUpdateType::Drop)],

@@ -4,11 +4,11 @@ use color_eyre::eyre::{Result, eyre};
 use fbkl_entity::{
     contract::{self, ContractStatus},
     contract_queries, deadline,
+    league_event::{self, LeagueEventKind},
+    league_event_queries,
     sea_orm::{ActiveValue, ConnectionTrait},
     team_update::{self, ContractUpdateType, TeamUpdateAsset, TeamUpdateData},
     team_update_queries,
-    transaction::{self, TransactionKind},
-    transaction_queries,
 };
 use tracing::instrument;
 
@@ -42,7 +42,7 @@ where
         cap: original_salary_cap,
     } = calculate_team_contract_salary_with_model(&team_model, deadline_model, db).await?;
 
-    // Saving the contract id for the transaction's contract_id, because the dropped one does not have a team_id and it becomes hard to calculate salary cap penalties without it.
+    // Saving the contract id for the league event's contract_id, because the dropped one does not have a team_id and it becomes hard to calculate salary cap penalties without it.
     let contract_id = contract_model.id;
 
     let keeper_timing = if deadline_model.is_preseason_keeper_or_before() {
@@ -53,18 +53,18 @@ where
     let dropped_contract =
         contract_queries::drop_contract(contract_model, keeper_timing, db).await?;
 
-    // create transaction
-    let transaction_to_insert = transaction::ActiveModel {
+    // create league event
+    let league_event_to_insert = league_event::ActiveModel {
         id: ActiveValue::NotSet,
         end_of_season_year: ActiveValue::Set(dropped_contract.end_of_season_year),
-        kind: ActiveValue::Set(TransactionKind::TeamUpdateDropContract),
+        kind: ActiveValue::Set(LeagueEventKind::TeamUpdateDropContract),
         league_id: ActiveValue::Set(dropped_contract.league_id),
         deadline_id: ActiveValue::Set(deadline_model.id),
         contract_id: ActiveValue::Set(Some(contract_id)),
         ..Default::default()
     };
-    let transaction_model =
-        transaction_queries::insert_transaction(transaction_to_insert, db).await?;
+    let league_event_model =
+        league_event_queries::insert_league_event(league_event_to_insert, db).await?;
 
     // create team_update
     create_drop_contract_team_update(
@@ -72,7 +72,7 @@ where
         deadline_model,
         &team_model,
         (original_salary, original_salary_cap),
-        transaction_model.id,
+        league_event_model.id,
         db,
     )
     .await?;
@@ -95,7 +95,7 @@ fn validate_contract_eligibility(contract_model: &contract::Model) -> Result<()>
 /// Rejects dropping a contract the team added this week before that week's adds sit legally on the
 /// roster (rules §8.3.5 and §8.3.7).
 ///
-/// The week is the set of `team_updates` whose transaction points at `deadline_model`, i.e. the
+/// The week is the set of `team_updates` whose league event points at `deadline_model`, i.e. the
 /// moves not yet locked in. A contract counts as a same-week add when every one of its updates
 /// this week is an auction or trade add. Because the adds are already applied and the drop is not,
 /// the team's current roster is the roster §8.3.7 asks about: with every add, without the drop.
@@ -220,7 +220,7 @@ mod tests {
             sequence: None,
             status: TeamUpdateStatus::Pending,
             team_id: 1,
-            transaction_id: Some(id),
+            league_event_id: Some(id),
             created_at: now,
             updated_at: now,
         }

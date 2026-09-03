@@ -120,7 +120,7 @@ the $10 bump. No new limit logic; provide a legalization-wizard surface (fronten
   `REGULAR_SEASON_INTL_ROOKIE_DEVELOPMENT_CONTRACTS_PER_ROSTER_LIMIT` (1),
   `REGULAR_SEASON_TOTAL_SALARY_LIMIT` (210), `POST_SEASON_TOTAL_SALARY_LIMIT` (230),
   `PRE_SEASON_CONTRACTS_PER_ROSTER_LIMIT` (32).
-- Each mutator continues to record a `transaction` (`TeamUpdateToIr`, `TeamUpdateFromIr`,
+- Each mutator continues to record a `league_event` (`TeamUpdateToIr`, `TeamUpdateFromIr`,
   `TeamUpdateDropContract`, `RookieContractActivation`, `AuctionDone`, `Trade`) + `team_update`
   per `logic/CLAUDE.md` convention 1. The weekly model changes *when legality is checked*, not the
   audit-log shape.

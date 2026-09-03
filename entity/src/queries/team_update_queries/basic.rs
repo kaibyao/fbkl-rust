@@ -6,9 +6,8 @@ use sea_orm::{
 use tracing::instrument;
 
 use crate::{
-    deadline,
+    deadline, league_event,
     team_update::{self, TeamUpdateStatus},
-    transaction,
 };
 
 /// Finds the `team_updates` related to the given deadline.
@@ -27,17 +26,17 @@ where
     Ok(team_updates)
 }
 
-/// Finds the `team_updates` related to the given transaction id.
+/// Finds the `team_updates` related to the given league event id.
 #[instrument(skip(db))]
-pub async fn find_team_updates_by_transaction<C>(
-    transaction_id: i64,
+pub async fn find_team_updates_by_league_event<C>(
+    league_event_id: i64,
     db: &C,
 ) -> Result<Vec<team_update::Model>>
 where
     C: ConnectionTrait,
 {
     let team_updates = team_update::Entity::find()
-        .filter(team_update::Column::TransactionId.eq(transaction_id))
+        .filter(team_update::Column::LeagueEventId.eq(league_event_id))
         .all(db)
         .await?;
     Ok(team_updates)
@@ -46,7 +45,7 @@ where
 /// Finds a team's `team_updates` newest-first, narrowed by status and/or deadline.
 ///
 /// Filtering by deadline gives the moves made in one week, since every roster move records its
-/// transaction against the deadline it is made for.
+/// league event against the deadline it is made for.
 #[instrument(skip(db))]
 pub async fn find_team_updates_by_team<C>(
     team_id: i64,
@@ -67,9 +66,9 @@ where
         query = query
             .join(
                 JoinType::InnerJoin,
-                team_update::Relation::Transaction.def(),
+                team_update::Relation::LeagueEvent.def(),
             )
-            .filter(transaction::Column::DeadlineId.eq(deadline_id));
+            .filter(league_event::Column::DeadlineId.eq(deadline_id));
     }
 
     let team_updates = query.order_by_desc(team_update::Column::Id).all(db).await?;

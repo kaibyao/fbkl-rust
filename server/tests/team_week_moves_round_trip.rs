@@ -11,11 +11,11 @@ use async_graphql::{Request, Value};
 use fbkl_entity::{
     deadline::DeadlineKind,
     deadline_queries,
+    league_event::{self, LeagueEventKind},
+    league_event_queries,
     sea_orm::ActiveValue,
     team_update::{self, TeamUpdateData, TeamUpdateStatus},
     team_update_queries, team_user,
-    transaction::{self, TransactionKind},
-    transaction_queries,
 };
 use fbkl_server::{AppSchema, build_graphql_schema};
 use fbkl_test_support::{TestLeague, central};
@@ -55,21 +55,21 @@ async fn a_week_of_done_and_pending_moves_lists_and_reorders_as_one_set() {
     let drop = record_move(
         &league,
         lock_id,
-        TransactionKind::TeamUpdateDropContract,
+        LeagueEventKind::TeamUpdateDropContract,
         TeamUpdateStatus::Done,
     )
     .await;
     let auction_win = record_move(
         &league,
         lock_id,
-        TransactionKind::AuctionDone,
+        LeagueEventKind::AuctionDone,
         TeamUpdateStatus::Done,
     )
     .await;
     let pending_ir = record_move(
         &league,
         lock_id,
-        TransactionKind::TeamUpdateToIr,
+        LeagueEventKind::TeamUpdateToIr,
         TeamUpdateStatus::Pending,
     )
     .await;
@@ -189,11 +189,11 @@ fn move_ids(moves: &Value) -> Vec<i64> {
 async fn record_move(
     league: &TestLeague,
     deadline_id: i64,
-    kind: TransactionKind,
+    kind: LeagueEventKind,
     status: TeamUpdateStatus,
 ) -> i64 {
-    let transaction_model = transaction_queries::insert_transaction(
-        transaction::ActiveModel {
+    let league_event_model = league_event_queries::insert_league_event(
+        league_event::ActiveModel {
             end_of_season_year: ActiveValue::Set(END_OF_SEASON_YEAR),
             kind: ActiveValue::Set(kind),
             league_id: ActiveValue::Set(league.league_id),
@@ -203,7 +203,7 @@ async fn record_move(
         &league.db,
     )
     .await
-    .expect("insert transaction");
+    .expect("insert league_event");
 
     let data = TeamUpdateData::from_assets(vec![], vec![], 0, 0, 0, 0)
         .to_json()
@@ -214,7 +214,7 @@ async fn record_move(
             effective_date: ActiveValue::Set(central("2025-10-21T18:00:00").date_naive()),
             status: ActiveValue::Set(status),
             team_id: ActiveValue::Set(league.team_id),
-            transaction_id: ActiveValue::Set(Some(transaction_model.id)),
+            league_event_id: ActiveValue::Set(Some(league_event_model.id)),
             ..Default::default()
         },
         &league.db,

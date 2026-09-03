@@ -242,7 +242,7 @@ async fn a_single_move_counts_towards_the_named_upcoming_lock() {
     assert!(accepted.is_ok(), "expected the move to apply: {accepted:?}");
     assert_eq!(ir_contract_count(&league).await, 1);
 
-    // The week filter reads the transaction's deadline, so the move has to be filed under the lock.
+    // The week filter reads the league event's deadline, so the move has to be filed under the lock.
     let filed_under_lock = team_update_queries::find_team_updates_by_team(
         league.team_id,
         None,

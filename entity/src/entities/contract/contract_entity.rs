@@ -13,7 +13,7 @@ use serde::{Deserialize, Serialize};
 use tracing::instrument;
 
 use crate::{
-    auction, league, league_player, player, rookie_draft_selection, team, trade_asset, transaction,
+    auction, league, league_event, league_player, player, rookie_draft_selection, team, trade_asset,
 };
 
 use super::{
@@ -336,8 +336,8 @@ pub enum ContractStatus {
 pub enum Relation {
     #[sea_orm(has_many = "auction::Entity")]
     Auction,
-    #[sea_orm(has_one = "transaction::Entity")]
-    DroppedContractTransaction,
+    #[sea_orm(has_one = "league_event::Entity")]
+    DroppedContractLeagueEvent,
     #[sea_orm(
         belongs_to = "league::Entity",
         from = "Column::LeagueId",
@@ -434,9 +434,9 @@ impl Related<trade_asset::Entity> for Entity {
     }
 }
 
-impl Related<transaction::Entity> for Entity {
+impl Related<league_event::Entity> for Entity {
     fn to() -> RelationDef {
-        Relation::DroppedContractTransaction.def()
+        Relation::DroppedContractLeagueEvent.def()
     }
 }
 

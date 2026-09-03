@@ -1,7 +1,7 @@
 //! Making a rookie-draft pick (§7.3) — the live counterpart of what `import-data` replays from CSV.
 //!
-//! Produces exactly the rows `seasonal_rookie_selection_transactions::process_rookie_selected`
-//! produces (RD contract + `RookieDraftSelection` transaction + `AddViaRookieDraft` update),
+//! Produces exactly the rows `seasonal_rookie_selection_league_events::process_rookie_selected`
+//! produces (RD contract + `RookieDraftSelection` league event + `AddViaRookieDraft` update),
 //! but validates first: on the clock, in the eligible pool, not re-draft banned, roster room.
 
 use std::{collections::HashSet, fmt::Debug};
@@ -15,7 +15,7 @@ use fbkl_entity::{
     contract::{self, RelatedPlayer},
     contract_queries,
     deadline::DeadlineKind,
-    deadline_queries, draft_pick_queries,
+    deadline_queries, draft_pick_queries, league_event_queries,
     rookie_draft_selection::{self, RookieDraftSelectionStatus},
     rookie_draft_selection_queries,
     sea_orm::{ActiveValue, ConnectionTrait, TransactionSession, TransactionTrait},
@@ -23,7 +23,6 @@ use fbkl_entity::{
         self, ContractUpdate, ContractUpdateType, TeamUpdateAsset, TeamUpdateData, TeamUpdateStatus,
     },
     team_update_queries::{self, ContractUpdatePlayerData},
-    transaction_queries,
 };
 use tracing::instrument;
 
@@ -203,13 +202,13 @@ where
     )
     .await?;
 
-    let transaction_model = transaction_queries::insert_rookie_draft_selection_transaction(
+    let league_event_model = league_event_queries::insert_rookie_draft_selection_league_event(
         &deadline_model,
         updated_selection_model.id,
         &db_txn,
     )
     .await?;
-    updated_selection_model.transaction_id = Some(transaction_model.id);
+    updated_selection_model.league_event_id = Some(league_event_model.id);
 
     insert_team_update_for_pick(
         &rookie_contract_model,
@@ -219,7 +218,7 @@ where
             cap: previous_salary_cap,
         },
         deadline_model.date_time.date_naive(),
-        transaction_model.id,
+        league_event_model.id,
         &db_txn,
     )
     .await?;
@@ -236,7 +235,7 @@ async fn insert_team_update_for_pick<C>(
     active_contracts: &[contract::Model],
     salary_snapshot: SalarySnapshot,
     effective_date: NaiveDate,
-    transaction_id: i64,
+    league_event_id: i64,
     db: &C,
 ) -> Result<()>
 where
@@ -275,7 +274,7 @@ where
                     .team_id
                     .ok_or_else(|| eyre!("Rookie draft contract has no team."))?,
             ),
-            transaction_id: ActiveValue::Set(Some(transaction_id)),
+            league_event_id: ActiveValue::Set(Some(league_event_id)),
             ..Default::default()
         },
         db,

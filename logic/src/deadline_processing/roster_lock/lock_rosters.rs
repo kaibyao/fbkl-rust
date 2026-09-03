@@ -84,7 +84,7 @@ mod tests {
             sequence: None,
             status: TeamUpdateStatus::Pending,
             team_id,
-            transaction_id: None,
+            league_event_id: None,
             created_at: DateTimeWithTimeZone::default(),
             updated_at: DateTimeWithTimeZone::default(),
         }

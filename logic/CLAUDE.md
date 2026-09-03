@@ -32,9 +32,9 @@ values from there; do not duplicate literals into logic.
 
 ## Conventions (follow these when adding logic)
 
-1. **Every state change is a transaction + team_update.** A mutation almost always: mutates
-   the contract/asset, inserts a row in `transaction` (a `TransactionKind`), and inserts one or
-   more `team_update` rows. The transaction is the league's audit log; team_updates drive the
+1. **Every state change is a league_event + team_update.** A mutation almost always: mutates
+   the contract/asset, inserts a row in `league_event` (a `LeagueEventKind`), and inserts one or
+   more `team_update` rows. `league_event` is the league's audit log; team_updates drive the
    per-team UI/state. Don't mutate state without recording both.
 
 2. **Wrap multi-step mutations in a DB transaction** — `db.begin()` … `commit()`. Trade and

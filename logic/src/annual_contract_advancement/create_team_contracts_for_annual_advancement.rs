@@ -14,7 +14,7 @@ use tracing::instrument;
 pub async fn create_team_updates_for_advanced_team_contracts<C>(
     advanced_team_contracts: &[contract::Model],
     preseason_start_deadline_model: &deadline::Model,
-    transaction_id: i64,
+    league_event_id: i64,
     db: &C,
 ) -> Result<()>
 where
@@ -68,7 +68,7 @@ where
             effective_date: ActiveValue::Set(preseason_start_deadline_model.date_time.date_naive()),
             status: ActiveValue::Set(TeamUpdateStatus::Done),
             team_id: ActiveValue::Set(*team_id),
-            transaction_id: ActiveValue::Set(Some(transaction_id)),
+            league_event_id: ActiveValue::Set(Some(league_event_id)),
             ..Default::default()
         });
     }

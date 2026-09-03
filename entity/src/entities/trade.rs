@@ -26,8 +26,8 @@ pub struct Model {
     pub league_id: i64,
     pub original_trade_id: Option<i64>,
     pub previous_trade_id: Option<i64>,
-    /// The completed-trade transaction, set once the trade is processed (1:1). NULL while the trade is still proposed/countered.
-    pub transaction_id: Option<i64>,
+    /// The completed-trade league event, set once the trade is processed (1:1). NULL while the trade is still proposed/countered.
+    pub league_event_id: Option<i64>,
     pub created_at: DateTimeWithTimeZone,
     pub updated_at: DateTimeWithTimeZone,
 }
@@ -160,13 +160,13 @@ pub enum Relation {
     #[sea_orm(has_many = "super::trade_asset::Entity")]
     TradeAsset,
     #[sea_orm(
-        belongs_to = "super::transaction::Entity",
-        from = "Column::TransactionId",
-        to = "super::transaction::Column::Id",
+        belongs_to = "super::league_event::Entity",
+        from = "Column::LeagueEventId",
+        to = "super::league_event::Column::Id",
         on_update = "Cascade",
         on_delete = "Cascade"
     )]
-    Transaction,
+    LeagueEvent,
 }
 
 impl Related<super::league::Entity> for Entity {
@@ -200,9 +200,9 @@ impl Related<super::trade_asset::Entity> for Entity {
     }
 }
 
-impl Related<super::transaction::Entity> for Entity {
+impl Related<super::league_event::Entity> for Entity {
     fn to() -> RelationDef {
-        Relation::Transaction.def()
+        Relation::LeagueEvent.def()
     }
 }
 

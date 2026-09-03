@@ -18,7 +18,7 @@ pub async fn create_drop_contract_team_update<C>(
     deadline_model: &deadline::Model,
     team_model: &team::Model,
     (original_salary, original_salary_cap): (i16, i16),
-    transaction_id: i64,
+    league_event_id: i64,
     db: &C,
 ) -> Result<team_update::Model>
 where
@@ -53,7 +53,7 @@ where
         effective_date: ActiveValue::Set(deadline_model.date_time.date_naive()),
         status: ActiveValue::Set(TeamUpdateStatus::Done),
         team_id: ActiveValue::Set(team_model.id),
-        transaction_id: ActiveValue::Set(Some(transaction_id)),
+        league_event_id: ActiveValue::Set(Some(league_event_id)),
         ..Default::default()
     };
     let inserted_team_update =

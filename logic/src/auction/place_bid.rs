@@ -1,7 +1,7 @@
 //! Placing a bid on a live auction (rules §6.4 for the preseason veteran auction, §8.3 for
 //! in-season free agency).
 //!
-//! A bid is not a roster state change, so unlike most of this crate it records no transaction and
+//! A bid is not a roster state change, so unlike most of this crate it records no league event and
 //! no `team_update` — only the eventual auction win (`sign_auction_contract_to_team`) does that.
 //! Rejections are returned as [`BidRejection`] so the GraphQL layer can map each reason to a
 //! distinct error code instead of a generic 500.

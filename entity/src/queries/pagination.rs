@@ -1,5 +1,5 @@
 //! Offset pagination shared by every unbounded list query the GraphQL surface exposes
-//! (the league transaction feed, auction bid history).
+//! (the league league event feed, auction bid history).
 //!
 //! The convention is `(page, page_size)` — zero-indexed page, explicit size — rather than
 //! opaque cursors. The lists are league-scoped and small enough that a stable `ORDER BY` plus

@@ -11,8 +11,8 @@ use crate::{
     contract,
     deadline::{self, DeadlineKind},
     deadline_queries, draft_pick,
+    league_event::{self, LeagueEventKind},
     rookie_draft_selection::{self, RookieDraftSelectionStatus},
-    transaction::{self, TransactionKind},
 };
 
 /// Rookie draft selections made in a league's season, in draft order. The season comes from the
@@ -189,11 +189,11 @@ where
     let dropped_contracts = contract::Entity::find()
         .join(
             JoinType::InnerJoin,
-            contract::Relation::DroppedContractTransaction.def(),
+            contract::Relation::DroppedContractLeagueEvent.def(),
         )
-        .join(JoinType::InnerJoin, transaction::Relation::Deadline.def())
+        .join(JoinType::InnerJoin, league_event::Relation::Deadline.def())
         .filter(contract::Column::LeagueId.eq(league_id))
-        .filter(transaction::Column::Kind.eq(TransactionKind::TeamUpdateDropContract))
+        .filter(league_event::Column::Kind.eq(LeagueEventKind::TeamUpdateDropContract))
         .filter(deadline::Column::DateTime.between(
             draft_start_deadline.date_time,
             roster_lock_deadline.date_time,

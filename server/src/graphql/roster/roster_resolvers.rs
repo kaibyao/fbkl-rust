@@ -160,7 +160,7 @@ impl RosterMutation {
         let db_txn = db
             .begin()
             .await
-            .map_err(|err| internal("failed to start transaction", &err.into()))?;
+            .map_err(|err| internal("failed to start league_event", &err.into()))?;
         update_team_update_sequences(&ordered_team_update_ids, &db_txn)
             .await
             .map_err(|err| internal("failed to save the move order", &err))?;
@@ -203,7 +203,7 @@ impl RosterMutation {
         let db_txn = db
             .begin()
             .await
-            .map_err(|err| internal("failed to start transaction", &err.into()))?;
+            .map_err(|err| internal("failed to start league_event", &err.into()))?;
 
         let mut updated_contracts = Vec::with_capacity(moves.len());
         for roster_move in moves {
@@ -255,7 +255,7 @@ impl RosterMutation {
 /// Runs one roster move on a contract the caller's own team owns.
 ///
 /// Ownership is re-derived from the stored contract, never from the request. Each logic fn writes a
-/// contract row, a transaction, and a team update, so they share one database transaction.
+/// contract row, a league event, and a team update, so they share one database transaction.
 ///
 /// `deadline_id` names the lock the move counts towards, the same argument `legalize_roster` takes
 /// and validated the same way: a single move and a batched one have to agree on which week they
@@ -292,7 +292,7 @@ where
     let db_txn = db
         .begin()
         .await
-        .map_err(|err| internal("failed to start transaction", &err.into()))?;
+        .map_err(|err| internal("failed to start league_event", &err.into()))?;
     let updated = op(contract_model, &deadline_model, &db_txn)
         .await
         .map_err(|err| roster_move_error(&err))?;

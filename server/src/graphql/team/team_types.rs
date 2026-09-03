@@ -43,7 +43,7 @@ pub struct TeamUpdate {
     /// The owner's chosen place for this move in its week; `None` means insertion order.
     pub sequence: Option<i16>,
     pub status: TeamUpdateStatus,
-    pub transaction_id: Option<i64>,
+    pub league_event_id: Option<i64>,
     pub data: String,
 }
 
@@ -55,7 +55,7 @@ impl TeamUpdate {
             effective_date: entity.effective_date.to_string(),
             sequence: entity.sequence,
             status: entity.status,
-            transaction_id: entity.transaction_id,
+            league_event_id: entity.league_event_id,
             data: entity.data.to_string(),
         }
     }

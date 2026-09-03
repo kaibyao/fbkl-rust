@@ -5,9 +5,8 @@ use tracing::instrument;
 
 use crate::{
     contract::{self, ContractKind},
-    team,
+    league_event, team,
     team_update::{self, ContractUpdate, ContractUpdateType, TeamUpdateAsset, TeamUpdateData},
-    transaction,
 };
 
 use super::ContractUpdatePlayerData;
@@ -73,7 +72,7 @@ where
 pub async fn insert_keeper_team_update<C>(
     team_model: &team::Model,
     keeper_contracts: &[contract::Model],
-    keeper_transaction: &transaction::Model,
+    keeper_league_event: &league_event::Model,
     db: &C,
 ) -> Result<team_update::Model>
 where
@@ -85,7 +84,7 @@ where
     let team_update_to_insert = team_update::ActiveModel {
         data: ActiveValue::Set(team_update_data.to_json()?),
         effective_date: ActiveValue::Set(
-            keeper_transaction
+            keeper_league_event
                 .get_deadline(db)
                 .await?
                 .date_time
@@ -93,7 +92,7 @@ where
         ),
         status: ActiveValue::Set(team_update::TeamUpdateStatus::Pending),
         team_id: ActiveValue::Set(team_model.id),
-        transaction_id: ActiveValue::Set(Some(keeper_transaction.id)),
+        league_event_id: ActiveValue::Set(Some(keeper_league_event.id)),
         ..Default::default()
     };
     let team_update = team_update_to_insert.insert(db).await?;

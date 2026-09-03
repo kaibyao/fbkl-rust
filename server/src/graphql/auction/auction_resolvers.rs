@@ -37,7 +37,7 @@ use crate::graphql::{
 };
 
 /// Bid history spans a whole auction, so a page is always bounded (same convention as the
-/// transaction feed).
+/// league event feed).
 const MAX_PAGE_SIZE: u64 = 100;
 
 /// The deadlines that bound an auction window.
@@ -50,7 +50,7 @@ const AUCTION_DEADLINE_KINDS: [DeadlineKind; 6] = [
     DeadlineKind::FreeAgentAuctionEnd,
 ];
 
-/// An auction on one contract. `transactionId` is null while the auction is still open.
+/// An auction on one contract. `league_eventId` is null while the auction is still open.
 #[derive(SimpleObject)]
 pub struct Auction {
     pub id: i64,
@@ -65,7 +65,7 @@ pub struct Auction {
     /// RFA/UFA only: the team barred from bidding (rules §6.2.2.3) — disable their bid input.
     pub original_owner_team_id: Option<i64>,
     pub contract_id: i64,
-    pub transaction_id: Option<i64>,
+    pub league_event_id: Option<i64>,
 }
 
 impl Auction {
@@ -82,7 +82,7 @@ impl Auction {
                 .map(|deadline| deadline.to_rfc3339()),
             original_owner_team_id: model.original_owner_team_id,
             contract_id: model.contract_id,
-            transaction_id: model.transaction_id,
+            league_event_id: model.league_event_id,
         }
     }
 }

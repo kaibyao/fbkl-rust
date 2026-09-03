@@ -19,7 +19,7 @@ pub async fn create_ir_team_update<C>(
     team_model: &team::Model,
     contract_update_type: ContractUpdateType,
     (original_salary, original_salary_cap): (i16, i16),
-    ir_transaction_id: i64,
+    ir_league_event_id: i64,
     db: &C,
 ) -> Result<team_update::Model>
 where
@@ -54,7 +54,7 @@ where
         effective_date: ActiveValue::Set(deadline_model.date_time.date_naive()),
         status: ActiveValue::Set(TeamUpdateStatus::Pending),
         team_id: ActiveValue::Set(team_model.id),
-        transaction_id: ActiveValue::Set(Some(ir_transaction_id)),
+        league_event_id: ActiveValue::Set(Some(ir_league_event_id)),
         ..Default::default()
     };
     let inserted_team_update =

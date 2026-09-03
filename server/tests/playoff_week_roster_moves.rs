@@ -16,12 +16,12 @@ use fbkl_entity::{
     contract_queries,
     deadline::DeadlineKind,
     deadline_queries,
+    league_event::{self, LeagueEventKind},
+    league_event_queries,
     sea_orm::ActiveValue,
     team_update::{self, TeamUpdateData, TeamUpdateStatus},
     team_update_queries,
     team_user::LeagueRole,
-    transaction::{self, TransactionKind},
-    transaction_queries,
 };
 use fbkl_server::{AppSchema, build_graphql_schema};
 use fbkl_test_support::{TestLeague, days_ago, days_from_now};
@@ -147,10 +147,10 @@ async fn add_roster_contract(league: &TestLeague, player_name: &str) -> contract
 /// It records no asset change, so it reads as a week the contract sat through rather than the add
 /// that brought it in (rules §10.3.1).
 async fn record_committed_roster(league: &TestLeague, deadline_id: i64, contract_id: i64) {
-    let transaction_model = transaction_queries::insert_transaction(
-        transaction::ActiveModel {
+    let league_event_model = league_event_queries::insert_league_event(
+        league_event::ActiveModel {
             end_of_season_year: ActiveValue::Set(END_OF_SEASON_YEAR),
-            kind: ActiveValue::Set(TransactionKind::AuctionDone),
+            kind: ActiveValue::Set(LeagueEventKind::AuctionDone),
             league_id: ActiveValue::Set(league.league_id),
             deadline_id: ActiveValue::Set(deadline_id),
             ..Default::default()
@@ -158,7 +158,7 @@ async fn record_committed_roster(league: &TestLeague, deadline_id: i64, contract
         &league.db,
     )
     .await
-    .expect("insert transaction");
+    .expect("insert league_event");
 
     let data = TeamUpdateData::from_assets(vec![contract_id], vec![], 0, 0, 0, 0)
         .to_json()
@@ -169,7 +169,7 @@ async fn record_committed_roster(league: &TestLeague, deadline_id: i64, contract
             effective_date: ActiveValue::Set(days_ago(10).date_naive()),
             status: ActiveValue::Set(TeamUpdateStatus::Done),
             team_id: ActiveValue::Set(league.team_id),
-            transaction_id: ActiveValue::Set(Some(transaction_model.id)),
+            league_event_id: ActiveValue::Set(Some(league_event_model.id)),
             ..Default::default()
         },
         &league.db,

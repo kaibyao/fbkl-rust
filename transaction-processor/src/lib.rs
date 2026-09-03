@@ -1,6 +1,10 @@
-//! The transaction processor is the *dispatcher* of FBKL's orchestration layer: given a due
+//! This crate is the *dispatcher* of FBKL's orchestration layer: given a due
 //! `deadline` row or a synthesized sub-event, it runs the matching `fbkl_logic` handler inside
 //! a single DB transaction, idempotently, and records the outcome as a `job_run` row.
+//!
+//! The crate name `fbkl-transaction-processor` is a misnomer and predates this epic: it
+//! processes due deadlines, not the league's weekly "transaction" unit, and not the
+//! `league_event` audit rows either. Renaming it is out of scope here.
 //!
 //! Discovery of *what* is due lives in the `fbkl-jobs` crate (the scheduler); this crate only
 //! processes what it is handed. The commissioner console's manual "process now" / "retry"
@@ -9,7 +13,7 @@
 //!
 //! Processing happens in three steps:
 //! 1. **Claim** a `job_run` row (unique `idempotency_key` = double-fire guard). The claim is
-//!    committed outside the handler's transaction so concurrent ticks can observe `Running`.
+//!    committed outside the handler's DB transaction so concurrent ticks can observe `Running`.
 //! 2. **Dispatch** the handler inside `db.begin()` … `commit()` — a failure rolls back all of
 //!    the handler's writes so a retry starts clean.
 //! 3. **Record** the outcome (`Succeeded` / `Failed` + error detail) on the `job_run`.
@@ -33,7 +37,7 @@ use fbkl_logic::{
     auction::{assemble_veteran_auction_pool, end_fa_auction, end_veteran_auction},
     deadline_processing::{
         RfaMatchDecision, decline_to_raise, lock_rosters, match_or_decline,
-        process_keeper_deadline_transaction,
+        process_keeper_deadline_league_event,
     },
 };
 use tracing::{error, info, instrument, warn};
@@ -117,7 +121,7 @@ pub enum ProcessOutcome {
     AlreadyRunning,
     /// The run already failed `MAX_ATTEMPTS` times; surfaced to the console, not retried.
     AttemptsExhausted { job_run_id: i64 },
-    /// The handler errored; its transaction rolled back and `job_run` is `Failed`.
+    /// The handler errored; its DB transaction rolled back and `job_run` is `Failed`.
     Failed { job_run_id: i64, error: String },
 }
 
@@ -165,7 +169,7 @@ enum DispatchTask<'m> {
     Event(ProcessableEvent),
 }
 
-/// Shared claim → dispatch-in-transaction → record-outcome flow for deadlines and sub-events.
+/// Shared claim → dispatch-in-DB-transaction → record-outcome flow for deadlines and sub-events.
 async fn run_claimed<C>(
     db: &C,
     new_job_run: NewJobRun,
@@ -193,7 +197,7 @@ where
     };
     match dispatch_result {
         Ok(()) => {
-            // Record success inside the handler's transaction so the handler's effects and the
+            // Record success inside the handler's DB transaction so the handler's effects and the
             // Succeeded job_run commit atomically — otherwise a crash between commit and record
             // would leave committed work behind a still-Running job_run and invite a re-run.
             mark_job_run_succeeded(job_run_model.id, None, &txn).await?;
@@ -242,7 +246,7 @@ where
             Ok(())
         }
         DeadlineKind::PreseasonKeeper => {
-            process_keeper_deadline_transaction(
+            process_keeper_deadline_league_event(
                 deadline_model.league_id,
                 deadline_model.end_of_season_year,
                 txn,
