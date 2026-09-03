@@ -301,7 +301,11 @@ async fn file_and_validate_transaction(
         .map_err(|err| roster_move_error(&err))
 }
 
-/// Runs one roster move on a contract the caller's own team owns.
+/// Runs one roster move on a contract the caller's own team owns, as a transaction of one move.
+///
+/// A lone move is a transaction (rules §13.1.4), so it is filed and judged the way a batch is:
+/// `submit_transaction`'s work happens here too, over the single move. It therefore takes a
+/// transaction number of its own and is refused when its end state leaves the roster illegal (T1).
 ///
 /// Ownership is re-derived from the stored contract, never from the request. Each logic fn writes a
 /// contract row, a league event, and a team update, so they share one database transaction.
@@ -342,9 +346,23 @@ where
         .begin()
         .await
         .map_err(|err| internal("failed to start database transaction", &err.into()))?;
+
+    let transaction_start = find_transaction_start(team_user.team_id, deadline_id, &db_txn)
+        .await
+        .map_err(|err| internal("failed to read the team's week", &err))?;
+
     let updated = op(contract_model, &deadline_model, &db_txn)
         .await
         .map_err(|err| roster_move_error(&err))?;
+
+    file_and_validate_transaction(
+        team_user.team_id,
+        &deadline_model,
+        &transaction_start,
+        &db_txn,
+    )
+    .await?;
+
     db_txn
         .commit()
         .await

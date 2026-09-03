@@ -200,33 +200,7 @@ async fn a_transaction_applies_at_an_in_season_lock_and_numbers_its_moves_as_one
     else {
         return;
     };
-    // The season is under way: the keeper deadline and week 1's lock are both settled.
-    league
-        .add_deadline(
-            DeadlineKind::PreseasonKeeper,
-            central("2025-09-01T12:00:00"),
-        )
-        .await;
-    league
-        .add_deadline(
-            DeadlineKind::Week1RosterLock,
-            central("2025-10-20T18:00:00"),
-        )
-        .await;
-    // An in-season lock prices its cap against the free-agent auction end (rules §4.2.3).
-    league
-        .add_deadline(
-            DeadlineKind::FreeAgentAuctionEnd,
-            central("2026-03-01T18:00:00"),
-        )
-        .await;
-    let upcoming_lock = Utc::now()
-        .checked_add_days(Days::new(3))
-        .expect("3 days from now")
-        .fixed_offset();
-    league
-        .add_deadline(DeadlineKind::InSeasonRosterLock, upcoming_lock)
-        .await;
+    add_season_under_way(&league).await;
     let owner = league.add_team_user(LeagueRole::TeamOwner).await;
 
     let contracts = add_roster_contracts(&league, 4).await;
@@ -336,10 +310,109 @@ async fn a_single_move_counts_towards_the_named_upcoming_lock() {
     );
 }
 
+/// A lone move is a transaction of one move (rules §13.1.4), so it is judged the way a batch is:
+/// T1 refuses it when the roster it leaves is illegal, and it takes a transaction number of its own
+/// rather than sharing the batch's before it.
+#[tokio::test]
+async fn a_single_move_is_judged_and_numbered_as_its_own_transaction() {
+    let Some(league) = TestLeague::create("single_move_transaction", END_OF_SEASON_YEAR).await
+    else {
+        return;
+    };
+    add_season_under_way(&league).await;
+    let owner = league.add_team_user(LeagueRole::TeamOwner).await;
+
+    // Two contracts over the 22-man limit, so one drop is not enough to make the roster legal.
+    let contracts = add_roster_contracts(&league, VET_OR_ROOKIE_LIMIT + 2).await;
+    let lock_id = deadline_id(&league, DeadlineKind::InSeasonRosterLock).await;
+    let schema = build_graphql_schema(league.db.clone());
+    let session = session_for(owner.user_id, league.league_id).await;
+
+    let too_few = drop_contract(contracts[0].id, lock_id);
+    assert_eq!(
+        run(&schema, &too_few, &session).await,
+        Err("ROSTER_ILLEGAL".to_owned()),
+        "a lone drop that leaves the roster illegal is refused"
+    );
+    assert_eq!(
+        active_contract_count(&league).await,
+        VET_OR_ROOKIE_LIMIT + 2,
+        "the refused drop should not have persisted"
+    );
+    assert!(
+        stored_transaction_numbers(&league, lock_id)
+            .await
+            .is_empty(),
+        "a refused move writes no row to number"
+    );
+
+    let two_drops = format!(
+        "{}, {}",
+        drop_move(contracts[0].id),
+        drop_move(contracts[1].id)
+    );
+    let batch = run(
+        &schema,
+        &submit(league.team_id, lock_id, &two_drops),
+        &session,
+    )
+    .await;
+    assert!(batch.is_ok(), "expected the batch to legalize: {batch:?}");
+
+    let lone = run(&schema, &drop_contract(contracts[2].id, lock_id), &session).await;
+    assert!(
+        lone.is_ok(),
+        "a lone drop off a legal roster should apply: {lone:?}"
+    );
+    assert_eq!(
+        stored_transaction_numbers(&league, lock_id).await,
+        vec![Some(0), Some(0), Some(1)],
+        "the lone move is its own transaction, not part of the batch before it"
+    );
+}
+
 fn move_to_ir(contract_id: i64, deadline_id: i64) -> String {
     format!(
         "mutation {{ moveContractToIr(contractId: {contract_id}, deadlineId: {deadline_id}) {{ id }} }}"
     )
+}
+
+fn drop_contract(contract_id: i64, deadline_id: i64) -> String {
+    format!(
+        "mutation {{ dropContract(contractId: {contract_id}, deadlineId: {deadline_id}) {{ id }} }}"
+    )
+}
+
+/// The deadlines of a season already under way, with an in-season lock still to fire.
+///
+/// The keeper deadline and week 1's lock are settled, and the in-season lock prices its cap against
+/// the free-agent auction end (rules §4.2.3), which a season missing that row cannot do.
+async fn add_season_under_way(league: &TestLeague) {
+    league
+        .add_deadline(
+            DeadlineKind::PreseasonKeeper,
+            central("2025-09-01T12:00:00"),
+        )
+        .await;
+    league
+        .add_deadline(
+            DeadlineKind::Week1RosterLock,
+            central("2025-10-20T18:00:00"),
+        )
+        .await;
+    league
+        .add_deadline(
+            DeadlineKind::FreeAgentAuctionEnd,
+            central("2026-03-01T18:00:00"),
+        )
+        .await;
+    let upcoming_lock = Utc::now()
+        .checked_add_days(Days::new(3))
+        .expect("3 days from now")
+        .fixed_offset();
+    league
+        .add_deadline(DeadlineKind::InSeasonRosterLock, upcoming_lock)
+        .await;
 }
 
 fn submit(team_id: i64, deadline_id: i64, moves: &str) -> String {
@@ -407,6 +480,14 @@ async fn ir_contract_count(league: &TestLeague) -> usize {
         .iter()
         .filter(|contract_model| contract_model.is_ir)
         .count()
+}
+
+/// How many active contracts the team owns, i.e. what the 22-man limit counts.
+async fn active_contract_count(league: &TestLeague) -> usize {
+    contract_queries::find_active_contracts_for_team(league.team_id, &league.db)
+        .await
+        .expect("load the team's contracts")
+        .len()
 }
 
 /// A roster lock in a second league in the same database, i.e. an id the caller cannot use.
