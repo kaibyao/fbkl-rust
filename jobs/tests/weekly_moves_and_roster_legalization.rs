@@ -30,8 +30,6 @@ const END_OF_SEASON_YEAR: i16 = 2026;
 const VET_OR_ROOKIE_LIMIT: usize = 22;
 const PRESEASON_LOCK: &str = "2025-10-20T18:00:00";
 const WEEK_1_LOCK: &str = "2025-10-27T18:00:00";
-const WEEK_2_LOCK: &str = "2025-11-03T18:00:00";
-const FA_AUCTION_END: &str = "2026-03-01T18:00:00";
 
 /// A league with the two roster locks these tests move contracts against.
 async fn weekly_moves_league(test_name: &str) -> Option<TestLeague> {
@@ -238,156 +236,55 @@ async fn a_week_illegal_only_in_the_middle_still_locks() {
     );
 }
 
+/// Rules §10.1.2 and §13.1.6: a move to IR is judged by the transaction it belongs to, so the move
+/// itself is open at any lock. T2 (nothing acquired in a transaction goes to IR in that same
+/// transaction) is `validate_transaction`'s job and is unit-tested in `fbkl-logic`.
 #[tokio::test]
-async fn direct_to_ir_is_preseason_only() {
+async fn a_move_to_ir_is_open_at_any_lock() {
     let Some(league) = weekly_moves_league("weekly_moves_direct_to_ir").await else {
         return;
     };
     let preseason_lock = deadline_of(&league, DeadlineKind::PreseasonFinalRosterLock).await;
     let week_1_lock = deadline_of(&league, DeadlineKind::Week1RosterLock).await;
-    let player_id = league.add_veteran_player("Fresh signing").await;
-    let signing = league
-        .add_owned_contract(player_id, ContractKind::RookieExtension, 1, league.team_id)
-        .await;
 
-    let rejection = move_contract_to_ir(signing.clone(), &week_1_lock, &league.db)
-        .await
-        .expect_err("in-season direct-to-IR is rejected");
-    assert!(
-        rejection.to_string().contains("straight to IR"),
-        "unexpected rejection: {rejection}"
-    );
-
-    let ir_contract = move_contract_to_ir(signing, &preseason_lock, &league.db)
-        .await
-        .expect("the preseason final roster lock allows direct-to-IR");
-    assert!(ir_contract.is_ir);
-}
-
-/// Rules §10.3.1: a contract acquired in-season must sit on the 22-man roster before it may go to
-/// IR, and the add's own Done `team_update` is not proof that it ever did.
-#[tokio::test]
-async fn an_in_season_add_cannot_go_straight_to_ir() {
-    let Some(league) = weekly_moves_league("weekly_moves_in_season_add_to_ir").await else {
-        return;
-    };
-    let week_1_lock = deadline_of(&league, DeadlineKind::Week1RosterLock).await;
-
-    for (add_kind, league_event_kind) in [
-        (
-            ContractUpdateType::AddViaAuction,
-            LeagueEventKind::AuctionDone,
-        ),
-        (ContractUpdateType::AddViaTrade, LeagueEventKind::Trade),
-    ] {
-        let player_id = league
-            .add_veteran_player(&format!("Acquired via {add_kind:?}"))
-            .await;
-        let acquired = league
-            .add_owned_contract(player_id, ContractKind::RookieExtension, 1, league.team_id)
-            .await;
-        record_move(
-            &league,
+    let preseason_player_id = league.add_veteran_player("Preseason signing").await;
+    let preseason_signing = league
+        .add_owned_contract(
+            preseason_player_id,
+            ContractKind::RookieExtension,
+            1,
             league.team_id,
-            RecordedMove {
-                deadline_model: &week_1_lock,
-                kind: league_event_kind,
-                status: TeamUpdateStatus::Done,
-                roster_contract_ids: vec![acquired.id],
-                contract_moves: vec![(acquired.id, add_kind)],
-            },
         )
         .await;
-
-        let rejection = move_contract_to_ir(acquired, &week_1_lock, &league.db)
-            .await
-            .expect_err("an in-season add cannot go straight to IR");
-        assert!(
-            rejection.to_string().contains("straight to IR"),
-            "unexpected rejection for {add_kind:?}: {rejection}"
-        );
-    }
-}
-
-/// Rules §10.3.1: the ban on direct-to-IR ends with the add's own week. A team that wins an
-/// in-season auction and makes no other move still gets its player onto IR at the next lock.
-#[tokio::test]
-async fn a_quiet_team_can_ir_its_only_add_after_its_week_ends() {
-    let Some(league) = weekly_moves_league("weekly_moves_quiet_team_ir").await else {
-        return;
-    };
-    let week_1_lock = deadline_of(&league, DeadlineKind::Week1RosterLock).await;
-    league
-        .add_deadline(DeadlineKind::FreeAgentAuctionEnd, central(FA_AUCTION_END))
-        .await;
-    league
-        .add_deadline(DeadlineKind::InSeasonRosterLock, central(WEEK_2_LOCK))
-        .await;
-    let in_season_lock = deadline_of(&league, DeadlineKind::InSeasonRosterLock).await;
-
-    let player_id = league.add_veteran_player("Only signing").await;
-    let signing = league
-        .add_owned_contract(player_id, ContractKind::RookieExtension, 1, league.team_id)
-        .await;
-    // The auction win's own committed update, i.e. the team's one and only roster move.
-    record_move(
-        &league,
-        league.team_id,
-        RecordedMove {
-            deadline_model: &week_1_lock,
-            kind: LeagueEventKind::AuctionDone,
-            status: TeamUpdateStatus::Done,
-            roster_contract_ids: vec![signing.id],
-            contract_moves: vec![(signing.id, ContractUpdateType::AddViaAuction)],
-        },
-    )
-    .await;
-
-    let rejection = move_contract_to_ir(signing.clone(), &week_1_lock, &league.db)
+    let preseason_ir = move_contract_to_ir(preseason_signing, &preseason_lock, &league.db)
         .await
-        .expect_err("the add's own week still blocks IR");
+        .expect("the preseason final roster lock allows direct-to-IR");
+    assert!(preseason_ir.is_ir);
+
+    let in_season_player_id = league.add_veteran_player("In-season signing").await;
+    let in_season_signing = league
+        .add_owned_contract(
+            in_season_player_id,
+            ContractKind::RookieExtension,
+            1,
+            league.team_id,
+        )
+        .await;
+    // The auction win's own committed update, i.e. what used to block this move to IR.
+    record_auction_add(&league, &in_season_signing, &week_1_lock).await;
+
+    let in_season_ir = move_contract_to_ir(in_season_signing, &week_1_lock, &league.db)
+        .await
+        .expect("an in-season move to IR is judged by its transaction, not by this fn");
+    assert!(in_season_ir.is_ir);
+
+    let already_on_ir = move_contract_to_ir(in_season_ir, &week_1_lock, &league.db)
+        .await
+        .expect_err("a contract already on IR cannot go there again");
     assert!(
-        rejection.to_string().contains("straight to IR"),
-        "unexpected rejection: {rejection}"
+        already_on_ir.to_string().contains("already in IR"),
+        "unexpected rejection: {already_on_ir}"
     );
-
-    let ir_contract = move_contract_to_ir(signing, &in_season_lock, &league.db)
-        .await
-        .expect("the week the add was filed under has ended, so IR is open");
-    assert!(ir_contract.is_ir);
-}
-
-/// Rules §10.3.1: once the contract has been committed to the active roster, IR is open to it.
-#[tokio::test]
-async fn a_contract_committed_to_the_active_roster_can_go_to_ir() {
-    let Some(league) = weekly_moves_league("weekly_moves_committed_then_ir").await else {
-        return;
-    };
-    let week_1_lock = deadline_of(&league, DeadlineKind::Week1RosterLock).await;
-    let player_id = league.add_veteran_player("Committed vet").await;
-    let committed = league
-        .add_owned_contract(player_id, ContractKind::RookieExtension, 1, league.team_id)
-        .await;
-    let dropped = add_roster_contracts(&league, league.team_id, 1, "Dropped").await;
-
-    // A drop made while already holding the vet: he is on the committed roster, and this is not his add.
-    record_move(
-        &league,
-        league.team_id,
-        RecordedMove {
-            deadline_model: &week_1_lock,
-            kind: LeagueEventKind::TeamUpdateDropContract,
-            status: TeamUpdateStatus::Done,
-            roster_contract_ids: vec![committed.id, dropped[0].id],
-            contract_moves: vec![(dropped[0].id, ContractUpdateType::Drop)],
-        },
-    )
-    .await;
-
-    let ir_contract = move_contract_to_ir(committed, &week_1_lock, &league.db)
-        .await
-        .expect("a contract already committed to the active roster may move to IR in-season");
-    assert!(ir_contract.is_ir);
 }
 
 #[tokio::test]

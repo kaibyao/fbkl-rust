@@ -8,7 +8,6 @@
 
 use fbkl_entity::{
     contract::{ContractKind, ContractStatus},
-    deadline::DeadlineKind,
     team_update::ContractUpdateType,
 };
 
@@ -21,14 +20,6 @@ pub enum RosterMoveRejection {
     /// Rules §10.3.2: activating from IR needs a contract that is on IR.
     #[error("Contract {contract_id} is not in IR, so it cannot be activated from IR.")]
     NotInIr { contract_id: i64 },
-    /// Rules §10.3.1: an add cannot go straight to IR outside the preseason final roster lock.
-    #[error(
-        "Contract {contract_id} cannot go straight to IR at a {deadline_kind:?}. It has to be committed to the team without IR first."
-    )]
-    StraightToIr {
-        contract_id: i64,
-        deadline_kind: DeadlineKind,
-    },
     /// A newer row in the contract's chain supersedes it, so the client is acting on a stale copy.
     #[error(
         "Contract {contract_id} is not the latest in its chain, so no roster move applies to it."

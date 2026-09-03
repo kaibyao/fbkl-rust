@@ -2,9 +2,9 @@
 //!
 //! `process_trade` used to stamp its league event with the next deadline of ANY kind, so a non-lock
 //! deadline sitting between the trade and the Monday lock (a `FreeAgentAuctionEnd`, say) filed the
-//! `AddViaTrade` update outside the lock's week. Both same-week guards read the week off that
-//! deadline, so the acquiring owner could park the pickup straight on IR (rules 10.3.1/10.3.2,
-//! 11.7) and the 8.3.7 drop guard could not see the add at all.
+//! `AddViaTrade` update outside the lock's week. The week a move is filed under is the week whose
+//! transactions are judged together at the lock (rules 13.1.6), so an add filed under the wrong
+//! deadline is judged with the wrong set of moves.
 //!
 //! A season with no lock left has no week for the add either, so that case is pinned here too: it
 //! has to fail with a typed error the resolver can name, not an opaque one it reports as a 500.
@@ -30,7 +30,7 @@ use fbkl_test_support::{TestLeague, days_ago, days_from_now};
 const END_OF_SEASON_YEAR: i16 = 2026;
 
 #[tokio::test]
-async fn a_trade_add_is_filed_under_the_upcoming_lock_and_cannot_go_straight_to_ir() {
+async fn a_trade_add_is_filed_under_the_upcoming_lock() {
     let Some(league) = TestLeague::create("trade_add_lock_week", END_OF_SEASON_YEAR).await else {
         return;
     };
@@ -63,14 +63,17 @@ async fn a_trade_add_is_filed_under_the_upcoming_lock_and_cannot_go_straight_to_
         "the trade add belongs to the week of the lock it will be judged at"
     );
 
+    // A move to IR filed under that same lock joins the same week. Whether it may share the trade's
+    // transaction is T2's call in `validate_transaction`, not this move's own (rules 13.1.6).
     let received_contract = active_contract_in_chain(&league, traded_contract.id).await;
     assert_eq!(received_contract.team_id, Some(receiving_team_id));
-    let ir_error = move_contract_to_ir(received_contract, &lock, &league.db)
+    move_contract_to_ir(received_contract, &lock, &league.db)
         .await
-        .expect_err("a player received via trade cannot go straight to IR in the add's own week");
-    assert!(
-        ir_error.to_string().contains("straight to IR"),
-        "the refusal should name the rule: {ir_error}"
+        .expect("a later transaction may move the trade pickup to IR");
+    assert_eq!(
+        week_move_count(&league, receiving_team_id, lock.id).await,
+        2,
+        "the move to IR joins the trade add's week"
     );
 }
 

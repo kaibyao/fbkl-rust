@@ -503,7 +503,7 @@ where
 
 #[cfg(test)]
 mod tests {
-    use fbkl_entity::{contract::ContractStatus, deadline::DeadlineKind};
+    use fbkl_entity::{contract::ContractStatus, team_update::ContractUpdateType};
 
     use super::*;
 
@@ -519,11 +519,11 @@ mod tests {
     fn rule_rejections_carry_a_client_code_and_the_rule_message() {
         let cases = [
             (
-                RosterMoveRejection::StraightToIr {
+                RosterMoveRejection::SameTransactionAddThenRemove {
                     contract_id: 7,
-                    deadline_kind: DeadlineKind::Week1RosterLock,
+                    update_type: ContractUpdateType::ToIR,
                 },
-                "straight to IR",
+                "acquired in this transaction",
             ),
             (
                 RosterMoveRejection::ContractNotActive {
