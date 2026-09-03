@@ -128,18 +128,18 @@ fn find_same_transaction_add_then_remove<'updates>(
     })
 }
 
-/// Files every move written since `transaction_start` as one transaction, then judges it.
+/// Numbers every move written since `transaction_start` as one transaction, returning what it did.
 ///
-/// Both the numbering and the ruling run in the caller's database transaction, so an `Err` reaches
-/// the caller before it commits and neither the moves nor their number persist. Read
-/// `transaction_start` with `find_transaction_start` before the first move is applied.
+/// Read `transaction_start` with `find_transaction_start` before the first move is applied. Use
+/// [`file_and_validate_transaction`] unless the caller judges the moves itself, as the roster lock
+/// does for the wins nobody picked up.
 #[instrument(skip(db))]
-pub async fn file_and_validate_transaction<C>(
+pub async fn file_transaction<C>(
     team_id: i64,
     deadline_model: &deadline::Model,
     transaction_start: &TransactionStart,
     db: &C,
-) -> Result<()>
+) -> Result<Vec<ContractUpdate>>
 where
     C: ConnectionTrait,
 {
@@ -162,6 +162,26 @@ where
         transaction_updates.extend(team_update_model.get_contract_updates()?);
     }
 
+    Ok(transaction_updates)
+}
+
+/// Files every move written since `transaction_start` as one transaction, then judges it.
+///
+/// Both the numbering and the ruling run in the caller's database transaction, so an `Err` reaches
+/// the caller before it commits and neither the moves nor their number persist. Read
+/// `transaction_start` with `find_transaction_start` before the first move is applied.
+#[instrument(skip(db))]
+pub async fn file_and_validate_transaction<C>(
+    team_id: i64,
+    deadline_model: &deadline::Model,
+    transaction_start: &TransactionStart,
+    db: &C,
+) -> Result<()>
+where
+    C: ConnectionTrait,
+{
+    let transaction_updates =
+        file_transaction(team_id, deadline_model, transaction_start, db).await?;
     validate_transaction(team_id, &transaction_updates, deadline_model, db).await
 }
 

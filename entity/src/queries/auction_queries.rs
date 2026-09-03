@@ -1,6 +1,7 @@
 use std::fmt::Debug;
 
 use color_eyre::{Result, eyre::eyre};
+use multimap::MultiMap;
 use sea_orm::{
     ActiveModelTrait, ActiveValue, ColumnTrait, ConnectionTrait, EntityTrait, JoinType,
     QueryFilter, QueryOrder, QuerySelect, RelationTrait, prelude::DateTimeWithTimeZone,
@@ -131,17 +132,16 @@ where
         .collect())
 }
 
-/// The team's recorded-but-unsigned in-season auction wins, each with the bid that won it (§8.3.6).
+/// Every recorded-but-unsigned in-season auction win in the league/season, keyed by winning team.
 ///
 /// A `Won` row waits here from the auction's close until the owner's pickup signs it, or the roster
 /// lock signs it for them. The latest bid is the winning one, because that is what the close reads.
 #[instrument(skip(db))]
-pub async fn find_won_auctions_for_team<C>(
-    team_id: i64,
+pub async fn find_won_auctions_by_team<C>(
     league_id: i64,
     end_of_season_year: i16,
     db: &C,
-) -> Result<Vec<(auction::Model, auction_bid::Model)>>
+) -> Result<MultiMap<i64, (auction::Model, auction_bid::Model)>>
 where
     C: ConnectionTrait,
 {
@@ -155,16 +155,32 @@ where
         .await?;
 
     // A week's wins are a handful of rows, so the winner lookup stays a per-row read.
-    let mut team_wins = Vec::new();
+    let mut wins_by_team = MultiMap::new();
     for auction_model in won_auctions {
         let Some(winning_bid) = auction_model.get_latest_bid(db).await? else {
             continue;
         };
-        if winning_bid.get_team(db).await?.id == team_id {
-            team_wins.push((auction_model, winning_bid));
-        }
+        let winning_team_id = winning_bid.get_team(db).await?.id;
+        wins_by_team.insert(winning_team_id, (auction_model, winning_bid));
     }
-    Ok(team_wins)
+    Ok(wins_by_team)
+}
+
+/// The team's share of [`find_won_auctions_by_team`], oldest auction first.
+#[instrument(skip(db))]
+pub async fn find_won_auctions_for_team<C>(
+    team_id: i64,
+    league_id: i64,
+    end_of_season_year: i16,
+    db: &C,
+) -> Result<Vec<(auction::Model, auction_bid::Model)>>
+where
+    C: ConnectionTrait,
+{
+    Ok(find_won_auctions_by_team(league_id, end_of_season_year, db)
+        .await?
+        .remove(&team_id)
+        .unwrap_or_default())
 }
 
 /// Auctions in the league/season still taking bids, soonest close first, optionally of one kind
