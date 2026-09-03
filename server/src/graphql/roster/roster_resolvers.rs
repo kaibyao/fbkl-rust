@@ -367,7 +367,7 @@ where
 ///
 /// The season comes off the named deadline, so last season's rows fail the same check — none of
 /// that season's locks is still to fire.
-async fn resolve_upcoming_roster_lock<C>(
+pub(in crate::graphql) async fn resolve_upcoming_roster_lock<C>(
     deadline_id: i64,
     league_id: i64,
     db: &C,
