@@ -81,7 +81,7 @@ mod tests {
             id,
             data: Json::default(),
             effective_date: NaiveDate::from_ymd_opt(2024, 10, 22).unwrap(),
-            sequence: None,
+            transaction_number: None,
             status: TeamUpdateStatus::Pending,
             team_id,
             league_event_id: None,

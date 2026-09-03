@@ -52,14 +52,14 @@ async fn a_move_order_covers_one_week_and_nothing_else() {
     let reorder = |deadline_id: i64, ids: Vec<i64>| {
         let ids = format!("{ids:?}");
         format!(
-            "mutation {{ reorderWeeklyMoves(teamId: {}, deadlineId: {deadline_id}, orderedTeamUpdateIds: {ids}) {{ id sequence }} }}",
+            "mutation {{ reorderWeeklyMoves(teamId: {}, deadlineId: {deadline_id}, orderedTeamUpdateIds: {ids}) {{ id transactionNumber }} }}",
             league.team_id
         )
     };
 
-    // Nothing has an order yet, so the rows carry no sequence at all.
+    // Nothing has an order yet, so the rows carry no transaction number at all.
     assert_eq!(
-        stored_sequences(&league, this_week).await,
+        stored_transaction_numbers(&league, this_week).await,
         vec![(first, None), (second, None)]
     );
 
@@ -91,11 +91,11 @@ async fn a_move_order_covers_one_week_and_nothing_else() {
         .await
         .expect("last week's own move is a legal order");
     assert_eq!(
-        stored_sequences(&league, last_week).await,
+        stored_transaction_numbers(&league, last_week).await,
         vec![(last_week_move, Some(0))]
     );
     assert_eq!(
-        stored_sequences(&league, this_week).await,
+        stored_transaction_numbers(&league, this_week).await,
         vec![(first, Some(1)), (second, Some(0))],
         "reordering another week leaves this week's order alone"
     );
@@ -109,8 +109,11 @@ async fn a_move_order_covers_one_week_and_nothing_else() {
     assert_eq!(foreign.err().as_deref(), Some("NOT_FOUND"));
 }
 
-/// The stored id and sequence of every move in one week, oldest row first.
-async fn stored_sequences(league: &TestLeague, deadline_id: i64) -> Vec<(i64, Option<i16>)> {
+/// The stored id and transaction number of every move in one week, oldest row first.
+async fn stored_transaction_numbers(
+    league: &TestLeague,
+    deadline_id: i64,
+) -> Vec<(i64, Option<i16>)> {
     let mut moves: Vec<(i64, Option<i16>)> = team_update_queries::find_team_updates_by_team(
         league.team_id,
         None,
@@ -120,7 +123,7 @@ async fn stored_sequences(league: &TestLeague, deadline_id: i64) -> Vec<(i64, Op
     .await
     .expect("load the week's moves")
     .iter()
-    .map(|model| (model.id, model.sequence))
+    .map(|model| (model.id, model.transaction_number))
     .collect();
     moves.sort_unstable();
     moves
@@ -197,7 +200,7 @@ async fn foreign_league_deadline(league: &TestLeague) -> i64 {
     .last_insert_id
 }
 
-/// Runs `reorderWeeklyMoves`, returning the id and stored sequence of each move it echoes back.
+/// Runs `reorderWeeklyMoves`, returning the id and transaction number of each move it echoes back.
 async fn run(
     schema: &AppSchema,
     mutation: &str,
@@ -236,13 +239,15 @@ fn moves_of(data: &Value, field: &str) -> Vec<(i64, Option<i16>)> {
                 .expect("id as json")
                 .as_i64()
                 .expect("id as a number");
-            let sequence = team_update["sequence"]
+            let transaction_number = team_update["transactionNumber"]
                 .clone()
                 .into_json()
-                .expect("sequence as json")
+                .expect("transaction_number as json")
                 .as_i64()
-                .map(|sequence| i16::try_from(sequence).expect("sequence fits in i16"));
-            (id, sequence)
+                .map(|transaction_number| {
+                    i16::try_from(transaction_number).expect("transaction_number fits in i16")
+                });
+            (id, transaction_number)
         })
         .collect()
 }

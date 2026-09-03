@@ -5,7 +5,7 @@
 //! trade, an auction close, a drop, a keeper deadline, an RFA decision. Several of its kinds
 //! (`PreseasonStart`, `RfaResign`, ...) belong to no team at all, and one `Trade` row is shared by
 //! every team in the trade, so the row is an event, not a team's transaction. The weekly unit is
-//! `team_update.sequence` instead.
+//! `team_update.transaction_number` instead.
 //!
 //! Pure rename: table, its identity sequence, its indexes and constraints, and the
 //! `transaction_id` FK column on the five referencing tables. `kind` string values are stored data

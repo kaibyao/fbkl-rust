@@ -80,11 +80,11 @@ pub struct TeamWeek {
 impl TeamWeek {
     /// Puts one week's moves in the order the owner chose (rules §13.1.1).
     ///
-    /// A move with no sequence was not placed by the owner, so it sorts after the placed ones in
-    /// insertion order. Ordering is presentational: no roster rule reads it.
+    /// A move with no transaction number was not placed by the owner, so it sorts after the
+    /// placed ones in insertion order.
     pub fn in_owner_order(team_update_models: &[team_update::Model]) -> Vec<TeamUpdate> {
         let mut ordered: Vec<&team_update::Model> = team_update_models.iter().collect();
-        ordered.sort_by_key(|model| (model.sequence.unwrap_or(i16::MAX), model.id));
+        ordered.sort_by_key(|model| (model.transaction_number.unwrap_or(i16::MAX), model.id));
         ordered.into_iter().map(TeamUpdate::from_model).collect()
     }
 
@@ -135,12 +135,12 @@ mod tests {
 
     use super::*;
 
-    fn team_update_model(id: i64, sequence: Option<i16>) -> team_update::Model {
+    fn team_update_model(id: i64, transaction_number: Option<i16>) -> team_update::Model {
         team_update::Model {
             id,
             data: Json::default(),
             effective_date: Date::default(),
-            sequence,
+            transaction_number,
             status: TeamUpdateStatus::Pending,
             team_id: 1,
             league_event_id: None,
@@ -150,7 +150,7 @@ mod tests {
     }
 
     #[test]
-    fn sequenced_moves_lead_and_unsequenced_ones_keep_insertion_order() {
+    fn numbered_moves_lead_and_unnumbered_ones_keep_insertion_order() {
         let models = [
             team_update_model(10, None),
             team_update_model(11, Some(1)),

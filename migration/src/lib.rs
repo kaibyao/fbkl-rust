@@ -36,6 +36,7 @@ mod m20260817_000001_require_rfa_compensation_pick;
 mod m20260827_000001_add_team_update_sequence;
 mod m20260827_000002_create_roster_lock_violation;
 mod m20260902_000001_rename_transaction_to_league_event;
+mod m20260902_000002_rename_team_update_sequence_to_transaction_number;
 
 pub struct Migrator;
 
@@ -72,6 +73,7 @@ impl MigratorTrait for Migrator {
             Box::new(m20260827_000001_add_team_update_sequence::Migration),
             Box::new(m20260827_000002_create_roster_lock_violation::Migration),
             Box::new(m20260902_000001_rename_transaction_to_league_event::Migration),
+            Box::new(m20260902_000002_rename_team_update_sequence_to_transaction_number::Migration),
         ]
     }
 }

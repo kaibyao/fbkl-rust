@@ -566,7 +566,7 @@ async fn a_weeks_moves_keep_the_order_their_owner_chose() {
         );
     }
 
-    team_update_queries::update_team_update_sequences(&added_ids[..2], &league.db)
+    team_update_queries::update_team_update_transaction_numbers(&added_ids[..2], &league.db)
         .await
         .expect("save the owner's order");
 
@@ -579,16 +579,16 @@ async fn a_weeks_moves_keep_the_order_their_owner_chose() {
     .await
     .expect("read this week's moves");
 
-    let sequence_of = |team_update_id: i64| {
+    let transaction_number_of = |team_update_id: i64| {
         team_updates
             .iter()
             .find(|model| model.id == team_update_id)
             .expect("the moved update is still there")
-            .sequence
+            .transaction_number
     };
-    assert_eq!(sequence_of(added_ids[0]), Some(0));
-    assert_eq!(sequence_of(added_ids[1]), Some(1));
-    assert_eq!(sequence_of(added_ids[2]), None);
+    assert_eq!(transaction_number_of(added_ids[0]), Some(0));
+    assert_eq!(transaction_number_of(added_ids[1]), Some(1));
+    assert_eq!(transaction_number_of(added_ids[2]), None);
 }
 
 async fn read_team_update_status(league: &TestLeague, team_update_id: i64) -> TeamUpdateStatus {

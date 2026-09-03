@@ -3,7 +3,7 @@
 //!
 //! Named `league_event` and not `transaction`: the league's own word for a team's atomic weekly
 //! unit is "transaction" (commissioner ruling, 2021-11-01), and that unit is `team_update`'s
-//! `sequence`, not a row here. Seven kinds here (`PreseasonStart`, `PreseasonKeeper`,
+//! `transaction_number`, not a row here. Seven kinds here (`PreseasonStart`, `PreseasonKeeper`,
 //! `AuctionDone`, `RfaRaiseBid`, `RfaResign`, `RfaDeclineAndForfeit`, `TeamUpdateConfigChange`)
 //! are league-wide and belong to no team's weekly unit, and one `Trade` row is shared by every
 //! team in the trade. `team_update` is the per-team row that ties an event here to a team's

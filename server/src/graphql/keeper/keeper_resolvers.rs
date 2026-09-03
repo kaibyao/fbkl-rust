@@ -118,7 +118,7 @@ impl KeeperMutation {
         let db_txn = db
             .begin()
             .await
-            .map_err(|err| internal("failed to start league_event", &err.into()))?;
+            .map_err(|err| internal("failed to start database transaction", &err.into()))?;
         let team_update =
             save_keeper_team_update(&caller_team, contracts, end_of_season_year, &db_txn)
                 .await

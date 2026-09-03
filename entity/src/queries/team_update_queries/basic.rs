@@ -104,17 +104,24 @@ where
 
 /// Writes the owner's chosen order over one week's `team_updates` (rules §13.1.1).
 ///
-/// The position in `ordered_team_update_ids` becomes the stored sequence. Ordering is
-/// presentational and for the audit log, so no roster validator reads what this writes.
+/// The position in `ordered_team_update_ids` becomes the stored transaction number, so each move
+/// lands in a transaction of its own. Grouping several moves into one transaction is a separate
+/// call shape this does not yet take.
 #[instrument(skip(db))]
-pub async fn update_team_update_sequences<C>(ordered_team_update_ids: &[i64], db: &C) -> Result<()>
+pub async fn update_team_update_transaction_numbers<C>(
+    ordered_team_update_ids: &[i64],
+    db: &C,
+) -> Result<()>
 where
     C: ConnectionTrait,
 {
     for (index, team_update_id) in ordered_team_update_ids.iter().enumerate() {
-        let sequence = i16::try_from(index)?;
+        let transaction_number = i16::try_from(index)?;
         team_update::Entity::update_many()
-            .col_expr(team_update::Column::Sequence, Expr::value(sequence))
+            .col_expr(
+                team_update::Column::TransactionNumber,
+                Expr::value(transaction_number),
+            )
             .filter(team_update::Column::Id.eq(*team_update_id))
             .exec(db)
             .await?;

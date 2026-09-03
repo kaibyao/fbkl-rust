@@ -16,7 +16,7 @@ use fbkl_entity::{
     roster_lock_violation_queries::find_violations_for_league,
     sea_orm::{ConnectionTrait, DatabaseConnection, DatabaseTransaction, TransactionTrait},
     team_queries::find_team_by_id_in_league,
-    team_update_queries::{find_team_updates_by_team, update_team_update_sequences},
+    team_update_queries::{find_team_updates_by_team, update_team_update_transaction_numbers},
     team_user::LeagueRole,
 };
 use fbkl_logic::{
@@ -127,8 +127,8 @@ impl RosterMutation {
     /// illegal whatever order it is put in, so nothing is re-validated here.
     ///
     /// The order covers one week, named by its lock deadline, and has to list that week's moves and
-    /// no others. Sequences are positions in the list, so a partial list or a move from another
-    /// week would write positions that clash with the ones already stored for other weeks.
+    /// no others. Transaction numbers are positions in the list, so a partial list or a move from
+    /// another week would write numbers that clash with the ones already stored for other weeks.
     #[graphql(guard = "LeagueRoleGuard(RoleRequirement::Member)")]
     async fn reorder_weekly_moves(
         &self,
@@ -160,8 +160,8 @@ impl RosterMutation {
         let db_txn = db
             .begin()
             .await
-            .map_err(|err| internal("failed to start league_event", &err.into()))?;
-        update_team_update_sequences(&ordered_team_update_ids, &db_txn)
+            .map_err(|err| internal("failed to start database transaction", &err.into()))?;
+        update_team_update_transaction_numbers(&ordered_team_update_ids, &db_txn)
             .await
             .map_err(|err| internal("failed to save the move order", &err))?;
         let reordered = find_team_updates_by_team(team_id, None, Some(deadline_id), &db_txn)
@@ -203,7 +203,7 @@ impl RosterMutation {
         let db_txn = db
             .begin()
             .await
-            .map_err(|err| internal("failed to start league_event", &err.into()))?;
+            .map_err(|err| internal("failed to start database transaction", &err.into()))?;
 
         let mut updated_contracts = Vec::with_capacity(moves.len());
         for roster_move in moves {
@@ -292,7 +292,7 @@ where
     let db_txn = db
         .begin()
         .await
-        .map_err(|err| internal("failed to start league_event", &err.into()))?;
+        .map_err(|err| internal("failed to start database transaction", &err.into()))?;
     let updated = op(contract_model, &deadline_model, &db_txn)
         .await
         .map_err(|err| roster_move_error(&err))?;

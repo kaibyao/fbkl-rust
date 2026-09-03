@@ -133,7 +133,7 @@ where
             id: ActiveValue::NotSet,
             data: ActiveValue::Set(team_update_data.to_json()?),
             effective_date: ActiveValue::Set(trade_datetime.date_naive()),
-            sequence: ActiveValue::NotSet,
+            transaction_number: ActiveValue::NotSet,
             status: ActiveValue::Set(TeamUpdateStatus::Done),
             team_id: ActiveValue::Set(team_id),
             league_event_id: ActiveValue::Set(Some(trade_league_event.id)),

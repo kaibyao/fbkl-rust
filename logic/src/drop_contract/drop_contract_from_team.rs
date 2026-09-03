@@ -217,7 +217,7 @@ mod tests {
             id,
             data: data.to_json().unwrap(),
             effective_date: NaiveDate::from_ymd_opt(2024, 11, 4).unwrap(),
-            sequence: None,
+            transaction_number: None,
             status: TeamUpdateStatus::Pending,
             team_id: 1,
             league_event_id: Some(id),
