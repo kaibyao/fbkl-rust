@@ -462,6 +462,7 @@ async fn a_same_week_add_is_droppable_once_the_weeks_adds_fit_legally() {
 
 /// The other half of rule 8.3.7: while the week's adds do not fit, dropping one of them to make
 /// room for another is still rejected.
+#[ignore = "asserts the deleted drop-time gate; rewritten against T2 in fbkl-rust-d1r.14"]
 #[tokio::test]
 async fn a_same_week_add_cannot_be_dropped_to_make_room_for_another_same_week_add() {
     let Some(league) = weekly_moves_league("weekly_moves_drop_same_week_add").await else {

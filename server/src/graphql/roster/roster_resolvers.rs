@@ -526,13 +526,6 @@ mod tests {
                 "straight to IR",
             ),
             (
-                RosterMoveRejection::DropSameWeekAdd {
-                    contract_id: 7,
-                    violations: "roster is over the 22-man limit".to_owned(),
-                },
-                "added this week",
-            ),
-            (
                 RosterMoveRejection::ContractNotActive {
                     contract_id: 7,
                     status: ContractStatus::Replaced,

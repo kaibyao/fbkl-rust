@@ -29,14 +29,6 @@ pub enum RosterMoveRejection {
         contract_id: i64,
         deadline_kind: DeadlineKind,
     },
-    /// Rules §8.3.5 and §8.3.7: this week's adds must sit legally on the roster before a drop.
-    #[error(
-        "Contract {contract_id} was added this week, and the roster holding this week's adds is still illegal, so it cannot be dropped yet.\n{violations}"
-    )]
-    DropSameWeekAdd {
-        contract_id: i64,
-        violations: String,
-    },
     /// A newer row in the contract's chain supersedes it, so the client is acting on a stale copy.
     #[error(
         "Contract {contract_id} is not the latest in its chain, so no roster move applies to it."
