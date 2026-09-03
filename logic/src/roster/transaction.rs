@@ -10,6 +10,9 @@ use fbkl_entity::{
     contract_queries, deadline,
     sea_orm::ConnectionTrait,
     team_update::{ContractUpdate, ContractUpdateType},
+    team_update_queries::{
+        TransactionStart, assign_team_updates_to_transaction, find_team_updates_after,
+    },
 };
 use tracing::instrument;
 
@@ -123,6 +126,43 @@ fn find_same_transaction_add_then_remove<'updates>(
     transaction_updates.iter().find(|update| {
         is_removal(update.update_type) && acquired_roots.contains(&root_of(update.contract_id))
     })
+}
+
+/// Files every move written since `transaction_start` as one transaction, then judges it.
+///
+/// Both the numbering and the ruling run in the caller's database transaction, so an `Err` reaches
+/// the caller before it commits and neither the moves nor their number persist. Read
+/// `transaction_start` with `find_transaction_start` before the first move is applied.
+#[instrument(skip(db))]
+pub async fn file_and_validate_transaction<C>(
+    team_id: i64,
+    deadline_model: &deadline::Model,
+    transaction_start: &TransactionStart,
+    db: &C,
+) -> Result<()>
+where
+    C: ConnectionTrait,
+{
+    let transaction_moves = find_team_updates_after(
+        team_id,
+        deadline_model.id,
+        transaction_start.after_team_update_id,
+        db,
+    )
+    .await?;
+
+    let move_ids: Vec<i64> = transaction_moves
+        .iter()
+        .map(|team_update_model| team_update_model.id)
+        .collect();
+    assign_team_updates_to_transaction(transaction_start.transaction_number, &move_ids, db).await?;
+
+    let mut transaction_updates = Vec::with_capacity(transaction_moves.len());
+    for team_update_model in &transaction_moves {
+        transaction_updates.extend(team_update_model.get_contract_updates()?);
+    }
+
+    validate_transaction(team_id, &transaction_updates, deadline_model, db).await
 }
 
 /// Whether the update type acquires a contract the team did not hold, i.e. T2's "acquired in a

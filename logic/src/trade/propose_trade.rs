@@ -5,6 +5,7 @@ use fbkl_entity::{
         TransactionTrait,
     },
     team, team_trade, team_user, trade,
+    trade_accommodating_drop_queries::replace_accommodating_drops,
     trade_action::TradeActionType,
     trade_action_queries, trade_asset, trade_queries,
 };
@@ -12,8 +13,12 @@ use tracing::instrument;
 
 /// Creates & inserts a new trade proposed by a team to 1 or more teams.
 ///
-/// Inserts the following entities: The (proposed) trade, the `team_trades` involved, the trade assets involved, and the proposal trade action.
+/// Inserts the following entities: The (proposed) trade, the `team_trades` involved, the trade assets involved, the proposal trade action, and the proposer's accommodating drops.
 /// Trades have to be created w/ this method in order to set the `original_trade_id` after insertion.
+///
+/// `accommodating_drop_contract_ids` are the contracts the proposer drops to make the trade fit
+/// their roster. They are one transaction with the trade's legs (rules §12.5.3, §13.1.4), so they
+/// travel with the proposal and apply when the trade processes, not as later moves of their own.
 #[instrument(skip(db))]
 pub async fn propose_trade<C>(
     league_id: i64,
@@ -21,6 +26,7 @@ pub async fn propose_trade<C>(
     proposing_team_user_model: &team_user::Model,
     to_team_ids: &[i64],
     proposed_trade_assets: Vec<trade_asset::ActiveModel>,
+    accommodating_drop_contract_ids: &[i64],
     db: &C,
 ) -> Result<trade::Model>
 where
@@ -58,6 +64,14 @@ where
         trade_asset_to_insert.trade_id = ActiveValue::Set(inserted_trade.id);
         let _inserted_trade_asset = trade_asset_to_insert.insert(&db_txn).await?;
     }
+
+    replace_accommodating_drops(
+        inserted_trade.id,
+        from_team_model.id,
+        accommodating_drop_contract_ids,
+        &db_txn,
+    )
+    .await?;
 
     // create trade action for proposal
     let _proposed_trade_action = trade_action_queries::insert_trade_action(

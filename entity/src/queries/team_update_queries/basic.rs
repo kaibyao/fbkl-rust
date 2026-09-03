@@ -123,6 +123,7 @@ where
 }
 
 /// Where a new transaction starts in a team's week (rules §13.1.4).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct TransactionStart {
     /// The newest move already on record, which marks off the rows the new transaction writes.
     pub after_team_update_id: i64,

@@ -29,6 +29,7 @@ pub mod team_trade;
 pub mod team_update;
 pub mod team_user;
 pub mod trade;
+pub mod trade_accommodating_drop;
 pub mod trade_action;
 pub mod trade_asset;
 pub mod user;

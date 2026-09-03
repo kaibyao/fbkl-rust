@@ -20,6 +20,7 @@ pub mod roster_lock_violation_queries;
 pub mod team_queries;
 pub mod team_update_queries;
 pub mod team_user_queries;
+pub mod trade_accommodating_drop_queries;
 pub mod trade_action_queries;
 pub mod trade_asset_queries;
 pub mod trade_queries;

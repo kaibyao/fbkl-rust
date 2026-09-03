@@ -23,7 +23,7 @@ use fbkl_entity::{
 };
 use fbkl_logic::{
     ir::move_contract_to_ir,
-    trade::{MissingUpcomingRosterLock, accept_trade, propose_trade},
+    trade::{MissingUpcomingRosterLock, TradeLegality, accept_trade, propose_trade},
 };
 use fbkl_test_support::{TestLeague, days_ago, days_from_now};
 
@@ -44,10 +44,17 @@ async fn a_trade_add_is_filed_under_the_upcoming_lock() {
         .await;
     let (proposed_trade, receiving_owner, receiving_team_id, traded_contract) =
         propose_one_contract_trade(&league).await;
-    accept_trade(proposed_trade, &receiving_owner, &now, &league.db)
-        .await
-        .expect("accept trade")
-        .expect("both teams have responded, so the trade processes");
+    accept_trade(
+        proposed_trade,
+        &receiving_owner,
+        &now,
+        &[],
+        TradeLegality::JudgeNow,
+        &league.db,
+    )
+    .await
+    .expect("accept trade")
+    .expect("both teams have responded, so the trade processes");
 
     let lock = deadline_of_kind(&league, DeadlineKind::InSeasonRosterLock).await;
     let auction_end = deadline_of_kind(&league, DeadlineKind::FreeAgentAuctionEnd).await;
@@ -90,9 +97,16 @@ async fn accepting_a_trade_with_no_lock_left_names_the_missing_lock_deadlines() 
         .await;
     let (proposed_trade, receiving_owner, _, _) = propose_one_contract_trade(&league).await;
 
-    let error = accept_trade(proposed_trade, &receiving_owner, &now, &league.db)
-        .await
-        .expect_err("a trade cannot be processed with no lock left to file its adds under");
+    let error = accept_trade(
+        proposed_trade,
+        &receiving_owner,
+        &now,
+        &[],
+        TradeLegality::JudgeNow,
+        &league.db,
+    )
+    .await
+    .expect_err("a trade cannot be processed with no lock left to file its adds under");
 
     assert_eq!(
         error.downcast_ref::<MissingUpcomingRosterLock>(),
@@ -124,10 +138,17 @@ async fn a_preseason_trade_before_the_keeper_deadline_records_an_uncapped_snapsh
         .await;
     let (proposed_trade, receiving_owner, receiving_team_id, _) =
         propose_one_contract_trade(&league).await;
-    accept_trade(proposed_trade, &receiving_owner, &now, &league.db)
-        .await
-        .expect("accept trade")
-        .expect("both teams have responded, so the trade processes");
+    accept_trade(
+        proposed_trade,
+        &receiving_owner,
+        &now,
+        &[],
+        TradeLegality::JudgeNow,
+        &league.db,
+    )
+    .await
+    .expect("accept trade")
+    .expect("both teams have responded, so the trade processes");
 
     let lock = deadline_of_kind(&league, DeadlineKind::PreseasonFinalRosterLock).await;
     let summary = week_asset_summary(&league, receiving_team_id, lock.id).await;
@@ -160,10 +181,17 @@ async fn a_preseason_trade_after_the_keeper_deadline_records_the_200_cap() {
         .await;
     let (proposed_trade, receiving_owner, receiving_team_id, _) =
         propose_one_contract_trade(&league).await;
-    accept_trade(proposed_trade, &receiving_owner, &now, &league.db)
-        .await
-        .expect("accept trade")
-        .expect("both teams have responded, so the trade processes");
+    accept_trade(
+        proposed_trade,
+        &receiving_owner,
+        &now,
+        &[],
+        TradeLegality::JudgeNow,
+        &league.db,
+    )
+    .await
+    .expect("accept trade")
+    .expect("both teams have responded, so the trade processes");
 
     let lock = deadline_of_kind(&league, DeadlineKind::PreseasonFinalRosterLock).await;
     let summary = week_asset_summary(&league, receiving_team_id, lock.id).await;
@@ -200,6 +228,7 @@ async fn propose_one_contract_trade(
             trade_asset::FromTeamId(league.team_id),
             trade_asset::ToTeamId(receiving_team_id),
         )],
+        &[],
         &league.db,
     )
     .await

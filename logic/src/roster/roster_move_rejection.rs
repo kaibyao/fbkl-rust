@@ -60,6 +60,12 @@ pub enum RosterMoveRejection {
         /// re-parse one joined message.
         violations: Vec<TeamRosterViolation>,
     },
+    /// Rules §12.5.3: a trade's accommodating drop has to name a contract the submitting team
+    /// holds once the trade's legs have applied, or there is nothing for it to remove.
+    #[error(
+        "Contract {contract_id} is not on team {team_id}'s roster once this trade applies, so it cannot be dropped with the trade."
+    )]
+    AccommodatingDropNotOnRoster { contract_id: i64, team_id: i64 },
     /// Rules §11.3.1: an RD↔RDI move needs the contract kind that move starts from.
     #[error(
         "Contract {contract_id} is a {kind:?} contract, but this move requires a {expected:?} contract."

@@ -17,7 +17,6 @@ use fbkl_entity::{
     sea_orm::{ConnectionTrait, DatabaseConnection, DatabaseTransaction, TransactionTrait},
     team_queries::find_team_by_id_in_league,
     team_update_queries::{
-        TransactionStart, assign_team_updates_to_transaction, find_team_updates_after,
         find_team_updates_by_team, find_transaction_start, update_team_update_transaction_numbers,
     },
     team_user::LeagueRole,
@@ -31,7 +30,7 @@ use fbkl_logic::{
         move_rookie_development_contract_to_international,
         move_rookie_development_international_contract_to_stateside,
     },
-    roster::{RosterMoveRejection, validate_transaction},
+    roster::{RosterMoveRejection, file_and_validate_transaction},
     trade::MISSING_ROSTER_LOCK_ADVICE,
 };
 
@@ -249,7 +248,8 @@ impl RosterMutation {
         }
 
         file_and_validate_transaction(team_id, &deadline_model, &transaction_start, &db_txn)
-            .await?;
+            .await
+            .map_err(|err| roster_move_error(&err))?;
 
         db_txn
             .commit()
@@ -258,47 +258,6 @@ impl RosterMutation {
 
         Ok(updated_contracts)
     }
-}
-
-/// Files every move written since the transaction started as one transaction, then judges it.
-///
-/// Both the numbering and the ruling run in the caller's database transaction, so an `Err` reaches
-/// the caller before it commits and neither the moves nor their number persist.
-async fn file_and_validate_transaction(
-    team_id: i64,
-    deadline_model: &deadline::Model,
-    transaction_start: &TransactionStart,
-    db_txn: &DatabaseTransaction,
-) -> Result<()> {
-    let transaction_moves = find_team_updates_after(
-        team_id,
-        deadline_model.id,
-        transaction_start.after_team_update_id,
-        db_txn,
-    )
-    .await
-    .map_err(|err| internal("failed to load the transaction's moves", &err))?;
-
-    let move_ids: Vec<i64> = transaction_moves
-        .iter()
-        .map(|team_update_model| team_update_model.id)
-        .collect();
-    assign_team_updates_to_transaction(transaction_start.transaction_number, &move_ids, db_txn)
-        .await
-        .map_err(|err| internal("failed to number the transaction's moves", &err))?;
-
-    let mut transaction_updates = Vec::with_capacity(transaction_moves.len());
-    for team_update_model in &transaction_moves {
-        transaction_updates.extend(
-            team_update_model
-                .get_contract_updates()
-                .map_err(|err| internal("failed to read a move's contract changes", &err))?,
-        );
-    }
-
-    validate_transaction(team_id, &transaction_updates, deadline_model, db_txn)
-        .await
-        .map_err(|err| roster_move_error(&err))
 }
 
 /// Runs one roster move on a contract the caller's own team owns, as a transaction of one move.
@@ -361,7 +320,8 @@ where
         &transaction_start,
         &db_txn,
     )
-    .await?;
+    .await
+    .map_err(|err| roster_move_error(&err))?;
 
     db_txn
         .commit()
@@ -444,7 +404,7 @@ where
 }
 
 /// A move a league rule refuses is the caller's fault and keeps the rule message; the rest is ours.
-fn roster_move_error(error: &Report) -> GraphQlError {
+pub(in crate::graphql) fn roster_move_error(error: &Report) -> GraphQlError {
     let Some(rejection) = error.downcast_ref::<RosterMoveRejection>() else {
         return internal("roster move failed", error);
     };

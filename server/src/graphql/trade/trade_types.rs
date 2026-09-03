@@ -131,6 +131,10 @@ impl TradeAction {
 pub struct ProposeTradeInput {
     pub from_team_id: i64,
     pub to_teams: Vec<ProposeTradeTeamInput>,
+    /// Contracts the proposer drops to make the trade fit their roster. They are one transaction
+    /// with the trade's legs (rules §12.5.3), so this proposal is where the proposer submits them;
+    /// each accepting owner submits their own with `acceptTrade`.
+    pub accommodating_drop_contract_ids: Vec<i64>,
 }
 
 #[derive(InputObject)]
