@@ -45,7 +45,7 @@ async fn a_team_that_owns_nothing_has_a_legal_week() {
     let team_week = field(&response.data, "teamWeek");
     assert_eq!(field(team_week, "isLegal"), &Value::Boolean(true));
     assert_eq!(field(team_week, "contracts"), &Value::List(vec![]));
-    assert_eq!(field(team_week, "moves"), &Value::List(vec![]));
+    assert_eq!(field(team_week, "transactions"), &Value::List(vec![]));
     let Value::List(rule_flags) = field(team_week, "ruleLegality") else {
         panic!("expected a flag per rule");
     };
@@ -105,7 +105,7 @@ async fn run_team_week(league: &TestLeague) -> Response {
 
     let schema: AppSchema = build_graphql_schema(league.db.clone());
     let query = format!(
-        "query {{ teamWeek(teamId: {}, deadlineId: {deadline_id}) {{ isLegal contracts {{ id }} moves {{ id }} ruleLegality {{ rule isLegal }} }} }}",
+        "query {{ teamWeek(teamId: {}, deadlineId: {deadline_id}) {{ isLegal contracts {{ id }} transactions {{ moves {{ id }} }} ruleLegality {{ rule isLegal }} }} }}",
         league.team_id
     );
     schema

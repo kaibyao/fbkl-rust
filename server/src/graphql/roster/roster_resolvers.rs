@@ -34,8 +34,11 @@ use fbkl_logic::{
     trade::MISSING_ROSTER_LOCK_ADVICE,
 };
 
-use super::super::{contract::Contract, team::TeamUpdate};
-use super::{RosterLockViolation, RosterMove, RosterMoveKind, TeamWeek, roster_illegal_error};
+use super::super::contract::Contract;
+use super::{
+    RosterLockViolation, RosterMove, RosterMoveKind, TeamTransaction, TeamWeek,
+    roster_illegal_error,
+};
 use crate::graphql::{
     ErrorCode, LeagueRoleGuard, RoleRequirement, code_error, graphql_error, require_league_role,
 };
@@ -123,22 +126,25 @@ impl RosterMutation {
         .await
     }
 
-    /// Saves the owner's chosen order for one week's moves (rules §13.1.1).
+    /// Saves the owner's chosen transaction order for one week (rules §13.1.1).
     ///
-    /// Order is presentational and for the audit log only: the same set of moves stays legal or
-    /// illegal whatever order it is put in, so nothing is re-validated here.
+    /// Each inner list is one transaction, and its position becomes the transaction number every
+    /// move in it stores. Order is not presentational any more: which transaction a move sits in
+    /// decides what T1 and T2 judge it with (rules §13.1.4-§13.1.6), so regrouping a week changes
+    /// what its moves mean. Nothing is re-validated here even so, because §13.1.1 lets an owner
+    /// reorder freely; an order that leaves the week illegal is the roster lock's to record.
     ///
     /// The order covers one week, named by its lock deadline, and has to list that week's moves and
     /// no others. Transaction numbers are positions in the list, so a partial list or a move from
     /// another week would write numbers that clash with the ones already stored for other weeks.
     #[graphql(guard = "LeagueRoleGuard(RoleRequirement::Member)")]
-    async fn reorder_weekly_moves(
+    async fn reorder_transactions(
         &self,
         ctx: &Context<'_>,
         team_id: i64,
         deadline_id: i64,
-        ordered_team_update_ids: Vec<i64>,
-    ) -> Result<Vec<TeamUpdate>> {
+        ordered_transactions: Vec<Vec<i64>>,
+    ) -> Result<Vec<TeamTransaction>> {
         let db = ctx.data_unchecked::<DatabaseConnection>();
         let (team_user, caller_team) = require_league_role(ctx, RoleRequirement::Member).await?;
         if team_user.team_id != team_id {
@@ -151,11 +157,16 @@ impl RosterMutation {
             .await
             .map_err(|err| internal("failed to load this week's moves", &err))?;
         let week_move_ids: HashSet<i64> = week_move_models.iter().map(|model| model.id).collect();
-        let requested_ids: HashSet<i64> = ordered_team_update_ids.iter().copied().collect();
-        if requested_ids.len() != ordered_team_update_ids.len() || requested_ids != week_move_ids {
+        let ordered_move_ids = ordered_transactions.concat();
+        let requested_ids: HashSet<i64> = ordered_move_ids.iter().copied().collect();
+        if requested_ids.len() != ordered_move_ids.len()
+            || requested_ids != week_move_ids
+            || ordered_transactions.iter().any(Vec::is_empty)
+        {
             return Err(graphql_error(
                 ErrorCode::BadRequest,
-                "an order has to list each of this week's moves once and nothing else".to_owned(),
+                "an order has to list each of this week's moves once, in a transaction, and nothing else"
+                    .to_owned(),
             ));
         }
 
@@ -163,7 +174,7 @@ impl RosterMutation {
             .begin()
             .await
             .map_err(|err| internal("failed to start database transaction", &err.into()))?;
-        update_team_update_transaction_numbers(&ordered_team_update_ids, &db_txn)
+        update_team_update_transaction_numbers(&ordered_transactions, &db_txn)
             .await
             .map_err(|err| internal("failed to save the move order", &err))?;
         let reordered = find_team_updates_by_team(team_id, None, Some(deadline_id), &db_txn)
@@ -434,8 +445,8 @@ pub struct RosterQuery;
 impl RosterQuery {
     /// A team's roster for one deadline, with every move recorded for that week and a flag per roster rule.
     ///
-    /// Reads only. The move list is the set `reorderWeeklyMoves` accepts, in the order the owner
-    /// chose (rules 13.1.1); order is presentational, so no rule here reads it.
+    /// Reads only. The moves come grouped into the transactions `reorderTransactions` takes, in
+    /// the order the owner chose (rules §13.1.1).
     #[graphql(guard = "LeagueRoleGuard(RoleRequirement::Member)")]
     async fn team_week(
         &self,
@@ -480,7 +491,7 @@ impl RosterQuery {
             team_id,
             deadline_id,
             contracts,
-            moves: TeamWeek::in_owner_order(&week_move_models),
+            transactions: TeamWeek::in_owner_order(&week_move_models),
             rule_legality,
             is_legal,
         })

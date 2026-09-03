@@ -184,21 +184,20 @@ where
     Ok(())
 }
 
-/// Writes the owner's chosen order over one week's `team_updates` (rules §13.1.1).
+/// Writes the owner's chosen transaction order over one week's `team_updates` (rules §13.1.1).
 ///
-/// The position in `ordered_team_update_ids` becomes the stored transaction number, so each move
-/// lands in a transaction of its own. Grouping several moves into one transaction is a separate
-/// call shape this does not yet take.
+/// Each inner list is one transaction: its position in `ordered_transactions` becomes the
+/// transaction number stored on every move in it, so those moves are judged together (§13.1.4).
 #[instrument(skip(db))]
 pub async fn update_team_update_transaction_numbers<C>(
-    ordered_team_update_ids: &[i64],
+    ordered_transactions: &[Vec<i64>],
     db: &C,
 ) -> Result<()>
 where
     C: ConnectionTrait,
 {
-    for (index, team_update_id) in ordered_team_update_ids.iter().enumerate() {
-        assign_team_updates_to_transaction(i16::try_from(index)?, &[*team_update_id], db).await?;
+    for (index, team_update_ids) in ordered_transactions.iter().enumerate() {
+        assign_team_updates_to_transaction(i16::try_from(index)?, team_update_ids, db).await?;
     }
 
     Ok(())

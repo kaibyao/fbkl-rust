@@ -954,9 +954,12 @@ async fn a_weeks_moves_keep_the_order_their_owner_chose() {
         );
     }
 
-    team_update_queries::update_team_update_transaction_numbers(&added_ids[..2], &league.db)
-        .await
-        .expect("save the owner's order");
+    team_update_queries::update_team_update_transaction_numbers(
+        &[vec![added_ids[0]], vec![added_ids[1]]],
+        &league.db,
+    )
+    .await
+    .expect("save the owner's order");
 
     let team_updates = team_update_queries::find_team_updates_by_team(
         team_id,
