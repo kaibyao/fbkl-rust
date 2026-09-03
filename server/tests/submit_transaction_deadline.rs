@@ -1,10 +1,10 @@
-//! The season-start wizard runs in the window BEFORE a roster lock fires, so which deadline it
-//! legalizes against cannot be read off the clock: the last passed deadline is the previous one and
+//! A transaction is submitted in the window BEFORE a roster lock fires, so which deadline it is
+//! judged against cannot be read off the clock: the last passed deadline is the previous one and
 //! carries the previous period's rules (rules §11.2 regular-season limits vs the preseason limit).
 //!
 //! Naming the deadline is not choosing it, though: only the upcoming roster lock is a legal
 //! argument, so a passed lock, a keeper deadline or a post-season kind cannot be named to run the
-//! batch under another period's rules.
+//! transaction under another period's rules.
 //!
 //! The single-move mutations take the same argument and validate it the same way: one move and a
 //! batched one have to agree on which week they belong to.
@@ -31,8 +31,8 @@ const END_OF_SEASON_YEAR: i16 = 2026;
 const VET_OR_ROOKIE_LIMIT: usize = 22;
 
 #[tokio::test]
-async fn the_wizard_legalizes_against_the_named_deadline_not_the_last_passed_one() {
-    let Some(league) = TestLeague::create("legalize_roster_deadline", END_OF_SEASON_YEAR).await
+async fn a_transaction_is_judged_against_the_named_deadline_not_the_last_passed_one() {
+    let Some(league) = TestLeague::create("submit_transaction_deadline", END_OF_SEASON_YEAR).await
     else {
         return;
     };
@@ -52,7 +52,7 @@ async fn the_wizard_legalizes_against_the_named_deadline_not_the_last_passed_one
         .await;
     let owner = league.add_team_user(LeagueRole::TeamOwner).await;
 
-    // One contract over the 22-man limit, i.e. the roster the wizard exists to legalize.
+    // One contract over the 22-man limit, i.e. the roster a transaction has to legalize.
     let contracts = add_roster_contracts(&league, VET_OR_ROOKIE_LIMIT + 1).await;
     let to_ir = contracts[0].id;
     let ir_move = format!("{{contractId: {to_ir}, kind: MOVE_TO_IR}}");
@@ -62,12 +62,11 @@ async fn the_wizard_legalizes_against_the_named_deadline_not_the_last_passed_one
     let session = session_for(owner.user_id, league.league_id).await;
 
     // The named lock checks the regular-season branch, so 23 veteran contracts is illegal there.
-    let no_moves = run(&schema, &legalize(league.team_id, lock_id, ""), &session).await;
+    let no_moves = run(&schema, &submit(league.team_id, lock_id, ""), &session).await;
     assert_eq!(no_moves, Err("ROSTER_ILLEGAL".to_owned()));
 
-    // The refusal names the rule, so the wizard can point at the rule the roster broke.
-    let violations =
-        error_extension(&schema, &legalize(league.team_id, lock_id, ""), &session).await;
+    // The refusal names the rule, so a client can point at the rule the roster broke.
+    let violations = error_extension(&schema, &submit(league.team_id, lock_id, ""), &session).await;
     let Some(Value::List(violations)) = violations else {
         panic!("expected a list of violations, got {violations:?}");
     };
@@ -83,7 +82,7 @@ async fn the_wizard_legalizes_against_the_named_deadline_not_the_last_passed_one
 
     let with_ir_move = run(
         &schema,
-        &legalize(league.team_id, lock_id, &ir_move),
+        &submit(league.team_id, lock_id, &ir_move),
         &session,
     )
     .await;
@@ -99,7 +98,7 @@ async fn the_wizard_legalizes_against_the_named_deadline_not_the_last_passed_one
 
     // A deadline belongs to exactly one league, so another league's is not a legal argument.
     let foreign_id = foreign_league_deadline(&league).await;
-    let foreign = run(&schema, &legalize(league.team_id, foreign_id, ""), &session).await;
+    let foreign = run(&schema, &submit(league.team_id, foreign_id, ""), &session).await;
     assert_eq!(foreign, Err("NOT_FOUND".to_owned()));
 }
 
@@ -109,7 +108,8 @@ async fn the_wizard_legalizes_against_the_named_deadline_not_the_last_passed_one
 /// higher cap (4.2.3). Only the upcoming lock is a legal argument.
 #[tokio::test]
 async fn only_the_upcoming_roster_lock_is_a_legal_argument() {
-    let Some(league) = TestLeague::create("legalize_roster_lock_choice", END_OF_SEASON_YEAR).await
+    let Some(league) =
+        TestLeague::create("submit_transaction_lock_choice", END_OF_SEASON_YEAR).await
     else {
         return;
     };
@@ -162,7 +162,7 @@ async fn only_the_upcoming_roster_lock_is_a_legal_argument() {
         ),
     ] {
         let named = deadline_id(&league, kind).await;
-        let mutation = legalize(league.team_id, named, &ir_move);
+        let mutation = submit(league.team_id, named, &ir_move);
         assert_eq!(
             run(&schema, &mutation, &session).await,
             Err("BAD_REQUEST".to_owned()),
@@ -177,17 +177,95 @@ async fn only_the_upcoming_roster_lock_is_a_legal_argument() {
         "no rejected call should have applied its move"
     );
 
-    // The upcoming lock is the one argument that works, so the wizard flow still runs.
+    // The upcoming lock is the one argument that works, so the submission still runs.
     let lock_id = deadline_id(&league, DeadlineKind::PreseasonFinalRosterLock).await;
     let accepted = run(
         &schema,
-        &legalize(league.team_id, lock_id, &ir_move),
+        &submit(league.team_id, lock_id, &ir_move),
         &session,
     )
     .await;
     assert!(
         accepted.is_ok(),
         "expected the batch to apply: {accepted:?}"
+    );
+}
+
+/// The wizard was the first caller, but a transaction is the shape every week takes: rules §13.1.4
+/// counts one in-season week's moves the same way, so the mutation is not tied to the preseason
+/// lock. Its moves share one transaction number, and the week's next submission takes the next.
+#[tokio::test]
+async fn a_transaction_applies_at_an_in_season_lock_and_numbers_its_moves_as_one() {
+    let Some(league) = TestLeague::create("submit_transaction_in_season", END_OF_SEASON_YEAR).await
+    else {
+        return;
+    };
+    // The season is under way: the keeper deadline and week 1's lock are both settled.
+    league
+        .add_deadline(
+            DeadlineKind::PreseasonKeeper,
+            central("2025-09-01T12:00:00"),
+        )
+        .await;
+    league
+        .add_deadline(
+            DeadlineKind::Week1RosterLock,
+            central("2025-10-20T18:00:00"),
+        )
+        .await;
+    // An in-season lock prices its cap against the free-agent auction end (rules §4.2.3).
+    league
+        .add_deadline(
+            DeadlineKind::FreeAgentAuctionEnd,
+            central("2026-03-01T18:00:00"),
+        )
+        .await;
+    let upcoming_lock = Utc::now()
+        .checked_add_days(Days::new(3))
+        .expect("3 days from now")
+        .fixed_offset();
+    league
+        .add_deadline(DeadlineKind::InSeasonRosterLock, upcoming_lock)
+        .await;
+    let owner = league.add_team_user(LeagueRole::TeamOwner).await;
+
+    let contracts = add_roster_contracts(&league, 4).await;
+    let lock_id = deadline_id(&league, DeadlineKind::InSeasonRosterLock).await;
+    let schema = build_graphql_schema(league.db.clone());
+    let session = session_for(owner.user_id, league.league_id).await;
+
+    let two_drops = format!(
+        "{}, {}",
+        drop_move(contracts[0].id),
+        drop_move(contracts[1].id)
+    );
+    let applied = run(
+        &schema,
+        &submit(league.team_id, lock_id, &two_drops),
+        &session,
+    )
+    .await;
+    assert!(
+        applied.is_ok(),
+        "an in-season lock should take a transaction: {applied:?}"
+    );
+    assert_eq!(
+        stored_transaction_numbers(&league, lock_id).await,
+        vec![Some(0), Some(0)],
+        "both moves belong to the one transaction that applied them"
+    );
+
+    let next = run(
+        &schema,
+        &submit(league.team_id, lock_id, &drop_move(contracts[2].id)),
+        &session,
+    )
+    .await;
+    assert!(next.is_ok(), "expected a second transaction: {next:?}");
+    assert_eq!(
+        stored_transaction_numbers(&league, lock_id).await,
+        vec![Some(0), Some(0), Some(1)],
+        "the week's next submission is its next transaction"
     );
 }
 
@@ -264,10 +342,31 @@ fn move_to_ir(contract_id: i64, deadline_id: i64) -> String {
     )
 }
 
-fn legalize(team_id: i64, deadline_id: i64, moves: &str) -> String {
+fn submit(team_id: i64, deadline_id: i64, moves: &str) -> String {
     format!(
-        "mutation {{ legalizeRoster(teamId: {team_id}, deadlineId: {deadline_id}, moves: [{moves}]) {{ id }} }}"
+        "mutation {{ submitTransaction(teamId: {team_id}, deadlineId: {deadline_id}, moves: [{moves}]) {{ id }} }}"
     )
+}
+
+fn drop_move(contract_id: i64) -> String {
+    format!("{{contractId: {contract_id}, kind: DROP}}")
+}
+
+/// Every transaction number stored for the team's week, oldest move first.
+async fn stored_transaction_numbers(league: &TestLeague, deadline_id: i64) -> Vec<Option<i16>> {
+    let mut week_moves = team_update_queries::find_team_updates_by_team(
+        league.team_id,
+        None,
+        Some(deadline_id),
+        &league.db,
+    )
+    .await
+    .expect("load the week\'s moves");
+    week_moves.sort_by_key(|team_update| team_update.id);
+    week_moves
+        .iter()
+        .map(|team_update| team_update.transaction_number)
+        .collect()
 }
 
 /// `count` $1 contracts owned by the league's team, i.e. roster filler that never breaks the cap.

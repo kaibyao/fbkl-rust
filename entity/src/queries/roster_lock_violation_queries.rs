@@ -16,7 +16,7 @@ use crate::{
 /// Rules §13.1.2/§13.2 send illegal rosters to the commissioner, so these are collected and
 /// returned instead of raised as an error that would block the rest of the league. It is also the
 /// insert shape: `replace_violations_for_deadline` fills in the deadline and league.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct TeamRosterViolation {
     pub team_id: i64,
     pub rule: RosterRule,

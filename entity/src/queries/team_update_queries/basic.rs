@@ -102,6 +102,87 @@ where
     Ok(status_set_to_in_progress)
 }
 
+/// A team's moves for one week that were written after `after_team_update_id`.
+///
+/// Ids ascend, so the newest id read before a batch of moves is applied marks off the rows that
+/// batch wrote: the rows of one transaction (rules §13.1.4). The logic fns each write their own
+/// `team_update` and return only the contract, so this is how a caller collects what it just did.
+#[instrument(skip(db))]
+pub async fn find_team_updates_after<C>(
+    team_id: i64,
+    deadline_id: i64,
+    after_team_update_id: i64,
+    db: &C,
+) -> Result<Vec<team_update::Model>>
+where
+    C: ConnectionTrait,
+{
+    let mut week_moves = find_team_updates_by_team(team_id, None, Some(deadline_id), db).await?;
+    week_moves.retain(|team_update| team_update.id > after_team_update_id);
+    Ok(week_moves)
+}
+
+/// Where a new transaction starts in a team's week (rules §13.1.4).
+pub struct TransactionStart {
+    /// The newest move already on record, which marks off the rows the new transaction writes.
+    pub after_team_update_id: i64,
+    /// The number the new transaction takes: one past the highest the week already stores, so a
+    /// submission never lands in a transaction already judged.
+    pub transaction_number: i16,
+}
+
+/// Reads where a team's next transaction of the week starts, before its moves are applied.
+///
+/// Unnumbered rows are each their own transaction and hold no number to avoid, so only the stored
+/// numbers decide the next one.
+#[instrument(skip(db))]
+pub async fn find_transaction_start<C>(
+    team_id: i64,
+    deadline_id: i64,
+    db: &C,
+) -> Result<TransactionStart>
+where
+    C: ConnectionTrait,
+{
+    let week_moves = find_team_updates_by_team(team_id, None, Some(deadline_id), db).await?;
+    let highest_stored = week_moves
+        .iter()
+        .filter_map(|team_update| team_update.transaction_number)
+        .max();
+
+    Ok(TransactionStart {
+        after_team_update_id: week_moves.first().map_or(0, |team_update| team_update.id),
+        transaction_number: highest_stored.map_or(0, |number| number.saturating_add(1)),
+    })
+}
+
+/// Puts every one of `team_update_ids` in one transaction, so its moves are judged together
+/// (rules §13.1.4).
+#[instrument(skip(db))]
+pub async fn assign_team_updates_to_transaction<C>(
+    transaction_number: i16,
+    team_update_ids: &[i64],
+    db: &C,
+) -> Result<()>
+where
+    C: ConnectionTrait,
+{
+    if team_update_ids.is_empty() {
+        return Ok(());
+    }
+
+    team_update::Entity::update_many()
+        .col_expr(
+            team_update::Column::TransactionNumber,
+            Expr::value(transaction_number),
+        )
+        .filter(team_update::Column::Id.is_in(team_update_ids.iter().copied()))
+        .exec(db)
+        .await?;
+
+    Ok(())
+}
+
 /// Writes the owner's chosen order over one week's `team_updates` (rules §13.1.1).
 ///
 /// The position in `ordered_team_update_ids` becomes the stored transaction number, so each move
@@ -116,15 +197,7 @@ where
     C: ConnectionTrait,
 {
     for (index, team_update_id) in ordered_team_update_ids.iter().enumerate() {
-        let transaction_number = i16::try_from(index)?;
-        team_update::Entity::update_many()
-            .col_expr(
-                team_update::Column::TransactionNumber,
-                Expr::value(transaction_number),
-            )
-            .filter(team_update::Column::Id.eq(*team_update_id))
-            .exec(db)
-            .await?;
+        assign_team_updates_to_transaction(i16::try_from(index)?, &[*team_update_id], db).await?;
     }
 
     Ok(())

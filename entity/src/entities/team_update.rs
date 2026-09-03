@@ -35,6 +35,25 @@ impl Model {
         let data: TeamUpdateData = serde_json::from_value(self.data.clone())?;
         Ok(data)
     }
+
+    /// The contract changes this update records, i.e. what a transaction's rules are judged on.
+    ///
+    /// Empty for a settings change and for a draft-pick-only update, neither of which touches the
+    /// roster.
+    pub fn get_contract_updates(&self) -> Result<Vec<ContractUpdate>> {
+        let TeamUpdateData::Assets(asset_summary) = self.get_data()? else {
+            return Ok(vec![]);
+        };
+
+        let mut contract_updates = vec![];
+        for changed_asset in asset_summary.changed_assets {
+            if let TeamUpdateAsset::Contracts(updates) = changed_asset {
+                contract_updates.extend(updates);
+            }
+        }
+
+        Ok(contract_updates)
+    }
 }
 
 #[derive(

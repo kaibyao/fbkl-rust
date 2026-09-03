@@ -48,11 +48,7 @@ where
     if !violations.is_empty() {
         return Err(RosterMoveRejection::TransactionLeavesRosterIllegal {
             team_id,
-            violations: violations
-                .iter()
-                .map(|violation| violation.message.as_str())
-                .collect::<Vec<_>>()
-                .join("\n"),
+            violations,
         }
         .into());
     }

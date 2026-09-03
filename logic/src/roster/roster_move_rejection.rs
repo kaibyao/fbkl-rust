@@ -8,6 +8,7 @@
 
 use fbkl_entity::{
     contract::{ContractKind, ContractStatus},
+    roster_lock_violation_queries::TeamRosterViolation,
     team_update::ContractUpdateType,
 };
 
@@ -50,9 +51,15 @@ pub enum RosterMoveRejection {
     },
     /// Rules §13.1.6 (T1): the roster has to be legal once the transaction is applied.
     #[error(
-        "This transaction leaves team {team_id}'s roster illegal, so none of it is applied.\n{violations}"
+        "This transaction leaves team {team_id}'s roster illegal, so none of it is applied.\n{}",
+        joined_violation_messages(.violations)
     )]
-    TransactionLeavesRosterIllegal { team_id: i64, violations: String },
+    TransactionLeavesRosterIllegal {
+        team_id: i64,
+        /// One entry per rule the end state breaks, so a caller can report the rules rather than
+        /// re-parse one joined message.
+        violations: Vec<TeamRosterViolation>,
+    },
     /// Rules §11.3.1: an RD↔RDI move needs the contract kind that move starts from.
     #[error(
         "Contract {contract_id} is a {kind:?} contract, but this move requires a {expected:?} contract."
@@ -62,4 +69,13 @@ pub enum RosterMoveRejection {
         kind: ContractKind,
         expected: ContractKind,
     },
+}
+
+/// The broken rules as the owner reads them: one message per line.
+fn joined_violation_messages(violations: &[TeamRosterViolation]) -> String {
+    violations
+        .iter()
+        .map(|violation| violation.message.as_str())
+        .collect::<Vec<_>>()
+        .join("\n")
 }

@@ -10,7 +10,7 @@ use fbkl_logic::deadline_processing::roster_lock::{RosterRule, TeamRosterViolati
 use super::super::{contract::Contract, team::TeamUpdate};
 use crate::graphql::{ErrorCode, code_error};
 
-/// The error a failing `legalizeRoster` returns: one entry per rule the roster breaks.
+/// The error a transaction refused by T1 returns: one entry per rule its end state breaks.
 ///
 /// The entries go in a `violations` error extension, each naming the rule as its GraphQL enum
 /// value, so a client can point at the rule it broke instead of parsing one joined message.
@@ -110,7 +110,9 @@ impl TeamWeek {
     }
 }
 
-/// The roster moves the season-start wizard can batch.
+/// The roster moves a transaction can carry.
+///
+/// No add variants: adds reach a transaction through the trade and FA-pickup paths.
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Enum)]
 pub enum RosterMoveKind {
     Drop,
@@ -119,7 +121,7 @@ pub enum RosterMoveKind {
     ActivateRookie,
 }
 
-/// One move in a `legalizeRoster` batch.
+/// One move in a `submitTransaction` batch.
 #[derive(InputObject)]
 pub struct RosterMove {
     pub contract_id: i64,
