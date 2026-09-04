@@ -3,21 +3,31 @@ name: ci
 
 on:
   pull_request:
+  # GitHub scopes a cache saved on a PR to that PR alone, so a PR-only workflow never warms
+  # anything: every new branch paid a cold build. Running on main writes caches to a ref that
+  # every later PR can restore from. Also catches a main broken by two PRs that merged clean
+  # separately.
+  push:
+    branches: [main]
 
 concurrency:
   group: ci-${{ github.ref }}
-  cancel-in-progress: true
+  # A main run exists to save the cache, so let it finish; only supersede PR runs.
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
   changes:
     runs-on: ubuntu-latest
     outputs:
-      rust: ${{ steps.filter.outputs.rust }}
-      frontend: ${{ steps.filter.outputs.frontend }}
+      # A main push runs everything: path-filtering it would skip the very job whose cache the
+      # next PR restores, and `before`-commit filtering is the fragile case on a shallow clone.
+      rust: ${{ github.event_name == 'push' && 'true' || steps.filter.outputs.rust }}
+      frontend: ${{ github.event_name == 'push' && 'true' || steps.filter.outputs.frontend }}
     steps:
       - uses: actions/checkout@v7
       - uses: dorny/paths-filter@v4
         id: filter
+        if: github.event_name == 'pull_request'
         with:
           filters: |
             rust:
@@ -63,6 +73,20 @@ jobs:
     env:
       RUSTC_WRAPPER: sccache
       SCCACHE_GHA_ENABLED: "true"
+      # clippy-driver is rustc plus clippy's lints, so a single codegen build both lints the
+      # workspace and produces the test binaries. `cargo clippy` instead runs a metadata-only
+      # pass whose artifacts nextest cannot link against, forcing a second full compile.
+      # Must stay at job level: the wrapper is part of cargo's fingerprint, so a step that
+      # omits it rebuilds every workspace crate.
+      RUSTC_WORKSPACE_WRAPPER: clippy-driver
+      # Replaces `cargo clippy -- -D warnings`. Registry deps are built with --cap-lints allow,
+      # so this only fails on workspace code.
+      RUSTFLAGS: -Dwarnings
+      # 22 integration test binaries each statically link the whole workspace, and the default
+      # dev profile emits full DWARF (~74% of an fbkl-entity rlib). Line tables keep file:line
+      # in panic backtraces, which is all CI reads; local dev keeps full debug info.
+      CARGO_PROFILE_DEV_DEBUG: line-tables-only
+      CARGO_PROFILE_TEST_DEBUG: line-tables-only
       # Each test drops, creates and migrates its own `fbkl_test_<name>` database next to this
       # one, so the job needs no separate migration step.
       DATABASE_URL: postgres://postgres:postgres@localhost:5432/postgres
@@ -80,8 +104,9 @@ jobs:
         with:
           tool: nextest
       - run: cargo fmt --all --check
-      # clippy compiles the workspace, so it subsumes `cargo check`.
-      - run: cargo clippy --workspace --all-targets -- -D warnings
+      # The one compile: lints and builds every target. --all-targets picks up the auth
+      # bench, which `nextest run` alone would not build. nextest then links, not compiles.
+      - run: cargo build --workspace --all-targets
       - run: cargo nextest run --workspace
       # nextest cannot run doctests; separate step so they don't silently stop running.
       - run: cargo test --doc --workspace
