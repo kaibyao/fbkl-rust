@@ -1,8 +1,8 @@
-//! `teamWeek` and `reorderWeeklyMoves` have to agree on which moves make up a week.
+//! `teamWeek` and `reorderTransactions` have to agree on which moves make up a week.
 //!
 //! Drops, trades and auction wins are recorded as Done at once, while an IR move waits for the lock
 //! as Pending. Rules §13.1.1 order covers the whole week, so `teamWeek` lists every status and
-//! `reorderWeeklyMoves` takes that same list. When `teamWeek` filtered to Pending, the ids it gave a
+//! `reorderTransactions` takes that same set. When `teamWeek` filtered to Pending, the ids it gave a
 //! client were a subset of the week, and the mutation rejected them.
 
 use std::sync::Arc;
@@ -11,11 +11,11 @@ use async_graphql::{Request, Value};
 use fbkl_entity::{
     deadline::DeadlineKind,
     deadline_queries,
+    league_event::{self, LeagueEventKind},
+    league_event_queries,
     sea_orm::ActiveValue,
     team_update::{self, TeamUpdateData, TeamUpdateStatus},
     team_update_queries, team_user,
-    transaction::{self, TransactionKind},
-    transaction_queries,
 };
 use fbkl_server::{AppSchema, build_graphql_schema};
 use fbkl_test_support::{TestLeague, central};
@@ -55,21 +55,21 @@ async fn a_week_of_done_and_pending_moves_lists_and_reorders_as_one_set() {
     let drop = record_move(
         &league,
         lock_id,
-        TransactionKind::TeamUpdateDropContract,
+        LeagueEventKind::TeamUpdateDropContract,
         TeamUpdateStatus::Done,
     )
     .await;
     let auction_win = record_move(
         &league,
         lock_id,
-        TransactionKind::AuctionDone,
+        LeagueEventKind::AuctionDone,
         TeamUpdateStatus::Done,
     )
     .await;
     let pending_ir = record_move(
         &league,
         lock_id,
-        TransactionKind::TeamUpdateToIr,
+        LeagueEventKind::TeamUpdateToIr,
         TeamUpdateStatus::Pending,
     )
     .await;
@@ -87,20 +87,23 @@ async fn a_week_of_done_and_pending_moves_lists_and_reorders_as_one_set() {
         "the week is the drop, the auction win and the IR move, whatever their status"
     );
 
-    let reversed: Vec<i64> = listed.iter().rev().copied().collect();
-    let reordered = reorder(&schema, &league, lock_id, &reversed, &session).await;
+    // The IR move and the auction win go on together as one transaction, the drop after them.
+    // Moves inside one transaction are judged together, so they read back in insertion order.
+    let transactions = vec![vec![pending_ir, auction_win], vec![drop]];
+    let expected_order = vec![auction_win, pending_ir, drop];
+    let reordered = reorder(&schema, &league, lock_id, &transactions, &session).await;
     assert_eq!(
         reordered.expect("the ids teamWeek gave back are a legal order"),
-        reversed,
+        expected_order,
         "the mutation takes exactly the set teamWeek exposes"
     );
     assert_eq!(
         team_week_move_ids(&schema, &league, lock_id, &session).await,
-        reversed,
-        "teamWeek reads the saved order back"
+        expected_order,
+        "teamWeek reads the saved transactions back"
     );
 
-    let pending_only = reorder(&schema, &league, lock_id, &[pending_ir], &session).await;
+    let pending_only = reorder(&schema, &league, lock_id, &[vec![pending_ir]], &session).await;
     assert_eq!(
         pending_only.err().as_deref(),
         Some("BAD_REQUEST"),
@@ -116,7 +119,7 @@ async fn team_week_move_ids(
     session: &Session,
 ) -> Vec<i64> {
     let query = format!(
-        "query {{ teamWeek(teamId: {}, deadlineId: {deadline_id}) {{ moves {{ id status }} }} }}",
+        "query {{ teamWeek(teamId: {}, deadlineId: {deadline_id}) {{ transactions {{ moves {{ id status }} }} }} }}",
         league.team_id
     );
     let response = schema
@@ -133,19 +136,31 @@ async fn team_week_move_ids(
     let Value::Object(team_week) = &data["teamWeek"] else {
         panic!("expected a teamWeek object");
     };
-    move_ids(&team_week["moves"])
+    let Value::List(transactions) = &team_week["transactions"] else {
+        panic!("expected a list of transactions");
+    };
+    transactions
+        .iter()
+        .flat_map(|transaction| {
+            let Value::Object(transaction) = transaction else {
+                panic!("expected a transaction object, got {transaction:?}");
+            };
+            move_ids(&transaction["moves"])
+        })
+        .collect()
 }
 
-/// Runs `reorderWeeklyMoves`, returning the ids it echoes back or the error code it rejected with.
+/// Runs `reorderTransactions`, returning the ids it echoes back (transactions flattened, in order)
+/// or the error code it rejected with.
 async fn reorder(
     schema: &AppSchema,
     league: &TestLeague,
     deadline_id: i64,
-    ordered_ids: &[i64],
+    ordered_transactions: &[Vec<i64>],
     session: &Session,
 ) -> Result<Vec<i64>, String> {
     let mutation = format!(
-        "mutation {{ reorderWeeklyMoves(teamId: {}, deadlineId: {deadline_id}, orderedTeamUpdateIds: {ordered_ids:?}) {{ id status }} }}",
+        "mutation {{ reorderTransactions(teamId: {}, deadlineId: {deadline_id}, orderedTransactions: {ordered_transactions:?}) {{ moves {{ id status }} }} }}",
         league.team_id
     );
     let response = schema
@@ -162,7 +177,21 @@ async fn reorder(
     let Value::Object(data) = &response.data else {
         panic!("expected an object, got {:?}", response.data);
     };
-    Ok(move_ids(&data["reorderWeeklyMoves"]))
+    let Value::List(transactions) = &data["reorderTransactions"] else {
+        panic!(
+            "expected a list of transactions, got {:?}",
+            data["reorderTransactions"]
+        );
+    };
+    Ok(transactions
+        .iter()
+        .flat_map(|transaction| {
+            let Value::Object(transaction) = transaction else {
+                panic!("expected a transaction object, got {transaction:?}");
+            };
+            move_ids(&transaction["moves"])
+        })
+        .collect())
 }
 
 fn move_ids(moves: &Value) -> Vec<i64> {
@@ -189,11 +218,11 @@ fn move_ids(moves: &Value) -> Vec<i64> {
 async fn record_move(
     league: &TestLeague,
     deadline_id: i64,
-    kind: TransactionKind,
+    kind: LeagueEventKind,
     status: TeamUpdateStatus,
 ) -> i64 {
-    let transaction_model = transaction_queries::insert_transaction(
-        transaction::ActiveModel {
+    let league_event_model = league_event_queries::insert_league_event(
+        league_event::ActiveModel {
             end_of_season_year: ActiveValue::Set(END_OF_SEASON_YEAR),
             kind: ActiveValue::Set(kind),
             league_id: ActiveValue::Set(league.league_id),
@@ -203,7 +232,7 @@ async fn record_move(
         &league.db,
     )
     .await
-    .expect("insert transaction");
+    .expect("insert league_event");
 
     let data = TeamUpdateData::from_assets(vec![], vec![], 0, 0, 0, 0)
         .to_json()
@@ -214,7 +243,7 @@ async fn record_move(
             effective_date: ActiveValue::Set(central("2025-10-21T18:00:00").date_naive()),
             status: ActiveValue::Set(status),
             team_id: ActiveValue::Set(league.team_id),
-            transaction_id: ActiveValue::Set(Some(transaction_model.id)),
+            league_event_id: ActiveValue::Set(Some(league_event_model.id)),
             ..Default::default()
         },
         &league.db,

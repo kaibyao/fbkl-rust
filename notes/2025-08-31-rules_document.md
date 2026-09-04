@@ -204,8 +204,8 @@ Rules Document
    4. Minimum bid increment is $1 at all times.  
    5. Any player won via auction must be picked up by the winning owner, and any drops/trades must be made in order to accommodate the pickup.  An owner is not limited to any salary cap limitations when bidding on a player; he may bid above the free cap he has available, as long as drops/trades are made accordingly if he wins the player, to free up cap space.  A player won via auction also cannot be dropped immediately; he must be legally accommodated on the owner’s roster first.  
    6. After a player is won via auction, the owner must pick him up on the league website.  The player is added to the owner’s roster and may be played (added to starting lineup) the next week.  
-   7. All players added in a single week, must be added to the owner’s roster legally before being dropped, and players added in a single week may not be dropped to accommodate another player added that week.  
-      1. Example: Joe wins Davion Mitchell for $7 and Jose Alvarado for $1 in Week 2\.  He must add both Davion Mitchell and Jose Alvarado for that week; he may not add Jose Alvarado, then drop him to make space and add Davion Mitchell after that.  However, he is free to drop either Mitchell or Alvarado after they are both legally added to his roster.  
+   7. All of a week’s free agent adds are one transaction (13.1.4), so all players added in a single week must be added to the owner’s roster legally before any of them is dropped.  A player added this week may not be dropped to accommodate another player added the same week, because T2 (13.1.6) forbids dropping a contract in the transaction that acquired it.  He may be dropped in a later transaction that same week, once all of the week’s adds are legally on the roster.  
+      1. Example: Joe wins Davion Mitchell for $7 and Jose Alvarado for $1 in Week 2\.  He must add both Davion Mitchell and Jose Alvarado for that week; he may not add Jose Alvarado, then drop him to make space and add Davion Mitchell after that.  That is illegal because a week’s free agent adds are one transaction, so dropping Alvarado to fit Mitchell puts an add and its drop in the same transaction.  However, he is free to drop either Mitchell or Alvarado in a later transaction, once they are both legally added to his roster.  
    8. Once a player(s) is won in auction, owners must send out an FA report email to the Google Group, specifying his pickups and drops for the week, and his new salary cap figures after pickups/drops.  
 4. Eligibility  
    1. Any players (including rookies) that were eligible in the Veteran Auction or the Rookie Draft, are eligible for bidding.  This includes: any NBA veterans (has played in an NBA game at any point in his career), NBA rookies (drafted or undrafted), NBA G League players, previously drafted foreign players, and former American collegiates playing overseas.  
@@ -246,7 +246,7 @@ Rules Document
 2. Injured Player Exception  
    1. The player in the IR slot has an Injured Player exception.  This player’s salary does not count against the cap.  When the player is reactivated and moved to the active roster, he counts fully against the cap, and trades/drops must be made to accommodate his salary, just as if he were acquired otherwise.  
 3. Trades and Adds/Drops  
-   1. A player may not be added directly to the IR after being acquired in in-season free agency or in-season trade (even if he is IR-eligible).  If he is acquired in-season, he must first be accommodated on the 22 man active roster (with the appropriate trades/drops necessary to free up roster or cap space), then moved to the IR after that if desired.  
+   1. A player acquired in a transaction (13.1.4) may not be moved to the IR in that same transaction, even if he is IR-eligible.  He must first be accommodated on the 22 man active roster in the transaction that acquired him (with the appropriate trades/drops necessary to free up roster or cap space), and may then be moved to the IR in a later transaction if desired.  This is T2 (13.1.6) applied to the IR.  The one exemption is the start of the season, per 10.1.2.  
    2. If a player on IR is traded, he must be moved off of the IR to the active roster and accommodated accordingly (drop/trade a player to make room for him).  
    3. A player may be dropped directly from the IR without being accommodated on the active roster first, however, the standard cap penalty will still be applied when he is dropped.  If this causes an illegal cap situation (where salary cap is less than total salaries), drops/trades must be made until the roster is legal again.
 
@@ -336,9 +336,29 @@ Rules Document
 **13\. Weekly Moves**
 
 1. Explanation  
-   1. All in-season transactions (adds, drops, IR moves, trades, RD activations) are made in a weekly timeframe.  Transactions in a single week may be re-ordered in any way an owner wants.  
-   2. Any complex sequences of weekly moves that may result in illegal transactions will be ruled on by the commissioner.  Any such illegal transactions will have to be reverted.  
-   3. During a single week, there may be roster states that are currently illegal – e.g. winning a player in auction without having yet dropped a player to open up roster space.  This is fine as long the roster state is legal by the end of the week (Sunday night/Monday morning, prior to Monday roster lock).  Rosters and other documents should be updated at the end of each week to reflect all transactions during that week.
+   1. All in-season moves (adds, drops, IR moves, trades, RD activations) are made in a weekly timeframe.  The transactions in a single week may be re-ordered in any way an owner wants.  
+   2. Any complex sequences of weekly moves that may result in an illegal roster will be ruled on by the commissioner.  Any such illegal moves will have to be reverted.  
+   3. While a transaction is being applied, there may be roster states that are currently illegal – e.g. winning a player in auction without having yet dropped a player to open up roster space.  This is fine as long as the roster is legal once the whole transaction is applied.  A roster is never left illegal after a transaction (T1, 13.1.6), so it is also legal at the end of the week (Sunday night/Monday morning, prior to Monday roster lock).  Rosters and other documents should be updated at the end of each week to reflect all of that week’s moves.  
+   4. A transaction is a set of one team’s moves in a week that are applied and judged as a unit.  The transaction kinds are:  
+      1. One trade.  
+      2. All of the week’s free agent adds together (8.3.7).  
+      3. Each move to the IR, activation from the IR, RD activation, and RDI move, one transaction each.  
+      4. Each auction pickup and each rookie draft selection, one transaction each.  
+      5. A standalone drop, i.e. a drop that does not accommodate any other transaction.  
+   5. Any drop made to accommodate a transaction belongs to that transaction, not to a transaction of its own.  A drop that makes room for a trade belongs to that trade; a drop that makes room for the week’s free agent adds belongs to that batch of adds.  
+   6. Two rules govern every transaction:  
+      1. T1: the roster must be legal after each transaction.  
+      2. T2: a contract acquired in a transaction may not be dropped, or moved to the IR, in that same transaction.  It may be dropped or moved to the IR in any later transaction.  
+   7. Worked example – Kai, week of 2021-11-01, starting at 21 counted contracts.  Every transaction below leaves the roster legal (T1), and no contract is acquired and removed within one transaction (T2), so the whole week is legal.  Neto and Reaves are added in transaction 4 and dropped in transaction 5; T2 allows this because the drops are in a later transaction.  Dropping Neto inside transaction 4 to make room for Reaves would break T2.  
+
+| Transaction | Moves | Counted contracts after |
+| :---- | :---- | :---- |
+| 1 | Trade Giannis away for Booker | 21 |
+| 2 | Trade for Campazzo | 22 |
+| 3 | Trade Jones Jr. away for Terence Davis | 22 |
+| 4 | Free agency: add Neto, Hartenstein, Reaves and Lee; drop Prince, Alize Johnson, Joseph and Campazzo | 22 |
+| 5 | Trade for Dragic and Grimes; drop Reaves and Neto | 22 |
+| 6 | Trade Dragic away | 21 |
 
 **V. KEEPERS AND RFA/UFA**
 

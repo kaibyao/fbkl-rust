@@ -6,10 +6,11 @@ use fbkl_constants::league_rules::{
 };
 use fbkl_entity::{
     contract::{self, ContractKind},
+    league_event, league_event_queries,
     sea_orm::ConnectionTrait,
     team,
     team_update::{self},
-    team_update_queries, transaction, transaction_queries,
+    team_update_queries,
 };
 use tracing::instrument;
 
@@ -27,15 +28,15 @@ where
     validate_team_keepers(&keeper_contracts)?;
 
     let league = team_model.get_league(db).await?;
-    let keeper_deadline_transaction =
-        transaction_queries::get_or_create_keeper_deadline_transaction(
+    let keeper_deadline_league_event =
+        league_event_queries::get_or_create_keeper_deadline_league_event(
             league.id,
             end_of_season_year,
             db,
         )
         .await?;
     let mut keeper_team_updates =
-        team_update_queries::find_team_updates_by_transaction(keeper_deadline_transaction.id, db)
+        team_update_queries::find_team_updates_by_league_event(keeper_deadline_league_event.id, db)
             .await?;
     let maybe_existing_keeper_team_update_index = keeper_team_updates
         .iter()
@@ -46,7 +47,7 @@ where
             create_new_keeper_team_update(
                 team_model,
                 &keeper_contracts,
-                &keeper_deadline_transaction,
+                &keeper_deadline_league_event,
                 db,
             )
             .await
@@ -148,13 +149,13 @@ pub fn validate_team_keepers(contracts: &[contract::Model]) -> Result<(), Keeper
 async fn create_new_keeper_team_update<C>(
     team: &team::Model,
     keeper_contracts: &[contract::Model],
-    keeper_transaction: &transaction::Model,
+    keeper_league_event: &league_event::Model,
     db: &C,
 ) -> Result<team_update::Model>
 where
     C: ConnectionTrait,
 {
-    team_update_queries::insert_keeper_team_update(team, keeper_contracts, keeper_transaction, db)
+    team_update_queries::insert_keeper_team_update(team, keeper_contracts, keeper_league_event, db)
         .await
 }
 

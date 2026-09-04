@@ -51,7 +51,7 @@ pub const fn auction_close_outcome(
     }
 }
 
-/// Ends a veteran auction and creates the associated transaction + team contract OR expires the associated contract.
+/// Ends a veteran auction and creates the associated league event + team contract OR expires the associated contract.
 #[instrument(skip(db))]
 pub async fn end_veteran_auction<C>(
     auction_id: i64,
@@ -118,7 +118,7 @@ where
     Ok(final_contract_model)
 }
 
-/// Hands a closed auction's pooled contract to the winning bidder, with its transaction and
+/// Hands a closed auction's pooled contract to the winning bidder, with its league event and
 /// `team_update`.
 async fn sign_winning_bid<C>(
     auction_model: &auction::Model,

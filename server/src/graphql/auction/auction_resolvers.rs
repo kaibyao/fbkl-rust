@@ -4,6 +4,8 @@
 //! The commissioner's two per-season veteran-auction inputs (§6.3.6) also live here, since they are
 //! what pool assembly reads when the auction-start deadline fires.
 
+use std::collections::HashMap;
+
 use async_graphql::{Context, Error as GraphQlError, Object, Result, SimpleObject};
 use chrono::Utc;
 use color_eyre::Report;
@@ -13,31 +15,41 @@ use fbkl_entity::{
     auction_bid,
     auction_queries::{
         find_auction_bids, find_auction_by_id, find_open_auctions_in_league,
-        find_winning_bids_for_team,
+        find_winning_bids_for_team, find_won_auctions_for_team,
     },
     auction_schedule_queries::{
         find_auction_schedule_rows_for_season, set_min_bid_tiers, set_veteran_auction_ranking,
         validate_min_bid_tiers,
     },
+    contract,
+    contract_queries::find_contract_by_id,
     deadline::DeadlineKind,
     deadline_queries::{MissingSeasonDeadline, find_sorted_deadlines_for_league_season},
-    sea_orm::DatabaseConnection,
+    sea_orm::{ConnectionTrait, DatabaseConnection, TransactionTrait},
+    team_update_queries::find_transaction_start,
 };
 use fbkl_entity::{
     rfa_resolution::RfaResolutionStatus, rfa_resolution_queries::find_rfa_resolution_for_contract,
 };
 use fbkl_logic::{
-    auction::{BidRejection, place_auction_bid},
+    auction::{BidRejection, place_auction_bid, sign_won_auction},
     deadline_processing::eligible_compensation_picks,
+    drop_contract::drop_contract_from_team,
+    roster::file_and_validate_transaction,
 };
 
 use crate::graphql::{
-    ErrorCode, LeagueRoleGuard, RoleRequirement, code_error, current_season, deadline::Deadline,
-    draft::DraftPick, graphql_error, require_league_role,
+    ErrorCode, LeagueRoleGuard, RoleRequirement, code_error,
+    contract::Contract,
+    current_season,
+    deadline::Deadline,
+    draft::DraftPick,
+    graphql_error, require_league_role,
+    roster::{resolve_upcoming_roster_lock, roster_move_error},
 };
 
 /// Bid history spans a whole auction, so a page is always bounded (same convention as the
-/// transaction feed).
+/// league event feed).
 const MAX_PAGE_SIZE: u64 = 100;
 
 /// The deadlines that bound an auction window.
@@ -50,7 +62,7 @@ const AUCTION_DEADLINE_KINDS: [DeadlineKind; 6] = [
     DeadlineKind::FreeAgentAuctionEnd,
 ];
 
-/// An auction on one contract. `transactionId` is null while the auction is still open.
+/// An auction on one contract. `league_eventId` is null while the auction is still open.
 #[derive(SimpleObject)]
 pub struct Auction {
     pub id: i64,
@@ -65,7 +77,7 @@ pub struct Auction {
     /// RFA/UFA only: the team barred from bidding (rules §6.2.2.3) — disable their bid input.
     pub original_owner_team_id: Option<i64>,
     pub contract_id: i64,
-    pub transaction_id: Option<i64>,
+    pub league_event_id: Option<i64>,
 }
 
 impl Auction {
@@ -82,7 +94,7 @@ impl Auction {
                 .map(|deadline| deadline.to_rfc3339()),
             original_owner_team_id: model.original_owner_team_id,
             contract_id: model.contract_id,
-            transaction_id: model.transaction_id,
+            league_event_id: model.league_event_id,
         }
     }
 }
@@ -310,6 +322,98 @@ impl AuctionMutation {
         Ok(AuctionBid::from_model(&bid))
     }
 
+    /// Signs every free-agent auction the caller's team has won but not yet picked up, together
+    /// with the drops that make room for them, as one transaction (rules §8.3.5-§8.3.7).
+    ///
+    /// A win is recorded without a contract, so this is what turns it into one. All of a week's
+    /// wins go on together and none can be left behind (§8.3.5), which is why the drops belong
+    /// here: an owner who bid above their free cap frees the space now or the whole submission is
+    /// refused. Dropping one of the week's own wins to fit another is refused by T2, since the add
+    /// and the removal are then in one transaction.
+    ///
+    /// A drop names the auctioned contract, not the signed one: the signed row does not exist when
+    /// the owner submits. `deadlineId` is the roster lock the transaction counts towards.
+    #[graphql(guard = "LeagueRoleGuard(RoleRequirement::Member)")]
+    async fn pick_up_auction_wins(
+        &self,
+        ctx: &Context<'_>,
+        deadline_id: i64,
+        drop_contract_ids: Vec<i64>,
+    ) -> Result<Vec<Contract>> {
+        let db = ctx.data_unchecked::<DatabaseConnection>();
+        let (team_user, caller_team) = require_league_role(ctx, RoleRequirement::Member).await?;
+        let deadline_model =
+            resolve_upcoming_roster_lock(deadline_id, caller_team.league_id, db).await?;
+
+        let wins = find_won_auctions_for_team(
+            team_user.team_id,
+            caller_team.league_id,
+            deadline_model.end_of_season_year,
+            db,
+        )
+        .await
+        .map_err(|err| internal("failed to load the team's auction wins", &err))?;
+        if wins.is_empty() {
+            return Err(graphql_error(
+                ErrorCode::BadRequest,
+                "this team has no auction wins waiting to be picked up".to_owned(),
+            ));
+        }
+
+        let db_txn = db
+            .begin()
+            .await
+            .map_err(|err| internal("failed to start database transaction", &err.into()))?;
+        let transaction_start = find_transaction_start(team_user.team_id, deadline_id, &db_txn)
+            .await
+            .map_err(|err| internal("failed to read the team's week", &err))?;
+
+        let mut signed_contracts = Vec::with_capacity(wins.len());
+        let mut signed_by_auctioned_id = HashMap::with_capacity(wins.len());
+        for (won_auction, winning_bid) in &wins {
+            let (signed_contract, _) =
+                sign_won_auction(won_auction, winning_bid, &deadline_model, None, &db_txn)
+                    .await
+                    .map_err(|err| internal("failed to sign an auction win", &err))?;
+            signed_by_auctioned_id.insert(won_auction.contract_id, signed_contract.clone());
+            signed_contracts.push(signed_contract);
+        }
+
+        for drop_contract_id in drop_contract_ids {
+            let contract_model = resolve_drop(
+                drop_contract_id,
+                &signed_by_auctioned_id,
+                team_user.team_id,
+                caller_team.league_id,
+                &db_txn,
+            )
+            .await?;
+            drop_contract_from_team(contract_model, &deadline_model, &db_txn)
+                .await
+                .map_err(|err| roster_move_error(&err))?;
+        }
+
+        file_and_validate_transaction(
+            team_user.team_id,
+            &deadline_model,
+            &transaction_start,
+            &db_txn,
+        )
+        .await
+        .map_err(|err| roster_move_error(&err))?;
+
+        db_txn
+            .commit()
+            .await
+            .map_err(|err| internal("failed to commit the pickup", &err.into()))?;
+
+        signed_contracts
+            .iter()
+            .map(Contract::from_model)
+            .collect::<std::result::Result<Vec<_>, _>>()
+            .map_err(|_| code_error(ErrorCode::Internal))
+    }
+
     /// Sets the current season's veteran-auction minimum-bid tiers, top tier first (rules §6.3.6).
     /// Replaces any tiers already entered, so re-entry is idempotent.
     #[graphql(guard = "LeagueRoleGuard(RoleRequirement::Commissioner)")]
@@ -365,6 +469,39 @@ impl AuctionMutation {
     }
 }
 
+/// The roster row a pickup's drop names, in the caller's own team.
+///
+/// An owner submits before their wins are signed, so a drop of one of the week's own wins names the
+/// auctioned contract; the signed row it maps to is what gets dropped, which is what puts the add
+/// and the removal in one transaction for T2 to refuse. Every other drop is re-derived from the
+/// stored row, never trusted from the request.
+async fn resolve_drop<C>(
+    drop_contract_id: i64,
+    signed_by_auctioned_id: &HashMap<i64, contract::Model>,
+    team_id: i64,
+    league_id: i64,
+    db: &C,
+) -> Result<contract::Model>
+where
+    C: ConnectionTrait,
+{
+    if let Some(signed_contract) = signed_by_auctioned_id.get(&drop_contract_id) {
+        return Ok(signed_contract.clone());
+    }
+
+    let contract_model = find_contract_by_id(drop_contract_id, db)
+        .await
+        .map_err(|_| code_error(ErrorCode::NotFound))?;
+    if contract_model.league_id != league_id {
+        return Err(code_error(ErrorCode::NotFound));
+    }
+    if contract_model.team_id != Some(team_id) {
+        return Err(code_error(ErrorCode::Forbidden));
+    }
+
+    Ok(contract_model)
+}
+
 /// §6.3.6 config is set before the auction starts; assembled schedule rows already carry tier
 /// assignments, so a late rewrite would desync them.
 async fn ensure_veteran_auction_not_started(
@@ -384,6 +521,11 @@ async fn ensure_veteran_auction_not_started(
     } else {
         Err(code_error(ErrorCode::VeteranAuctionStarted))
     }
+}
+
+fn internal(message: &str, error: &Report) -> GraphQlError {
+    tracing::error!(error = ?error, message);
+    code_error(ErrorCode::Internal)
 }
 
 /// A refused bid is the client's fault and gets its own code; anything else is a server fault. A

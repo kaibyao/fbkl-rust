@@ -1,6 +1,6 @@
 //! Keeper declarations for the preseason keeper deadline.
 //!
-//! Processing the deadline itself (`process_keeper_deadline_transaction`) stays deadline-driven and
+//! Processing the deadline itself (`process_keeper_deadline_league_event`) stays deadline-driven and
 //! is deliberately not exposed as a mutation.
 
 use async_graphql::{Context, Error as GraphQlError, Object, Result, SimpleObject};
@@ -8,11 +8,11 @@ use color_eyre::Report;
 use fbkl_entity::{
     contract,
     contract_queries::find_contract_by_id,
+    league_event_queries::find_keeper_deadline_league_event,
     sea_orm::{DatabaseConnection, TransactionTrait},
     team,
-    team_update_queries::find_team_updates_by_transaction,
+    team_update_queries::find_team_updates_by_league_event,
     team_user::LeagueRole,
-    transaction_queries::find_keeper_deadline_transaction,
 };
 use fbkl_logic::deadline_processing::keeper_deadline::{
     KeeperValidationError, save_keeper_team_update, validate_team_keepers,
@@ -58,15 +58,15 @@ impl KeeperQuery {
         };
 
         let end_of_season_year = caller_season(ctx).await?;
-        let Some(keeper_transaction) =
-            find_keeper_deadline_transaction(caller_team.league_id, end_of_season_year, db)
+        let Some(keeper_league_event) =
+            find_keeper_deadline_league_event(caller_team.league_id, end_of_season_year, db)
                 .await
-                .map_err(|err| internal("failed to load the keeper transaction", &err))?
+                .map_err(|err| internal("failed to load the keeper league_event", &err))?
         else {
             return Ok(vec![]);
         };
 
-        let team_updates = find_team_updates_by_transaction(keeper_transaction.id, db)
+        let team_updates = find_team_updates_by_league_event(keeper_league_event.id, db)
             .await
             .map_err(|err| internal("failed to load keeper declarations", &err))?;
 
@@ -118,7 +118,7 @@ impl KeeperMutation {
         let db_txn = db
             .begin()
             .await
-            .map_err(|err| internal("failed to start transaction", &err.into()))?;
+            .map_err(|err| internal("failed to start database transaction", &err.into()))?;
         let team_update =
             save_keeper_team_update(&caller_team, contracts, end_of_season_year, &db_txn)
                 .await

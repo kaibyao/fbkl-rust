@@ -26,8 +26,8 @@ pub struct Model {
     pub contract_id: i64,
     /// The team that held the player before the auction (RFA/UFA only, rules §6.2.2.3 / §15.3.1). NULL otherwise. That team may not bid.
     pub original_owner_team_id: Option<i64>,
-    /// The auction-completed transaction, set once a winning bid is signed (1:1). NULL while the auction is still open.
-    pub transaction_id: Option<i64>,
+    /// The auction-completed league event, set once a winning bid is signed (1:1). NULL while the auction is still open.
+    pub league_event_id: Option<i64>,
     pub created_at: DateTimeWithTimeZone,
     pub updated_at: DateTimeWithTimeZone,
 }
@@ -138,6 +138,13 @@ pub enum AuctionStatus {
     /// Timer elapsed, awaiting `end_*_auction`. RFA auctions also park here for the spec 03 raise/match flow.
     #[sea_orm(string_value = "Closed")]
     Closed,
+    /// Closed with a winning bid the owner has not picked up yet (rules §8.3.6).
+    ///
+    /// In-season free agency only: the close records who won, and the win becomes a contract when
+    /// the owner submits the pickup that carries their accommodating drops - or when the roster lock
+    /// signs it for them.
+    #[sea_orm(string_value = "Won")]
+    Won,
     /// Winning bid signed to a team.
     #[sea_orm(string_value = "Completed")]
     Completed,
@@ -159,13 +166,13 @@ pub enum Relation {
     #[sea_orm(has_many = "super::auction_bid::Entity")]
     AuctionBid,
     #[sea_orm(
-        belongs_to = "super::transaction::Entity",
-        from = "Column::TransactionId",
-        to = "super::transaction::Column::Id",
+        belongs_to = "super::league_event::Entity",
+        from = "Column::LeagueEventId",
+        to = "super::league_event::Column::Id",
         on_update = "Cascade",
         on_delete = "Cascade"
     )]
-    Transaction,
+    LeagueEvent,
 }
 
 impl Related<super::contract::Entity> for Entity {
@@ -180,9 +187,9 @@ impl Related<super::auction_bid::Entity> for Entity {
     }
 }
 
-impl Related<super::transaction::Entity> for Entity {
+impl Related<super::league_event::Entity> for Entity {
     fn to() -> RelationDef {
-        Relation::Transaction.def()
+        Relation::LeagueEvent.def()
     }
 }
 

@@ -36,7 +36,7 @@ use crate::graphql::{
 };
 
 /// The eligible pool spans every rookie-eligible player, so a page is always bounded (same
-/// convention as the transaction feed and auction bid history).
+/// convention as the league event feed and auction bid history).
 const MAX_PAGE_SIZE: usize = 100;
 
 #[derive(SimpleObject)]

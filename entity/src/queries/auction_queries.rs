@@ -1,6 +1,7 @@
 use std::fmt::Debug;
 
 use color_eyre::{Result, eyre::eyre};
+use multimap::MultiMap;
 use sea_orm::{
     ActiveModelTrait, ActiveValue, ColumnTrait, ConnectionTrait, EntityTrait, JoinType,
     QueryFilter, QueryOrder, QuerySelect, RelationTrait, prelude::DateTimeWithTimeZone,
@@ -45,8 +46,9 @@ where
 
 /// The `(auction_id, bid_amount)` commitments rules §6.4.1 counts against a new bid.
 ///
-/// Two sources: the team's currently-winning bids in the league/season's `Open` auctions, and every
-/// RFA auction it won that is still in the raise/match handshake (rules §15.3.4).
+/// Three sources: the team's currently-winning bids in the league/season's `Open` auctions, the
+/// in-season wins it has not picked up yet (`Won`, rules §8.3.6), and every RFA auction it won that
+/// is still in the raise/match handshake (rules §15.3.4).
 #[instrument(skip(db))]
 pub async fn find_winning_bids_for_team<C>(
     team_id: i64,
@@ -61,7 +63,7 @@ where
         .join(JoinType::InnerJoin, auction_bid::Relation::Auction.def())
         .join(JoinType::InnerJoin, auction::Relation::Contract.def())
         .join(JoinType::InnerJoin, auction_bid::Relation::TeamUser.def())
-        .filter(auction::Column::Status.eq(AuctionStatus::Open))
+        .filter(auction::Column::Status.is_in([AuctionStatus::Open, AuctionStatus::Won]))
         .filter(contract::Column::LeagueId.eq(league_id))
         .filter(contract::Column::EndOfSeasonYear.eq(end_of_season_year))
         .select_only()
@@ -128,6 +130,57 @@ where
             ))
         })
         .collect())
+}
+
+/// Every recorded-but-unsigned in-season auction win in the league/season, keyed by winning team.
+///
+/// A `Won` row waits here from the auction's close until the owner's pickup signs it, or the roster
+/// lock signs it for them. The latest bid is the winning one, because that is what the close reads.
+#[instrument(skip(db))]
+pub async fn find_won_auctions_by_team<C>(
+    league_id: i64,
+    end_of_season_year: i16,
+    db: &C,
+) -> Result<MultiMap<i64, (auction::Model, auction_bid::Model)>>
+where
+    C: ConnectionTrait,
+{
+    let won_auctions = auction::Entity::find()
+        .join(JoinType::InnerJoin, auction::Relation::Contract.def())
+        .filter(auction::Column::Status.eq(AuctionStatus::Won))
+        .filter(contract::Column::LeagueId.eq(league_id))
+        .filter(contract::Column::EndOfSeasonYear.eq(end_of_season_year))
+        .order_by_asc(auction::Column::Id)
+        .all(db)
+        .await?;
+
+    // A week's wins are a handful of rows, so the winner lookup stays a per-row read.
+    let mut wins_by_team = MultiMap::new();
+    for auction_model in won_auctions {
+        let Some(winning_bid) = auction_model.get_latest_bid(db).await? else {
+            continue;
+        };
+        let winning_team_id = winning_bid.get_team(db).await?.id;
+        wins_by_team.insert(winning_team_id, (auction_model, winning_bid));
+    }
+    Ok(wins_by_team)
+}
+
+/// The team's share of [`find_won_auctions_by_team`], oldest auction first.
+#[instrument(skip(db))]
+pub async fn find_won_auctions_for_team<C>(
+    team_id: i64,
+    league_id: i64,
+    end_of_season_year: i16,
+    db: &C,
+) -> Result<Vec<(auction::Model, auction_bid::Model)>>
+where
+    C: ConnectionTrait,
+{
+    Ok(find_won_auctions_by_team(league_id, end_of_season_year, db)
+        .await?
+        .remove(&team_id)
+        .unwrap_or_default())
 }
 
 /// Auctions in the league/season still taking bids, soonest close first, optionally of one kind
@@ -391,7 +444,7 @@ where
         all_bid_deadline_timestamp: ActiveValue::Set(new_auction.all_bid_deadline_timestamp),
         contract_id: ActiveValue::Set(new_auction.contract_id),
         original_owner_team_id: ActiveValue::Set(new_auction.original_owner_team_id),
-        transaction_id: ActiveValue::NotSet,
+        league_event_id: ActiveValue::NotSet,
         created_at: ActiveValue::NotSet,
         updated_at: ActiveValue::NotSet,
     };

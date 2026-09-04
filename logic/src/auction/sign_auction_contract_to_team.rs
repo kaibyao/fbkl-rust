@@ -1,15 +1,14 @@
 use chrono::NaiveDate;
 use color_eyre::Result;
 use fbkl_entity::{
-    auction, auction_bid,
+    auction, auction_bid, auction_queries,
     contract::{self, ContractKind, FreeAgentException},
-    contract_queries, deadline, rfa_resolution_queries,
+    contract_queries, deadline, league_event, league_event_queries, rfa_resolution_queries,
     sea_orm::{ActiveValue, ConnectionTrait, TransactionTrait},
     team_update::{
         self, ContractUpdate, ContractUpdateType, TeamUpdateAsset, TeamUpdateData, TeamUpdateStatus,
     },
     team_update_queries::{self, ContractUpdatePlayerData},
-    transaction, transaction_queries,
 };
 use tracing::instrument;
 
@@ -17,7 +16,7 @@ use crate::roster::{
     SalarySnapshot, calculate_team_contract_salary, calculate_team_contract_salary_with_model,
 };
 
-/// Signs a contract to the team that submitted the last/winning bid to a preseason veteran auction before it ended. Creates + inserts the contract, transaction, and team update.
+/// Signs a contract to the team that submitted the last/winning bid to a preseason veteran auction before it ended. Creates + inserts the contract, league event, and team update.
 ///
 /// `maybe_raised_bid_amount` sets the price for an RFA whose winner raised its own bid
 /// (rules §15.3.2.1); every other signing pays the winning bid.
@@ -29,7 +28,7 @@ pub async fn sign_auction_contract_to_team<C>(
     maybe_raised_bid_amount: Option<i16>,
     maybe_override_effective_date: Option<NaiveDate>,
     db: &C,
-) -> Result<(contract::Model, transaction::Model, team_update::Model)>
+) -> Result<(contract::Model, league_event::Model, team_update::Model)>
 where
     C: ConnectionTrait + TransactionTrait,
 {
@@ -51,15 +50,15 @@ where
     )
     .await?;
 
-    // Create transaction
-    let auction_transaction_model =
-        transaction_queries::insert_auction_transaction(deadline_model, auction_model.id, db)
+    // Create league event
+    let auction_league_event_model =
+        league_event_queries::insert_auction_league_event(deadline_model, auction_model.id, db)
             .await?;
 
     // Create team_update
     let team_update_model = insert_team_update_from_auction_won(
         winning_auction_bid_model,
-        &auction_transaction_model,
+        &auction_league_event_model,
         &signed_contract_model,
         previous_salary,
         previous_salary_cap,
@@ -70,9 +69,47 @@ where
 
     Ok((
         signed_contract_model,
-        auction_transaction_model,
+        auction_league_event_model,
         team_update_model,
     ))
+}
+
+/// Signs a recorded auction win to the team that won it, completing the auction (rules §8.3.6).
+///
+/// An in-season free agent auction closes to [`auction::AuctionStatus::Won`] without a contract, so
+/// this is what turns a win into one: the owner's pickup calls it with the drops that make room,
+/// and the roster lock calls it for any win nobody picked up. Pairs the signing with the status
+/// change so a `Won` row cannot be signed twice.
+#[instrument(skip(db))]
+pub async fn sign_won_auction<C>(
+    auction_model: &auction::Model,
+    winning_bid_model: &auction_bid::Model,
+    deadline_model: &deadline::Model,
+    maybe_override_effective_date: Option<NaiveDate>,
+    db: &C,
+) -> Result<(contract::Model, team_update::Model)>
+where
+    C: ConnectionTrait + TransactionTrait,
+{
+    let (signed_contract_model, _, team_update_model) = sign_auction_contract_to_team(
+        auction_model,
+        winning_bid_model,
+        deadline_model,
+        None,
+        maybe_override_effective_date,
+        db,
+    )
+    .await?;
+    let team_update_model = team_update_queries::update_team_update_for_auction(
+        &team_update_model,
+        maybe_override_effective_date,
+        db,
+    )
+    .await?;
+    auction_queries::update_auction_status(auction_model.id, auction::AuctionStatus::Completed, db)
+        .await?;
+
+    Ok((signed_contract_model, team_update_model))
 }
 
 /// Whether the auction winner also holds the player's re-sign discount (rules §15.4.2, §16.4.1).
@@ -112,7 +149,7 @@ where
 #[instrument(skip(db))]
 async fn insert_team_update_from_auction_won<C>(
     winning_auction_bid_model: &auction_bid::Model,
-    auction_transaction_model: &transaction::Model,
+    auction_league_event_model: &league_event::Model,
     signed_contract_model: &contract::Model,
     previous_salary: i16,
     previous_salary_cap: i16,
@@ -124,7 +161,7 @@ where
 {
     let contract_update_player_data =
         ContractUpdatePlayerData::from_contract_model(signed_contract_model, db).await?;
-    let deadline_model = auction_transaction_model.get_deadline(db).await?;
+    let deadline_model = auction_league_event_model.get_deadline(db).await?;
     let team_model = winning_auction_bid_model.get_team(db).await?;
     let current_active_team_contracts = team_model.get_active_contracts(db).await?;
     let SalarySnapshot {
@@ -138,11 +175,11 @@ where
     )
     .await?;
 
-    let mut team_contract_ids: Vec<i64> = current_active_team_contracts
+    // The signing already committed, so the fetched roster holds the new contract.
+    let team_contract_ids: Vec<i64> = current_active_team_contracts
         .iter()
         .map(|contract_model| contract_model.id)
         .collect();
-    team_contract_ids.push(signed_contract_model.id);
 
     let data = TeamUpdateData::from_assets(
         team_contract_ids,
@@ -165,10 +202,10 @@ where
         effective_date: ActiveValue::Set(
             maybe_override_effective_date.unwrap_or_else(|| deadline_model.date_time.date_naive()),
         ),
-        sequence: ActiveValue::NotSet,
+        transaction_number: ActiveValue::NotSet,
         status: ActiveValue::Set(TeamUpdateStatus::Pending),
         team_id: ActiveValue::Set(team_model.id),
-        transaction_id: ActiveValue::Set(Some(auction_transaction_model.id)),
+        league_event_id: ActiveValue::Set(Some(auction_league_event_model.id)),
         created_at: ActiveValue::NotSet,
         updated_at: ActiveValue::NotSet,
     };

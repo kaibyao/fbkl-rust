@@ -5,7 +5,7 @@
 ## Summary
 
 The `logic/` crate already implements the *handlers* for most time-triggered league events
-(`advance_league_contracts` on PreseasonStart, `lock_rosters`, `process_keeper_deadline_transaction`,
+(`advance_league_contracts` on PreseasonStart, `lock_rosters`, `process_keeper_deadline_league_event`,
 `end_veteran_auction`, `end_fa_auction`, draft-pick generation). What is missing is the **orchestration
 layer** that fires these handlers when their `deadline` (`entity::deadline::Model`, keyed by
 `DeadlineKind`) is reached. Today those handlers are only invoked by `import-data` replaying historical
@@ -45,14 +45,14 @@ pub async fn process_event<C>(db: &C, event: ProcessableEvent) -> Result<Process
   from `deadline`. Note `close_at` already folds in the §8.3.2 all-bid extension chain, so a rolled
   deadline is not a separate event kind.
 - **One DB transaction per deadline/event.** Follow `logic/CLAUDE.md` convention #2: `db.begin()` →
-  run handler (which itself inserts the `transaction` audit row + `team_update`s per convention #1) →
+  run handler (which itself inserts the `league_event` audit row + `team_update`s per convention #1) →
   insert/upsert a `job_run` outcome row → `commit()`. A handler failure must roll the whole thing back
   so re-fire is clean.
 - **Idempotency:** before dispatching, check whether this deadline/event already has a `Succeeded`
   `job_run`. If so, no-op. The idempotency key is `(league_id, end_of_season_year, deadline_kind)` for
   deadline rows, or `(league_id, auction_id, sub_event_kind)` for sub-events (see entity section).
 - **Outcome recording:** every run writes a `job_run` row (Pending → Running → Succeeded | Failed),
-  capturing the dispatched handler, the resulting `transaction.id` (if any), and an error string on
+  capturing the dispatched handler, the resulting `league_event.id` (if any), and an error string on
   failure. This is the audit/recovery surface the commissioner console reads.
 - The existing `transaction-processor` README and `add()` stub get deleted.
 
@@ -128,7 +128,7 @@ New table **`job_run`** (+ migration in `migration/`, +`entity/src/queries/job_r
 | `status` | enum `JobRunStatus` | `Pending` \| `Running` \| `Succeeded` \| `Failed` |
 | `attempts` | i16 | retry counter |
 | `idempotency_key` | string, **unique** | `(league_id, eos_year, kind[, auction_id])` rendered to a stable string; the unique index *is* the double-fire guard |
-| `transaction_id` | fk → transaction, nullable | links the audit row the handler produced |
+| `league_event_id` | fk → league_event, nullable | links the audit row the handler produced |
 | `error` | text, nullable | failure detail for console |
 | `created_at` / `updated_at` | tz | |
 
@@ -150,7 +150,7 @@ New table **`job_run`** (+ migration in `migration/`, +`entity/src/queries/job_r
 | Trigger | Handler (`logic/…`) | Notes |
 |---------|---------------------|-------|
 | `PreseasonStart` | `annual_contract_advancement::advance_league_contracts` | expire FAs, advance all other contracts a year (§14.2) |
-| `PreseasonKeeper` | `deadline_processing::keeper_deadline::process_keeper_deadline_transaction` | §14.4; also announces RFAs/UFAs. Replaces stub `jobs::process_keepers` |
+| `PreseasonKeeper` | `deadline_processing::keeper_deadline::process_keeper_deadline_league_event` | §14.4; also announces RFAs/UFAs. Replaces stub `jobs::process_keepers` |
 | `PreseasonVeteranAuctionStart` | `auction::assemble_veteran_auction_pool` | writes the season's release schedule; RFA week first (§6.3.1, spec 03). The tick then opens each row on its date |
 | `PreseasonFaAuctionStart` | (open FA bidding, spec 01) | open nominations begin after last predetermined player (§6.3.2) |
 | `PreseasonFaAuctionEnd` | (close preseason FA nominations) | §6 preseason close |
@@ -178,7 +178,7 @@ IMPLEMENTED.md §server), so this depends on that surface coming online.
 - **Manual "process now" trigger:** a mutation that calls `transaction_processor::process_deadline` for
   a selected deadline out of band (for backfill / when the poller is down). Must go through the same
   idempotency check so a manual run can't double-process an already-`Succeeded` deadline.
-- **Job-run status / audit:** table of `job_run` rows (kind, status, attempts, linked `transaction_id`,
+- **Job-run status / audit:** table of `job_run` rows (kind, status, attempts, linked `league_event_id`,
   timestamps) — the live view of what the scheduler has done.
 - **Error surfacing:** `Failed` job_runs shown prominently with their `error` text and a manual
   "retry" action; this is how a commissioner unblocks an illegal-roster lock or missing-salary failure.

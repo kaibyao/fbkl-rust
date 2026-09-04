@@ -8,7 +8,8 @@
 
 use fbkl_entity::{
     contract::{ContractKind, ContractStatus},
-    deadline::DeadlineKind,
+    roster_lock_violation_queries::TeamRosterViolation,
+    team_update::ContractUpdateType,
 };
 
 /// A roster move a league rule refuses. Each variant is a distinct user-facing rejection reason.
@@ -20,22 +21,6 @@ pub enum RosterMoveRejection {
     /// Rules §10.3.2: activating from IR needs a contract that is on IR.
     #[error("Contract {contract_id} is not in IR, so it cannot be activated from IR.")]
     NotInIr { contract_id: i64 },
-    /// Rules §10.3.1: an add cannot go straight to IR outside the preseason final roster lock.
-    #[error(
-        "Contract {contract_id} cannot go straight to IR at a {deadline_kind:?}. It has to be committed to the team without IR first."
-    )]
-    StraightToIr {
-        contract_id: i64,
-        deadline_kind: DeadlineKind,
-    },
-    /// Rules §8.3.5 and §8.3.7: this week's adds must sit legally on the roster before a drop.
-    #[error(
-        "Contract {contract_id} was added this week, and the roster holding this week's adds is still illegal, so it cannot be dropped yet.\n{violations}"
-    )]
-    DropSameWeekAdd {
-        contract_id: i64,
-        violations: String,
-    },
     /// A newer row in the contract's chain supersedes it, so the client is acting on a stale copy.
     #[error(
         "Contract {contract_id} is not the latest in its chain, so no roster move applies to it."
@@ -55,6 +40,32 @@ pub enum RosterMoveRejection {
         contract_id: i64,
         kind: ContractKind,
     },
+    /// Rules §13.1.6 (T2): a contract acquired in a transaction stays on the roster until a later
+    /// transaction can remove it.
+    #[error(
+        "Contract {contract_id} was acquired in this transaction, so it cannot be {update_type:?} in the same transaction (rules §13.1.6). Drop a player the team already held, or make this move in a later transaction."
+    )]
+    SameTransactionAddThenRemove {
+        contract_id: i64,
+        update_type: ContractUpdateType,
+    },
+    /// Rules §13.1.6 (T1): the roster has to be legal once the transaction is applied.
+    #[error(
+        "This transaction leaves team {team_id}'s roster illegal, so none of it is applied.\n{}",
+        joined_violation_messages(.violations)
+    )]
+    TransactionLeavesRosterIllegal {
+        team_id: i64,
+        /// One entry per rule the end state breaks, so a caller can report the rules rather than
+        /// re-parse one joined message.
+        violations: Vec<TeamRosterViolation>,
+    },
+    /// Rules §12.5.3: a trade's accommodating drop has to name a contract the submitting team
+    /// holds once the trade's legs have applied, or there is nothing for it to remove.
+    #[error(
+        "Contract {contract_id} is not on team {team_id}'s roster once this trade applies, so it cannot be dropped with the trade."
+    )]
+    AccommodatingDropNotOnRoster { contract_id: i64, team_id: i64 },
     /// Rules §11.3.1: an RD↔RDI move needs the contract kind that move starts from.
     #[error(
         "Contract {contract_id} is a {kind:?} contract, but this move requires a {expected:?} contract."
@@ -64,4 +75,13 @@ pub enum RosterMoveRejection {
         kind: ContractKind,
         expected: ContractKind,
     },
+}
+
+/// The broken rules as the owner reads them: one message per line.
+fn joined_violation_messages(violations: &[TeamRosterViolation]) -> String {
+    violations
+        .iter()
+        .map(|violation| violation.message.as_str())
+        .collect::<Vec<_>>()
+        .join("\n")
 }

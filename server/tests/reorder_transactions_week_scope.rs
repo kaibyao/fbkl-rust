@@ -1,6 +1,10 @@
-//! A move order is positions 0..n, so it only makes sense within one week. The mutation therefore
-//! names the week's lock deadline and takes that week's moves and no others: a list mixing weeks
-//! would write positions that clash with the ones already stored for the other week.
+//! A transaction order is positions 0..n, so it only makes sense within one week. The mutation
+//! therefore names the week's lock deadline and takes that week's moves and no others: a list
+//! mixing weeks would write positions that clash with the ones already stored for the other week.
+//!
+//! Order is not presentational any more - the transaction a move sits in decides what T1 and T2
+//! judge it with - but rules §13.1.1 let an owner reorder freely, so the mutation stores whatever
+//! grouping it is given and leaves an illegal week for the lock to record.
 
 use std::sync::Arc;
 
@@ -8,11 +12,11 @@ use async_graphql::{Request, Value};
 use fbkl_entity::{
     deadline::{self, DeadlineKind},
     deadline_queries,
+    league_event::{self, LeagueEventKind},
+    league_event_queries,
     sea_orm::{ActiveValue, EntityTrait},
     team_update::{self, TeamUpdateData, TeamUpdateStatus},
     team_update_queries, team_user,
-    transaction::{self, TransactionKind},
-    transaction_queries,
 };
 use fbkl_server::{AppSchema, build_graphql_schema};
 use fbkl_test_support::{TestLeague, central};
@@ -21,9 +25,9 @@ use tower_sessions::{MemoryStore, Session};
 const END_OF_SEASON_YEAR: i16 = 2026;
 
 #[tokio::test]
-async fn a_move_order_covers_one_week_and_nothing_else() {
+async fn a_transaction_order_covers_one_week_and_nothing_else() {
     let Some(league) =
-        TestLeague::create("reorder_weekly_moves_week_scope", END_OF_SEASON_YEAR).await
+        TestLeague::create("reorder_transactions_week_scope", END_OF_SEASON_YEAR).await
     else {
         return;
     };
@@ -49,36 +53,57 @@ async fn a_move_order_covers_one_week_and_nothing_else() {
 
     let schema = build_graphql_schema(league.db.clone());
     let session = session_for(owner.user_id, league.league_id).await;
-    let reorder = |deadline_id: i64, ids: Vec<i64>| {
-        let ids = format!("{ids:?}");
+    let reorder = |deadline_id: i64, transactions: Vec<Vec<i64>>| {
+        let transactions = format!("{transactions:?}");
         format!(
-            "mutation {{ reorderWeeklyMoves(teamId: {}, deadlineId: {deadline_id}, orderedTeamUpdateIds: {ids}) {{ id sequence }} }}",
+            "mutation {{ reorderTransactions(teamId: {}, deadlineId: {deadline_id}, orderedTransactions: {transactions}) {{ transactionNumber moves {{ id }} }} }}",
             league.team_id
         )
     };
 
-    // Nothing has an order yet, so the rows carry no sequence at all.
+    // Nothing has an order yet, so the rows carry no transaction number at all.
     assert_eq!(
-        stored_sequences(&league, this_week).await,
+        stored_transaction_numbers(&league, this_week).await,
         vec![(first, None), (second, None)]
     );
 
-    let reversed = run(&schema, &reorder(this_week, vec![second, first]), &session).await;
+    let reversed = run(
+        &schema,
+        &reorder(this_week, vec![vec![second], vec![first]]),
+        &session,
+    )
+    .await;
     assert_eq!(
         reversed.expect("the week's own moves are a legal order"),
-        vec![(second, Some(0_i16)), (first, Some(1))],
-        "the mutation stores the list positions and echoes the moves in that order"
+        vec![(Some(0_i16), vec![second]), (Some(1), vec![first])],
+        "one move per transaction stores the list positions and echoes them in that order"
     );
 
-    for (case, ids) in [
+    let together = run(
+        &schema,
+        &reorder(this_week, vec![vec![first, second]]),
+        &session,
+    )
+    .await;
+    assert_eq!(
+        together.expect("both moves in one transaction is a legal order"),
+        vec![(Some(0), vec![first, second])],
+        "moves put in one transaction share its number and come back as one group"
+    );
+
+    for (case, transactions) in [
         (
             "a move from another week",
-            vec![second, first, last_week_move],
+            vec![vec![second], vec![first, last_week_move]],
         ),
-        ("only some of the week's moves", vec![first]),
-        ("the same move twice", vec![first, first, second]),
+        ("only some of the week's moves", vec![vec![first]]),
+        (
+            "the same move twice",
+            vec![vec![first], vec![first, second]],
+        ),
+        ("an empty transaction", vec![vec![], vec![first, second]]),
     ] {
-        let rejected = run(&schema, &reorder(this_week, ids), &session).await;
+        let rejected = run(&schema, &reorder(this_week, transactions), &session).await;
         assert_eq!(
             rejected.err().as_deref(),
             Some("BAD_REQUEST"),
@@ -87,17 +112,21 @@ async fn a_move_order_covers_one_week_and_nothing_else() {
     }
 
     // The other week orders on its own, so position 0 exists once per week, not once per team.
-    run(&schema, &reorder(last_week, vec![last_week_move]), &session)
-        .await
-        .expect("last week's own move is a legal order");
+    run(
+        &schema,
+        &reorder(last_week, vec![vec![last_week_move]]),
+        &session,
+    )
+    .await
+    .expect("last week's own move is a legal order");
     assert_eq!(
-        stored_sequences(&league, last_week).await,
+        stored_transaction_numbers(&league, last_week).await,
         vec![(last_week_move, Some(0))]
     );
     assert_eq!(
-        stored_sequences(&league, this_week).await,
-        vec![(first, Some(1)), (second, Some(0))],
-        "reordering another week leaves this week's order alone"
+        stored_transaction_numbers(&league, this_week).await,
+        vec![(first, Some(0)), (second, Some(0))],
+        "reordering another week leaves this week's transactions alone"
     );
 
     let foreign = run(
@@ -109,8 +138,11 @@ async fn a_move_order_covers_one_week_and_nothing_else() {
     assert_eq!(foreign.err().as_deref(), Some("NOT_FOUND"));
 }
 
-/// The stored id and sequence of every move in one week, oldest row first.
-async fn stored_sequences(league: &TestLeague, deadline_id: i64) -> Vec<(i64, Option<i16>)> {
+/// The stored id and transaction number of every move in one week, oldest row first.
+async fn stored_transaction_numbers(
+    league: &TestLeague,
+    deadline_id: i64,
+) -> Vec<(i64, Option<i16>)> {
     let mut moves: Vec<(i64, Option<i16>)> = team_update_queries::find_team_updates_by_team(
         league.team_id,
         None,
@@ -120,7 +152,7 @@ async fn stored_sequences(league: &TestLeague, deadline_id: i64) -> Vec<(i64, Op
     .await
     .expect("load the week's moves")
     .iter()
-    .map(|model| (model.id, model.sequence))
+    .map(|model| (model.id, model.transaction_number))
     .collect();
     moves.sort_unstable();
     moves
@@ -128,10 +160,10 @@ async fn stored_sequences(league: &TestLeague, deadline_id: i64) -> Vec<(i64, Op
 
 /// One pending move recorded against `deadline_id`, i.e. a row in that week's tray.
 async fn record_move(league: &TestLeague, deadline_id: i64) -> i64 {
-    let transaction_model = transaction_queries::insert_transaction(
-        transaction::ActiveModel {
+    let league_event_model = league_event_queries::insert_league_event(
+        league_event::ActiveModel {
             end_of_season_year: ActiveValue::Set(END_OF_SEASON_YEAR),
-            kind: ActiveValue::Set(TransactionKind::TeamUpdateDropContract),
+            kind: ActiveValue::Set(LeagueEventKind::TeamUpdateDropContract),
             league_id: ActiveValue::Set(league.league_id),
             deadline_id: ActiveValue::Set(deadline_id),
             ..Default::default()
@@ -139,7 +171,7 @@ async fn record_move(league: &TestLeague, deadline_id: i64) -> i64 {
         &league.db,
     )
     .await
-    .expect("insert transaction");
+    .expect("insert league_event");
 
     let data = TeamUpdateData::from_assets(vec![], vec![], 0, 0, 0, 0)
         .to_json()
@@ -150,7 +182,7 @@ async fn record_move(league: &TestLeague, deadline_id: i64) -> i64 {
             effective_date: ActiveValue::Set(central("2025-10-21T18:00:00").date_naive()),
             status: ActiveValue::Set(TeamUpdateStatus::Pending),
             team_id: ActiveValue::Set(league.team_id),
-            transaction_id: ActiveValue::Set(Some(transaction_model.id)),
+            league_event_id: ActiveValue::Set(Some(league_event_model.id)),
             ..Default::default()
         },
         &league.db,
@@ -197,12 +229,13 @@ async fn foreign_league_deadline(league: &TestLeague) -> i64 {
     .last_insert_id
 }
 
-/// Runs `reorderWeeklyMoves`, returning the id and stored sequence of each move it echoes back.
+/// Runs `reorderTransactions`, returning each transaction it echoes back: its number and its move
+/// ids.
 async fn run(
     schema: &AppSchema,
     mutation: &str,
     session: &Session,
-) -> Result<Vec<(i64, Option<i16>)>, String> {
+) -> Result<Vec<(Option<i16>, Vec<i64>)>, String> {
     let response = schema
         .execute(Request::new(mutation).data(session.clone()))
         .await;
@@ -214,37 +247,43 @@ async fn run(
             .map_or_else(|| error.message.clone(), ToString::to_string);
         return Err(code.trim_matches('"').to_owned());
     }
-    Ok(moves_of(&response.data, "reorderWeeklyMoves"))
+    Ok(transactions_of(&response.data, "reorderTransactions"))
 }
 
-fn moves_of(data: &Value, field: &str) -> Vec<(i64, Option<i16>)> {
+fn transactions_of(data: &Value, field: &str) -> Vec<(Option<i16>, Vec<i64>)> {
     let Value::Object(data) = data else {
         panic!("expected an object, got {data:?}");
     };
-    let Value::List(moves) = &data[field] else {
-        panic!("expected a list of moves, got {:?}", data[field]);
+    let Value::List(transactions) = &data[field] else {
+        panic!("expected a list of transactions, got {:?}", data[field]);
     };
-    moves
+    transactions
         .iter()
-        .map(|team_update| {
-            let Value::Object(team_update) = team_update else {
-                panic!("expected a move object, got {team_update:?}");
+        .map(|transaction| {
+            let Value::Object(transaction) = transaction else {
+                panic!("expected a transaction object, got {transaction:?}");
             };
-            let id = team_update["id"]
-                .clone()
-                .into_json()
-                .expect("id as json")
-                .as_i64()
-                .expect("id as a number");
-            let sequence = team_update["sequence"]
-                .clone()
-                .into_json()
-                .expect("sequence as json")
-                .as_i64()
-                .map(|sequence| i16::try_from(sequence).expect("sequence fits in i16"));
-            (id, sequence)
+            let transaction_number = number_of(&transaction["transactionNumber"])
+                .map(|number| i16::try_from(number).expect("transaction_number fits in i16"));
+            let Value::List(moves) = &transaction["moves"] else {
+                panic!("expected a list of moves, got {:?}", transaction["moves"]);
+            };
+            let move_ids = moves
+                .iter()
+                .map(|team_update| {
+                    let Value::Object(team_update) = team_update else {
+                        panic!("expected a move object, got {team_update:?}");
+                    };
+                    number_of(&team_update["id"]).expect("id as a number")
+                })
+                .collect();
+            (transaction_number, move_ids)
         })
         .collect()
+}
+
+fn number_of(value: &Value) -> Option<i64> {
+    value.clone().into_json().expect("value as json").as_i64()
 }
 
 /// A logged-in session for one user in one league, i.e. what the session layer would have built.

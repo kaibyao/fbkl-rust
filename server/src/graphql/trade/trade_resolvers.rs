@@ -7,20 +7,24 @@ use async_graphql::{Context, Error as GraphQlError, Object, Result};
 use chrono::Utc;
 use color_eyre::Report;
 use fbkl_entity::{
+    contract::ContractStatus,
+    contract_queries::find_contract_by_id,
     deadline_queries::{MissingSeasonDeadline, find_most_recent_deadline_by_datetime},
     sea_orm::DatabaseConnection,
     trade,
-    trade_asset::ToTeamId,
+    trade_asset::{ToTeamId, TradeAssetType},
     trade_asset_queries::new_trade_asset_active_model_by_id,
     trade_queries::{find_active_trades_for_team, find_active_trades_in_league, find_trade_by_id},
 };
 use fbkl_logic::trade::{
-    MissingPreTradeSalary, MissingUpcomingRosterLock, accept_trade, propose_trade, reject_trade,
+    MissingPreTradeSalary, MissingUpcomingRosterLock, TradeLegality, accept_trade, propose_trade,
+    reject_trade,
 };
 
 use super::{ProposeTradeInput, Trade};
 use crate::graphql::{
     ErrorCode, LeagueRoleGuard, RoleRequirement, code_error, graphql_error, require_league_role,
+    roster::roster_move_error,
 };
 
 #[derive(Default)]
@@ -147,12 +151,23 @@ impl TradeMutation {
             }
         }
 
+        // A proposer receives nothing under this input shape, so every drop has to be theirs now.
+        validate_accommodating_drops(
+            &input.accommodating_drop_contract_ids,
+            input.from_team_id,
+            caller_team.league_id,
+            &[],
+            db,
+        )
+        .await?;
+
         let proposed = propose_trade(
             caller_team.league_id,
             deadline.end_of_season_year,
             &team_user,
             &to_team_ids,
             trade_assets,
+            &input.accommodating_drop_contract_ids,
             db,
         )
         .await
@@ -161,18 +176,55 @@ impl TradeMutation {
         Ok(Trade::from_model(proposed))
     }
 
-    /// Accepts a trade. Once every involved team has accepted, the trade is processed immediately.
+    /// Accepts a trade, with the drops that make it fit the accepting owner's roster. Once every
+    /// involved team has accepted, the trade is processed immediately.
+    ///
+    /// The accept is the owner's one chance to submit those drops: a trade and one owner's
+    /// accommodating drops are one transaction, judged together when the trade processes (rules
+    /// §12.5.3, §13.1.4). A drop may name a contract this trade brings in, which T2 then refuses.
     #[graphql(guard = "LeagueRoleGuard(RoleRequirement::Member)")]
-    async fn accept_trade(&self, ctx: &Context<'_>, trade_id: i64) -> Result<Trade> {
+    async fn accept_trade(
+        &self,
+        ctx: &Context<'_>,
+        trade_id: i64,
+        accommodating_drop_contract_ids: Vec<i64>,
+    ) -> Result<Trade> {
         let db = ctx.data_unchecked::<DatabaseConnection>();
         let (team_user, caller_team) = require_league_role(ctx, RoleRequirement::Member).await?;
         let model =
             load_actionable_trade(ctx, trade_id, team_user.team_id, caller_team.league_id).await?;
 
-        let maybe_processed =
-            accept_trade(model.clone(), &team_user, &Utc::now().fixed_offset(), db)
-                .await
-                .map_err(|err| map_trade_processing_error(&err))?;
+        let trade_assets = model
+            .get_trade_assets(db)
+            .await
+            .map_err(|err| internal("failed to load trade assets", &err))?;
+        let incoming_contract_ids: Vec<i64> = trade_assets
+            .iter()
+            .filter(|trade_asset_model| {
+                trade_asset_model.asset_type == TradeAssetType::Contract
+                    && trade_asset_model.to_team_id == team_user.team_id
+            })
+            .filter_map(|trade_asset_model| trade_asset_model.contract_id)
+            .collect();
+        validate_accommodating_drops(
+            &accommodating_drop_contract_ids,
+            team_user.team_id,
+            caller_team.league_id,
+            &incoming_contract_ids,
+            db,
+        )
+        .await?;
+
+        let maybe_processed = accept_trade(
+            model.clone(),
+            &team_user,
+            &Utc::now().fixed_offset(),
+            &accommodating_drop_contract_ids,
+            TradeLegality::JudgeNow,
+            db,
+        )
+        .await
+        .map_err(|err| map_trade_processing_error(&err))?;
 
         Ok(Trade::from_model(maybe_processed.unwrap_or(model)))
     }
@@ -230,6 +282,39 @@ async fn load_actionable_trade(
     Ok(model)
 }
 
+/// Re-derives that every accommodating drop is a contract the submitting owner may drop with this
+/// trade: an active one on their roster now, or one this trade brings them (which T2 then refuses
+/// at process time, rather than this reading as a request for someone else's player).
+async fn validate_accommodating_drops(
+    contract_ids: &[i64],
+    submitting_team_id: i64,
+    league_id: i64,
+    incoming_contract_ids: &[i64],
+    db: &DatabaseConnection,
+) -> Result<()> {
+    for contract_id in contract_ids {
+        let contract_model = find_contract_by_id(*contract_id, db)
+            .await
+            .map_err(|_| code_error(ErrorCode::NotFound))?;
+        if contract_model.league_id != league_id {
+            return Err(code_error(ErrorCode::NotFound));
+        }
+        if contract_model.status != ContractStatus::Active {
+            return Err(graphql_error(
+                ErrorCode::BadRequest,
+                format!("contract {contract_id} is not active, so it cannot be dropped"),
+            ));
+        }
+        if contract_model.team_id != Some(submitting_team_id)
+            && !incoming_contract_ids.contains(contract_id)
+        {
+            return Err(code_error(ErrorCode::Forbidden));
+        }
+    }
+
+    Ok(())
+}
+
 /// A trade whose teams have no cached pre-trade salary is a data problem the client can report,
 /// so it gets its own code rather than a bare server fault. A season missing its lock deadlines is
 /// reported the same way owner-facing roster moves report it (see `resolve_upcoming_roster_lock`),
@@ -245,7 +330,9 @@ fn map_trade_processing_error(error: &Report) -> GraphQlError {
         return graphql_error(ErrorCode::BadRequest, missing.to_string());
     }
 
-    internal("failed to accept trade", error)
+    // A refused transaction reaches here as a `RosterMoveRejection`: the trade plus one owner's
+    // accommodating drops broke T1 or T2, which the owner reads the same way a roster move does.
+    roster_move_error(error)
 }
 
 fn internal(message: &str, error: &Report) -> GraphQlError {

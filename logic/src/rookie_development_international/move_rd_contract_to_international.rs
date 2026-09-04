@@ -2,10 +2,10 @@ use color_eyre::eyre::{Result, eyre};
 use fbkl_entity::{
     contract::{self, ContractKind, RelatedPlayer},
     contract_queries, deadline,
+    league_event::{self, LeagueEventKind},
+    league_event_queries,
     sea_orm::{ActiveValue, ConnectionTrait},
     team_update::ContractUpdateType,
-    transaction::{self, TransactionKind},
-    transaction_queries,
 };
 use tracing::instrument;
 
@@ -37,18 +37,18 @@ where
     })?;
     let moved_contract = contract_queries::move_rd_contract_to_rdi(contract_model, db).await?;
 
-    // create transaction
-    let transaction_to_insert = transaction::ActiveModel {
+    // create league event
+    let league_event_to_insert = league_event::ActiveModel {
         id: ActiveValue::NotSet,
         end_of_season_year: ActiveValue::Set(moved_contract.end_of_season_year),
-        kind: ActiveValue::Set(TransactionKind::TeamUpdateToRdi),
+        kind: ActiveValue::Set(LeagueEventKind::TeamUpdateToRdi),
         league_id: ActiveValue::Set(moved_contract.league_id),
         deadline_id: ActiveValue::Set(deadline_model.id),
         contract_id: ActiveValue::Set(Some(moved_contract.id)),
         ..Default::default()
     };
-    let inserted_transaction =
-        transaction_queries::insert_transaction(transaction_to_insert, db).await?;
+    let inserted_league_event =
+        league_event_queries::insert_league_event(league_event_to_insert, db).await?;
 
     // create team_update
     create_rdi_move_team_update(
@@ -56,7 +56,7 @@ where
         deadline_model,
         &team_model,
         ContractUpdateType::ToRdi,
-        inserted_transaction.id,
+        inserted_league_event.id,
         db,
     )
     .await?;

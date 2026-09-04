@@ -10,7 +10,7 @@ use fbkl_logic::deadline_processing::roster_lock::{RosterRule, TeamRosterViolati
 use super::super::{contract::Contract, team::TeamUpdate};
 use crate::graphql::{ErrorCode, code_error};
 
-/// The error a failing `legalizeRoster` returns: one entry per rule the roster breaks.
+/// The error a transaction refused by T1 returns: one entry per rule its end state breaks.
 ///
 /// The entries go in a `violations` error extension, each naming the rule as its GraphQL enum
 /// value, so a client can point at the rule it broke instead of parsing one joined message.
@@ -61,31 +61,57 @@ pub struct RosterRuleLegality {
     pub message: Option<String>,
 }
 
+/// One transaction of a team's week: the moves it applied and that T1 and T2 judge together
+/// (rules §13.1.4).
+#[derive(SimpleObject)]
+pub struct TeamTransaction {
+    /// The stored transaction number, or `None` for a move no order has placed yet.
+    pub transaction_number: Option<i16>,
+    pub moves: Vec<TeamUpdate>,
+}
+
 /// A team's roster as it stands for one deadline, plus every move recorded for that week.
 #[derive(SimpleObject)]
 pub struct TeamWeek {
     pub team_id: i64,
     pub deadline_id: i64,
     pub contracts: Vec<Contract>,
-    /// The week's moves whatever their status, which is the set `reorderWeeklyMoves` accepts.
+    /// The week's moves whatever their status, grouped as `reorderTransactions` takes them.
     ///
     /// Drops, trades and auction wins are Done as soon as they are recorded, but rules §13.1.1
     /// order covers the whole week, so a Pending-only list could not be reordered. Each move
     /// carries its own `status` for a client that wants only the pending ones.
-    pub moves: Vec<TeamUpdate>,
+    pub transactions: Vec<TeamTransaction>,
     pub rule_legality: Vec<RosterRuleLegality>,
     pub is_legal: bool,
 }
 
 impl TeamWeek {
-    /// Puts one week's moves in the order the owner chose (rules §13.1.1).
+    /// Groups one week's moves into the transactions the owner chose, in their order (§13.1.1).
     ///
-    /// A move with no sequence was not placed by the owner, so it sorts after the placed ones in
-    /// insertion order. Ordering is presentational: no roster rule reads it.
-    pub fn in_owner_order(team_update_models: &[team_update::Model]) -> Vec<TeamUpdate> {
+    /// Moves sharing a transaction number are one transaction. A move with no number was not
+    /// placed by the owner, so it is a transaction of its own and sorts after the placed ones in
+    /// insertion order.
+    pub fn in_owner_order(team_update_models: &[team_update::Model]) -> Vec<TeamTransaction> {
         let mut ordered: Vec<&team_update::Model> = team_update_models.iter().collect();
-        ordered.sort_by_key(|model| (model.sequence.unwrap_or(i16::MAX), model.id));
-        ordered.into_iter().map(TeamUpdate::from_model).collect()
+        ordered.sort_by_key(|model| (model.transaction_number.unwrap_or(i16::MAX), model.id));
+
+        let mut transactions: Vec<TeamTransaction> = Vec::new();
+        for model in ordered {
+            match transactions.last_mut() {
+                Some(last)
+                    if last.transaction_number.is_some()
+                        && last.transaction_number == model.transaction_number =>
+                {
+                    last.moves.push(TeamUpdate::from_model(model));
+                }
+                _ => transactions.push(TeamTransaction {
+                    transaction_number: model.transaction_number,
+                    moves: vec![TeamUpdate::from_model(model)],
+                }),
+            }
+        }
+        transactions
     }
 
     /// Turns the league-wide violation list into one flag per rule for `team_id`.
@@ -110,7 +136,9 @@ impl TeamWeek {
     }
 }
 
-/// The roster moves the season-start wizard can batch.
+/// The roster moves a transaction can carry.
+///
+/// No add variants: adds reach a transaction through the trade and FA-pickup paths.
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Enum)]
 pub enum RosterMoveKind {
     Drop,
@@ -119,7 +147,7 @@ pub enum RosterMoveKind {
     ActivateRookie,
 }
 
-/// One move in a `legalizeRoster` batch.
+/// One move in a `submitTransaction` batch.
 #[derive(InputObject)]
 pub struct RosterMove {
     pub contract_id: i64,
@@ -135,35 +163,49 @@ mod tests {
 
     use super::*;
 
-    fn team_update_model(id: i64, sequence: Option<i16>) -> team_update::Model {
+    fn team_update_model(id: i64, transaction_number: Option<i16>) -> team_update::Model {
         team_update::Model {
             id,
             data: Json::default(),
             effective_date: Date::default(),
-            sequence,
+            transaction_number,
             status: TeamUpdateStatus::Pending,
             team_id: 1,
-            transaction_id: None,
+            league_event_id: None,
             created_at: DateTimeWithTimeZone::default(),
             updated_at: DateTimeWithTimeZone::default(),
         }
     }
 
     #[test]
-    fn sequenced_moves_lead_and_unsequenced_ones_keep_insertion_order() {
+    fn moves_group_by_transaction_and_unnumbered_ones_trail_one_per_transaction() {
         let models = [
             team_update_model(10, None),
             team_update_model(11, Some(1)),
             team_update_model(12, Some(0)),
+            team_update_model(13, Some(1)),
             team_update_model(9, None),
         ];
 
-        let ordered_ids: Vec<i64> = TeamWeek::in_owner_order(&models)
+        let grouped: Vec<(Option<i16>, Vec<i64>)> = TeamWeek::in_owner_order(&models)
             .iter()
-            .map(|team_update| team_update.id)
+            .map(|transaction| {
+                (
+                    transaction.transaction_number,
+                    transaction.moves.iter().map(|model| model.id).collect(),
+                )
+            })
             .collect();
 
-        assert_eq!(ordered_ids, vec![12, 11, 9, 10]);
+        assert_eq!(
+            grouped,
+            vec![
+                (Some(0), vec![12]),
+                (Some(1), vec![11, 13]),
+                (None, vec![9]),
+                (None, vec![10]),
+            ]
+        );
     }
 
     fn violation(team_id: i64, rule: RosterRule) -> TeamRosterViolation {

@@ -13,8 +13,8 @@ mid-week (§13.1.3 — e.g. won an auction before dropping the player to fit it)
 also applies one flat ruleset and can't tell **season-start legalization** (32→22, direct-to-IR
 allowed, §5.1.3 / §11.4.3) apart from **in-season** moves (must-hit-22-man-first, §10.3.1).
 
-This spec adds (1) a weekly-move grouping model where mid-week illegality is permitted and only
-the *end-of-week committed* state must be legal, (2) a season-start legalization flow with its
+This spec adds (1) a weekly-move grouping model where illegality is permitted only *within* a
+transaction and the roster must be legal after each one, (2) a season-start legalization flow with its
 special direct-to-IR + simultaneous IR/activate/$10-bump rule, (3) in-season IR-accommodation
 sequencing, and (4) RD/RDI overflow resolution at season start.
 
@@ -33,12 +33,15 @@ The natural anchor already exists: each weekly `deadline` of kind `Week1RosterLo
   of `team_update` rows for one team whose `effective_date` maps to the same upcoming lock
   deadline and whose `status = Pending`. Add a query
   `team_update_queries::find_pending_team_updates_for_team_and_deadline(team_id, deadline_id)`.
-- **Reorderability (§13.1.1)**: introduce a `sequence: i16` (nullable, owner-assigned) on
-  `team_update` so the UI can present and reorder moves, but legality is computed on the *final
-  set*, not on intermediate orderings — order is cosmetic for the audit log, not a constraint.
-- **Transient illegality (§13.1.3)**: NO per-move legality check fires for in-season weekly moves.
-  Each mutator records its `team_update` as `Pending` and returns; the roster may be illegal
-  (over 22, over cap) until the week closes. The single hard gate is the Monday lock.
+- **Reorderability (§13.1.1)**: introduce a `transaction_number: i16` (nullable, owner-assigned)
+  on `team_update` so the UI can present and reorder the week's transactions. Rows sharing a value
+  are one transaction, judged together; transactions apply in ascending order. Order is not
+  cosmetic: it decides which transaction each accommodating drop lands in (see
+  *Ordering independence* under Edge cases).
+- **Transient illegality (§13.1.3)**: illegality is allowed *while a transaction is being
+  applied*, never after one. Each mutator records its `team_update`, and the roster may be
+  over 22 or over cap part-way through a transaction, but every transaction is validated the
+  moment it is submitted. The Monday lock is the last check of the week, not the only one.
 - **Commit / legalize at lock**: extend `lock_rosters`
   (`logic/src/deadline_processing/roster_lock/lock_rosters.rs`). It already (a) calls
   `validate_league_rosters`, then (b) flips that deadline's `team_update` rows to
@@ -62,21 +65,22 @@ This is the `PreseasonFinalRosterLock` deadline. Distinct rules from in-season:
   $10 cap bump. Concretely: the cap used during `PreseasonFinalRosterLock` validation must be
   `REGULAR_SEASON_TOTAL_SALARY_LIMIT` ($210, already the +$10 over the $200 preseason cap in
   `constants/src/league_rules/config_settings.rs`), and the IR'd contract's salary must be excluded
-  from the cap tally *before* checking the activated RD/RDI player fits. Because validation runs on
-  the final projected set (not move-by-move), the ordering independence falls out for free — no
-  special simultaneity code is needed beyond computing legality on the union.
+  from the cap tally *before* checking the activated RD/RDI player fits. Because the whole
+  declaration is one transaction, validated once it is fully applied, the ordering independence
+  falls out for free — no special simultaneity code is needed.
 
 ### In-season IR accommodation sequencing (§10.3 must-hit-22-man-first; drop-from-IR keeps penalty)
 
 For `Week1RosterLock` / `InSeasonRosterLock`:
 
-- **Must hit 22-man first (§10.3.1, §10.1.2)**: a contract acquired this week via auction
-  (`AddViaAuction`) or trade (`AddViaTrade`) may NOT appear in the same week's projected roster as
-  `is_ir = true` unless it was first legally a non-IR member of the 22-man at some committed point.
-  Practically: forbid a `ToIR` move on a contract whose *only* prior `team_update` this week is the
-  acquisition (i.e. it never had a `Done` non-IR state on this team). Add this check to
-  `move_contract_to_ir` gated on in-season deadline kind, or to a new validator pass over the
-  week's projected moves.
+- **Must hit 22-man first (§10.3.1, §10.1.2)**: this is T2 applied to the IR. A contract acquired
+  in a transaction via auction (`AddViaAuction`), trade (`AddViaTrade`) or rookie draft
+  (`AddViaRookieDraft`) may not be moved to the IR in that same transaction; it may be moved to the
+  IR in any later transaction, which is where §10.3.1's "accommodate on the 22-man first" lands.
+  `validate_transaction` enforces it over the transaction's own `ContractUpdate` list, so no scan
+  of earlier committed roster states is needed and none is done — an earlier design that scanned
+  for a `Done` non-IR row passed or failed by accident depending on what other moves that week had
+  already written.
 - **Drop-from-IR keeps penalty (§10.3.3)**: dropping directly from IR is allowed without
   re-accommodating on the active roster, but the §9 20% penalty still applies. `drop_contract`
   must NOT waive the penalty for `is_ir` contracts (only RD/RDI drops are penalty-free, §9.1.5 /
@@ -120,7 +124,7 @@ the $10 bump. No new limit logic; provide a legalization-wizard surface (fronten
   `REGULAR_SEASON_INTL_ROOKIE_DEVELOPMENT_CONTRACTS_PER_ROSTER_LIMIT` (1),
   `REGULAR_SEASON_TOTAL_SALARY_LIMIT` (210), `POST_SEASON_TOTAL_SALARY_LIMIT` (230),
   `PRE_SEASON_CONTRACTS_PER_ROSTER_LIMIT` (32).
-- Each mutator continues to record a `transaction` (`TeamUpdateToIr`, `TeamUpdateFromIr`,
+- Each mutator continues to record a `league_event` (`TeamUpdateToIr`, `TeamUpdateFromIr`,
   `TeamUpdateDropContract`, `RookieContractActivation`, `AuctionDone`, `Trade`) + `team_update`
   per `logic/CLAUDE.md` convention 1. The weekly model changes *when legality is checked*, not the
   audit-log shape.
@@ -130,14 +134,35 @@ the $10 bump. No new limit logic; provide a legalization-wizard surface (fronten
 Expose the weekly tray and projection via the schema (see [spec 06](06-graphql-api-surface.md)):
 - `query teamWeek(teamId, deadlineId)` → committed roster + this-week `Pending` moves + projected
   end-of-week roster + per-rule legality flags (overCap, over22, ir/rd/rdi counts).
-- `mutation reorderWeeklyMoves(teamId, orderedTeamUpdateIds)` — sets `sequence`.
+- `mutation reorderTransactions(teamId, orderedTransactions)` — sets `transaction_number`, one
+  value per transaction.
 - `mutation legalizeRoster(teamId, moves[])` for the season-start wizard (batch IR/activate/drop).
 - Lock-time validation failures surface as structured errors (which rule, which contract).
+
+### Atomic transaction submission (trades and FA pickups carry their accommodating drops)
+
+T1 is checked after each transaction, so a transaction has to reach the validator whole. Every drop
+made to accommodate a transaction belongs to that transaction (§13.1.5), so the owner submits those
+drops together with the moves that need them, inside one database transaction:
+
+- **Trades**: `proposeTrade` carries the proposer's accommodating drops and `acceptTrade` the
+  accepter's. On accept, the trade legs and every side's drops apply together, then each involved
+  team's legs plus that team's drops are validated as that team's transaction. A rejected accept
+  persists nothing, which is what §12.5.3 (no multi-part trades executed at different times) asks
+  for.
+- **Free agent pickups**: `pickUpAuctionWins(deadlineId, drops)` signs every one of the owner's
+  won-but-unsigned auctions for the week and applies the listed drops as one transaction. All of
+  the week's wins go on together or none do (§8.3.5), which is why §8.3.7's case is refused by T2
+  rather than by a roster count.
+- **Single moves**: a lone drop, IR move or activation is a transaction of one move and runs through
+  the same validator.
+
+Every `team_update` one submission writes shares one `transaction_number` value.
 
 ## Frontend (Next.js + MUI v7)
 
 - **Weekly transaction tray**: a panel listing this week's `Pending` moves for the team, drag-to-
-  reorder (writes `sequence` via `reorderWeeklyMoves`), each move showing its delta. A live
+  reorder (writes `transaction_number` via `reorderTransactions`), each move showing its delta. A live
   **end-of-week legality preview** banner (green = legal at Monday lock; amber = transiently
   illegal now but fixable; red = will fail lock) driven by `teamWeek.projected`. Make explicit that
   amber is allowed (§13.1.3) and only red blocks the lock.
@@ -147,7 +172,8 @@ Expose the weekly tray and projection via the schema (see [spec 06](06-graphql-a
   figure, and the simultaneous IR-vacate-then-activate affordance (§11.4.3).
 - **IR move UI with context-sensitive rules**: same button behaves differently by deadline —
   at season start it offers direct-to-IR; in-season it greys out direct-to-IR for a player acquired
-  this week and prompts "must be on the 22-man first" (§10.3.1). Drop-from-IR shows the pending §9
+  in the *current transaction* (T2) and prompts "must be on the 22-man first" (§10.3.1). A player
+  acquired earlier in the same week may go to the IR in a later transaction. Drop-from-IR shows the pending §9
   penalty (§10.3.3).
 
 ## Edge cases & open questions
@@ -158,13 +184,25 @@ Expose the weekly tray and projection via the schema (see [spec 06](06-graphql-a
   or **flag for commissioner ruling**? Proposal: block the lock for that team (leave its
   `team_update`s `Pending`), notify owner + commissioner, and expose a commissioner override —
   matches §13.1.2's human-ruling intent without silently dropping players. Needs sign-off.
-- **Ordering independence**: legality computed on the projected union, so within-week order never
-  changes the lock outcome. But the *audit log* and any FA-report email (§8.3.8, §12.2.3) should
-  still reflect a coherent order — `sequence` is for presentation only; confirm that's acceptable.
-- **Interaction with auction pickups won mid-week (§8.3.5–.7)**: a won auction contract is added
-  `Pending` and **cannot be dropped to accommodate another pickup from the same week** (§8.3.7
-  example). The week's move validator must enforce: a contract added this week may not be the one
-  dropped to make room for another contract added this week. Cross-ref [spec 01](01-live-auction-engine.md).
+- **Ordering independence — CORRECTED**: legality is computed per transaction, in order, so
+  transaction order decides which transaction each accommodating drop lands in and is no longer
+  purely presentational. The model change is `team_update.sequence` becoming
+  `team_update.transaction_number`. Owners may still re-order a week's transactions freely
+  (§13.1.1); what they cannot do is move a drop into the transaction that acquired the contract.
+  The *audit log* and any FA-report email (§8.3.8, §12.2.3) read the same numbers.
+- **Interaction with auction pickups won mid-week (§8.3.5–.7) — SETTLED**: a transaction is
+  "a set of one team's moves in a week that are applied and judged as a unit" (§13.1.4), and all of
+  a week's free agent adds are one transaction. Two rules govern every transaction (§13.1.6):
+  **T1**, the roster must be legal after each transaction; and **T2**, a contract acquired in a
+  transaction may not be dropped, or moved to the IR, in that same transaction — it may be dropped
+  or moved to the IR in any later transaction. This spec's earlier proposal, "a contract added this
+  week may not be the one dropped to make room for another contract added that week", was right in
+  spirit and wrong in scope: the unit is the transaction, not the week. Dropping a contract added
+  earlier in the week is legal once the drop falls in a later transaction, and §8.3.7's
+  Mitchell/Alvarado case stays illegal because a week's adds are one transaction, so the drop
+  shares a transaction with its add. `validate_transaction`
+  (`logic/src/roster/transaction.rs`) enforces both rules. Cross-ref
+  [spec 01](01-live-auction-engine.md).
 - **Atomic trades vs transient illegality (§12.1.3)**: trades must remain legal "on their own
   merits" even though the surrounding week may be transiently illegal — confirm trade processing
   isn't accidentally validated against the mid-week illegal roster.
@@ -175,7 +213,7 @@ Expose the weekly tray and projection via the schema (see [spec 06](06-graphql-a
 ## Dependencies
 
 - [spec 01](01-live-auction-engine.md) — auction pickups won mid-week feed the weekly tray and the
-  "can't-drop-same-week-add" rule.
+  same-transaction add-then-remove rule (T2).
 - [spec 05](05-deadline-scheduler-and-transaction-processor.md) — the lock deadlines that bound each
   week and trigger legalization.
 - [spec 07](07-trade-legality.md) — trade legality at processing time vs end-of-week roster legality.

@@ -2,7 +2,7 @@
 
 use std::fmt::Debug;
 
-use color_eyre::Result;
+use color_eyre::{Result, eyre::bail};
 use sea_orm::{ActiveValue, ColumnTrait, ConnectionTrait, EntityTrait, QueryFilter, QueryOrder};
 use tracing::instrument;
 
@@ -15,29 +15,44 @@ use crate::{
 ///
 /// Rules §13.1.2/§13.2 send illegal rosters to the commissioner, so these are collected and
 /// returned instead of raised as an error that would block the rest of the league. It is also the
-/// insert shape: `replace_violations_for_deadline` fills in the deadline and league.
-#[derive(Debug, Clone)]
+/// insert shape: `replace_violations_for_teams` fills in the deadline and league.
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct TeamRosterViolation {
     pub team_id: i64,
     pub rule: RosterRule,
     pub message: String,
 }
 
-/// Records the deadline's violations, replacing whatever an earlier lock run left.
+/// Records the violations of the named teams at a deadline, replacing whatever an earlier run left.
 ///
-/// An empty list is not a no-op: it clears the deadline's rows, which is how a re-run after the
-/// owners fixed their rosters stops reporting stale violations.
+/// `team_ids` is the scope being rewritten, not the teams that failed: an empty `violations` for a
+/// team clears that team's rows, which is how a re-run after the owners fixed their rosters stops
+/// reporting stale violations. Teams outside the scope keep the rows they have, so a single-team
+/// caller cannot wipe the rest of the league.
 #[instrument(skip(violations, db))]
-pub async fn replace_violations_for_deadline<C>(
+pub async fn replace_violations_for_teams<C>(
     deadline_model: &deadline::Model,
+    team_ids: &[i64],
     violations: &[TeamRosterViolation],
     db: &C,
 ) -> Result<()>
 where
     C: ConnectionTrait,
 {
+    if let Some(out_of_scope) = violations
+        .iter()
+        .find(|violation| !team_ids.contains(&violation.team_id))
+    {
+        bail!(
+            "Cannot record a violation for team id {} at deadline id {}: it sits outside the replaced scope, so a later run would never clear it.",
+            out_of_scope.team_id,
+            deadline_model.id
+        );
+    }
+
     roster_lock_violation::Entity::delete_many()
         .filter(roster_lock_violation::Column::DeadlineId.eq(deadline_model.id))
+        .filter(roster_lock_violation::Column::TeamId.is_in(team_ids.iter().copied()))
         .exec(db)
         .await?;
 

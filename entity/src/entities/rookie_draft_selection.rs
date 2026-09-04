@@ -17,8 +17,8 @@ pub struct Model {
     /// Denormalized from `draft_pick.current_owner_team_id` when the slate is built, so a traded
     /// pick is made by the acquirer (rules §7.2.1 orders by original owner, §12.4 allows trading).
     pub current_owner_team_id: i64,
-    /// The rookie-draft-selection transaction, set when the pick is recorded (1:1).
-    pub transaction_id: Option<i64>,
+    /// The rookie-draft-selection league event, set when the pick is recorded (1:1).
+    pub league_event_id: Option<i64>,
 }
 
 impl Model {
@@ -37,7 +37,7 @@ impl Model {
             draft_pick_id: ActiveValue::Set(draft_pick_id),
             league_id: ActiveValue::Set(league_id),
             current_owner_team_id: ActiveValue::Set(current_owner_team_id),
-            transaction_id: ActiveValue::NotSet,
+            league_event_id: ActiveValue::NotSet,
         }
     }
 }
@@ -96,13 +96,13 @@ pub enum Relation {
     )]
     Contract,
     #[sea_orm(
-        belongs_to = "super::transaction::Entity",
-        from = "Column::TransactionId",
-        to = "super::transaction::Column::Id",
+        belongs_to = "super::league_event::Entity",
+        from = "Column::LeagueEventId",
+        to = "super::league_event::Column::Id",
         on_update = "Cascade",
         on_delete = "Cascade"
     )]
-    Transaction,
+    LeagueEvent,
 }
 
 impl Related<super::contract::Entity> for Entity {
@@ -123,9 +123,9 @@ impl Related<super::league::Entity> for Entity {
     }
 }
 
-impl Related<super::transaction::Entity> for Entity {
+impl Related<super::league_event::Entity> for Entity {
     fn to() -> RelationDef {
-        Relation::Transaction.def()
+        Relation::LeagueEvent.def()
     }
 }
 

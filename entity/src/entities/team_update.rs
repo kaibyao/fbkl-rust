@@ -1,5 +1,7 @@
 //! A Team Update contains information about a change that was made to a team within a league. Anything that changes a team's settings, roster, or draft picks is stored as a Team Update. This allows us to look back at a team's history of changes.
 
+use std::collections::HashSet;
+
 use crate::team_user;
 use crate::team_user::LeagueRole;
 use async_graphql::Enum;
@@ -18,13 +20,14 @@ pub struct Model {
     /// Data containing the update made to team settings or roster. Converted to/from `TeamUpdateData`.
     pub data: serde_json::Value,
     pub effective_date: Date,
-    /// The owner's chosen place for this move in its week (rules §13.1.1). Presentational and for
-    /// the audit log; no roster validator reads it. `None` = fall back to insertion order.
-    pub sequence: Option<i16>,
+    /// Which transaction of the week this move belongs to (rules §13.1.4). Transactions apply in
+    /// ascending order and rows sharing a value are one transaction, judged together. `None` = its
+    /// own transaction, falling back to insertion order.
+    pub transaction_number: Option<i16>,
     pub status: TeamUpdateStatus,
     pub team_id: i64,
     /// This is always present unless the update was a configuration change.
-    pub transaction_id: Option<i64>,
+    pub league_event_id: Option<i64>,
     pub created_at: DateTimeWithTimeZone,
     pub updated_at: DateTimeWithTimeZone,
 }
@@ -33,6 +36,25 @@ impl Model {
     pub fn get_data(&self) -> Result<TeamUpdateData> {
         let data: TeamUpdateData = serde_json::from_value(self.data.clone())?;
         Ok(data)
+    }
+
+    /// The contract changes this update records, i.e. what a transaction's rules are judged on.
+    ///
+    /// Empty for a settings change and for a draft-pick-only update, neither of which touches the
+    /// roster.
+    pub fn get_contract_updates(&self) -> Result<Vec<ContractUpdate>> {
+        let TeamUpdateData::Assets(asset_summary) = self.get_data()? else {
+            return Ok(vec![]);
+        };
+
+        let mut contract_updates = vec![];
+        for changed_asset in asset_summary.changed_assets {
+            if let TeamUpdateAsset::Contracts(updates) = changed_asset {
+                contract_updates.extend(updates);
+            }
+        }
+
+        Ok(contract_updates)
     }
 }
 
@@ -77,7 +99,7 @@ pub enum TeamUpdateData {
 
 impl TeamUpdateData {
     /// Generates a new data struct from given assets.
-    pub const fn from_assets(
+    pub fn from_assets(
         all_contract_ids: Vec<i64>,
         changed_assets: Vec<TeamUpdateAsset>,
         new_salary: i16,
@@ -85,6 +107,12 @@ impl TeamUpdateData {
         previous_salary: i16,
         previous_salary_cap: i16,
     ) -> Self {
+        // A writer that unions a re-fetched roster with the contract it just wrote counts it twice.
+        debug_assert_eq!(
+            all_contract_ids.iter().collect::<HashSet<_>>().len(),
+            all_contract_ids.len(),
+            "all_contract_ids must list each contract once: {all_contract_ids:?}"
+        );
         Self::Assets(TeamUpdateAssetSummary {
             all_contract_ids,
             changed_assets,
@@ -235,22 +263,22 @@ pub enum Relation {
     )]
     Team,
     #[sea_orm(
-        belongs_to = "super::transaction::Entity",
-        from = "Column::TransactionId",
-        to = "super::transaction::Column::Id",
+        belongs_to = "super::league_event::Entity",
+        from = "Column::LeagueEventId",
+        to = "super::league_event::Column::Id",
         on_update = "Cascade",
         on_delete = "Cascade"
     )]
-    Transaction,
+    LeagueEvent,
 }
 
 impl Related<super::deadline::Entity> for Entity {
     fn to() -> RelationDef {
-        super::transaction::Relation::Deadline.def()
+        super::league_event::Relation::Deadline.def()
     }
 
     fn via() -> Option<RelationDef> {
-        Some(Relation::Transaction.def())
+        Some(Relation::LeagueEvent.def())
     }
 }
 
@@ -260,9 +288,9 @@ impl Related<super::team::Entity> for Entity {
     }
 }
 
-impl Related<super::transaction::Entity> for Entity {
+impl Related<super::league_event::Entity> for Entity {
     fn to() -> RelationDef {
-        Relation::Transaction.def()
+        Relation::LeagueEvent.def()
     }
 }
 
@@ -272,35 +300,35 @@ impl ActiveModelBehavior for ActiveModel {
     where
         C: ConnectionTrait,
     {
-        roster_change_requires_transaction(&self)?;
-        setting_change_requires_no_transaction(&self)?;
+        roster_change_requires_league_event(&self)?;
+        setting_change_requires_no_league_event(&self)?;
 
         Ok(self)
     }
 }
 
-fn roster_change_requires_transaction(model: &ActiveModel) -> Result<(), DbErr> {
+fn roster_change_requires_league_event(model: &ActiveModel) -> Result<(), DbErr> {
     let decoded_data = TeamUpdateData::from_json(model.data.as_ref().clone())
         .map_err(|err| DbErr::Custom(err.to_string()))?;
     let is_assets_update = matches!(decoded_data, TeamUpdateData::Assets(_));
 
-    if is_assets_update && model.transaction_id.is_not_set() {
+    if is_assets_update && model.league_event_id.is_not_set() {
         Err(DbErr::Custom(
-            "a team update (roster change) requires a transaction id.".to_string(),
+            "a team update (roster change) requires a league_event id.".to_string(),
         ))
     } else {
         Ok(())
     }
 }
 
-fn setting_change_requires_no_transaction(model: &ActiveModel) -> Result<(), DbErr> {
+fn setting_change_requires_no_league_event(model: &ActiveModel) -> Result<(), DbErr> {
     let decoded_data = TeamUpdateData::from_json(model.data.as_ref().clone())
         .map_err(|err| DbErr::Custom(err.to_string()))?;
     let is_settings_update = matches!(decoded_data, TeamUpdateData::Settings(_));
 
-    if is_settings_update && model.transaction_id.is_set() {
+    if is_settings_update && model.league_event_id.is_set() {
         Err(DbErr::Custom(
-            "a team update (setting change) requires transaction id to be unset.".to_string(),
+            "a team update (setting change) requires league_event id to be unset.".to_string(),
         ))
     } else {
         Ok(())

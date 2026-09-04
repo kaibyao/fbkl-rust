@@ -6,14 +6,22 @@ use fbkl_entity::{
         ConnectionTrait, TransactionSession, TransactionTrait, prelude::DateTimeWithTimeZone,
     },
     team_queries, team_user, trade,
+    trade_accommodating_drop_queries::replace_accommodating_drops,
     trade_action::TradeActionType,
     trade_action_queries, trade_queries,
 };
 use tracing::instrument;
 
-use super::process_trade;
+use super::{TradeLegality, process_trade};
 
 /// Accepts a trade by a `team_user`. Also processes the trade if the other teams involved in the trade have already accepted the trade proposal.
+///
+/// `accommodating_drop_contract_ids` are the contracts the accepting owner drops to make the trade
+/// fit their roster. The accept is the owner's one chance to submit them: the drops and the trade's
+/// legs are one transaction, judged together when the trade processes (rules §12.5.3, §13.1.4).
+///
+/// `legality` says who judges the transactions the trade files; an owner-facing accept passes
+/// `TradeLegality::JudgeNow`.
 ///
 /// Returns an option containing the updated trade if it's been processed, and None otherwise.
 #[instrument(skip(db))]
@@ -21,6 +29,8 @@ pub async fn accept_trade<C>(
     trade_model: trade::Model,
     accepting_team_user_model: &team_user::Model,
     accept_datetime: &DateTimeWithTimeZone,
+    accommodating_drop_contract_ids: &[i64],
+    legality: TradeLegality,
     db: &C,
 ) -> Result<Option<trade::Model>>
 where
@@ -38,10 +48,18 @@ where
     )
     .await?;
 
+    replace_accommodating_drops(
+        trade_model.id,
+        accepting_team_user_model.team_id,
+        accommodating_drop_contract_ids,
+        &db_txn,
+    )
+    .await?;
+
     // check if other teams have already accepted and if so, process the trade.
     let maybe_processed_trade =
         if has_trade_been_accepted_by_all_teams(&trade_model, &db_txn).await? {
-            Some(process_trade(trade_model, accept_datetime, &db_txn).await?)
+            Some(process_trade(trade_model, accept_datetime, legality, &db_txn).await?)
         } else {
             None
         };

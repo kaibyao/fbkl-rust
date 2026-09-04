@@ -10,12 +10,12 @@ use tracing::instrument;
 
 use fbkl_entity::{
     contract::{self, RelatedPlayer},
-    contract_queries, draft_pick, draft_pick_option, draft_pick_queries,
+    contract_queries, draft_pick, draft_pick_option, draft_pick_queries, league_event,
     team_update::{
         self, ContractUpdate, ContractUpdateType, DraftPickUpdate, DraftPickUpdateType,
         TeamUpdateAsset, TeamUpdateData, TeamUpdateStatus,
     },
-    trade_asset, transaction,
+    trade_asset,
 };
 
 use crate::roster::{SalarySnapshot, calculate_team_contract_salary};
@@ -87,7 +87,7 @@ where
 pub async fn insert_team_updates_from_completed_trade<C>(
     team_update_assets_by_team_id: MultiMap<i64, TeamUpdateAsset>,
     trade_datetime: &DateTimeWithTimeZone,
-    trade_transaction: &transaction::Model,
+    trade_league_event: &league_event::Model,
     salary_snapshot_deadline: &deadline::Model,
     team_salaries_before_trade: &HashMap<i64, SalarySnapshot>,
     team_ids_involved_in_trade: Vec<i64>,
@@ -133,10 +133,10 @@ where
             id: ActiveValue::NotSet,
             data: ActiveValue::Set(team_update_data.to_json()?),
             effective_date: ActiveValue::Set(trade_datetime.date_naive()),
-            sequence: ActiveValue::NotSet,
+            transaction_number: ActiveValue::NotSet,
             status: ActiveValue::Set(TeamUpdateStatus::Done),
             team_id: ActiveValue::Set(team_id),
-            transaction_id: ActiveValue::Set(Some(trade_transaction.id)),
+            league_event_id: ActiveValue::Set(Some(trade_league_event.id)),
             created_at: ActiveValue::NotSet,
             updated_at: ActiveValue::NotSet,
         };

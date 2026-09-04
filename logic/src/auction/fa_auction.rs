@@ -1,4 +1,4 @@
-use chrono::{Datelike, Days, NaiveDate};
+use chrono::{Datelike, Days};
 use color_eyre::{
     Result,
     eyre::{ensure, eyre},
@@ -20,13 +20,12 @@ use fbkl_entity::{
     sea_orm::{
         ConnectionTrait, TransactionSession, TransactionTrait, prelude::DateTimeWithTimeZone,
     },
-    team_update_queries,
 };
 use tracing::instrument;
 
 use super::{
     AuctionCloseOutcome, auction_close_at, auction_close_outcome, auction_quiet_window,
-    find_auction_mode_deadlines, sign_auction_contract_to_team,
+    find_auction_mode_deadlines,
 };
 
 /// A free agent auction that would hand a team a player after the §8.1.3 freeze.
@@ -49,12 +48,14 @@ pub struct FreeAgentPickupFrozen {
     pub fa_auction_end: DateTimeWithTimeZone,
 }
 
-/// Ends a free agent auction and creates the associated transaction + team contract OR expires the associated contract.
+/// Ends a free agent auction: records the winner, or expires the contract when nobody bid.
+///
+/// A recorded win signs no contract (rules §8.3.6) - see [`sign_won_auction`]. Returns the
+/// auction's contract as it stands afterwards: the expired one, or the still-pooled one for a win.
 #[instrument(skip(db))]
 pub async fn end_fa_auction<C>(
     deadline_model: &deadline::Model,
     auction_id: i64,
-    maybe_override_effective_date: Option<NaiveDate>,
     db: &C,
 ) -> Result<contract::Model>
 where
@@ -105,36 +106,23 @@ where
                     .into());
                 }
 
-                let winning_bid_model = maybe_latest_bid.ok_or_else(|| {
-                    eyre!("Expected a winning bid for auction {}", auction_model.id)
-                })?;
+                ensure!(
+                    maybe_latest_bid.is_some(),
+                    "Expected a winning bid for auction {}",
+                    auction_model.id
+                );
 
-                let (signed_contract_model, _, team_update_model) = sign_auction_contract_to_team(
-                    &auction_model,
-                    &winning_bid_model,
-                    deadline_model,
-                    None,
-                    maybe_override_effective_date,
-                    &db_txn,
-                )
-                .await?;
-
-                // Stamp the team_update the same way the veteran path does; the signing is immediate.
-                team_update_queries::update_team_update_for_auction(
-                    &team_update_model,
-                    maybe_override_effective_date,
-                    &db_txn,
-                )
-                .await?;
-
+                // §8.3.6: the close only records who won. The contract is signed by the owner's
+                // pickup, which carries the drops that make room for it - or by the roster lock,
+                // which signs any win nobody picked up.
                 auction_queries::update_auction_status(
                     auction_model.id,
-                    AuctionStatus::Completed,
+                    AuctionStatus::Won,
                     &db_txn,
                 )
                 .await?;
 
-                signed_contract_model
+                auction_contract_model
             }
         };
 

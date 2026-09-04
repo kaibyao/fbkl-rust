@@ -16,7 +16,9 @@ use fbkl_entity::{
     roster_lock_violation_queries::find_violations_for_league,
     sea_orm::{ConnectionTrait, DatabaseConnection, DatabaseTransaction, TransactionTrait},
     team_queries::find_team_by_id_in_league,
-    team_update_queries::{find_team_updates_by_team, update_team_update_sequences},
+    team_update_queries::{
+        find_team_updates_by_team, find_transaction_start, update_team_update_transaction_numbers,
+    },
     team_user::LeagueRole,
 };
 use fbkl_logic::{
@@ -28,12 +30,15 @@ use fbkl_logic::{
         move_rookie_development_contract_to_international,
         move_rookie_development_international_contract_to_stateside,
     },
-    roster::RosterMoveRejection,
+    roster::{RosterMoveRejection, file_and_validate_transaction},
     trade::MISSING_ROSTER_LOCK_ADVICE,
 };
 
-use super::super::{contract::Contract, team::TeamUpdate};
-use super::{RosterLockViolation, RosterMove, RosterMoveKind, TeamWeek, roster_illegal_error};
+use super::super::contract::Contract;
+use super::{
+    RosterLockViolation, RosterMove, RosterMoveKind, TeamTransaction, TeamWeek,
+    roster_illegal_error,
+};
 use crate::graphql::{
     ErrorCode, LeagueRoleGuard, RoleRequirement, code_error, graphql_error, require_league_role,
 };
@@ -121,22 +126,25 @@ impl RosterMutation {
         .await
     }
 
-    /// Saves the owner's chosen order for one week's moves (rules §13.1.1).
+    /// Saves the owner's chosen transaction order for one week (rules §13.1.1).
     ///
-    /// Order is presentational and for the audit log only: the same set of moves stays legal or
-    /// illegal whatever order it is put in, so nothing is re-validated here.
+    /// Each inner list is one transaction, and its position becomes the transaction number every
+    /// move in it stores. Order is not presentational any more: which transaction a move sits in
+    /// decides what T1 and T2 judge it with (rules §13.1.4-§13.1.6), so regrouping a week changes
+    /// what its moves mean. Nothing is re-validated here even so, because §13.1.1 lets an owner
+    /// reorder freely; an order that leaves the week illegal is the roster lock's to record.
     ///
     /// The order covers one week, named by its lock deadline, and has to list that week's moves and
-    /// no others. Sequences are positions in the list, so a partial list or a move from another
-    /// week would write positions that clash with the ones already stored for other weeks.
+    /// no others. Transaction numbers are positions in the list, so a partial list or a move from
+    /// another week would write numbers that clash with the ones already stored for other weeks.
     #[graphql(guard = "LeagueRoleGuard(RoleRequirement::Member)")]
-    async fn reorder_weekly_moves(
+    async fn reorder_transactions(
         &self,
         ctx: &Context<'_>,
         team_id: i64,
         deadline_id: i64,
-        ordered_team_update_ids: Vec<i64>,
-    ) -> Result<Vec<TeamUpdate>> {
+        ordered_transactions: Vec<Vec<i64>>,
+    ) -> Result<Vec<TeamTransaction>> {
         let db = ctx.data_unchecked::<DatabaseConnection>();
         let (team_user, caller_team) = require_league_role(ctx, RoleRequirement::Member).await?;
         if team_user.team_id != team_id {
@@ -149,19 +157,24 @@ impl RosterMutation {
             .await
             .map_err(|err| internal("failed to load this week's moves", &err))?;
         let week_move_ids: HashSet<i64> = week_move_models.iter().map(|model| model.id).collect();
-        let requested_ids: HashSet<i64> = ordered_team_update_ids.iter().copied().collect();
-        if requested_ids.len() != ordered_team_update_ids.len() || requested_ids != week_move_ids {
+        let ordered_move_ids = ordered_transactions.concat();
+        let requested_ids: HashSet<i64> = ordered_move_ids.iter().copied().collect();
+        if requested_ids.len() != ordered_move_ids.len()
+            || requested_ids != week_move_ids
+            || ordered_transactions.iter().any(Vec::is_empty)
+        {
             return Err(graphql_error(
                 ErrorCode::BadRequest,
-                "an order has to list each of this week's moves once and nothing else".to_owned(),
+                "an order has to list each of this week's moves once, in a transaction, and nothing else"
+                    .to_owned(),
             ));
         }
 
         let db_txn = db
             .begin()
             .await
-            .map_err(|err| internal("failed to start transaction", &err.into()))?;
-        update_team_update_sequences(&ordered_team_update_ids, &db_txn)
+            .map_err(|err| internal("failed to start database transaction", &err.into()))?;
+        update_team_update_transaction_numbers(&ordered_transactions, &db_txn)
             .await
             .map_err(|err| internal("failed to save the move order", &err))?;
         let reordered = find_team_updates_by_team(team_id, None, Some(deadline_id), &db_txn)
@@ -175,16 +188,19 @@ impl RosterMutation {
         Ok(TeamWeek::in_owner_order(&reordered))
     }
 
-    /// Applies a batch of roster moves in one database transaction for the season-start wizard.
+    /// Submits one transaction: a batch of the team's roster moves, applied and judged together
+    /// (rules §13.1.4-§13.1.6).
     ///
-    /// The whole batch is rejected when the team's roster is still illegal after it, so a
-    /// mid-batch state that breaks a rule is fine as long as the end state does not.
+    /// The whole transaction is refused when its end state leaves the roster illegal (T1) or when
+    /// it removes a player the same transaction acquired (T2), so a mid-batch state that breaks a
+    /// rule is fine as long as the end state does not. A refusal returns before the commit, so
+    /// nothing it applied persists. Every move it writes shares one transaction number.
     ///
-    /// `deadline_id` is the lock the owner is legalizing towards, normally the upcoming one. It has
-    /// to be given rather than read off the clock: owners work in the window before the lock fires,
-    /// where the last passed deadline is the previous one and carries the wrong rules.
+    /// `deadline_id` is the roster lock the transaction counts towards, in-season or preseason. It
+    /// has to be given rather than read off the clock: owners work in the window before the lock
+    /// fires, where the last passed deadline is the previous one and carries the wrong rules.
     #[graphql(guard = "LeagueRoleGuard(RoleRequirement::Member)")]
-    async fn legalize_roster(
+    async fn submit_transaction(
         &self,
         ctx: &Context<'_>,
         team_id: i64,
@@ -203,7 +219,11 @@ impl RosterMutation {
         let db_txn = db
             .begin()
             .await
-            .map_err(|err| internal("failed to start transaction", &err.into()))?;
+            .map_err(|err| internal("failed to start database transaction", &err.into()))?;
+
+        let transaction_start = find_transaction_start(team_id, deadline_id, &db_txn)
+            .await
+            .map_err(|err| internal("failed to read the team's week", &err))?;
 
         let mut updated_contracts = Vec::with_capacity(moves.len());
         for roster_move in moves {
@@ -238,28 +258,31 @@ impl RosterMutation {
                 .push(Contract::from_model(&updated).map_err(|_| code_error(ErrorCode::Internal))?);
         }
 
-        let violations = team_roster_violations(team_id, &deadline_model, &db_txn).await?;
-        if !violations.is_empty() {
-            return Err(roster_illegal_error(&violations));
-        }
+        file_and_validate_transaction(team_id, &deadline_model, &transaction_start, &db_txn)
+            .await
+            .map_err(|err| roster_move_error(&err))?;
 
         db_txn
             .commit()
             .await
-            .map_err(|err| internal("failed to commit the roster batch", &err.into()))?;
+            .map_err(|err| internal("failed to commit the transaction", &err.into()))?;
 
         Ok(updated_contracts)
     }
 }
 
-/// Runs one roster move on a contract the caller's own team owns.
+/// Runs one roster move on a contract the caller's own team owns, as a transaction of one move.
+///
+/// A lone move is a transaction (rules §13.1.4), so it is filed and judged the way a batch is:
+/// `submit_transaction`'s work happens here too, over the single move. It therefore takes a
+/// transaction number of its own and is refused when its end state leaves the roster illegal (T1).
 ///
 /// Ownership is re-derived from the stored contract, never from the request. Each logic fn writes a
-/// contract row, a transaction, and a team update, so they share one database transaction.
+/// contract row, a league event, and a team update, so they share one database transaction.
 ///
-/// `deadline_id` names the lock the move counts towards, the same argument `legalize_roster` takes
-/// and validated the same way: a single move and a batched one have to agree on which week they
-/// belong to, or the same-week guards and the limits read a different period for each.
+/// `deadline_id` names the lock the move counts towards, the same argument `submit_transaction`
+/// takes and validated the same way: a single move and a batched one have to agree on which week
+/// they belong to, or the same-week guards and the limits read a different period for each.
 async fn roster_op<F>(
     ctx: &Context<'_>,
     contract_id: i64,
@@ -292,10 +315,25 @@ where
     let db_txn = db
         .begin()
         .await
-        .map_err(|err| internal("failed to start transaction", &err.into()))?;
+        .map_err(|err| internal("failed to start database transaction", &err.into()))?;
+
+    let transaction_start = find_transaction_start(team_user.team_id, deadline_id, &db_txn)
+        .await
+        .map_err(|err| internal("failed to read the team's week", &err))?;
+
     let updated = op(contract_model, &deadline_model, &db_txn)
         .await
         .map_err(|err| roster_move_error(&err))?;
+
+    file_and_validate_transaction(
+        team_user.team_id,
+        &deadline_model,
+        &transaction_start,
+        &db_txn,
+    )
+    .await
+    .map_err(|err| roster_move_error(&err))?;
+
     db_txn
         .commit()
         .await
@@ -340,7 +378,7 @@ where
 ///
 /// The season comes off the named deadline, so last season's rows fail the same check — none of
 /// that season's locks is still to fire.
-async fn resolve_upcoming_roster_lock<C>(
+pub(in crate::graphql) async fn resolve_upcoming_roster_lock<C>(
     deadline_id: i64,
     league_id: i64,
     db: &C,
@@ -377,7 +415,7 @@ where
 }
 
 /// A move a league rule refuses is the caller's fault and keeps the rule message; the rest is ours.
-fn roster_move_error(error: &Report) -> GraphQlError {
+pub(in crate::graphql) fn roster_move_error(error: &Report) -> GraphQlError {
     let Some(rejection) = error.downcast_ref::<RosterMoveRejection>() else {
         return internal("roster move failed", error);
     };
@@ -385,6 +423,10 @@ fn roster_move_error(error: &Report) -> GraphQlError {
     let code = match rejection {
         // A stale contract row is a refetch-and-retry for the client, not a rule it broke.
         RosterMoveRejection::NotLatestInChain { .. } => ErrorCode::NotLatestInChain,
+        // T1 names a rule per broken roster rule, which the client shows rather than one message.
+        RosterMoveRejection::TransactionLeavesRosterIllegal { violations, .. } => {
+            return roster_illegal_error(violations);
+        }
         _ => ErrorCode::RosterMoveRejected,
     };
 
@@ -403,8 +445,8 @@ pub struct RosterQuery;
 impl RosterQuery {
     /// A team's roster for one deadline, with every move recorded for that week and a flag per roster rule.
     ///
-    /// Reads only. The move list is the set `reorderWeeklyMoves` accepts, in the order the owner
-    /// chose (rules 13.1.1); order is presentational, so no rule here reads it.
+    /// Reads only. The moves come grouped into the transactions `reorderTransactions` takes, in
+    /// the order the owner chose (rules §13.1.1).
     #[graphql(guard = "LeagueRoleGuard(RoleRequirement::Member)")]
     async fn team_week(
         &self,
@@ -449,7 +491,7 @@ impl RosterQuery {
             team_id,
             deadline_id,
             contracts,
-            moves: TeamWeek::in_owner_order(&week_move_models),
+            transactions: TeamWeek::in_owner_order(&week_move_models),
             rule_legality,
             is_legal,
         })
@@ -503,7 +545,7 @@ where
 
 #[cfg(test)]
 mod tests {
-    use fbkl_entity::{contract::ContractStatus, deadline::DeadlineKind};
+    use fbkl_entity::{contract::ContractStatus, team_update::ContractUpdateType};
 
     use super::*;
 
@@ -519,18 +561,11 @@ mod tests {
     fn rule_rejections_carry_a_client_code_and_the_rule_message() {
         let cases = [
             (
-                RosterMoveRejection::StraightToIr {
+                RosterMoveRejection::SameTransactionAddThenRemove {
                     contract_id: 7,
-                    deadline_kind: DeadlineKind::Week1RosterLock,
+                    update_type: ContractUpdateType::ToIR,
                 },
-                "straight to IR",
-            ),
-            (
-                RosterMoveRejection::DropSameWeekAdd {
-                    contract_id: 7,
-                    violations: "roster is over the 22-man limit".to_owned(),
-                },
-                "added this week",
+                "acquired in this transaction",
             ),
             (
                 RosterMoveRejection::ContractNotActive {
