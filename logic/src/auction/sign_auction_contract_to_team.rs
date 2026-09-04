@@ -175,11 +175,11 @@ where
     )
     .await?;
 
-    let mut team_contract_ids: Vec<i64> = current_active_team_contracts
+    // The signing already committed, so the fetched roster holds the new contract.
+    let team_contract_ids: Vec<i64> = current_active_team_contracts
         .iter()
         .map(|contract_model| contract_model.id)
         .collect();
-    team_contract_ids.push(signed_contract_model.id);
 
     let data = TeamUpdateData::from_assets(
         team_contract_ids,

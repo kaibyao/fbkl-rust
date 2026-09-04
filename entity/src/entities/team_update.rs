@@ -1,5 +1,7 @@
 //! A Team Update contains information about a change that was made to a team within a league. Anything that changes a team's settings, roster, or draft picks is stored as a Team Update. This allows us to look back at a team's history of changes.
 
+use std::collections::HashSet;
+
 use crate::team_user;
 use crate::team_user::LeagueRole;
 use async_graphql::Enum;
@@ -97,7 +99,7 @@ pub enum TeamUpdateData {
 
 impl TeamUpdateData {
     /// Generates a new data struct from given assets.
-    pub const fn from_assets(
+    pub fn from_assets(
         all_contract_ids: Vec<i64>,
         changed_assets: Vec<TeamUpdateAsset>,
         new_salary: i16,
@@ -105,6 +107,12 @@ impl TeamUpdateData {
         previous_salary: i16,
         previous_salary_cap: i16,
     ) -> Self {
+        // A writer that unions a re-fetched roster with the contract it just wrote counts it twice.
+        debug_assert_eq!(
+            all_contract_ids.iter().collect::<HashSet<_>>().len(),
+            all_contract_ids.len(),
+            "all_contract_ids must list each contract once: {all_contract_ids:?}"
+        );
         Self::Assets(TeamUpdateAssetSummary {
             all_contract_ids,
             changed_assets,
