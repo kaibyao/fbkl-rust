@@ -4,8 +4,9 @@ use color_eyre::eyre::Result;
 use fbkl_entity::{
     auction_queries::find_won_auctions_by_team,
     deadline::{self},
-    roster_lock_violation_queries::replace_violations_for_deadline,
+    roster_lock_violation_queries::replace_violations_for_teams,
     sea_orm::{ConnectionTrait, TransactionTrait},
+    team_queries::find_teams_in_league,
     team_update::{self, TeamUpdateStatus},
     team_update_queries::{self, find_transaction_start, update_team_updates_with_status},
 };
@@ -33,7 +34,14 @@ where
     sign_unpicked_auction_wins(deadline_model, db).await?;
 
     let violations = validate_league_rosters(deadline_model, db).await?;
-    replace_violations_for_deadline(deadline_model, &violations, db).await?;
+    // The sweep judged every team, so the whole league is the scope whose rows get rewritten.
+    let league_team_ids: Vec<i64> = find_teams_in_league(deadline_model.league_id, db)
+        .await?
+        .into_iter()
+        .map(|team_model| team_model.id)
+        .collect();
+    replace_violations_for_teams(deadline_model, &league_team_ids, &violations, db).await?;
+
     let illegal_team_ids: HashSet<i64> = violations
         .iter()
         .map(|violation| violation.team_id)
