@@ -1,6 +1,11 @@
-//! A transaction is submitted in the window BEFORE a roster lock fires, so which deadline it is
-//! judged against cannot be read off the clock: the last passed deadline is the previous one and
-//! carries the previous period's rules (rules §11.2 regular-season limits vs the preseason limit).
+//! A transaction is submitted in the window BEFORE a roster lock fires, so the lock it counts
+//! towards has to be named rather than read off the clock: the last passed deadline is the previous
+//! one and would file the moves in the wrong week.
+//!
+//! The named lock is the week, not the ruleset. A transaction is judged by the limits in force when
+//! it is made: 32 contracts through the preseason (rules §5.1.2), 22 veteran or rookie-scale ones
+//! in season (§11.2). The final roster lock is the only lock in the whole preseason, so reading its
+//! own limits would refuse every preseason roster on its way to legalization.
 //!
 //! Naming the deadline is not choosing it, though: only the upcoming roster lock is a legal
 //! argument, so a passed lock, a keeper deadline or a post-season kind cannot be named to run the
@@ -13,6 +18,7 @@ use std::sync::Arc;
 
 use async_graphql::{Request, Value};
 use chrono::{Days, Utc};
+use fbkl_constants::league_rules::PRE_SEASON_CONTRACTS_PER_ROSTER_LIMIT;
 use fbkl_entity::{
     contract::{self, ContractKind},
     contract_queries,
@@ -22,6 +28,7 @@ use fbkl_entity::{
     team_update_queries,
     team_user::LeagueRole,
 };
+use fbkl_logic::deadline_processing::roster_lock::{RosterRule, validate_team_roster};
 use fbkl_server::{AppSchema, build_graphql_schema};
 use fbkl_test_support::{TestLeague, central};
 use tower_sessions::{MemoryStore, Session};
@@ -31,16 +38,27 @@ const END_OF_SEASON_YEAR: i16 = 2026;
 const VET_OR_ROOKIE_LIMIT: usize = 22;
 
 #[tokio::test]
-async fn a_transaction_is_judged_against_the_named_deadline_not_the_last_passed_one() {
+async fn a_preseason_transaction_is_judged_against_the_preseason_roster_limit() {
     let Some(league) = TestLeague::create("submit_transaction_deadline", END_OF_SEASON_YEAR).await
     else {
         return;
     };
-    // The keeper deadline has passed; the final roster lock has not, so reading the clock is wrong.
+    // The final roster lock is the only lock in the whole preseason, so the rules a transaction is
+    // judged by come from the window it is made in: the rookie draft has started and the lock has
+    // not fired, which rules 5.1.2 allow 32 contracts through.
+    league
+        .add_deadline(DeadlineKind::PreseasonStart, central("2025-08-01T12:00:00"))
+        .await;
     league
         .add_deadline(
             DeadlineKind::PreseasonKeeper,
             central("2025-09-01T12:00:00"),
+        )
+        .await;
+    league
+        .add_deadline(
+            DeadlineKind::PreseasonRookieDraftStart,
+            central("2025-09-20T12:00:00"),
         )
         .await;
     let upcoming_lock = Utc::now()
@@ -52,51 +70,58 @@ async fn a_transaction_is_judged_against_the_named_deadline_not_the_last_passed_
         .await;
     let owner = league.add_team_user(LeagueRole::TeamOwner).await;
 
-    // One contract over the 22-man limit, i.e. the roster a transaction has to legalize.
-    let contracts = add_roster_contracts(&league, VET_OR_ROOKIE_LIMIT + 1).await;
-    let to_ir = contracts[0].id;
-    let ir_move = format!("{{contractId: {to_ir}, kind: MOVE_TO_IR}}");
+    // One contract over the preseason's own limit, i.e. the roster a transaction has to legalize.
+    let preseason_limit = usize::try_from(PRE_SEASON_CONTRACTS_PER_ROSTER_LIMIT)
+        .expect("the preseason limit is a small positive number");
+    let contracts = add_roster_contracts(&league, preseason_limit + 1).await;
 
     let lock_id = deadline_id(&league, DeadlineKind::PreseasonFinalRosterLock).await;
     let schema = build_graphql_schema(league.db.clone());
     let session = session_for(owner.user_id, league.league_id).await;
 
-    // The named lock checks the regular-season branch, so 23 veteran contracts is illegal there.
     let no_moves = run(&schema, &submit(league.team_id, lock_id, ""), &session).await;
     assert_eq!(no_moves, Err("ROSTER_ILLEGAL".to_owned()));
 
-    // The refusal names the rule, so a client can point at the rule the roster broke.
+    // The refusal names the preseason rule, not the 22-man limit the coming lock will impose.
     let violations = error_extension(&schema, &submit(league.team_id, lock_id, ""), &session).await;
     let Some(Value::List(violations)) = violations else {
         panic!("expected a list of violations, got {violations:?}");
     };
     let [Value::Object(violation)] = violations.as_slice() else {
-        panic!("expected exactly one violation, got {violations:?}");
+        panic!("expected one violation, got {violations:?}");
     };
-    assert_eq!(violation["rule"], Value::from("VETERAN_OR_ROOKIE_LIMIT"));
+    assert_eq!(violation["rule"], Value::from("PRESEASON_ROSTER_LIMIT"));
     assert_eq!(violation["teamId"], Value::from(league.team_id));
     assert!(
-        violation["message"].to_string().contains("22"),
+        violation["message"].to_string().contains("32"),
         "the message should name the limit: {violation:?}"
     );
 
-    let with_ir_move = run(
-        &schema,
-        &submit(league.team_id, lock_id, &ir_move),
-        &session,
-    )
-    .await;
+    // One drop is enough, even though 32 contracts is far over the coming lock's 22.
+    let lone_drop = run(&schema, &drop_contract(contracts[0].id, lock_id), &session).await;
     assert!(
-        with_ir_move.is_ok(),
-        "expected the batch to apply: {with_ir_move:?}"
+        lone_drop.is_ok(),
+        "a lone drop should legalize a preseason roster: {lone_drop:?}"
     );
+    assert_eq!(active_contract_count(&league).await, preseason_limit);
+
+    // The lock still holds the roster to 22 when it fires, which is what the preseason legalizes to.
+    let final_lock = deadline_queries::find_deadline_by_id(lock_id, &league.db)
+        .await
+        .expect("find the lock");
+    let at_the_lock = validate_team_roster(league.team_id, &final_lock, &league.db)
+        .await
+        .expect("validate the roster at the lock");
     assert_eq!(
-        ir_contract_count(&league).await,
-        1,
-        "the move should have put one contract on IR"
+        at_the_lock
+            .iter()
+            .map(|violation| violation.rule)
+            .collect::<Vec<_>>(),
+        vec![RosterRule::VeteranOrRookieLimit],
+        "the lock itself judges the roster by the regular-season limits"
     );
 
-    // A deadline belongs to exactly one league, so another league's is not a legal argument.
+    // A deadline belongs to one league, so another league's is not a legal argument.
     let foreign_id = foreign_league_deadline(&league).await;
     let foreign = run(&schema, &submit(league.team_id, foreign_id, ""), &session).await;
     assert_eq!(foreign, Err("NOT_FOUND".to_owned()));
@@ -117,6 +142,13 @@ async fn only_the_upcoming_roster_lock_is_a_legal_argument() {
         .add_deadline(
             DeadlineKind::PreseasonKeeper,
             central("2025-09-01T12:00:00"),
+        )
+        .await;
+    // The window the preseason's transactions are judged in, i.e. the rules in force before the lock.
+    league
+        .add_deadline(
+            DeadlineKind::PreseasonRookieDraftStart,
+            central("2025-09-10T12:00:00"),
         )
         .await;
     // A lock of a settled week, and a deadline that is no lock at all.
@@ -256,6 +288,13 @@ async fn a_single_move_counts_towards_the_named_upcoming_lock() {
         .add_deadline(
             DeadlineKind::Week1RosterLock,
             central("2025-10-20T18:00:00"),
+        )
+        .await;
+    // The window the coming preseason lock's transactions are judged in.
+    league
+        .add_deadline(
+            DeadlineKind::PreseasonRookieDraftStart,
+            central("2025-09-10T12:00:00"),
         )
         .await;
     let upcoming_lock = Utc::now()

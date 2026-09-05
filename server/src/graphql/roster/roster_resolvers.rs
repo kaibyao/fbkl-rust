@@ -198,7 +198,8 @@ impl RosterMutation {
     ///
     /// `deadline_id` is the roster lock the transaction counts towards, in-season or preseason. It
     /// has to be given rather than read off the clock: owners work in the window before the lock
-    /// fires, where the last passed deadline is the previous one and carries the wrong rules.
+    /// fires, where the last passed deadline is the previous one and files the moves in the wrong
+    /// week. It names the week only; T1 reads its limits from the period the moves are made in.
     #[graphql(guard = "LeagueRoleGuard(RoleRequirement::Member)")]
     async fn submit_transaction(
         &self,
@@ -258,9 +259,15 @@ impl RosterMutation {
                 .push(Contract::from_model(&updated).map_err(|_| code_error(ErrorCode::Internal))?);
         }
 
-        file_and_validate_transaction(team_id, &deadline_model, &transaction_start, &db_txn)
-            .await
-            .map_err(|err| roster_move_error(&err))?;
+        file_and_validate_transaction(
+            team_id,
+            &deadline_model,
+            &transaction_start,
+            &Utc::now().fixed_offset(),
+            &db_txn,
+        )
+        .await
+        .map_err(|err| roster_move_error(&err))?;
 
         db_txn
             .commit()
@@ -329,6 +336,7 @@ where
         team_user.team_id,
         &deadline_model,
         &transaction_start,
+        &Utc::now().fixed_offset(),
         &db_txn,
     )
     .await

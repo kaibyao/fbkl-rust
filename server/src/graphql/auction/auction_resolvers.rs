@@ -397,6 +397,7 @@ impl AuctionMutation {
             team_user.team_id,
             &deadline_model,
             &transaction_start,
+            &Utc::now().fixed_offset(),
             &db_txn,
         )
         .await

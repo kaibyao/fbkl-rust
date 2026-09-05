@@ -5,9 +5,8 @@ use std::{
 
 use color_eyre::{Result, eyre::eyre};
 use fbkl_entity::{
-    contract, contract_queries,
-    deadline::{self, DeadlineKind},
-    deadline_queries, draft_pick, draft_pick_option, league_event_queries,
+    contract, contract_queries, deadline, deadline_queries, draft_pick, draft_pick_option,
+    league_event_queries,
     sea_orm::{
         ActiveModelTrait, ActiveValue, ConnectionTrait, LoaderTrait, prelude::DateTimeWithTimeZone,
     },
@@ -20,7 +19,10 @@ use tracing::instrument;
 
 use crate::{
     drop_contract::drop_contract_from_team,
-    roster::{RosterMoveRejection, calculate_team_contract_salary, file_and_validate_transaction},
+    roster::{
+        RosterMoveRejection, calculate_team_contract_salary, file_and_validate_transaction,
+        find_governing_deadline,
+    },
 };
 
 use super::{
@@ -168,9 +170,10 @@ where
         league_id: trade_model.league_id,
         end_of_season_year: trade_model.end_of_season_year,
     })?;
+    // The trade's `team_update` snapshots report the cap in force when it was made, not the coming
+    // lock's, which is the same deadline its transactions are judged against.
     let salary_snapshot_deadline =
-        find_trade_salary_snapshot_deadline(&trade_model, trade_datetime, &upcoming_lock, db)
-            .await?;
+        find_governing_deadline(trade_datetime, &upcoming_lock, db).await?;
     let traded_trade_assets = trade_model.get_trade_assets(db).await?;
     let mut all_team_ids = HashSet::new();
     for traded_trade_asset in &traded_trade_assets {
@@ -258,6 +261,7 @@ where
             &trade_asset_contracts,
             &updated_trade_asset_models.contracts_by_trade_asset_id,
             &upcoming_lock,
+            trade_datetime,
             legality,
             db,
         )
@@ -327,6 +331,7 @@ impl TradeTransactions {
         trade_asset_contracts: &[(trade_asset::Model, contract::Model)],
         replacement_contracts_by_trade_asset_id: &HashMap<i64, contract::Model>,
         upcoming_lock: &deadline::Model,
+        trade_datetime: &DateTimeWithTimeZone,
         legality: TradeLegality,
         db: &C,
     ) -> Result<()>
@@ -367,55 +372,18 @@ impl TradeTransactions {
         }
 
         for (team_id, transaction_start) in &self.starts_by_team_id {
-            file_and_validate_transaction(*team_id, upcoming_lock, transaction_start, db).await?;
+            file_and_validate_transaction(
+                *team_id,
+                upcoming_lock,
+                transaction_start,
+                trade_datetime,
+                db,
+            )
+            .await?;
         }
 
         Ok(())
     }
-}
-
-/// The deadline whose salary cap the trade's `team_update` snapshots report.
-///
-/// Normally the lock the trade is judged at, so the recorded cap is the one the roster has to be
-/// legal against. Two preseason windows report their own cap instead, because the coming lock's
-/// $210 is not yet in force: the §4.2.4 window from contract advancement to the keeper deadline is
-/// uncapped (and §9.1 penalizes no drop made there), and §4.2.1 holds the cap at $200 from the
-/// keeper deadline until the veteran auction and rookie draft conclude, which is what the
-/// `PreseasonFinalRosterLock` marks the end of.
-#[instrument(skip(db))]
-async fn find_trade_salary_snapshot_deadline<C>(
-    trade_model: &trade::Model,
-    trade_datetime: &DateTimeWithTimeZone,
-    upcoming_lock: &deadline::Model,
-    db: &C,
-) -> Result<deadline::Model>
-where
-    C: ConnectionTrait,
-{
-    let is_before_keeper_deadline = deadline_queries::find_next_deadline_for_season_by_datetime(
-        trade_model.league_id,
-        trade_model.end_of_season_year,
-        *trade_datetime,
-        Some(DeadlineKind::PreseasonKeeper),
-        db,
-    )
-    .await?
-    .is_some();
-    let window_kind = if is_before_keeper_deadline {
-        DeadlineKind::PreseasonStart
-    } else if upcoming_lock.kind == DeadlineKind::PreseasonFinalRosterLock {
-        DeadlineKind::PreseasonRookieDraftStart
-    } else {
-        return Ok(upcoming_lock.clone());
-    };
-
-    deadline_queries::find_deadline_for_season_by_type(
-        trade_model.league_id,
-        trade_model.end_of_season_year,
-        window_kind,
-        db,
-    )
-    .await
 }
 
 #[instrument(skip(db))]

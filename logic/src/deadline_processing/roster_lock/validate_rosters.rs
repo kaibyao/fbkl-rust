@@ -201,9 +201,8 @@ where
         DeadlineKind::PreseasonKeeper => {
             bail!("Not validating pre-season keeper deadline in this function.")
         }
-        DeadlineKind::PreseasonStart => {
-            bail!("Not validating pre-season start deadline in this function.")
-        }
+        // Rules 4.2.4: from contract advancement to the keeper deadline no roster limit applies yet.
+        DeadlineKind::PreseasonStart => (),
         DeadlineKind::PreseasonVeteranAuctionStart
         | DeadlineKind::PreseasonFaAuctionStart
         | DeadlineKind::PreseasonFaAuctionEnd

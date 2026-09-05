@@ -10,7 +10,9 @@
 //! has to fail with a typed error the resolver can name, not an opaque one it reports as a 500.
 
 use chrono::Utc;
-use fbkl_constants::league_rules::PRE_SEASON_TOTAL_SALARY_LIMIT;
+use fbkl_constants::league_rules::{
+    PRE_SEASON_TOTAL_SALARY_LIMIT, REGULAR_SEASON_ROOKIE_DEVELOPMENT_CONTRACTS_PER_ROSTER_LIMIT,
+};
 use fbkl_entity::{
     contract::{self, ContractKind, ContractStatus},
     contract_queries,
@@ -22,6 +24,7 @@ use fbkl_entity::{
     trade, trade_asset,
 };
 use fbkl_logic::{
+    deadline_processing::roster_lock::{RosterRule, validate_team_roster},
     ir::move_contract_to_ir,
     trade::{MissingUpcomingRosterLock, TradeLegality, accept_trade, propose_trade},
 };
@@ -43,7 +46,7 @@ async fn a_trade_add_is_filed_under_the_upcoming_lock() {
         .add_deadline(DeadlineKind::InSeasonRosterLock, days_from_now(3))
         .await;
     let (proposed_trade, receiving_owner, receiving_team_id, traded_contract) =
-        propose_one_contract_trade(&league).await;
+        propose_one_contract_trade(&league, ContractKind::RookieExtension).await;
     accept_trade(
         proposed_trade,
         &receiving_owner,
@@ -95,7 +98,8 @@ async fn accepting_a_trade_with_no_lock_left_names_the_missing_lock_deadlines() 
     league
         .add_deadline(DeadlineKind::FreeAgentAuctionEnd, days_from_now(1))
         .await;
-    let (proposed_trade, receiving_owner, _, _) = propose_one_contract_trade(&league).await;
+    let (proposed_trade, receiving_owner, _, _) =
+        propose_one_contract_trade(&league, ContractKind::RookieExtension).await;
 
     let error = accept_trade(
         proposed_trade,
@@ -137,7 +141,7 @@ async fn a_preseason_trade_before_the_keeper_deadline_records_an_uncapped_snapsh
         .add_deadline(DeadlineKind::PreseasonFinalRosterLock, days_from_now(10))
         .await;
     let (proposed_trade, receiving_owner, receiving_team_id, _) =
-        propose_one_contract_trade(&league).await;
+        propose_one_contract_trade(&league, ContractKind::RookieExtension).await;
     accept_trade(
         proposed_trade,
         &receiving_owner,
@@ -180,7 +184,7 @@ async fn a_preseason_trade_after_the_keeper_deadline_records_the_200_cap() {
         .add_deadline(DeadlineKind::PreseasonFinalRosterLock, days_from_now(10))
         .await;
     let (proposed_trade, receiving_owner, receiving_team_id, _) =
-        propose_one_contract_trade(&league).await;
+        propose_one_contract_trade(&league, ContractKind::RookieExtension).await;
     accept_trade(
         proposed_trade,
         &receiving_owner,
@@ -202,10 +206,77 @@ async fn a_preseason_trade_after_the_keeper_deadline_records_the_200_cap() {
     );
 }
 
+/// Rules 11.4.2 and 11.9.4: a rookie development contract acquired by trade after season end is
+/// allowed past the 6 a regular-season roster is held to. The final roster lock is the only lock in
+/// the preseason, so judging the trade by that lock's own limits would refuse the deal outright.
+#[tokio::test]
+async fn an_offseason_trade_may_leave_a_team_over_the_rookie_development_limit() {
+    let Some(league) = TestLeague::create("trade_offseason_rd_limit", END_OF_SEASON_YEAR).await
+    else {
+        return;
+    };
+    let now = Utc::now().fixed_offset();
+    league
+        .add_deadline(DeadlineKind::PreseasonStart, days_ago(10))
+        .await;
+    league
+        .add_deadline(DeadlineKind::PreseasonKeeper, days_ago(3))
+        .await;
+    league
+        .add_deadline(DeadlineKind::PreseasonRookieDraftStart, days_from_now(2))
+        .await;
+    league
+        .add_deadline(DeadlineKind::PreseasonFinalRosterLock, days_from_now(10))
+        .await;
+    let (proposed_trade, receiving_owner, receiving_team_id, _) =
+        propose_one_contract_trade(&league, ContractKind::RookieDevelopment).await;
+
+    // The receiving team already holds the regular season's 6, so the trade leaves it 7.
+    for index in 0..REGULAR_SEASON_ROOKIE_DEVELOPMENT_CONTRACTS_PER_ROSTER_LIMIT {
+        let player_id = league
+            .add_veteran_player(&format!("Prospect {index}"))
+            .await;
+        league
+            .add_owned_contract(
+                player_id,
+                ContractKind::RookieDevelopment,
+                1,
+                receiving_team_id,
+            )
+            .await;
+    }
+
+    accept_trade(
+        proposed_trade,
+        &receiving_owner,
+        &now,
+        &[],
+        TradeLegality::JudgeNow,
+        &league.db,
+    )
+    .await
+    .expect("an offseason trade may leave the team a 7th rookie development contract")
+    .expect("both teams have responded, so the trade processes");
+
+    let lock = deadline_of_kind(&league, DeadlineKind::PreseasonFinalRosterLock).await;
+    let at_the_lock = validate_team_roster(receiving_team_id, &lock, &league.db)
+        .await
+        .expect("validate the roster at the lock");
+    assert_eq!(
+        at_the_lock
+            .iter()
+            .map(|violation| violation.rule)
+            .collect::<Vec<_>>(),
+        vec![RosterRule::RookieDevelopmentLimit],
+        "the lock itself still holds the roster to 6 rookie development contracts"
+    );
+}
+
 /// One contract moving from the test league's own team to a second team, proposed and awaiting the
 /// receiving owner's response. Returns the trade, that owner, their team, and the traded contract.
 async fn propose_one_contract_trade(
     league: &TestLeague,
+    kind: ContractKind,
 ) -> (trade::Model, team_user::Model, i64, contract::Model) {
     let sending_owner = league.add_team_user(LeagueRole::TeamOwner).await;
     let receiving_team_id = league.add_team("Receiving team").await;
@@ -214,7 +285,7 @@ async fn propose_one_contract_trade(
         .await;
     let player_id = league.add_veteran_player("Traded Player").await;
     let traded_contract = league
-        .add_owned_contract(player_id, ContractKind::RookieExtension, 10, league.team_id)
+        .add_owned_contract(player_id, kind, 10, league.team_id)
         .await;
 
     let proposed_trade = propose_trade(

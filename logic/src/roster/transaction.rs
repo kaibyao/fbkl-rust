@@ -7,8 +7,10 @@ use std::collections::{HashMap, HashSet};
 
 use color_eyre::eyre::Result;
 use fbkl_entity::{
-    contract_queries, deadline,
-    sea_orm::ConnectionTrait,
+    contract_queries,
+    deadline::{self, DeadlineKind},
+    deadline_queries,
+    sea_orm::{ConnectionTrait, prelude::DateTimeWithTimeZone},
     team_update::{ContractUpdate, ContractUpdateType},
     team_update_queries::{
         TransactionStart, assign_team_updates_to_transaction, find_team_updates_after,
@@ -24,12 +26,14 @@ use crate::{deadline_processing::roster_lock::validate_team_roster, roster::Rost
 /// Call it after the transaction's moves are applied to the live rows inside a database
 /// transaction, so `team_id`'s stored roster is the end state T1 asks about. An `Err` carrying a
 /// `RosterMoveRejection` means the transaction is refused and the caller must return before
-/// committing.
+/// committing. T1 reads its limits from the period `transaction_datetime` falls in, which
+/// [`find_governing_deadline`] resolves, not from the limits `deadline_model` will impose.
 #[instrument(skip(db))]
 pub async fn validate_transaction<C>(
     team_id: i64,
     transaction_updates: &[ContractUpdate],
     deadline_model: &deadline::Model,
+    transaction_datetime: &DateTimeWithTimeZone,
     db: &C,
 ) -> Result<()>
 where
@@ -47,7 +51,9 @@ where
         .into());
     }
 
-    let violations = validate_team_roster(team_id, deadline_model, db).await?;
+    let governing_deadline =
+        find_governing_deadline(transaction_datetime, deadline_model, db).await?;
+    let violations = validate_team_roster(team_id, &governing_deadline, db).await?;
     if !violations.is_empty() {
         return Err(RosterMoveRejection::TransactionLeavesRosterIllegal {
             team_id,
@@ -170,11 +176,13 @@ where
 /// Both the numbering and the ruling run in the caller's database transaction, so an `Err` reaches
 /// the caller before it commits and neither the moves nor their number persist. Read
 /// `transaction_start` with `find_transaction_start` before the first move is applied.
+/// `transaction_datetime` is when the moves were made, which picks the limits they are judged by.
 #[instrument(skip(db))]
 pub async fn file_and_validate_transaction<C>(
     team_id: i64,
     deadline_model: &deadline::Model,
     transaction_start: &TransactionStart,
+    transaction_datetime: &DateTimeWithTimeZone,
     db: &C,
 ) -> Result<()>
 where
@@ -182,7 +190,61 @@ where
 {
     let transaction_updates =
         file_transaction(team_id, deadline_model, transaction_start, db).await?;
-    validate_transaction(team_id, &transaction_updates, deadline_model, db).await
+    validate_transaction(
+        team_id,
+        &transaction_updates,
+        deadline_model,
+        transaction_datetime,
+        db,
+    )
+    .await
+}
+
+/// The deadline whose roster rules govern a move made at `datetime` and filed under `upcoming_lock`.
+///
+/// A transaction is judged by the rules in force when it is made, not by the rules the lock it
+/// counts towards will impose. `PreseasonFinalRosterLock` is the only lock in the whole preseason,
+/// so reading its own limits would judge every preseason and offseason move at the 22/6/1 roster
+/// and the $210 cap the league only holds teams to once that lock fires. Rules §5.1.2 allow 32
+/// contracts through the preseason, §11.4.2 and §11.9.4 allow more rookie development contracts
+/// than that when they are acquired by trade after season end, §4.2.1 holds the cap at $200 until
+/// the veteran auction and rookie draft conclude, and §4.2.4 leaves the window from contract
+/// advancement to the keeper deadline uncapped.
+#[instrument(skip(db))]
+pub async fn find_governing_deadline<C>(
+    datetime: &DateTimeWithTimeZone,
+    upcoming_lock: &deadline::Model,
+    db: &C,
+) -> Result<deadline::Model>
+where
+    C: ConnectionTrait,
+{
+    if upcoming_lock.kind != DeadlineKind::PreseasonFinalRosterLock {
+        return Ok(upcoming_lock.clone());
+    }
+
+    let is_before_keeper_deadline = deadline_queries::find_next_deadline_for_season_by_datetime(
+        upcoming_lock.league_id,
+        upcoming_lock.end_of_season_year,
+        *datetime,
+        Some(DeadlineKind::PreseasonKeeper),
+        db,
+    )
+    .await?
+    .is_some();
+    let window_kind = if is_before_keeper_deadline {
+        DeadlineKind::PreseasonStart
+    } else {
+        DeadlineKind::PreseasonRookieDraftStart
+    };
+
+    deadline_queries::find_deadline_for_season_by_type(
+        upcoming_lock.league_id,
+        upcoming_lock.end_of_season_year,
+        window_kind,
+        db,
+    )
+    .await
 }
 
 /// Whether the update type acquires a contract the team did not hold, i.e. T2's "acquired in a

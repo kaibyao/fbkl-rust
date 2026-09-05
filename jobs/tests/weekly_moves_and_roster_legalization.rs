@@ -272,7 +272,14 @@ async fn submit_transaction(
         contract_updates.push(contract_update(update_contract_id, update_type));
     }
 
-    validate_transaction(team_id, &contract_updates, deadline_model, &league.db).await
+    validate_transaction(
+        team_id,
+        &contract_updates,
+        deadline_model,
+        &deadline_model.date_time,
+        &league.db,
+    )
+    .await
 }
 
 /// The rule rejection behind a refused transaction, i.e. what the GraphQL resolver downcasts to.
