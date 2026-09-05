@@ -229,6 +229,10 @@ where
 }
 
 /// The `Done` `team_update` recording the drafted player joining the roster.
+///
+/// It carries no transaction number. Each selection is a transaction on its own (rule 7.3.6),
+/// and the rookie draft deadline is not a roster lock, so no numbering or reorder path reads
+/// these rows: they are scoped to the upcoming lock's deadline id.
 #[instrument(skip(db))]
 async fn insert_team_update_for_pick<C>(
     rookie_contract_model: &contract::Model,

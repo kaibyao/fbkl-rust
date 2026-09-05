@@ -140,6 +140,45 @@ async fn a_transaction_order_covers_one_week_and_nothing_else() {
     assert_eq!(foreign.err().as_deref(), Some("NOT_FOUND"));
 }
 
+/// Rule §7.3.6: each rookie draft selection is a transaction on its own, and the draft deadline is
+/// not a roster lock, so a day of picks is not an order the owner may rewrite.
+#[tokio::test]
+async fn a_day_of_rookie_draft_picks_cannot_be_reordered() {
+    let Some(league) =
+        TestLeague::create("reorder_transactions_rookie_draft", END_OF_SEASON_YEAR).await
+    else {
+        return;
+    };
+    league
+        .add_deadline(
+            DeadlineKind::PreseasonRookieDraftStart,
+            central("2025-10-13T18:00:00"),
+        )
+        .await;
+    let owner = league.add_team_user(team_user::LeagueRole::TeamOwner).await;
+    let draft_day = deadline_id(&league, DeadlineKind::PreseasonRookieDraftStart).await;
+    let pick = record_move(&league, draft_day, vec![]).await;
+
+    let schema = build_graphql_schema(league.db.clone());
+    let session = session_for(owner.user_id, league.league_id).await;
+    let refused = run(
+        &schema,
+        &format!(
+            "mutation {{ reorderTransactions(teamId: {}, deadlineId: {draft_day}, orderedTransactions: [[{pick}]]) {{ transactionNumber moves {{ id }} }} }}",
+            league.team_id
+        ),
+        &session,
+    )
+    .await;
+
+    assert_eq!(refused.err().as_deref(), Some("BAD_REQUEST"));
+    assert_eq!(
+        stored_transaction_numbers(&league, draft_day).await,
+        vec![(pick, None)],
+        "a selection keeps no transaction number"
+    );
+}
+
 /// Rules §8.3.7 and §13.1.6 (T2): the week's moves may be reordered, but not regrouped so that one
 /// transaction both acquires a player and removes him.
 #[tokio::test]
