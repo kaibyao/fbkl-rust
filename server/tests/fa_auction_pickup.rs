@@ -230,6 +230,55 @@ async fn a_pickup_waits_for_the_week_to_finish_closing() {
     );
 }
 
+/// A repeat in `dropContractIds` is the owner's mistake, so the refusal names the contract they
+/// sent twice. Without the check the first drop applies and the second reads the replaced row,
+/// which reports a stale contract and hides the real fault.
+#[tokio::test]
+async fn a_pickup_naming_one_drop_twice_is_refused() {
+    let Some(league) = TestLeague::create("fa_auction_pickup_duplicate", END_OF_SEASON_YEAR).await
+    else {
+        return;
+    };
+    add_season_under_way(&league).await;
+    let owner = league.add_team_user(LeagueRole::TeamOwner).await;
+
+    let roster = add_roster_contracts(&league, VET_OR_ROOKIE_LIMIT - 1).await;
+    add_won_auction(&league, &owner, "Donovan Mitchell").await;
+    add_won_auction(&league, &owner, "Jose Alvarado").await;
+
+    let lock_id = lock_deadline(&league).await.id;
+    let schema = build_graphql_schema(league.db.clone());
+    let session = session_for(owner.user_id, league.league_id).await;
+
+    let repeated = pick_up(lock_id, &[roster[0].id, roster[0].id]);
+    assert_eq!(
+        run(&schema, &repeated, &session).await,
+        Err("DUPLICATE_DROP_CONTRACT_ID".to_owned()),
+        "the same contract cannot pay for two of the week's wins"
+    );
+    let refusal = message(&schema, &repeated, &session).await;
+    assert!(
+        refusal.contains(&roster[0].id.to_string()),
+        "the refusal should name the repeated contract: {refusal}"
+    );
+    assert_eq!(
+        active_contract_count(&league).await,
+        VET_OR_ROOKIE_LIMIT - 1,
+        "a refused pickup signs nothing and drops nothing"
+    );
+    assert_eq!(
+        won_auction_ids(&league, &owner).await.len(),
+        2,
+        "both wins are still waiting for a pickup"
+    );
+    assert!(
+        stored_transaction_numbers(&league, lock_id)
+            .await
+            .is_empty(),
+        "a refused pickup writes no move to number"
+    );
+}
+
 /// One writer's attempt at a win: commits what it signed, or rolls back with what it was told.
 async fn sign_and_commit(
     won_auction: &auction::Model,

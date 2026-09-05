@@ -4,7 +4,7 @@
 //! The commissioner's two per-season veteran-auction inputs (§6.3.6) also live here, since they are
 //! what pool assembly reads when the auction-start deadline fires.
 
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 
 use async_graphql::{Context, Error as GraphQlError, Object, Result, SimpleObject};
 use chrono::Utc;
@@ -339,6 +339,10 @@ impl AuctionMutation {
     /// A pickup is refused while any free-agent auction closing on or before that lock is still
     /// taking bids. Otherwise an owner could sign an early win, drop it, and sign a later win as a
     /// second transaction, which is what §8.3.5 and T2 forbid.
+    ///
+    /// A contract named twice in `dropContractIds` is refused with the same code the trade path
+    /// uses, since the second drop would otherwise read the replaced row and report a stale
+    /// contract instead of the repeat.
     #[graphql(guard = "LeagueRoleGuard(RoleRequirement::Member)")]
     async fn pick_up_auction_wins(
         &self,
@@ -350,6 +354,17 @@ impl AuctionMutation {
         let (team_user, caller_team) = require_league_role(ctx, RoleRequirement::Member).await?;
         let deadline_model =
             resolve_upcoming_roster_lock(deadline_id, caller_team.league_id, db).await?;
+
+        let mut submitted = HashSet::with_capacity(drop_contract_ids.len());
+        if let Some(repeated) = drop_contract_ids
+            .iter()
+            .find(|contract_id| !submitted.insert(**contract_id))
+        {
+            return Err(graphql_error(
+                ErrorCode::DuplicateDropContractId,
+                format!("contract (id = {repeated}) is named as a drop twice"),
+            ));
+        }
 
         let db_txn = db
             .begin()
