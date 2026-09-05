@@ -3,7 +3,7 @@
 //! The rookie-development moves have no eligibility guards in `logic/` yet (see
 //! `logic/CLAUDE.md`); fbkl-rust-22o adds them, and they belong there rather than here.
 
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 
 use async_graphql::{Context, Error as GraphQlError, Object, Result};
 use chrono::Utc;
@@ -16,6 +16,7 @@ use fbkl_entity::{
     roster_lock_violation_queries::find_violations_for_league,
     sea_orm::{ConnectionTrait, DatabaseConnection, DatabaseTransaction, TransactionTrait},
     team_queries::find_team_by_id_in_league,
+    team_update,
     team_update_queries::{
         find_team_updates_by_team, find_transaction_start, update_team_update_transaction_numbers,
     },
@@ -30,7 +31,7 @@ use fbkl_logic::{
         move_rookie_development_contract_to_international,
         move_rookie_development_international_contract_to_stateside,
     },
-    roster::{RosterMoveRejection, file_and_validate_transaction},
+    roster::{RosterMoveRejection, file_and_validate_transaction, validate_no_add_then_remove},
     trade::MISSING_ROSTER_LOCK_ADVICE,
 };
 
@@ -131,12 +132,17 @@ impl RosterMutation {
     /// Each inner list is one transaction, and its position becomes the transaction number every
     /// move in it stores. Order is not presentational any more: which transaction a move sits in
     /// decides what T1 and T2 judge it with (rules §13.1.4-§13.1.6), so regrouping a week changes
-    /// what its moves mean. Nothing is re-validated here even so, because §13.1.1 lets an owner
-    /// reorder freely; an order that leaves the week illegal is the roster lock's to record.
+    /// what its moves mean. Every proposed transaction is therefore re-judged against T2: an order
+    /// that puts a player's acquisition and his later removal in one transaction is refused
+    /// (§13.1.6). T1 is not re-run, because reordering a week cannot change the roster it ends
+    /// with, and §13.1.1 lets an owner reorder freely; an end state that breaks T1 stays the roster
+    /// lock's to record.
     ///
     /// The order covers one week, named by its lock deadline, and has to list that week's moves and
     /// no others. Transaction numbers are positions in the list, so a partial list or a move from
     /// another week would write numbers that clash with the ones already stored for other weeks.
+    /// Only the upcoming lock's week may be reordered: a week whose lock has fired is settled, and
+    /// no later lock run would ever judge a new grouping of it.
     #[graphql(guard = "LeagueRoleGuard(RoleRequirement::Member)")]
     async fn reorder_transactions(
         &self,
@@ -151,12 +157,16 @@ impl RosterMutation {
             return Err(code_error(ErrorCode::Forbidden));
         }
 
-        resolve_roster_lock(deadline_id, caller_team.league_id, db).await?;
+        resolve_upcoming_roster_lock(deadline_id, caller_team.league_id, db).await?;
 
         let week_move_models = find_team_updates_by_team(team_id, None, Some(deadline_id), db)
             .await
             .map_err(|err| internal("failed to load this week's moves", &err))?;
-        let week_move_ids: HashSet<i64> = week_move_models.iter().map(|model| model.id).collect();
+        let week_moves_by_id: HashMap<i64, &team_update::Model> = week_move_models
+            .iter()
+            .map(|model| (model.id, model))
+            .collect();
+        let week_move_ids: HashSet<i64> = week_moves_by_id.keys().copied().collect();
         let ordered_move_ids = ordered_transactions.concat();
         let requested_ids: HashSet<i64> = ordered_move_ids.iter().copied().collect();
         if requested_ids.len() != ordered_move_ids.len()
@@ -168,6 +178,19 @@ impl RosterMutation {
                 "an order has to list each of this week's moves once, in a transaction, and nothing else"
                     .to_owned(),
             ));
+        }
+
+        for proposed_transaction in &ordered_transactions {
+            let mut transaction_updates = vec![];
+            for move_id in proposed_transaction {
+                let contract_updates = week_moves_by_id[move_id]
+                    .get_contract_updates()
+                    .map_err(|err| internal("failed to read a move's contract changes", &err))?;
+                transaction_updates.extend(contract_updates);
+            }
+            validate_no_add_then_remove(&transaction_updates, db)
+                .await
+                .map_err(|err| roster_move_error(&err))?;
         }
 
         let db_txn = db

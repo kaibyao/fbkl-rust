@@ -40,16 +40,7 @@ where
     C: ConnectionTrait,
 {
     // T2 first: it costs at most one id lookup, against the whole rule sweep T1 runs.
-    if let Some(offending_update) = find_same_transaction_add_then_remove(
-        transaction_updates,
-        &find_chain_roots(transaction_updates, db).await?,
-    ) {
-        return Err(RosterMoveRejection::SameTransactionAddThenRemove {
-            contract_id: offending_update.contract_id,
-            update_type: offending_update.update_type,
-        }
-        .into());
-    }
+    validate_no_add_then_remove(transaction_updates, db).await?;
 
     let governing_deadline =
         find_governing_deadline(transaction_datetime, deadline_model, db).await?;
@@ -58,6 +49,32 @@ where
         return Err(RosterMoveRejection::TransactionLeavesRosterIllegal {
             team_id,
             violations,
+        }
+        .into());
+    }
+
+    Ok(())
+}
+
+/// Validates rules §13.1.6 T2 alone: a transaction may not remove a player it also acquired.
+///
+/// Split out of [`validate_transaction`] for `reorderTransactions`, which regroups moves that are
+/// already applied and so has no roster state of its own to hand T1.
+#[instrument(skip(db))]
+pub async fn validate_no_add_then_remove<C>(
+    transaction_updates: &[ContractUpdate],
+    db: &C,
+) -> Result<()>
+where
+    C: ConnectionTrait,
+{
+    if let Some(offending_update) = find_same_transaction_add_then_remove(
+        transaction_updates,
+        &find_chain_roots(transaction_updates, db).await?,
+    ) {
+        return Err(RosterMoveRejection::SameTransactionAddThenRemove {
+            contract_id: offending_update.contract_id,
+            update_type: offending_update.update_type,
         }
         .into());
     }

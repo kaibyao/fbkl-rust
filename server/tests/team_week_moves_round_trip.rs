@@ -18,7 +18,7 @@ use fbkl_entity::{
     team_update_queries, team_user,
 };
 use fbkl_server::{AppSchema, build_graphql_schema};
-use fbkl_test_support::{TestLeague, central};
+use fbkl_test_support::{TestLeague, central, days_from_now};
 use tower_sessions::{MemoryStore, Session};
 
 const END_OF_SEASON_YEAR: i16 = 2026;
@@ -29,11 +29,9 @@ async fn a_week_of_done_and_pending_moves_lists_and_reorders_as_one_set() {
     else {
         return;
     };
+    // Only the upcoming lock's week may be reordered, so the week under test is still to fire.
     league
-        .add_deadline(
-            DeadlineKind::InSeasonRosterLock,
-            central("2025-10-27T18:00:00"),
-        )
+        .add_deadline(DeadlineKind::InSeasonRosterLock, days_from_now(7))
         .await;
     league
         .add_deadline(

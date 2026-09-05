@@ -3,23 +3,32 @@
 //! mixing weeks would write positions that clash with the ones already stored for the other week.
 //!
 //! Order is not presentational any more - the transaction a move sits in decides what T1 and T2
-//! judge it with - but rules §13.1.1 let an owner reorder freely, so the mutation stores whatever
-//! grouping it is given and leaves an illegal week for the lock to record.
+//! judge it with. Rules §13.1.1 let an owner reorder freely, so the mutation stores whatever
+//! grouping it is given and leaves an illegal end state for the lock to record, with one exception:
+//! T2 is re-judged per proposed transaction, so an order that puts a player's acquisition and his
+//! later removal in one transaction is refused (§13.1.6, §8.3.7).
+//!
+//! Only the upcoming lock's week can be reordered. A week whose lock has fired is settled, and no
+//! later lock run would judge a new grouping of it.
 
 use std::sync::Arc;
 
 use async_graphql::{Request, Value};
 use fbkl_entity::{
+    contract::{self, ContractKind},
+    contract_queries::{self, PreseasonKeeperTiming},
     deadline::{self, DeadlineKind},
     deadline_queries,
     league_event::{self, LeagueEventKind},
     league_event_queries,
     sea_orm::{ActiveValue, EntityTrait},
-    team_update::{self, TeamUpdateData, TeamUpdateStatus},
+    team_update::{
+        self, ContractUpdate, ContractUpdateType, TeamUpdateAsset, TeamUpdateData, TeamUpdateStatus,
+    },
     team_update_queries, team_user,
 };
 use fbkl_server::{AppSchema, build_graphql_schema};
-use fbkl_test_support::{TestLeague, central};
+use fbkl_test_support::{TestLeague, central, days_from_now};
 use tower_sessions::{MemoryStore, Session};
 
 const END_OF_SEASON_YEAR: i16 = 2026;
@@ -38,18 +47,15 @@ async fn a_transaction_order_covers_one_week_and_nothing_else() {
         )
         .await;
     league
-        .add_deadline(
-            DeadlineKind::InSeasonRosterLock,
-            central("2025-10-27T18:00:00"),
-        )
+        .add_deadline(DeadlineKind::InSeasonRosterLock, days_from_now(7))
         .await;
     let owner = league.add_team_user(team_user::LeagueRole::TeamOwner).await;
 
     let last_week = deadline_id(&league, DeadlineKind::Week1RosterLock).await;
     let this_week = deadline_id(&league, DeadlineKind::InSeasonRosterLock).await;
-    let last_week_move = record_move(&league, last_week).await;
-    let first = record_move(&league, this_week).await;
-    let second = record_move(&league, this_week).await;
+    let last_week_move = record_move(&league, last_week, vec![]).await;
+    let first = record_move(&league, this_week, vec![]).await;
+    let second = record_move(&league, this_week, vec![]).await;
 
     let schema = build_graphql_schema(league.db.clone());
     let session = session_for(owner.user_id, league.league_id).await;
@@ -111,22 +117,18 @@ async fn a_transaction_order_covers_one_week_and_nothing_else() {
         );
     }
 
-    // The other week orders on its own, so position 0 exists once per week, not once per team.
-    run(
+    // A week whose lock has fired is settled: no later lock run would judge a new grouping of it.
+    let settled = run(
         &schema,
         &reorder(last_week, vec![vec![last_week_move]]),
         &session,
     )
-    .await
-    .expect("last week's own move is a legal order");
+    .await;
+    assert_eq!(settled.err().as_deref(), Some("BAD_REQUEST"));
     assert_eq!(
         stored_transaction_numbers(&league, last_week).await,
-        vec![(last_week_move, Some(0))]
-    );
-    assert_eq!(
-        stored_transaction_numbers(&league, this_week).await,
-        vec![(first, Some(0)), (second, Some(0))],
-        "reordering another week leaves this week's transactions alone"
+        vec![(last_week_move, None)],
+        "the refused order leaves last week's move unnumbered"
     );
 
     let foreign = run(
@@ -136,6 +138,90 @@ async fn a_transaction_order_covers_one_week_and_nothing_else() {
     )
     .await;
     assert_eq!(foreign.err().as_deref(), Some("NOT_FOUND"));
+}
+
+/// Rules §8.3.7 and §13.1.6 (T2): the week's moves may be reordered, but not regrouped so that one
+/// transaction both acquires a player and removes him.
+#[tokio::test]
+async fn regrouping_an_acquisition_with_its_own_drop_is_refused() {
+    let Some(league) =
+        TestLeague::create("reorder_transactions_add_then_drop", END_OF_SEASON_YEAR).await
+    else {
+        return;
+    };
+    league
+        .add_deadline(DeadlineKind::InSeasonRosterLock, days_from_now(7))
+        .await;
+    let owner = league.add_team_user(team_user::LeagueRole::TeamOwner).await;
+    let this_week = deadline_id(&league, DeadlineKind::InSeasonRosterLock).await;
+
+    // The pickup and the drop name different contract rows of one chain, as the real moves do.
+    let player_id = league.add_veteran_player("Jose Alvarado").await;
+    let signed = league
+        .add_owned_contract(player_id, ContractKind::Veteran, 1, league.team_id)
+        .await;
+    let dropped = contract_queries::drop_contract(
+        signed.clone(),
+        PreseasonKeeperTiming::OnOrAfter,
+        &league.db,
+    )
+    .await
+    .expect("drop the signed contract");
+    let pickup = record_move(
+        &league,
+        this_week,
+        vec![contract_update(&signed, ContractUpdateType::AddViaAuction)],
+    )
+    .await;
+    let drop = record_move(
+        &league,
+        this_week,
+        vec![contract_update(&dropped, ContractUpdateType::Drop)],
+    )
+    .await;
+
+    let schema = build_graphql_schema(league.db.clone());
+    let session = session_for(owner.user_id, league.league_id).await;
+    let reorder = |transactions: Vec<Vec<i64>>| {
+        let transactions = format!("{transactions:?}");
+        format!(
+            "mutation {{ reorderTransactions(teamId: {}, deadlineId: {this_week}, orderedTransactions: {transactions}) {{ transactionNumber moves {{ id }} }} }}",
+            league.team_id
+        )
+    };
+
+    // Two transactions is what the owner actually did, and rules 8.3.7 allow it.
+    let apart = run(&schema, &reorder(vec![vec![pickup], vec![drop]]), &session).await;
+    assert_eq!(
+        apart.expect("a pickup and a later drop are a legal pair of transactions"),
+        vec![(Some(0_i16), vec![pickup]), (Some(1), vec![drop])]
+    );
+
+    let together = run(&schema, &reorder(vec![vec![pickup, drop]]), &session).await;
+    assert_eq!(
+        together.err().as_deref(),
+        Some("ROSTER_MOVE_REJECTED"),
+        "one transaction cannot both acquire a player and drop him"
+    );
+    assert_eq!(
+        stored_transaction_numbers(&league, this_week).await,
+        vec![(pickup, Some(0)), (drop, Some(1))],
+        "the refused order leaves the stored one alone"
+    );
+}
+
+/// A contract update as the move that wrote the row would have recorded it.
+fn contract_update(
+    contract_model: &contract::Model,
+    update_type: ContractUpdateType,
+) -> ContractUpdate {
+    ContractUpdate {
+        contract_id: contract_model.id,
+        update_type,
+        player_name_at_time: "Jose Alvarado".to_owned(),
+        player_team_abbr_at_time: "TST".to_owned(),
+        player_team_name_at_time: "Testville Testers".to_owned(),
+    }
 }
 
 /// The stored id and transaction number of every move in one week, oldest row first.
@@ -159,7 +245,14 @@ async fn stored_transaction_numbers(
 }
 
 /// One pending move recorded against `deadline_id`, i.e. a row in that week's tray.
-async fn record_move(league: &TestLeague, deadline_id: i64) -> i64 {
+///
+/// The league event is always a drop, because T2 reads the team update's own contract changes and
+/// never the event that wrote them.
+async fn record_move(
+    league: &TestLeague,
+    deadline_id: i64,
+    contract_updates: Vec<ContractUpdate>,
+) -> i64 {
     let league_event_model = league_event_queries::insert_league_event(
         league_event::ActiveModel {
             end_of_season_year: ActiveValue::Set(END_OF_SEASON_YEAR),
@@ -173,7 +266,12 @@ async fn record_move(league: &TestLeague, deadline_id: i64) -> i64 {
     .await
     .expect("insert league_event");
 
-    let data = TeamUpdateData::from_assets(vec![], vec![], 0, 0, 0, 0)
+    let changed_assets = if contract_updates.is_empty() {
+        vec![]
+    } else {
+        vec![TeamUpdateAsset::Contracts(contract_updates)]
+    };
+    let data = TeamUpdateData::from_assets(vec![], changed_assets, 0, 0, 0, 0)
         .to_json()
         .expect("team update data as json");
     team_update_queries::insert_team_update(
