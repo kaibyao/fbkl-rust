@@ -27,7 +27,7 @@ values from there; do not duplicate literals into logic.
 | `rookie_draft/` | Live rookie draft: order from standings + lottery, make/pass picks, re-draft ban. |
 | `rookie_development_activation/` | Activate an RD/RDI contract into a rookie contract. |
 | `rookie_development_international/` | Move contracts RD↔RDI (stateside ↔ international). |
-| `roster/` | Salary + cap calculation (incl. dropped-contract penalties). |
+| `roster/` | Salary + cap calculation (incl. dropped-contract penalties); filing a week's moves as a numbered transaction and judging it (T1 roster legality, T2 acquire-then-remove). |
 | `team_ownership/` | Resolve which team a user owns in a league. |
 
 ## Conventions (follow these when adding logic)
@@ -68,7 +68,13 @@ values from there; do not duplicate literals into logic.
 
 - `insert_team_updates_from_completed_trade` errors if a team's pre-trade salary is missing
   from the cache — ensure salaries are computed for every involved team before calling.
-- Trades validate **asset ownership only** — there is no cap/roster legality check at trade time.
+- Trades validate asset ownership, and an owner-facing trade also validates **T1 and T2 for every
+  involved team**: `process_trade` files each team's moves as one transaction and runs
+  `file_and_validate_transaction` on it, so the roster must be legal after the trade and no team may
+  acquire and remove one contract in the same transaction (rules §13.1.6). T1 reads the limits of
+  the period the trade is made in (`roster::find_governing_deadline`), not the upcoming lock's. The
+  historical import passes `TradeLegality::CallerJudges`, which skips both checks because it keeps
+  adding the date's drops to the same transaction and judges it itself.
 - `end_fa_auction` and `end_veteran_auction` both route through `auction_close_outcome`: no bid
   expires the contract (`AuctionStatus::Expired`), an RFA closes to `AuctionStatus::Closed`
   WITHOUT signing (the raise/match flow completes it), anything else has a winner. The veteran
