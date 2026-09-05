@@ -137,7 +137,8 @@ Rules Document
    3. An opening bid on a player must be equal to or greater than his minimum bid value.  
    4. Auctions are open as long as there has been a bid in the last 24 hours of the auction.  After 24 hours have elapsed since the last bid in an auction, the auction is concluded and the player is awarded to the last bidder at a salary equal to the final bid, subject to any UFA/RFA exceptions.  
    5. Trades are allowed during the Veteran Auction.  
-   6. Players already on an owner’s roster (keepers and already acquired players) may not be dropped during the Veteran Auction.
+   6. Players already on an owner’s roster (keepers and already acquired players) may not be dropped during the Veteran Auction.  
+   7. Each player won in the Veteran Auction is a transaction on its own.  A bid counts only when the owner already holds the cap and the roster space for it (6.4.1), and no player may be dropped during the auction (6.4.6), so a win needs no other move with it.  Section 13, which groups a week’s free agent adds (13.1.4.2), covers in-season moves only.
 
 **7\. Rookie Draft:**
 
@@ -161,6 +162,7 @@ Rules Document
    3. Trades and drops (with the associated cap penalty) are allowed during the Rookie Draft.  
    4. A player dropped during the Rookie Draft may not be drafted during that same Rookie Draft (even if still eligible).  For example, if an owner drafts Ricky Rubio during the 2010 Rookie Draft, he may not drop Rubio right before his 5th round pick in the 2011 Rookie Draft and draft him again (even though Rubio is still eligible for that Rookie Draft) and reset his salary to $1.  Such a player drafted would be eligible for in-season free agency, or the next year’s Rookie Draft, if he retains eligibility.  
    5. Free agent bids are not allowed during the Rookie Draft.  
+   6. Each Rookie Draft selection is a transaction on its own.  An owner must already hold an open roster slot to make a pick (7.3.2), so a drop or trade made for a pick (7.3.3) comes before the pick, not with it.  Section 13, which groups a week’s free agent adds (13.1.4.2), covers in-season moves only.  
 4. Salaries and Contracts  
    1. All Rookie Draft picks have a fixed salary.  The salary is as follows:  
       1. 1st round: $4  
@@ -342,9 +344,9 @@ Rules Document
    4. A transaction is a set of one team’s moves in a week that are applied and judged as a unit.  Some moves group by rule; every other move forms its own transaction.  
       1. One trade is one transaction.  A trade is never part of another transaction, and two trades are never one transaction.  The phrase “drop/trade a player to make room” in 10.1.3, 10.2.1 and 10.3.1 means an earlier, separate transaction: a team in two trades may give more players away in the first trade to make room for the players coming in the second.  
       2. All of the week’s free agent adds are one transaction (8.3.7).  An owner may not split them.  
-      3. Each auction pickup, each rookie draft selection, each activation from the IR, each RD or RDI activation, and each move between the RD and RDI squads forms one transaction of its own.  
+      3. Each activation from the IR, each RD or RDI activation, and each move between the RD and RDI squads forms one transaction of its own.  
       4. A drop or a move to the IR forms its own transaction when the owner does not attach it to another transaction (13.1.5).  
-      5. Keeper declarations, contract advancement, RFA/UFA designation and RFA re-signings happen at a deadline, not in a week of moves.  Section 13 does not govern them.  
+      5. Keeper declarations, contract advancement, RFA/UFA designation and RFA re-signings happen at a deadline, not in a week of moves.  Section 13 does not govern them.  The preseason Veteran Auction and Rookie Draft are outside section 13 as well: each win and each selection is a transaction on its own (6.4.7, 7.3.6).  
    5. Accommodation.  A team has four roster limits: the 22 man active roster with its salary cap, the 1 IR slot, the 6 RD slots and the 1 RDI slot.  Every move is a transfer between these pools: it releases capacity under one limit and uses capacity under another.  One move enables another when it releases capacity under the same limit the other uses; the rules call this accommodating.  The table below applies that rule to every weekly move, so a new move kind needs no ruling of its own.  
       1. Accommodation is optional.  No move kind needs an accommodating move by itself; T1 (13.1.6) decides.  If the roster is legal after the move, nothing has to be attached to it.  The “must be accommodated” wording in 10.1.3, 10.2.1, 10.3.1, 11.5.1 and 11.7.1 is T1 restated case by case, and adds no separate rule.  
       2. Accommodation is per limit, not global.  Dropping an RD player releases an RD slot and makes no room on the 22 man active roster.  Activating an RD player releases an RD slot and uses an active roster slot plus cap, so the same move is an accommodating move and a transaction of its own at once, depending on which limit is in question.  
@@ -359,8 +361,8 @@ Rules Document
 | Drop | whichever pool held the contract | nothing | yes, when the owner does not attach it to another transaction | yes |
 | Trade away | whichever pool held the contract | nothing | no, it is part of its trade | no (13.1.4.1) |
 | Add via trade | nothing | whichever pool receives the contract | no, it is part of its trade | no (13.1.4.1) |
-| Add via auction | nothing | active roster and cap | yes, one per pickup | no |
-| Add via rookie draft | nothing | an offseason roster slot (11.4.1); the RD and RDI limits are counted only from the in-season declaration | yes, one per selection | no |
+| Add via auction (in-season free agency) | nothing | active roster and cap | no, all of the week’s free agent adds are one transaction (13.1.4.2) | no |
+| Add via rookie draft | nothing | an offseason roster slot (11.4.1); the RD and RDI limits are counted only from the in-season declaration | yes, one per selection (preseason, 7.3.6) | no |
 | Activate an RD or RDI player | an RD slot, or the RDI slot | active roster and cap | yes, one per activation | yes, of the RD or RDI slot it releases |
 | Move to the IR | active roster and cap | the IR slot | yes, when the owner does not attach it to another transaction | yes |
 | Activate from the IR | the IR slot | active roster and cap | yes, one per activation | yes, of the IR slot it releases |
