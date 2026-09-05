@@ -45,6 +45,8 @@ pub enum ErrorCode {
     BidIneligibleCompensationPick,
     /// The auction win was signed by another writer already (a co-owner, or the roster lock).
     AuctionAlreadyPickedUp,
+    /// A free-agent auction closing in this week is still taking bids (rules §8.3.5).
+    AuctionsStillOpen,
     /// Season config (tiers, ranked list) is locked because the veteran auction pool is assembled (rules §6.3.6).
     VeteranAuctionStarted,
     /// The rookie draft has not been started for this league season.
@@ -90,6 +92,7 @@ impl ErrorCode {
             Self::BidMissingCompensationPick => "BID_MISSING_COMPENSATION_PICK",
             Self::BidIneligibleCompensationPick => "BID_INELIGIBLE_COMPENSATION_PICK",
             Self::AuctionAlreadyPickedUp => "AUCTION_ALREADY_PICKED_UP",
+            Self::AuctionsStillOpen => "AUCTIONS_STILL_OPEN",
             Self::VeteranAuctionStarted => "VETERAN_AUCTION_STARTED",
             Self::DraftNotStarted => "DRAFT_NOT_STARTED",
             Self::DraftNotOnTheClock => "DRAFT_NOT_ON_THE_CLOCK",
@@ -127,6 +130,7 @@ impl ErrorCode {
                 "that draft pick cannot settle what the bid would owe"
             }
             Self::AuctionAlreadyPickedUp => "that auction win has already been picked up",
+            Self::AuctionsStillOpen => "this week's free agent auctions are still taking bids",
             Self::VeteranAuctionStarted => {
                 "the veteran auction has started, so this season's config is locked"
             }

@@ -175,6 +175,61 @@ async fn two_writers_racing_for_one_win_sign_it_once() {
     );
 }
 
+/// Rule §8.3.5: all of a week's wins go on together. An owner who could sign the first auction to
+/// close, drop that player, and sign the next close as a second transaction would make the T2 check
+/// vacuous for the pair, so the pickup waits until the week's auctions have all closed.
+#[tokio::test]
+async fn a_pickup_waits_for_the_week_to_finish_closing() {
+    let Some(league) = TestLeague::create("fa_auction_pickup_open", END_OF_SEASON_YEAR).await
+    else {
+        return;
+    };
+    add_season_under_way(&league).await;
+    let owner = league.add_team_user(LeagueRole::TeamOwner).await;
+    add_roster_contracts(&league, 2).await;
+    add_won_auction(&league, &owner, "Donovan Mitchell").await;
+    let (still_open, _) = add_open_auction(&league, &owner, "Jose Alvarado").await;
+
+    let lock_id = lock_deadline(&league).await.id;
+    let schema = build_graphql_schema(league.db.clone());
+    let session = session_for(owner.user_id, league.league_id).await;
+
+    assert_eq!(
+        run(&schema, &pick_up(lock_id, &[]), &session).await,
+        Err("AUCTIONS_STILL_OPEN".to_owned()),
+        "an early win cannot be signed while another of the week's auctions takes bids"
+    );
+    let refusal = message(&schema, &pick_up(lock_id, &[]), &session).await;
+    assert!(
+        refusal.contains(&still_open.id.to_string()),
+        "the refusal should name the auction still open: {refusal}"
+    );
+    assert_eq!(
+        active_contract_count(&league).await,
+        2,
+        "a refused pickup signs nothing"
+    );
+
+    auction_queries::update_auction_status(still_open.id, AuctionStatus::Won, &league.db)
+        .await
+        .expect("close the second auction");
+    let picked_up = run(&schema, &pick_up(lock_id, &[]), &session).await;
+    assert!(
+        picked_up.is_ok(),
+        "the week has finished closing, so both wins go on: {picked_up:?}"
+    );
+    assert_eq!(
+        active_contract_count(&league).await,
+        4,
+        "both wins are signed"
+    );
+    assert_eq!(
+        stored_transaction_numbers(&league, lock_id).await,
+        vec![Some(0), Some(0)],
+        "the week's wins land under one transaction number"
+    );
+}
+
 /// One writer's attempt at a win: commits what it signed, or rolls back with what it was told.
 async fn sign_and_commit(
     won_auction: &auction::Model,
@@ -248,6 +303,21 @@ fn pick_up(deadline_id: i64, drop_contract_ids: &[i64]) -> String {
 /// An auction the owner's team has won but not picked up, i.e. what an in-season close leaves
 /// behind. Returns the auctioned contract's id, which is what a drop of that win names.
 async fn add_won_auction(league: &TestLeague, owner: &team_user::Model, name: &str) -> i64 {
+    let (auction, pooled_contract_id) = add_open_auction(league, owner, name).await;
+    auction_queries::update_auction_status(auction.id, AuctionStatus::Won, &league.db)
+        .await
+        .expect("record the win");
+
+    pooled_contract_id
+}
+
+/// An in-season free agent auction still taking bids, with the owner's team high bidder. Returns
+/// the auction and the auctioned contract's id.
+async fn add_open_auction(
+    league: &TestLeague,
+    owner: &team_user::Model,
+    name: &str,
+) -> (auction::Model, i64) {
     let player_id = league.add_veteran_player(name).await;
     let pooled_contract = league
         .add_unowned_contract(
@@ -270,11 +340,8 @@ async fn add_won_auction(league: &TestLeague, owner: &team_user::Model, name: &s
     auction_queries::insert_auction_bid(auction.id, owner.id, WINNING_BID, None, &league.db)
         .await
         .expect("insert the winning bid");
-    auction_queries::update_auction_status(auction.id, AuctionStatus::Won, &league.db)
-        .await
-        .expect("record the win");
 
-    pooled_contract.id
+    (auction, pooled_contract.id)
 }
 
 async fn won_auction_ids(league: &TestLeague, owner: &team_user::Model) -> Vec<i64> {

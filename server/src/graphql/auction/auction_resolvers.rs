@@ -335,6 +335,10 @@ impl AuctionMutation {
     /// the owner submits. `deadlineId` is the roster lock the transaction counts towards. The wins
     /// are read inside the transaction that signs them, so a pickup cannot act on a win the roster
     /// lock has taken already.
+    ///
+    /// A pickup is refused while any free-agent auction closing on or before that lock is still
+    /// taking bids. Otherwise an owner could sign an early win, drop it, and sign a later win as a
+    /// second transaction, which is what §8.3.5 and T2 forbid.
     #[graphql(guard = "LeagueRoleGuard(RoleRequirement::Member)")]
     async fn pick_up_auction_wins(
         &self,
@@ -351,6 +355,28 @@ impl AuctionMutation {
             .begin()
             .await
             .map_err(|err| internal("failed to start database transaction", &err.into()))?;
+
+        let open_this_week = find_open_auctions_in_league(
+            caller_team.league_id,
+            deadline_model.end_of_season_year,
+            Some(AuctionKind::InSeasonFreeAgent),
+            &db_txn,
+        )
+        .await
+        .map_err(|err| internal("failed to load the league's open auctions", &err))?
+        .into_iter()
+        .take_while(|auction_model| auction_model.close_at_timestamp <= deadline_model.date_time)
+        .map(|auction_model| auction_model.id.to_string())
+        .collect::<Vec<_>>();
+        if !open_this_week.is_empty() {
+            return Err(graphql_error(
+                ErrorCode::AuctionsStillOpen,
+                format!(
+                    "this week's free agent auctions are still taking bids: {}",
+                    open_this_week.join(", ")
+                ),
+            ));
+        }
 
         let wins = find_won_auctions_for_team(
             team_user.team_id,
