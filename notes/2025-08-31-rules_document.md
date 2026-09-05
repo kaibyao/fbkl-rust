@@ -275,7 +275,7 @@ Rules Document
 5. Activation  
    1. To activate an RD/RDI player (to add him to starting lineup, or because you are adding another RD/RDI player via trade and will be above the 6 player RD / 1 player RDI limit), it is similar to activating an IR player (must make cap/roster room, and drop/trade players if necessary). The player may not be moved back to an RD contract, incurs drop penalties, and has normal salary increases.  That player's contract is now changed to a first year rookie (R) contract at the same salary as before, even if the player was a 2nd or 3rd year RD/RDI player.  
 6. Injured Reserve  
-   1. RD/RDI players can not be added to IR, directly as an RD/RDI player.  However, you may activate the RD/RDI player (changing his contract to R, and opening up cap/roster space as usual), then IR him immediately.  
+   1. RD/RDI players can not be added to IR, directly as an RD/RDI player.  However, you may activate the RD/RDI player (changing his contract to R, and opening up cap/roster space as usual), then IR him in the next transaction (13.1.5.5).  
 7. Trades  
    1. RD/RDI players may be traded without having to be activated to an R contract first (unlike IR players, which must be moved off IR first).  When acquiring an RD/RDI player via trade, the new owner may add him to his RD squad or activate the player (change to R contract, must make cap/roster space) immediately, without having to add the player to his RD squad first.  If adding the player to RD squad and already at the 6 player RD / 1 player RDI limit, then must activate another RD/RDI player, or drop an RD/RDI player to make room.  If adding an RDI player to a team that already has an RDI player, the current RDI player may be dropped, or moved to an RD/1 contract (which then may be activated to an R contract, or a different RD player may be dropped or activated to an R contract, in order to not go over the 6 player RD limit).  
    2. There are no restrictions on number of RD/RDI players involved in a trade, trading RD/RDI players for active roster players, trading RD/RDI players for picks, etc.  
@@ -339,16 +339,37 @@ Rules Document
    1. All in-season moves (adds, drops, IR moves, trades, RD activations) are made in a weekly timeframe.  The transactions in a single week may be re-ordered in any way an owner wants.  
    2. Any complex sequences of weekly moves that may result in an illegal roster will be ruled on by the commissioner.  Any such illegal moves will have to be reverted.  
    3. While a transaction is being applied, there may be roster states that are currently illegal – e.g. winning a player in auction without having yet dropped a player to open up roster space.  This is fine as long as the roster is legal once the whole transaction is applied.  A roster is never left illegal after a transaction (T1, 13.1.6), so it is also legal at the end of the week (Sunday night/Monday morning, prior to Monday roster lock).  Rosters and other documents should be updated at the end of each week to reflect all of that week’s moves.  
-   4. A transaction is a set of one team’s moves in a week that are applied and judged as a unit.  The transaction kinds are:  
-      1. One trade.  
-      2. All of the week’s free agent adds together (8.3.7).  
-      3. Each move to the IR, activation from the IR, RD activation, and RDI move, one transaction each.  
-      4. Each auction pickup and each rookie draft selection, one transaction each.  
-      5. A standalone drop, i.e. a drop that does not accommodate any other transaction.  
-   5. Any drop made to accommodate a transaction belongs to that transaction, not to a transaction of its own.  A drop that makes room for a trade belongs to that trade; a drop that makes room for the week’s free agent adds belongs to that batch of adds.  
+   4. A transaction is a set of one team’s moves in a week that are applied and judged as a unit.  Some moves group by rule; every other move forms its own transaction.  
+      1. One trade is one transaction.  A trade is never part of another transaction, and two trades are never one transaction.  The phrase “drop/trade a player to make room” in 10.1.3, 10.2.1 and 10.3.1 means an earlier, separate transaction: a team in two trades may give more players away in the first trade to make room for the players coming in the second.  
+      2. All of the week’s free agent adds are one transaction (8.3.7).  An owner may not split them.  
+      3. Each auction pickup, each rookie draft selection, each activation from the IR, each RD or RDI activation, and each move between the RD and RDI squads forms one transaction of its own.  
+      4. A drop or a move to the IR forms its own transaction when the owner does not attach it to another transaction (13.1.5).  
+      5. Keeper declarations, contract advancement, RFA/UFA designation and RFA re-signings happen at a deadline, not in a week of moves.  Section 13 does not govern them.  
+   5. Accommodation.  A team has four roster limits: the 22 man active roster with its salary cap, the 1 IR slot, the 6 RD slots and the 1 RDI slot.  Every move is a transfer between these pools: it releases capacity under one limit and uses capacity under another.  One move enables another when it releases capacity under the same limit the other uses; the rules call this accommodating.  The table below applies that rule to every weekly move, so a new move kind needs no ruling of its own.  
+      1. Accommodation is optional.  No move kind needs an accommodating move by itself; T1 (13.1.6) decides.  If the roster is legal after the move, nothing has to be attached to it.  The “must be accommodated” wording in 10.1.3, 10.2.1, 10.3.1, 11.5.1 and 11.7.1 is T1 restated case by case, and adds no separate rule.  
+      2. Accommodation is per limit, not global.  Dropping an RD player releases an RD slot and makes no room on the 22 man active roster.  Activating an RD player releases an RD slot and uses an active roster slot plus cap, so the same move is an accommodating move and a transaction of its own at once, depending on which limit is in question.  
+      3. The owner says which transaction a drop or a move to the IR belongs to.  A wrong declaration is refused, so the owner gains nothing by it: calling a needed drop standalone fails T1, and attaching a drop to the transaction that acquired that contract fails T2.  The week’s free agent adds still group by rule (13.1.4.2) whatever the owner says.  
+      4. A move to the IR may accommodate any transaction, including the week’s free agent adds.  
+      5. T2 (13.1.6) counts an activation from the IR and an RD or RDI activation as acquisitions.  You may not activate a player in order to drop him, or to put him on the IR, in the same transaction; the roster must be legal at the time of the activation.  Rule 11.6.1’s activate-then-IR sequence is therefore two transactions.  The one exemption is the start of the season (10.1.2).  
+      6. RD and RDI moves accommodate each other, per 11.7.1.  Moving the current RDI player to an RD contract releases the RDI slot for an incoming RDI player and uses an RD slot, which a drop or an activation of another RD player can then release.  Rule 11.1.4 blocks only the RD to active roster to RD path, and says nothing about RD and RDI moves.  
+      7. The table.  “Releases” and “Uses” name the limits each move transfers between.  A move may accommodate another transaction when the limit it releases is one that transaction uses.  
+
+| Move | Releases | Uses | Forms its own transaction | May accommodate |
+| :---- | :---- | :---- | :---- | :---- |
+| Drop | whichever pool held the contract | nothing | yes, when the owner does not attach it to another transaction | yes |
+| Trade away | whichever pool held the contract | nothing | no, it is part of its trade | no (13.1.4.1) |
+| Add via trade | nothing | whichever pool receives the contract | no, it is part of its trade | no (13.1.4.1) |
+| Add via auction | nothing | active roster and cap | yes, one per pickup | no |
+| Add via rookie draft | nothing | an offseason roster slot (11.4.1); the RD and RDI limits are counted only from the in-season declaration | yes, one per selection | no |
+| Activate an RD or RDI player | an RD slot, or the RDI slot | active roster and cap | yes, one per activation | yes, of the RD or RDI slot it releases |
+| Move to the IR | active roster and cap | the IR slot | yes, when the owner does not attach it to another transaction | yes |
+| Activate from the IR | the IR slot | active roster and cap | yes, one per activation | yes, of the IR slot it releases |
+| Move an RD player to RDI | an RD slot | the RDI slot | yes, one per move | yes, of the RD slot it releases |
+| Move an RDI player to RD | the RDI slot | an RD slot | yes, one per move | yes, of the RDI slot it releases |
+
    6. Two rules govern every transaction:  
       1. T1: the roster must be legal after each transaction.  
-      2. T2: a contract acquired in a transaction may not be dropped, or moved to the IR, in that same transaction.  It may be dropped or moved to the IR in any later transaction.  
+      2. T2: a contract acquired in a transaction may not be dropped, or moved to the IR, in that same transaction.  It may be dropped or moved to the IR in any later transaction.  Activating a contract from the IR or from the RD squad counts as acquiring it (13.1.5.5).  
    7. Worked example – Kai, week of 2021-11-01, starting at 21 counted contracts.  Every transaction below leaves the roster legal (T1), and no contract is acquired and removed within one transaction (T2), so the whole week is legal.  Neto and Reaves are added in transaction 4 and dropped in transaction 5; T2 allows this because the drops are in a later transaction.  Dropping Neto inside transaction 4 to make room for Reaves would break T2.  
 
 | Transaction | Moves | Counted contracts after |
