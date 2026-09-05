@@ -103,6 +103,7 @@ async fn a_close_records_the_win_without_signing_it() {
         league.team_id,
         league.league_id,
         END_OF_SEASON_YEAR,
+        days_from_now(7),
         &league.db,
     )
     .await

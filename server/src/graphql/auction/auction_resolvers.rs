@@ -386,6 +386,7 @@ impl AuctionMutation {
             team_user.team_id,
             caller_team.league_id,
             deadline_model.end_of_season_year,
+            deadline_model.date_time,
             &db_txn,
         )
         .await

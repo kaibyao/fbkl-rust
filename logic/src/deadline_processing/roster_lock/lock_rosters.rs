@@ -85,6 +85,7 @@ where
     let wins_by_team = find_won_auctions_by_team(
         deadline_model.league_id,
         deadline_model.end_of_season_year,
+        deadline_model.date_time,
         db,
     )
     .await?;

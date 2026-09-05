@@ -20,7 +20,7 @@ use fbkl_entity::{
     deadline_queries,
     league_event::LeagueEventKind,
     league_event_queries,
-    sea_orm::{DatabaseTransaction, TransactionTrait},
+    sea_orm::{DatabaseTransaction, TransactionTrait, prelude::DateTimeWithTimeZone},
     team_update::{ContractUpdateType, TeamUpdateStatus},
     team_update_queries,
     team_user::{self, LeagueRole},
@@ -131,6 +131,7 @@ async fn two_writers_racing_for_one_win_sign_it_once() {
         owner.team_id,
         league.league_id,
         END_OF_SEASON_YEAR,
+        lock.date_time,
         &league.db,
     )
     .await
@@ -193,7 +194,13 @@ async fn a_pickup_waits_for_the_week_to_finish_closing() {
     let owner = league.add_team_user(LeagueRole::TeamOwner).await;
     add_roster_contracts(&league, 2).await;
     add_won_auction(&league, &owner, "Donovan Mitchell").await;
-    let (still_open, _) = add_open_auction(&league, &owner, "Jose Alvarado").await;
+    let (still_open, _) = add_open_auction(
+        &league,
+        &owner,
+        "Jose Alvarado",
+        central("2025-10-27T18:00:00"),
+    )
+    .await;
 
     let lock_id = lock_deadline(&league).await.id;
     let schema = build_graphql_schema(league.db.clone());
@@ -419,10 +426,86 @@ fn contract_id_list(contract_ids: &[i64]) -> String {
         .join(", ")
 }
 
+/// A win is the latest bid's, and it counts towards the roster lock its auction closed by (rules
+/// §8.3.5-§8.3.6). An owner who was outbid has no win to pick up, and a win whose bidding runs past
+/// this lock waits for the next one.
+#[tokio::test]
+async fn a_win_goes_to_the_last_bidder_and_to_the_lock_its_auction_closed_by() {
+    let Some(league) = TestLeague::create("fa_auction_pickup_winner", END_OF_SEASON_YEAR).await
+    else {
+        return;
+    };
+    add_season_under_way(&league).await;
+    let outbid_owner = league.add_team_user(LeagueRole::TeamOwner).await;
+    let second_team_id = league.add_team("Second Bidder").await;
+    let winning_owner = league
+        .add_team_user_for_team(second_team_id, LeagueRole::TeamOwner)
+        .await;
+    let lock = lock_deadline(&league).await;
+
+    let (contested, _) = add_open_auction(
+        &league,
+        &outbid_owner,
+        "Donovan Mitchell",
+        central("2025-10-27T18:00:00"),
+    )
+    .await;
+    auction_queries::insert_auction_bid(
+        contested.id,
+        winning_owner.id,
+        WINNING_BID + 1,
+        None,
+        &league.db,
+    )
+    .await
+    .expect("insert the higher bid");
+    auction_queries::update_auction_status(contested.id, AuctionStatus::Won, &league.db)
+        .await
+        .expect("record the win");
+
+    let (late, _) =
+        add_open_auction(&league, &winning_owner, "Jose Alvarado", lock.date_time).await;
+    assert!(
+        late.close_at_timestamp > lock.date_time,
+        "the fixture needs an auction whose bidding runs past the lock"
+    );
+    auction_queries::update_auction_status(late.id, AuctionStatus::Won, &league.db)
+        .await
+        .expect("record the late win");
+
+    assert_eq!(
+        won_auction_ids(&league, &winning_owner).await,
+        vec![contested.id],
+        "the last bidder won the auction that closed by the lock"
+    );
+    assert!(
+        won_auction_ids(&league, &outbid_owner).await.is_empty(),
+        "an owner who was outbid has no win to pick up"
+    );
+
+    let wins_by_team = auction_queries::find_won_auctions_by_team(
+        league.league_id,
+        END_OF_SEASON_YEAR,
+        lock.date_time,
+        &league.db,
+    )
+    .await
+    .expect("read the league's unsigned wins");
+    assert_eq!(
+        wins_by_team
+            .iter_all()
+            .map(|(team_id, wins)| (*team_id, wins.iter().map(|(won, _)| won.id).collect()))
+            .collect::<Vec<(i64, Vec<i64>)>>(),
+        vec![(winning_owner.team_id, vec![contested.id])],
+        "the lock sees one win, filed under the team that made the last bid"
+    );
+}
+
 /// An auction the owner's team has won but not picked up, i.e. what an in-season close leaves
 /// behind. Returns the auctioned contract's id, which is what a drop of that win names.
 async fn add_won_auction(league: &TestLeague, owner: &team_user::Model, name: &str) -> i64 {
-    let (auction, pooled_contract_id) = add_open_auction(league, owner, name).await;
+    let (auction, pooled_contract_id) =
+        add_open_auction(league, owner, name, central("2025-10-27T18:00:00")).await;
     auction_queries::update_auction_status(auction.id, AuctionStatus::Won, &league.db)
         .await
         .expect("record the win");
@@ -436,6 +519,7 @@ async fn add_open_auction(
     league: &TestLeague,
     owner: &team_user::Model,
     name: &str,
+    start: DateTimeWithTimeZone,
 ) -> (auction::Model, i64) {
     let player_id = league.add_veteran_player(name).await;
     let pooled_contract = league
@@ -449,7 +533,7 @@ async fn add_open_auction(
         &pooled_contract,
         league.league_id,
         END_OF_SEASON_YEAR,
-        central("2025-10-27T18:00:00"),
+        start,
         AuctionKind::InSeasonFreeAgent,
         WINNING_BID,
         &league.db,
@@ -468,6 +552,7 @@ async fn won_auction_ids(league: &TestLeague, owner: &team_user::Model) -> Vec<i
         owner.team_id,
         league.league_id,
         END_OF_SEASON_YEAR,
+        lock_deadline(league).await.date_time,
         &league.db,
     )
     .await
