@@ -72,9 +72,10 @@ values from there; do not duplicate literals into logic.
   involved team**: `process_trade` files each team's moves as one transaction and runs
   `file_and_validate_transaction` on it, so the roster must be legal after the trade and no team may
   acquire and remove one contract in the same transaction (rules §13.1.6). T1 reads the limits of
-  the period the trade is made in (`roster::find_governing_deadline`), not the upcoming lock's. The
-  historical import passes `TradeLegality::CallerJudges`, which skips both checks because it keeps
-  adding the date's drops to the same transaction and judges it itself.
+  the period the trade is made in (`roster::find_governing_deadline`): in season those are the
+  upcoming lock's own limits; in the preseason and offseason they are the wider limits of that
+  window. The historical import passes `TradeLegality::CallerJudges`, which skips both checks
+  because it keeps adding the date's drops to the same transaction and validates it itself.
 - `end_fa_auction` and `end_veteran_auction` both route through `auction_close_outcome`: no bid
   expires the contract (`AuctionStatus::Expired`), an RFA closes to `AuctionStatus::Closed`
   WITHOUT signing (the raise/match flow completes it), anything else has a winner. The veteran
