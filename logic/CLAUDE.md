@@ -53,13 +53,22 @@ values from there; do not duplicate literals into logic.
    linked) rather than editing in place. Validate "latest in chain" before acting on a contract
    in trades (`validate_contract_is_latest_in_chain`).
 
-6. **team_update status convention:**
-   - `Done` — settled (contract advancement, rookie draft picks, RFA resolution, and any weekly
-     move whose team was legal at the roster lock that judged it).
-   - `Pending` — recorded now, settled later by the roster lock (drops, trade legs, ir, rookie
-     activation, RDI moves, auction wins). A team that ends the week illegal keeps its week's
-     rows Pending for the commissioner to revert (rules 13.1.2).
-   - `InProgress`/`Error` — used by keeper-deadline batch processing.
+6. **team_update status convention.** A weekly move is `Pending` when it is recorded and turns
+   `Done` at the roster lock; a deadline event is `Done` when it is written, because no lock reads
+   its rows. Which writer produces which status:
+   - `Pending` at the write — `drop_contract_team_update`, `create_trade_team_update`,
+     `ir_team_update`, `rookie_activation_team_update`, `rdi_team_update`,
+     `sign_auction_contract_to_team` (in-season free agent wins, whether an owner picked the win up
+     or `lock_rosters` signed it for them), and `keeper_team_update` (before its batch runs).
+   - `Done` at the write — `create_team_contracts_for_annual_advancement`, `make_pick`,
+     `rfa_league_event`, and `update_team_update_for_auction`, whose one caller is
+     `preseason_veteran_auction`.
+   - `Pending` → `Done` later — `lock_rosters` flips the week's rows for every team that was legal
+     at the lock. A team that ends the week illegal keeps its rows Pending for the commissioner to
+     revert (rules 13.1.2).
+   - `InProgress`/`Error`, then `Done` — `process_keeper_deadline` runs its own batch over the
+     keeper rows and never involves a roster lock.
+   Add a new weekly mutator to the Pending list; a new deadline event goes in the Done list.
 
 7. **Effective dates come from deadlines.** Most mutations look up the relevant `deadline` and
    stamp `team_update.effective_date` from it. Some accept an override (`maybe_override_effective_date`).

@@ -78,9 +78,10 @@ pub struct TeamWeek {
     pub contracts: Vec<Contract>,
     /// The week's moves whatever their status, grouped as `reorderTransactions` takes them.
     ///
-    /// Drops, trades and auction wins are Done as soon as they are recorded, but rules §13.1.1
-    /// order covers the whole week, so a Pending-only list could not be reordered. Each move
-    /// carries its own `status` for a client that wants only the pending ones.
+    /// A weekly move is Pending until the roster lock settles it, and Done after, while a keeper
+    /// or rookie draft row in the same week is Done from the start. Rules §13.1.1 order covers the
+    /// whole week, so a list of one status could not be reordered. Each move has its own `status`
+    /// for a client that wants only the pending ones.
     pub transactions: Vec<TeamTransaction>,
     pub rule_legality: Vec<RosterRuleLegality>,
     pub is_legal: bool,

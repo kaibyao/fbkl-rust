@@ -83,6 +83,9 @@ where
 /// and the roster lock calls it for any win nobody picked up. The win is claimed before anything is
 /// signed, so a second caller gets [`auction_queries::AuctionAlreadySigned`] and writes no
 /// contract.
+///
+/// The signing is a weekly move, so its `team_update` stays Pending until the roster lock reads the
+/// week and settles a legal team's rows.
 #[instrument(skip(db))]
 pub async fn sign_won_auction<C>(
     auction_model: &auction::Model,
@@ -100,12 +103,6 @@ where
         winning_bid_model,
         deadline_model,
         None,
-        maybe_override_effective_date,
-        db,
-    )
-    .await?;
-    let team_update_model = team_update_queries::update_team_update_for_auction(
-        &team_update_model,
         maybe_override_effective_date,
         db,
     )

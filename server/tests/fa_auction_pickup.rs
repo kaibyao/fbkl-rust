@@ -21,7 +21,7 @@ use fbkl_entity::{
     league_event::LeagueEventKind,
     league_event_queries,
     sea_orm::{DatabaseTransaction, TransactionTrait},
-    team_update::ContractUpdateType,
+    team_update::{ContractUpdateType, TeamUpdateStatus},
     team_update_queries,
     team_user::{self, LeagueRole},
 };
@@ -105,6 +105,11 @@ async fn a_pickup_signs_every_win_with_its_drops_as_one_transaction() {
         stored_transaction_numbers(&league, lock_id).await,
         vec![Some(0), Some(0), Some(0)],
         "both signings and the drop are one transaction"
+    );
+    assert_eq!(
+        pending_move_count(&league, lock_id).await,
+        3,
+        "a pickup is a weekly move, so it waits for the lock like the drop beside it"
     );
 }
 
@@ -446,6 +451,18 @@ async fn add_roster_contracts(league: &TestLeague, count: usize) -> Vec<contract
 }
 
 /// Every transaction number stored for the team's week, oldest move first.
+async fn pending_move_count(league: &TestLeague, deadline_id: i64) -> usize {
+    team_update_queries::find_team_updates_by_team(
+        league.team_id,
+        Some(TeamUpdateStatus::Pending),
+        Some(deadline_id),
+        &league.db,
+    )
+    .await
+    .expect("load the week's pending moves")
+    .len()
+}
+
 async fn stored_transaction_numbers(league: &TestLeague, deadline_id: i64) -> Vec<Option<i16>> {
     let mut week_moves = team_update_queries::find_team_updates_by_team(
         league.team_id,
