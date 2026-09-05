@@ -5,6 +5,7 @@ use multimap::MultiMap;
 use sea_orm::{
     ActiveModelTrait, ActiveValue, ColumnTrait, ConnectionTrait, EntityTrait, JoinType,
     QueryFilter, QueryOrder, QuerySelect, RelationTrait, prelude::DateTimeWithTimeZone,
+    sea_query::Expr,
 };
 use tracing::instrument;
 
@@ -396,6 +397,39 @@ where
     auction_to_update.minimum_bid_amount = ActiveValue::Set(new_minimum_bid_amount);
     auction_to_update.close_at_timestamp = ActiveValue::Set(new_close_at);
     Ok(auction_to_update.update(db).await?)
+}
+
+/// A `Won` auction that another writer signed first, so this caller must not sign it again.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, thiserror::Error)]
+#[error("auction {auction_id} has already been picked up")]
+pub struct AuctionAlreadySigned {
+    pub auction_id: i64,
+}
+
+/// Takes a `Won` auction for signing: one guarded write to `Completed` (rules §8.3.6).
+///
+/// The owner's pickup and the roster lock can reach the same win at once, so the status change is
+/// what decides between them. It runs before the contract is written, and the writer that matches
+/// no row gets [`AuctionAlreadySigned`] instead of signing a second contract.
+#[instrument(skip(db))]
+pub async fn claim_won_auction<C>(auction_id: i64, db: &C) -> Result<()>
+where
+    C: ConnectionTrait,
+{
+    let update_result = auction::Entity::update_many()
+        .col_expr(
+            auction::Column::Status,
+            Expr::value(AuctionStatus::Completed),
+        )
+        .filter(auction::Column::Id.eq(auction_id))
+        .filter(auction::Column::Status.eq(AuctionStatus::Won))
+        .exec(db)
+        .await?;
+
+    if update_result.rows_affected == 0 {
+        return Err(AuctionAlreadySigned { auction_id }.into());
+    }
+    Ok(())
 }
 
 #[instrument(skip(db))]

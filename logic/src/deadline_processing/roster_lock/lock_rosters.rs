@@ -2,7 +2,7 @@ use std::collections::HashSet;
 
 use color_eyre::eyre::Result;
 use fbkl_entity::{
-    auction_queries::find_won_auctions_by_team,
+    auction_queries::{AuctionAlreadySigned, find_won_auctions_by_team},
     deadline::{self},
     roster_lock_violation_queries::replace_violations_for_teams,
     sea_orm::{ConnectionTrait, TransactionTrait},
@@ -77,7 +77,8 @@ where
 /// A win an owner never submitted a pickup for cannot vanish, so the lock signs it and lets the
 /// sweep above judge the roster it leaves. The signed rows go back to Pending because
 /// `sign_won_auction` finishes the paths that run mid-week; at the lock, `lockable_team_update_ids`
-/// is what decides whether a row is Done.
+/// is what decides whether a row is Done. A win an owner picked up while this ran is skipped, since
+/// the claim inside `sign_won_auction` gives it to one writer only.
 #[instrument(skip(db))]
 async fn sign_unpicked_auction_wins<C>(deadline_model: &deadline::Model, db: &C) -> Result<()>
 where
@@ -94,15 +95,20 @@ where
         let transaction_start = find_transaction_start(*team_id, deadline_model.id, db).await?;
         let mut signed_update_ids = Vec::with_capacity(team_wins.len());
         for (auction_model, winning_bid_model) in team_wins {
-            let (_, team_update_model) = sign_won_auction(
+            let signed = sign_won_auction(
                 auction_model,
                 winning_bid_model,
                 deadline_model,
                 Some(deadline_model.date_time.date_naive()),
                 db,
             )
-            .await?;
-            signed_update_ids.push(team_update_model.id);
+            .await;
+            match signed {
+                Ok((_, team_update_model)) => signed_update_ids.push(team_update_model.id),
+                // An owner's pickup got there first, so the win is already on their roster.
+                Err(error) if error.is::<AuctionAlreadySigned>() => {}
+                Err(error) => return Err(error),
+            }
         }
         update_team_updates_with_status(signed_update_ids, TeamUpdateStatus::Pending, db).await?;
         file_transaction(*team_id, deadline_model, &transaction_start, db).await?;

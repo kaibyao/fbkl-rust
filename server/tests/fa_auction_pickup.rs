@@ -12,15 +12,20 @@ use std::sync::Arc;
 use async_graphql::{Request, Value};
 use chrono::{Days, Utc};
 use fbkl_entity::{
-    auction::{AuctionKind, AuctionStatus},
-    auction_queries,
+    auction::{self, AuctionKind, AuctionStatus},
+    auction_bid, auction_queries,
     contract::{self, ContractKind},
     contract_queries,
-    deadline::DeadlineKind,
-    deadline_queries, team_update_queries,
+    deadline::{self, DeadlineKind},
+    deadline_queries,
+    league_event::LeagueEventKind,
+    league_event_queries,
+    sea_orm::{DatabaseTransaction, TransactionTrait},
+    team_update::ContractUpdateType,
+    team_update_queries,
     team_user::{self, LeagueRole},
 };
-use fbkl_logic::auction::start_new_auction_for_nba_player;
+use fbkl_logic::auction::{sign_won_auction, start_new_auction_for_nba_player};
 use fbkl_server::{AppSchema, build_graphql_schema};
 use fbkl_test_support::{TestLeague, central};
 use tower_sessions::{MemoryStore, Session};
@@ -49,7 +54,7 @@ async fn a_pickup_signs_every_win_with_its_drops_as_one_transaction() {
         add_won_auction(&league, &owner, "Jose Alvarado").await,
     ];
 
-    let lock_id = deadline_id(&league, DeadlineKind::InSeasonRosterLock).await;
+    let lock_id = lock_deadline(&league).await.id;
     let schema = build_graphql_schema(league.db.clone());
     let session = session_for(owner.user_id, league.league_id).await;
 
@@ -101,6 +106,130 @@ async fn a_pickup_signs_every_win_with_its_drops_as_one_transaction() {
         vec![Some(0), Some(0), Some(0)],
         "both signings and the drop are one transaction"
     );
+}
+
+/// A pickup and the roster lock can reach the same win at once. The signing claims the `Won` row
+/// first, so only one of the two writers signs it: the other is told it was already picked up and
+/// leaves no contract, league event or roster move behind (rules §8.3.6).
+#[tokio::test]
+async fn two_writers_racing_for_one_win_sign_it_once() {
+    let Some(league) = TestLeague::create("fa_auction_pickup_race", END_OF_SEASON_YEAR).await
+    else {
+        return;
+    };
+    add_season_under_way(&league).await;
+    let owner = league.add_team_user(LeagueRole::TeamOwner).await;
+    add_won_auction(&league, &owner, "Donovan Mitchell").await;
+
+    let lock = lock_deadline(&league).await;
+    let wins = auction_queries::find_won_auctions_for_team(
+        owner.team_id,
+        league.league_id,
+        END_OF_SEASON_YEAR,
+        &league.db,
+    )
+    .await
+    .expect("read the team's unsigned wins");
+    let (won_auction, winning_bid) = wins.first().expect("one win waiting for a pickup");
+
+    let first = league
+        .db
+        .begin()
+        .await
+        .expect("start the first transaction");
+    let second = league
+        .db
+        .begin()
+        .await
+        .expect("start the second transaction");
+    let (first_outcome, second_outcome) = tokio::join!(
+        sign_and_commit(won_auction, winning_bid, &lock, first),
+        sign_and_commit(won_auction, winning_bid, &lock, second),
+    );
+
+    let refusal = match (first_outcome, second_outcome) {
+        (Ok(()), Err(refusal)) | (Err(refusal), Ok(())) => refusal,
+        (first_outcome, second_outcome) => panic!(
+            "one writer signs the win and the other is refused, got {first_outcome:?} and {second_outcome:?}"
+        ),
+    };
+    assert!(
+        refusal.contains("already been picked up"),
+        "the second writer should be told the win is taken, not given a server fault: {refusal}"
+    );
+
+    assert_eq!(
+        active_contract_count(&league).await,
+        1,
+        "one win signs one contract"
+    );
+    assert_eq!(
+        auction_league_event_count(&league).await,
+        1,
+        "one win writes one AuctionDone league event"
+    );
+    assert_eq!(
+        add_via_auction_move_count(&league, lock.id).await,
+        1,
+        "one win writes one AddViaAuction roster move"
+    );
+}
+
+/// One writer's attempt at a win: commits what it signed, or rolls back with what it was told.
+async fn sign_and_commit(
+    won_auction: &auction::Model,
+    winning_bid: &auction_bid::Model,
+    lock: &deadline::Model,
+    db_txn: DatabaseTransaction,
+) -> Result<(), String> {
+    match sign_won_auction(won_auction, winning_bid, lock, None, &db_txn).await {
+        Ok(_) => {
+            db_txn.commit().await.expect("commit the signing");
+            Ok(())
+        }
+        Err(error) => {
+            db_txn
+                .rollback()
+                .await
+                .expect("roll back the refused signing");
+            Err(error.to_string())
+        }
+    }
+}
+
+async fn auction_league_event_count(league: &TestLeague) -> u64 {
+    league_event_queries::find_league_events_in_league(
+        league.league_id,
+        None,
+        Some(LeagueEventKind::AuctionDone),
+        0,
+        100,
+        &league.db,
+    )
+    .await
+    .expect("load the league's auction events")
+    .total_items
+}
+
+/// The week's roster moves that added a contract off an auction win.
+async fn add_via_auction_move_count(league: &TestLeague, deadline_id: i64) -> usize {
+    team_update_queries::find_team_updates_by_team(
+        league.team_id,
+        None,
+        Some(deadline_id),
+        &league.db,
+    )
+    .await
+    .expect("load the week's moves")
+    .iter()
+    .filter(|team_update| {
+        team_update
+            .get_contract_updates()
+            .expect("read a move's contract updates")
+            .iter()
+            .any(|contract_update| contract_update.update_type == ContractUpdateType::AddViaAuction)
+    })
+    .count()
 }
 
 /// Signs `pick_up_auction_wins`, dropping the contracts named. A drop of one of the week's own wins
@@ -224,16 +353,15 @@ async fn active_contract_count(league: &TestLeague) -> usize {
         .len()
 }
 
-async fn deadline_id(league: &TestLeague, kind: DeadlineKind) -> i64 {
+async fn lock_deadline(league: &TestLeague) -> deadline::Model {
     deadline_queries::find_deadline_for_season_by_type(
         league.league_id,
         END_OF_SEASON_YEAR,
-        kind,
+        DeadlineKind::InSeasonRosterLock,
         &league.db,
     )
     .await
-    .expect("find deadline")
-    .id
+    .expect("find the in-season roster lock")
 }
 
 /// Runs one mutation as the session's user, returning its field value or the error's stable code.

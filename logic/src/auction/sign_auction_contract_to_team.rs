@@ -78,8 +78,9 @@ where
 ///
 /// An in-season free agent auction closes to [`auction::AuctionStatus::Won`] without a contract, so
 /// this is what turns a win into one: the owner's pickup calls it with the drops that make room,
-/// and the roster lock calls it for any win nobody picked up. Pairs the signing with the status
-/// change so a `Won` row cannot be signed twice.
+/// and the roster lock calls it for any win nobody picked up. The win is claimed before anything is
+/// signed, so a second caller gets [`auction_queries::AuctionAlreadySigned`] and writes no
+/// contract.
 #[instrument(skip(db))]
 pub async fn sign_won_auction<C>(
     auction_model: &auction::Model,
@@ -91,6 +92,7 @@ pub async fn sign_won_auction<C>(
 where
     C: ConnectionTrait + TransactionTrait,
 {
+    auction_queries::claim_won_auction(auction_model.id, db).await?;
     let (signed_contract_model, _, team_update_model) = sign_auction_contract_to_team(
         auction_model,
         winning_bid_model,
@@ -106,8 +108,6 @@ where
         db,
     )
     .await?;
-    auction_queries::update_auction_status(auction_model.id, auction::AuctionStatus::Completed, db)
-        .await?;
 
     Ok((signed_contract_model, team_update_model))
 }

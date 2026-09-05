@@ -14,7 +14,7 @@ use fbkl_entity::{
     auction::{self, AuctionKind, AuctionStatus},
     auction_bid,
     auction_queries::{
-        find_auction_bids, find_auction_by_id, find_open_auctions_in_league,
+        AuctionAlreadySigned, find_auction_bids, find_auction_by_id, find_open_auctions_in_league,
         find_winning_bids_for_team, find_won_auctions_for_team,
     },
     auction_schedule_queries::{
@@ -345,11 +345,18 @@ impl AuctionMutation {
         let deadline_model =
             resolve_upcoming_roster_lock(deadline_id, caller_team.league_id, db).await?;
 
+        let db_txn = db
+            .begin()
+            .await
+            .map_err(|err| internal("failed to start database transaction", &err.into()))?;
+
+        // The wins are read inside the transaction that signs them, so a pickup cannot act on a
+        // win the roster lock has taken already.
         let wins = find_won_auctions_for_team(
             team_user.team_id,
             caller_team.league_id,
             deadline_model.end_of_season_year,
-            db,
+            &db_txn,
         )
         .await
         .map_err(|err| internal("failed to load the team's auction wins", &err))?;
@@ -360,10 +367,6 @@ impl AuctionMutation {
             ));
         }
 
-        let db_txn = db
-            .begin()
-            .await
-            .map_err(|err| internal("failed to start database transaction", &err.into()))?;
         let transaction_start = find_transaction_start(team_user.team_id, deadline_id, &db_txn)
             .await
             .map_err(|err| internal("failed to read the team's week", &err))?;
@@ -374,7 +377,7 @@ impl AuctionMutation {
             let (signed_contract, _) =
                 sign_won_auction(won_auction, winning_bid, &deadline_model, None, &db_txn)
                     .await
-                    .map_err(|err| internal("failed to sign an auction win", &err))?;
+                    .map_err(|err| sign_won_auction_error(&err))?;
             signed_by_auctioned_id.insert(won_auction.contract_id, signed_contract.clone());
             signed_contracts.push(signed_contract);
         }
@@ -555,6 +558,17 @@ fn bid_error(error: &Report) -> GraphQlError {
     };
 
     graphql_error(code, rejection.to_string())
+}
+
+/// Tells an owner that another writer signed the win first, rather than reporting a server fault.
+fn sign_won_auction_error(error: &Report) -> GraphQlError {
+    if let Some(already_signed) = error.downcast_ref::<AuctionAlreadySigned>() {
+        return graphql_error(
+            ErrorCode::AuctionAlreadyPickedUp,
+            already_signed.to_string(),
+        );
+    }
+    internal("failed to sign an auction win", error)
 }
 
 /// An auction only reaches a league through its contract, so scoping needs that extra hop.
