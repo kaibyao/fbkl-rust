@@ -133,7 +133,7 @@ async fn record_move(
         .map(|(contract_id, update_type)| contract_update(contract_id, update_type))
         .collect();
     let team_update_data = TeamUpdateData::from_assets(
-        roster_contract_ids,
+        roster_contract_ids.into_iter().collect(),
         vec![TeamUpdateAsset::Contracts(contract_updates)],
         0,
         0,

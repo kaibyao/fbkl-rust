@@ -5,7 +5,7 @@
 //! `reorderTransactions` takes that same set. When `teamWeek` filtered to Pending, the ids it gave a
 //! client were a subset of the week, and the mutation rejected them.
 
-use std::sync::Arc;
+use std::{collections::HashSet, sync::Arc};
 
 use async_graphql::{Request, Value};
 use fbkl_entity::{
@@ -232,7 +232,7 @@ async fn record_move(
     .await
     .expect("insert league_event");
 
-    let data = TeamUpdateData::from_assets(vec![], vec![], 0, 0, 0, 0)
+    let data = TeamUpdateData::from_assets(HashSet::new(), vec![], 0, 0, 0, 0)
         .to_json()
         .expect("team update data as json");
     team_update_queries::insert_team_update(

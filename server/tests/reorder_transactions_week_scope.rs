@@ -11,7 +11,7 @@
 //! Only the upcoming lock's week can be reordered. A week whose lock has fired is settled, and no
 //! later lock run would judge a new grouping of it.
 
-use std::sync::Arc;
+use std::{collections::HashSet, sync::Arc};
 
 use async_graphql::{Request, Value};
 use fbkl_entity::{
@@ -271,7 +271,7 @@ async fn record_move(
     } else {
         vec![TeamUpdateAsset::Contracts(contract_updates)]
     };
-    let data = TeamUpdateData::from_assets(vec![], changed_assets, 0, 0, 0, 0)
+    let data = TeamUpdateData::from_assets(HashSet::new(), changed_assets, 0, 0, 0, 0)
         .to_json()
         .expect("team update data as json");
     team_update_queries::insert_team_update(

@@ -1,3 +1,5 @@
+use std::collections::HashSet;
+
 use color_eyre::eyre::{Result, eyre};
 use fbkl_entity::{
     contract, deadline,
@@ -38,11 +40,11 @@ where
     // team update data
     let mut team_updates_to_insert = vec![];
     for (team_id, team_contracts) in contracts_by_team.iter_all() {
-        let mut team_contract_ids = vec![];
+        let mut team_contract_ids = HashSet::new();
         let mut contract_updates = vec![];
 
         for contract_model in team_contracts {
-            team_contract_ids.push(contract_model.id);
+            team_contract_ids.insert(contract_model.id);
 
             let contract_update_player_data =
                 ContractUpdatePlayerData::from_contract_model(contract_model, db).await?;

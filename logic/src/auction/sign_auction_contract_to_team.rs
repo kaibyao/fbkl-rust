@@ -1,3 +1,5 @@
+use std::collections::HashSet;
+
 use chrono::NaiveDate;
 use color_eyre::Result;
 use fbkl_entity::{
@@ -176,7 +178,7 @@ where
     .await?;
 
     // The signing already committed, so the fetched roster holds the new contract.
-    let team_contract_ids: Vec<i64> = current_active_team_contracts
+    let team_contract_ids: HashSet<i64> = current_active_team_contracts
         .iter()
         .map(|contract_model| contract_model.id)
         .collect();

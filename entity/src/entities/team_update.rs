@@ -99,20 +99,20 @@ pub enum TeamUpdateData {
 
 impl TeamUpdateData {
     /// Generates a new data struct from given assets.
+    ///
+    /// The roster comes in as a set so a writer that unions a re-fetched roster with the contract
+    /// it just wrote cannot count that contract twice. The stored list is sorted, so two writers
+    /// that hold the same roster store the same json.
     pub fn from_assets(
-        all_contract_ids: Vec<i64>,
+        all_contract_ids: HashSet<i64>,
         changed_assets: Vec<TeamUpdateAsset>,
         new_salary: i16,
         new_salary_cap: i16,
         previous_salary: i16,
         previous_salary_cap: i16,
     ) -> Self {
-        // A writer that unions a re-fetched roster with the contract it just wrote counts it twice.
-        debug_assert_eq!(
-            all_contract_ids.iter().collect::<HashSet<_>>().len(),
-            all_contract_ids.len(),
-            "all_contract_ids must list each contract once: {all_contract_ids:?}"
-        );
+        let mut all_contract_ids: Vec<i64> = all_contract_ids.into_iter().collect();
+        all_contract_ids.sort_unstable();
         Self::Assets(TeamUpdateAssetSummary {
             all_contract_ids,
             changed_assets,
@@ -358,7 +358,7 @@ mod tests {
             TeamUpdateAsset::Contracts(vec![contract_update]),
         ];
         let team_update_data =
-            TeamUpdateData::from_assets(vec![1], team_update_assets, 98, 100, 200, 189);
+            TeamUpdateData::from_assets(HashSet::from([1]), team_update_assets, 98, 100, 200, 189);
 
         let encoded = team_update_data.clone().to_json()?;
         let decoded = TeamUpdateData::from_json(encoded)?;
@@ -366,5 +366,19 @@ mod tests {
         assert_eq!(decoded, team_update_data);
 
         Ok(())
+    }
+
+    #[test]
+    fn a_roster_unioned_with_a_contract_it_already_holds_lists_it_once() {
+        let mut roster: HashSet<i64> = HashSet::from([7, 3, 5]);
+        roster.insert(5);
+
+        let TeamUpdateData::Assets(summary) =
+            TeamUpdateData::from_assets(roster, vec![], 0, 0, 0, 0)
+        else {
+            panic!("from_assets builds an asset summary");
+        };
+
+        assert_eq!(summary.all_contract_ids, vec![3, 5, 7]);
     }
 }

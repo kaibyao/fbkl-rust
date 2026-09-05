@@ -1,3 +1,5 @@
+use std::collections::HashSet;
+
 use color_eyre::Result;
 use fbkl_constants::league_rules::KEEPER_CONTRACT_TOTAL_SALARY_LIMIT;
 use sea_orm::{ActiveModelTrait, ActiveValue, ConnectionTrait};
@@ -29,7 +31,7 @@ where
     let all_active_team_contracts = team_model.get_active_contracts(db).await?;
 
     let mut contract_updates = vec![];
-    let mut team_contract_ids = vec![];
+    let mut team_contract_ids = HashSet::new();
     let mut total_salary = 0;
     for team_contract_model in all_active_team_contracts {
         let contract_update_player_data =
@@ -44,7 +46,7 @@ where
                 player_team_name_at_time: contract_update_player_data.real_team_name,
             });
 
-            team_contract_ids.push(team_contract_model.id);
+            team_contract_ids.insert(team_contract_model.id);
             total_salary += team_contract_model.salary;
         } else if !IGNORE_CONTRACT_TYPES_FOR_KEEPERS.contains(&team_contract_model.kind) {
             contract_updates.push(ContractUpdate {

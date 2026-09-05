@@ -243,11 +243,11 @@ where
 {
     let contract_update_player_data =
         ContractUpdatePlayerData::from_contract_model(rookie_contract_model, db).await?;
-    let mut team_contract_ids: Vec<i64> = active_contracts
+    let mut team_contract_ids: HashSet<i64> = active_contracts
         .iter()
         .map(|contract_model| contract_model.id)
         .collect();
-    team_contract_ids.push(rookie_contract_model.id);
+    team_contract_ids.insert(rookie_contract_model.id);
     let SalarySnapshot { salary, cap } = salary_snapshot;
     // Salary is unchanged either side of the pick: RD contracts do not count against the cap.
     let team_update_data = TeamUpdateData::from_assets(
