@@ -372,12 +372,22 @@ Rules Document
    6. Two rules govern every transaction:  
       1. T1: the roster must be legal after each transaction.  
       2. T2: a contract acquired in a transaction may not be dropped, or moved to the IR, in that same transaction.  It may be dropped or moved to the IR in any later transaction.  Activating a contract from the IR or from the RD squad counts as acquiring it (13.1.5.5).  
-      3. Historical exceptions.  Three drops from the 2017-2018 season break T2, and the commissioner ruled on 2026-09-04 that they stand as recorded.  Each one dropped a contract that the same trade brought in, and nobody caught it at the time:  
-         1. Mike, 2017-11-27, Malcolm Delaney.  
-         2. Mike, 2017-11-27, Brice Johnson.  
-         3. Mike, 2017-12-25, Jordan Crawford.  
-      4. Nothing else is exempt from T2.  The 2022-11-28 drops by Vince looked like a fourth exception, because the league records list a date’s trades in one run with no column saying where one deal ends and the next begins, so three deals that day read as one.  The commissioner ruled on 2026-09-04 that they were three deals, which puts the drops in a later transaction than the trade that brought the players in.  The date needs no exemption from T2, so do not add it to 13.1.6.3.  
-      5. The historical import holds the same three rows in HISTORICAL\_T2\_EXCEPTIONS (import-data/src/league/league\_events/date\_transactions.rs).  A change to 13.1.6.3 needs the same change there, and the other way round.  
+      3. Historical exceptions.  Thirteen rows in the league's record break T2, and the commissioner ruled that they stand as recorded.  Each one drops a contract, or moves one to the IR, that the same transaction brought in, and nobody caught it at the time.  The 2026-09-04 ruling covers the three Mike rows; the 2026-09-05 ruling covers the other ten, which came to light once the import judged a merged transaction as one T2 scope (13.1.8):  
+         1. Larry/Kevin, 2016-03-07, Anderson Varejao (drop).  
+         2. Larry/Kevin, 2016-03-07, Jared Dudley (drop).  
+         3. Larry/Kevin, 2016-03-07, Kevin Martin (drop).  
+         4. Mike, 2017-11-27, Malcolm Delaney (drop).  
+         5. Mike, 2017-11-27, Brice Johnson (drop).  
+         6. Mike, 2017-12-25, Jordan Crawford (drop).  
+         7. SeanClement/Pat, 2020-02-10, Al-Farouq Aminu (drop).  
+         8. SeanClement/Pat, 2020-02-10, Ante Zizic (drop).  
+         9. Edwin, 2020-02-24, Klay Thompson (move to the IR).  
+         10. Edwin, 2023-01-09, Karl-Anthony Towns (move to the IR).  
+         11. JeffPerri, 2025-11-10, Quenton Jackson (drop).  
+         12. JeffPerri, 2025-11-10, Tyrese Martin (drop).  
+         13. MikeYu, 2026-02-09, Jimmy Butler III (drop).  
+      4. Nothing else is exempt from T2.  The 2022-11-28 drops by Vince looked like another exception, because the league records list a date’s trades in one run with no column saying where one deal ends and the next begins, so three deals that day read as one.  The commissioner ruled on 2026-09-04 that they were three deals, which puts the drops in a later transaction than the trade that brought the players in.  The date needs no exemption from T2, so do not add it to 13.1.6.3.  A declaration only helps when each deal is legal on its own, which is why the 13.1.6.3 rows are not the same case: on 2016-03-07 Larry/Kevin's first trade brings in two rookie development contracts and puts them over the six-contract RD limit, and only a later activation clears it, so no grouping of that date's drops makes that trade legal by itself.  The commissioner ruled on 2026-09-05 that every row of that shape is an exception under 13.1.6.3.  
+      5. The historical import holds the same rows in HISTORICAL\_T2\_EXCEPTIONS (import-data/src/league/league\_events/date\_transactions.rs).  A change to 13.1.6.3 needs the same change there, and the other way round.  
    7. Worked example – Kai, week of 2021-11-01, starting at 21 counted contracts.  Every transaction below leaves the roster legal (T1), and no contract is acquired and removed within one transaction (T2), so the whole week is legal.  Neto and Reaves are added in transaction 4 and dropped in transaction 5; T2 allows this because the drops are in a later transaction.  Dropping Neto inside transaction 4 to make room for Reaves would break T2.  
 
 | Transaction | Moves | Counted contracts after |
