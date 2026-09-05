@@ -1,4 +1,4 @@
-use color_eyre::Result;
+use color_eyre::{Result, eyre::eyre};
 use sea_orm::{
     ActiveModelTrait, ActiveValue, ColumnTrait, ConnectionTrait, EntityTrait, JoinType, ModelTrait,
     QueryFilter, QueryOrder, QuerySelect, RelationTrait, sea_query::Expr,
@@ -6,7 +6,7 @@ use sea_orm::{
 use tracing::instrument;
 
 use crate::{
-    deadline, league_event,
+    deadline, league_event, team,
     team_update::{self, TeamUpdateStatus},
 };
 
@@ -102,11 +102,13 @@ where
     Ok(status_set_to_in_progress)
 }
 
-/// A team's moves for one week that were written after `after_team_update_id`.
+/// A team's still-unnumbered moves for one week that were written after `after_team_update_id`.
 ///
 /// Ids ascend, so the newest id read before a batch of moves is applied marks off the rows that
 /// batch wrote: the rows of one transaction (rules §13.1.4). The logic fns each write their own
 /// `team_update` and return only the contract, so this is how a caller collects what it just did.
+/// A row that already carries a `transaction_number` belongs to a transaction that was judged
+/// already, so it is left out and its number is never rewritten.
 #[instrument(skip(db))]
 pub async fn find_team_updates_after<C>(
     team_id: i64,
@@ -117,8 +119,18 @@ pub async fn find_team_updates_after<C>(
 where
     C: ConnectionTrait,
 {
-    let mut week_moves = find_team_updates_by_team(team_id, None, Some(deadline_id), db).await?;
-    week_moves.retain(|team_update| team_update.id > after_team_update_id);
+    let week_moves = team_update::Entity::find()
+        .join(
+            JoinType::InnerJoin,
+            team_update::Relation::LeagueEvent.def(),
+        )
+        .filter(team_update::Column::TeamId.eq(team_id))
+        .filter(league_event::Column::DeadlineId.eq(deadline_id))
+        .filter(team_update::Column::Id.gt(after_team_update_id))
+        .filter(team_update::Column::TransactionNumber.is_null())
+        .order_by_desc(team_update::Column::Id)
+        .all(db)
+        .await?;
     Ok(week_moves)
 }
 
@@ -135,7 +147,9 @@ pub struct TransactionStart {
 /// Reads where a team's next transaction of the week starts, before its moves are applied.
 ///
 /// Unnumbered rows are each their own transaction and hold no number to avoid, so only the stored
-/// numbers decide the next one.
+/// numbers decide the next one. The team row is locked first, so two overlapping submissions for
+/// one team run one after the other and cannot take the same number. Only meaningful inside a db
+/// transaction, which is where every caller applies its moves.
 #[instrument(skip(db))]
 pub async fn find_transaction_start<C>(
     team_id: i64,
@@ -145,6 +159,12 @@ pub async fn find_transaction_start<C>(
 where
     C: ConnectionTrait,
 {
+    team::Entity::find_by_id(team_id)
+        .lock_exclusive()
+        .one(db)
+        .await?
+        .ok_or_else(|| eyre!("Could not find team {team_id}."))?;
+
     let week_moves = find_team_updates_by_team(team_id, None, Some(deadline_id), db).await?;
     let highest_stored = week_moves
         .iter()
