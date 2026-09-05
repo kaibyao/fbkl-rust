@@ -460,7 +460,8 @@ pub(in crate::graphql) fn roster_move_error(error: &Report) -> GraphQlError {
         // A stale contract row is a refetch-and-retry for the client, not a rule it broke.
         RosterMoveRejection::NotLatestInChain { .. } => ErrorCode::NotLatestInChain,
         // T1 names a rule per broken roster rule, which the client shows rather than one message.
-        RosterMoveRejection::TransactionLeavesRosterIllegal { violations, .. } => {
+        RosterMoveRejection::TransactionLeavesRosterIllegal { violations, .. }
+        | RosterMoveRejection::TradeLeavesRostersIllegal { violations } => {
             return roster_illegal_error(violations);
         }
         _ => ErrorCode::RosterMoveRejected,
@@ -581,7 +582,11 @@ where
 
 #[cfg(test)]
 mod tests {
-    use fbkl_entity::{contract::ContractStatus, team_update::ContractUpdateType};
+    use fbkl_entity::{
+        contract::ContractStatus, roster_lock_violation_queries::TeamRosterViolation,
+        team_update::ContractUpdateType,
+    };
+    use fbkl_logic::deadline_processing::roster_lock::RosterRule;
 
     use super::*;
 
@@ -631,6 +636,42 @@ mod tests {
 
         assert_eq!(code_of(&error), Some("NOT_LATEST_IN_CHAIN".into()));
         assert!(error.message.contains("latest in its chain"), "{error:?}");
+    }
+
+    #[test]
+    fn a_trade_refused_for_two_teams_reports_both_of_them_as_violations() {
+        let error = roster_move_error(&Report::new(
+            RosterMoveRejection::TradeLeavesRostersIllegal {
+                violations: vec![
+                    TeamRosterViolation {
+                        team_id: 4,
+                        rule: RosterRule::VeteranOrRookieLimit,
+                        message: "team 4 is over the limit".to_owned(),
+                    },
+                    TeamRosterViolation {
+                        team_id: 9,
+                        rule: RosterRule::SalaryCap,
+                        message: "team 9 is over the cap".to_owned(),
+                    },
+                ],
+            },
+        ));
+
+        assert_eq!(code_of(&error), Some("ROSTER_ILLEGAL".into()));
+        let violations = error
+            .extensions
+            .as_ref()
+            .and_then(|extensions| extensions.get("violations"))
+            .cloned()
+            .expect("the client reads the broken rules from the extension");
+        let async_graphql::Value::List(entries) = violations else {
+            panic!("expected a list of violations, got {violations:?}");
+        };
+        assert_eq!(
+            entries.len(),
+            2,
+            "both teams reach the client, not just the first judged"
+        );
     }
 
     #[test]

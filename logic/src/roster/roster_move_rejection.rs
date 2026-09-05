@@ -60,6 +60,16 @@ pub enum RosterMoveRejection {
         /// re-parse one joined message.
         violations: Vec<TeamRosterViolation>,
     },
+    /// Rules §13.1.6 (T1) for a whole trade: every team the trade leaves illegal, not just the
+    /// first one judged, because the owner has to fix all of them before the trade can apply.
+    #[error(
+        "This trade leaves at least one roster illegal, so none of it is applied.\n{}",
+        joined_violation_messages(.violations)
+    )]
+    TradeLeavesRostersIllegal {
+        /// Every rule broken, by team in id order, so the owner reads one refusal per retry.
+        violations: Vec<TeamRosterViolation>,
+    },
     /// Rules §12.5.3: a trade's accommodating drop has to name a contract the submitting team
     /// holds once the trade's legs have applied, or there is nothing for it to remove.
     #[error(

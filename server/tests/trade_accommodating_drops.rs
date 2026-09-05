@@ -12,6 +12,7 @@ use fbkl_entity::{
     contract_queries,
     deadline::DeadlineKind,
     deadline_queries,
+    roster_lock_violation_queries::TeamRosterViolation,
     sea_orm::prelude::DateTimeWithTimeZone,
     team_update_queries,
     team_user::{self, LeagueRole},
@@ -112,11 +113,12 @@ async fn an_accept_whose_drops_do_not_cover_the_incoming_legs_is_refused() {
     .expect_err("a 23rd contract with no drop leaves the accepter's roster illegal");
 
     match error.downcast_ref::<RosterMoveRejection>() {
-        Some(RosterMoveRejection::TransactionLeavesRosterIllegal {
-            team_id,
-            violations,
-        }) => {
-            assert_eq!(*team_id, receiving_team_id, "the refusal names the team");
+        Some(RosterMoveRejection::TradeLeavesRostersIllegal { violations }) => {
+            assert_eq!(
+                violation_team_ids(violations),
+                vec![receiving_team_id],
+                "the refusal names the team"
+            );
             assert!(
                 violations
                     .iter()
@@ -264,9 +266,10 @@ async fn a_multi_owner_trade_judges_every_involved_team() {
     .expect_err("the full team's transaction leaves its roster illegal");
 
     match error.downcast_ref::<RosterMoveRejection>() {
-        Some(RosterMoveRejection::TransactionLeavesRosterIllegal { team_id, .. }) => {
+        Some(RosterMoveRejection::TradeLeavesRostersIllegal { violations }) => {
             assert_eq!(
-                *team_id, full_team_id,
+                violation_team_ids(violations),
+                vec![full_team_id],
                 "every involved team is judged, and the refusal names the one that failed"
             );
         }
@@ -536,6 +539,117 @@ async fn the_first_of_two_bad_drops_is_the_one_reported() {
         }
         other => panic!("expected a bad-drop rejection, got {other:?} from {error}"),
     }
+}
+
+#[tokio::test]
+async fn a_trade_that_leaves_two_teams_illegal_reports_both() {
+    let Some(league) = TestLeague::create("trade_drops_two_illegal", END_OF_SEASON_YEAR).await
+    else {
+        return;
+    };
+    add_season_under_way(&league).await;
+    let sending_owner = league.add_team_user(LeagueRole::TeamOwner).await;
+    let first_full_team_id = league.add_team("First full team").await;
+    let first_full_owner = league
+        .add_team_user_for_team(first_full_team_id, LeagueRole::TeamOwner)
+        .await;
+    let second_full_team_id = league.add_team("Second full team").await;
+    let second_full_owner = league
+        .add_team_user_for_team(second_full_team_id, LeagueRole::TeamOwner)
+        .await;
+
+    let sent = add_contracts(&league, league.team_id, 2, "Sent").await;
+    add_contracts(&league, first_full_team_id, VET_OR_ROOKIE_LIMIT, "Kept").await;
+    add_contracts(&league, second_full_team_id, VET_OR_ROOKIE_LIMIT, "Held").await;
+
+    let proposed_trade = propose_trade(
+        league.league_id,
+        END_OF_SEASON_YEAR,
+        &sending_owner,
+        &[first_full_team_id, second_full_team_id],
+        vec![
+            trade_asset::Model::from_contract(
+                None,
+                sent[0].id,
+                trade_asset::FromTeamId(league.team_id),
+                trade_asset::ToTeamId(first_full_team_id),
+            ),
+            trade_asset::Model::from_contract(
+                None,
+                sent[1].id,
+                trade_asset::FromTeamId(league.team_id),
+                trade_asset::ToTeamId(second_full_team_id),
+            ),
+        ],
+        &[],
+        &league.db,
+    )
+    .await
+    .expect("propose a three-team trade");
+
+    let trade_id = proposed_trade.id;
+    accept_trade(
+        proposed_trade,
+        &first_full_owner,
+        &now(),
+        &[],
+        TradeLegality::JudgeNow,
+        &league.db,
+    )
+    .await
+    .expect("nothing is judged until every team has responded");
+
+    let awaiting_trade = find_trade_by_id(trade_id, &league.db)
+        .await
+        .expect("the trade is still on record");
+    let error = accept_trade(
+        awaiting_trade,
+        &second_full_owner,
+        &now(),
+        &[],
+        TradeLegality::JudgeNow,
+        &league.db,
+    )
+    .await
+    .expect_err("both receiving teams take a 23rd contract with no drop");
+
+    match error.downcast_ref::<RosterMoveRejection>() {
+        Some(RosterMoveRejection::TradeLeavesRostersIllegal { violations }) => {
+            let mut reported = violation_team_ids(violations);
+            let sorted = {
+                let mut ids = reported.clone();
+                ids.sort_unstable();
+                ids
+            };
+            assert_eq!(reported, sorted, "teams are reported in id order");
+            reported.dedup();
+            assert_eq!(
+                reported,
+                vec![
+                    first_full_team_id.min(second_full_team_id),
+                    first_full_team_id.max(second_full_team_id)
+                ],
+                "one refusal reports every team the trade leaves illegal"
+            );
+        }
+        other => panic!("expected a T1 rejection, got {other:?} from {error}"),
+    }
+    assert_eq!(
+        find_trade_by_id(trade_id, &league.db)
+            .await
+            .expect("the trade is still on record")
+            .status,
+        TradeStatus::Proposed,
+        "a refused trade applies none of its legs"
+    );
+}
+
+/// The teams a T1 refusal names, one entry per broken rule, in the order it reports them.
+fn violation_team_ids(violations: &[TeamRosterViolation]) -> Vec<i64> {
+    violations
+        .iter()
+        .map(|violation| violation.team_id)
+        .collect()
 }
 
 async fn propose(

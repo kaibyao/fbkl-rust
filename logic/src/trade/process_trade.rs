@@ -1,5 +1,5 @@
 use std::{
-    collections::{HashMap, HashSet},
+    collections::{BTreeMap, BTreeSet, HashMap, HashSet},
     fmt::Debug,
 };
 
@@ -278,8 +278,9 @@ where
 #[derive(Debug)]
 struct TradeTransactions {
     accommodating_drops: Vec<trade_accommodating_drop::Model>,
-    /// Where each team's transaction starts, read before the trade writes anything.
-    starts_by_team_id: HashMap<i64, TransactionStart>,
+    /// Where each team's transaction starts, read before the trade writes anything. Keyed in team
+    /// id order so a refused trade names the same team every run.
+    starts_by_team_id: BTreeMap<i64, TransactionStart>,
 }
 
 impl TradeTransactions {
@@ -298,14 +299,16 @@ impl TradeTransactions {
             trade_accommodating_drop_queries::find_accommodating_drops_for_trade(trade_id, db)
                 .await?;
 
-        let mut team_ids: HashSet<i64> = asset_team_ids.clone();
+        // Team id order: `find_transaction_start` locks each team row, and two trades that share
+        // two teams would deadlock if they took those locks in opposite orders.
+        let mut team_ids: BTreeSet<i64> = asset_team_ids.iter().copied().collect();
         team_ids.extend(
             accommodating_drops
                 .iter()
                 .map(|accommodating_drop| accommodating_drop.team_id),
         );
 
-        let mut starts_by_team_id = HashMap::with_capacity(team_ids.len());
+        let mut starts_by_team_id = BTreeMap::new();
         for team_id in team_ids {
             starts_by_team_id.insert(
                 team_id,
@@ -320,6 +323,9 @@ impl TradeTransactions {
     }
 
     /// Applies each owner's drops, then judges every involved team's transaction (T1 and T2).
+    ///
+    /// Every team's T1 failures are gathered, teams in id order, so an owner fixing a refused trade
+    /// reads all of them at once instead of one per retry.
     ///
     /// A drop may name a contract the trade brings in, whose row `process_trade_assets` has already
     /// replaced; the trade asset's replacement is the row to remove, which puts the add and the
@@ -371,15 +377,30 @@ impl TradeTransactions {
             return Ok(());
         }
 
+        let mut violations = vec![];
         for (team_id, transaction_start) in &self.starts_by_team_id {
-            file_and_validate_transaction(
+            let Err(report) = file_and_validate_transaction(
                 *team_id,
                 upcoming_lock,
                 transaction_start,
                 trade_datetime,
                 db,
             )
-            .await?;
+            .await
+            else {
+                continue;
+            };
+            // Only T1 is gathered: every other rejection names one move, so it needs no other team.
+            match report.downcast_ref::<RosterMoveRejection>() {
+                Some(RosterMoveRejection::TransactionLeavesRosterIllegal {
+                    violations: team_violations,
+                    ..
+                }) => violations.extend(team_violations.iter().cloned()),
+                _ => return Err(report),
+            }
+        }
+        if !violations.is_empty() {
+            return Err(RosterMoveRejection::TradeLeavesRostersIllegal { violations }.into());
         }
 
         Ok(())
