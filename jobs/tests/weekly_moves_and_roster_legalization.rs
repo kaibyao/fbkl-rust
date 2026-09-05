@@ -14,9 +14,9 @@
 //! by a later trade).
 
 use chrono::Utc;
-use color_eyre::eyre::{Report, Result, eyre};
+use color_eyre::eyre::{Report, Result};
 use fbkl_entity::{
-    contract::{self, ContractKind, ContractStatus},
+    contract::{self, ContractKind},
     contract_queries,
     deadline::{self, DeadlineKind},
     deadline_queries,
@@ -215,18 +215,6 @@ enum Move {
     ToIr(contract::Model),
 }
 
-/// The live row of `contract_model`'s chain, i.e. what a move has to act on once an earlier move
-/// replaced the row the fixture named. Every roster move writes a replacement row, so a week that
-/// touches one player twice names a stale row the second time, and the row a fixture holds cannot
-/// be trusted to still be the live one.
-async fn live_row(league: &TestLeague, contract_model: contract::Model) -> Result<contract::Model> {
-    contract_queries::find_contract_chain(contract_model.id, &league.db)
-        .await?
-        .into_iter()
-        .find(|chain_row| chain_row.status == ContractStatus::Active)
-        .ok_or_else(|| eyre!("contract chain {} has no live row", contract_model.id))
-}
-
 /// Applies `moves` to `team_id`'s live rows and judges them as one transaction (rules §13.1.6),
 /// i.e. the shape every transaction submission path shares.
 ///
@@ -244,31 +232,31 @@ async fn submit_transaction(
     for move_to_apply in moves {
         let (update_contract_id, update_type) = match move_to_apply {
             Move::Win(named_contract_model) => {
-                let joining = live_row(league, named_contract_model).await?;
+                let joining = named_contract_model.get_latest_in_chain(&league.db).await?;
                 let joined =
                     contract_queries::trade_contract_to_team(joining, team_id, &league.db).await?;
                 (joined.id, ContractUpdateType::AddViaAuction)
             }
             Move::TradeFor(named_contract_model) => {
-                let arriving = live_row(league, named_contract_model).await?;
+                let arriving = named_contract_model.get_latest_in_chain(&league.db).await?;
                 let arrived =
                     contract_queries::trade_contract_to_team(arriving, team_id, &league.db).await?;
                 (arrived.id, ContractUpdateType::AddViaTrade)
             }
             Move::TradeAway(named_contract_model, to_team_id) => {
-                let leaving = live_row(league, named_contract_model).await?;
+                let leaving = named_contract_model.get_latest_in_chain(&league.db).await?;
                 // The sending side records the row it gave up, so this id is the pre-trade one.
                 let given_up_contract_id = leaving.id;
                 contract_queries::trade_contract_to_team(leaving, to_team_id, &league.db).await?;
                 (given_up_contract_id, ContractUpdateType::TradedAway)
             }
             Move::Drop(named_contract_model) => {
-                let to_drop = live_row(league, named_contract_model).await?;
+                let to_drop = named_contract_model.get_latest_in_chain(&league.db).await?;
                 let dropped = drop_contract_from_team(to_drop, deadline_model, &league.db).await?;
                 (dropped.id, ContractUpdateType::Drop)
             }
             Move::ToIr(named_contract_model) => {
-                let to_park = live_row(league, named_contract_model).await?;
+                let to_park = named_contract_model.get_latest_in_chain(&league.db).await?;
                 let on_ir = move_contract_to_ir(to_park, deadline_model, &league.db).await?;
                 (on_ir.id, ContractUpdateType::ToIR)
             }

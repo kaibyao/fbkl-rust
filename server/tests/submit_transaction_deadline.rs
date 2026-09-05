@@ -410,6 +410,68 @@ async fn a_single_move_is_judged_and_numbered_as_its_own_transaction() {
     );
 }
 
+/// A batch may move one player more than once, and every move writes a replacement contract row.
+/// So the id the client sent names a row an earlier move in the same batch has already replaced,
+/// and the client cannot name the live one: it does not exist when the batch is submitted. The
+/// mutation resolves each id to its chain's latest row before it applies the move.
+#[tokio::test]
+async fn a_batch_follows_the_contract_chain_between_moves_on_one_player() {
+    let Some(league) = TestLeague::create("submit_transaction_chain", END_OF_SEASON_YEAR).await
+    else {
+        return;
+    };
+    add_season_under_way(&league).await;
+    let owner = league.add_team_user(LeagueRole::TeamOwner).await;
+
+    let contracts = add_roster_contracts(&league, 4).await;
+    let named_id = contracts[0].id;
+    let lock_id = deadline_id(&league, DeadlineKind::InSeasonRosterLock).await;
+    let schema = build_graphql_schema(league.db.clone());
+    let session = session_for(owner.user_id, league.league_id).await;
+
+    let ir_move = format!("{{contractId: {named_id}, kind: MOVE_TO_IR}}");
+    let parked = run(
+        &schema,
+        &submit(league.team_id, lock_id, &ir_move),
+        &session,
+    )
+    .await;
+    assert!(
+        parked.is_ok(),
+        "expected the move to IR to apply: {parked:?}"
+    );
+    assert_eq!(ir_contract_count(&league).await, 1);
+
+    // The named id is two rows stale by the drop. T2 takes no offence because activating a player
+    // does not yet count as acquiring him (fbkl-rust-140.37).
+    let activate_then_drop = format!(
+        "{{contractId: {named_id}, kind: ACTIVATE_FROM_IR}}, {}",
+        drop_move(named_id)
+    );
+    let applied = run(
+        &schema,
+        &submit(league.team_id, lock_id, &activate_then_drop),
+        &session,
+    )
+    .await;
+    assert!(applied.is_ok(), "expected both moves to apply: {applied:?}");
+    assert_eq!(
+        ir_contract_count(&league).await,
+        0,
+        "the activation should have taken the player off IR"
+    );
+    assert_eq!(
+        active_contract_count(&league).await,
+        3,
+        "the drop should have taken the player off the roster"
+    );
+    assert_eq!(
+        stored_transaction_numbers(&league, lock_id).await,
+        vec![Some(0), Some(1), Some(1)],
+        "the two moves on one player share the transaction that applied them"
+    );
+}
+
 fn move_to_ir(contract_id: i64, deadline_id: i64) -> String {
     format!(
         "mutation {{ moveContractToIr(contractId: {contract_id}, deadlineId: {deadline_id}) {{ id }} }}"

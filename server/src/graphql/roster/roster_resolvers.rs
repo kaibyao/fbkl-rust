@@ -251,9 +251,13 @@ impl RosterMutation {
 
         let mut updated_contracts = Vec::with_capacity(moves.len());
         for roster_move in moves {
+            // Every move writes a replacement row, so a later move on one player names a stale id.
             let contract_model = find_contract_by_id(roster_move.contract_id, &db_txn)
                 .await
-                .map_err(|_| code_error(ErrorCode::NotFound))?;
+                .map_err(|_| code_error(ErrorCode::NotFound))?
+                .get_latest_in_chain(&db_txn)
+                .await
+                .map_err(|err| internal("failed to read the contract's history", &err))?;
             if contract_model.league_id != caller_team.league_id {
                 return Err(code_error(ErrorCode::NotFound));
             }
