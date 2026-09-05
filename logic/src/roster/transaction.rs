@@ -40,7 +40,7 @@ where
     C: ConnectionTrait,
 {
     // T2 first: it costs at most one id lookup, against the whole rule sweep T1 runs.
-    validate_no_add_then_remove(transaction_updates, db).await?;
+    validate_no_add_then_remove(transaction_updates, deadline_model.kind, db).await?;
 
     let governing_deadline =
         find_governing_deadline(transaction_datetime, deadline_model, db).await?;
@@ -59,10 +59,13 @@ where
 /// Validates rules §13.1.6 T2 alone: a transaction may not remove a player it also acquired.
 ///
 /// Split out of [`validate_transaction`] for `reorderTransactions`, which regroups moves that are
-/// already applied and so has no roster state of its own to hand T1.
+/// already applied and so has no roster state of its own to hand T1. `deadline_kind` is the kind of
+/// the lock the moves are filed under, because rules §10.3.1 and §10.1.2 exempt the move to the IR
+/// from T2 at the preseason lock.
 #[instrument(skip(db))]
 pub async fn validate_no_add_then_remove<C>(
     transaction_updates: &[ContractUpdate],
+    deadline_kind: DeadlineKind,
     db: &C,
 ) -> Result<()>
 where
@@ -70,7 +73,8 @@ where
 {
     if let Some(offending_update) = find_same_transaction_add_then_remove(
         transaction_updates,
-        &find_chain_roots(transaction_updates, db).await?,
+        &find_chain_roots(transaction_updates, deadline_kind, db).await?,
+        deadline_kind,
     ) {
         return Err(RosterMoveRejection::SameTransactionAddThenRemove {
             contract_id: offending_update.contract_id,
@@ -90,6 +94,7 @@ where
 /// no add-and-removal pair to resolve, which is every single-move transaction.
 async fn find_chain_roots<C>(
     transaction_updates: &[ContractUpdate],
+    deadline_kind: DeadlineKind,
     db: &C,
 ) -> Result<HashMap<i64, i64>>
 where
@@ -100,7 +105,7 @@ where
         .any(|update| is_add(update.update_type));
     let has_removal = transaction_updates
         .iter()
-        .any(|update| is_removal(update.update_type));
+        .any(|update| is_removal(update.update_type, deadline_kind));
     if !has_add || !has_removal {
         return Ok(HashMap::new());
     }
@@ -132,6 +137,7 @@ where
 fn find_same_transaction_add_then_remove<'updates>(
     transaction_updates: &'updates [ContractUpdate],
     chain_roots: &HashMap<i64, i64>,
+    deadline_kind: DeadlineKind,
 ) -> Option<&'updates ContractUpdate> {
     let root_of = |contract_id: i64| {
         chain_roots
@@ -147,7 +153,8 @@ fn find_same_transaction_add_then_remove<'updates>(
         .collect();
 
     transaction_updates.iter().find(|update| {
-        is_removal(update.update_type) && acquired_roots.contains(&root_of(update.contract_id))
+        is_removal(update.update_type, deadline_kind)
+            && acquired_roots.contains(&root_of(update.contract_id))
     })
 }
 
@@ -277,11 +284,18 @@ const fn is_add(update_type: ContractUpdateType) -> bool {
 
 /// Whether the update type takes a contract off the counted roster, i.e. T2's "dropped or moved to
 /// the IR".
-const fn is_removal(update_type: ContractUpdateType) -> bool {
-    matches!(
-        update_type,
-        ContractUpdateType::Drop | ContractUpdateType::ToIR
-    )
+///
+/// Rules §10.3.1 and §10.1.2 exempt the move to the IR at the preseason lock, the one time a player
+/// may go straight to the IR without being accommodated on the active roster first. A drop stays a
+/// removal at every kind.
+const fn is_removal(update_type: ContractUpdateType, deadline_kind: DeadlineKind) -> bool {
+    match update_type {
+        ContractUpdateType::Drop => true,
+        ContractUpdateType::ToIR => {
+            !matches!(deadline_kind, DeadlineKind::PreseasonFinalRosterLock)
+        }
+        _ => false,
+    }
 }
 
 #[cfg(test)]
@@ -305,8 +319,12 @@ mod tests {
             update(1, ContractUpdateType::Drop),
         ];
 
-        let offending_update =
-            find_same_transaction_add_then_remove(&updates, &HashMap::new()).unwrap();
+        let offending_update = find_same_transaction_add_then_remove(
+            &updates,
+            &HashMap::new(),
+            DeadlineKind::InSeasonRosterLock,
+        )
+        .unwrap();
 
         assert_eq!(offending_update.contract_id, 1);
         assert_eq!(offending_update.update_type, ContractUpdateType::Drop);
@@ -319,10 +337,50 @@ mod tests {
             update(2, ContractUpdateType::ToIR),
         ];
 
-        let offending_update =
-            find_same_transaction_add_then_remove(&updates, &HashMap::new()).unwrap();
+        let offending_update = find_same_transaction_add_then_remove(
+            &updates,
+            &HashMap::new(),
+            DeadlineKind::InSeasonRosterLock,
+        )
+        .unwrap();
 
         assert_eq!(offending_update.update_type, ContractUpdateType::ToIR);
+    }
+
+    #[test]
+    fn an_add_sent_to_ir_in_the_same_transaction_is_allowed_at_the_preseason_lock() {
+        // Rules 10.3.1 and 10.1.2: the season start is the one time a player may go straight to IR.
+        let updates = [
+            update(2, ContractUpdateType::AddViaTrade),
+            update(2, ContractUpdateType::ToIR),
+        ];
+
+        assert!(
+            find_same_transaction_add_then_remove(
+                &updates,
+                &HashMap::new(),
+                DeadlineKind::PreseasonFinalRosterLock
+            )
+            .is_none()
+        );
+    }
+
+    #[test]
+    fn an_add_dropped_in_the_same_transaction_is_refused_at_the_preseason_lock() {
+        // Only the IR half of T2 is exempt at the season start; a drop is still a removal.
+        let updates = [
+            update(1, ContractUpdateType::AddViaAuction),
+            update(1, ContractUpdateType::Drop),
+        ];
+
+        assert!(
+            find_same_transaction_add_then_remove(
+                &updates,
+                &HashMap::new(),
+                DeadlineKind::PreseasonFinalRosterLock
+            )
+            .is_some()
+        );
     }
 
     #[test]
@@ -332,7 +390,14 @@ mod tests {
             update(3, ContractUpdateType::Drop),
         ];
 
-        assert!(find_same_transaction_add_then_remove(&updates, &HashMap::new()).is_some());
+        assert!(
+            find_same_transaction_add_then_remove(
+                &updates,
+                &HashMap::new(),
+                DeadlineKind::InSeasonRosterLock
+            )
+            .is_some()
+        );
     }
 
     #[test]
@@ -342,14 +407,28 @@ mod tests {
             update(5, ContractUpdateType::AddViaAuction),
         ];
 
-        assert!(find_same_transaction_add_then_remove(&updates, &HashMap::new()).is_none());
+        assert!(
+            find_same_transaction_add_then_remove(
+                &updates,
+                &HashMap::new(),
+                DeadlineKind::InSeasonRosterLock
+            )
+            .is_none()
+        );
     }
 
     #[test]
     fn a_drop_with_no_matching_add_is_allowed() {
         let updates = [update(6, ContractUpdateType::Drop)];
 
-        assert!(find_same_transaction_add_then_remove(&updates, &HashMap::new()).is_none());
+        assert!(
+            find_same_transaction_add_then_remove(
+                &updates,
+                &HashMap::new(),
+                DeadlineKind::InSeasonRosterLock
+            )
+            .is_none()
+        );
     }
 
     #[test]
@@ -359,7 +438,14 @@ mod tests {
             update(8, ContractUpdateType::Drop),
         ];
 
-        assert!(find_same_transaction_add_then_remove(&updates, &HashMap::new()).is_none());
+        assert!(
+            find_same_transaction_add_then_remove(
+                &updates,
+                &HashMap::new(),
+                DeadlineKind::InSeasonRosterLock
+            )
+            .is_none()
+        );
     }
 
     #[test]
@@ -371,8 +457,12 @@ mod tests {
         ];
         let chain_roots = HashMap::from([(90, 41), (91, 41)]);
 
-        let offending_update =
-            find_same_transaction_add_then_remove(&updates, &chain_roots).unwrap();
+        let offending_update = find_same_transaction_add_then_remove(
+            &updates,
+            &chain_roots,
+            DeadlineKind::InSeasonRosterLock,
+        )
+        .unwrap();
 
         assert_eq!(offending_update.contract_id, 91);
     }
@@ -385,6 +475,13 @@ mod tests {
         ];
         let chain_roots = HashMap::from([(90, 41), (91, 42)]);
 
-        assert!(find_same_transaction_add_then_remove(&updates, &chain_roots).is_none());
+        assert!(
+            find_same_transaction_add_then_remove(
+                &updates,
+                &chain_roots,
+                DeadlineKind::InSeasonRosterLock
+            )
+            .is_none()
+        );
     }
 }

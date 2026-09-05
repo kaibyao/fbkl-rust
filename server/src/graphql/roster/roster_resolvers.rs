@@ -157,7 +157,8 @@ impl RosterMutation {
             return Err(code_error(ErrorCode::Forbidden));
         }
 
-        resolve_upcoming_roster_lock(deadline_id, caller_team.league_id, db).await?;
+        let deadline_model =
+            resolve_upcoming_roster_lock(deadline_id, caller_team.league_id, db).await?;
 
         let week_move_models = find_team_updates_by_team(team_id, None, Some(deadline_id), db)
             .await
@@ -188,7 +189,7 @@ impl RosterMutation {
                     .map_err(|err| internal("failed to read a move's contract changes", &err))?;
                 transaction_updates.extend(contract_updates);
             }
-            validate_no_add_then_remove(&transaction_updates, db)
+            validate_no_add_then_remove(&transaction_updates, deadline_model.kind, db)
                 .await
                 .map_err(|err| roster_move_error(&err))?;
         }
