@@ -144,8 +144,17 @@ impl TradeAssetRelatedModelCache {
     }
 }
 
-/// Moves assets between teams for a created trade, updates the trade status to `completed`, creates the appropriate league event, and invalidates all other pending trades that include any of the traded assets.
-/// Returns the updated trade model.
+/// Moves a created trade's assets between teams and completes it.
+///
+/// Updates the trade status to `completed`, creates the league event, and invalidates every other
+/// pending trade that includes any of the traded assets. Returns the updated trade model.
+///
+/// A trade is a transaction, and a transaction is judged at the lock it is filed under (rules
+/// §13.1.4-§13.1.6), so the trade files under the lock still to fire - not the next deadline of
+/// any kind, which can sit before that lock and put the trade in a week it was never judged in.
+///
+/// The trade's `team_update` snapshots report the cap in force when the trade was made, not the
+/// coming lock's, which is the same deadline its transactions are judged against.
 #[instrument(skip(db))]
 pub async fn process_trade<C>(
     trade_model: trade::Model,
@@ -156,9 +165,6 @@ pub async fn process_trade<C>(
 where
     C: ConnectionTrait,
 {
-    // A trade is a transaction, and a transaction is judged at the lock it is filed under (rules
-    // §13.1.4-§13.1.6), so the trade files under the lock still to fire - not the next deadline of
-    // any kind, which can sit before that lock and put the trade in a week it was never judged in.
     let upcoming_lock = deadline_queries::find_upcoming_roster_lock(
         trade_model.league_id,
         trade_model.end_of_season_year,
@@ -170,8 +176,6 @@ where
         league_id: trade_model.league_id,
         end_of_season_year: trade_model.end_of_season_year,
     })?;
-    // The trade's `team_update` snapshots report the cap in force when it was made, not the coming
-    // lock's, which is the same deadline its transactions are judged against.
     let salary_snapshot_deadline =
         find_governing_deadline(trade_datetime, &upcoming_lock, db).await?;
     let traded_trade_assets = trade_model.get_trade_assets(db).await?;
@@ -204,8 +208,6 @@ where
         team_salaries_before_trade.insert(*team_id, team_salary_and_cap);
     }
 
-    // Read before the first write: the drops are one transaction with the legs, and each team's
-    // watermark marks off the `team_updates` this trade is about to write for it.
     let trade_transactions =
         TradeTransactions::read(trade_model.id, &all_team_ids, &upcoming_lock, db).await?;
 
@@ -279,12 +281,15 @@ where
 struct TradeTransactions {
     accommodating_drops: Vec<trade_accommodating_drop::Model>,
     /// Where each team's transaction starts, read before the trade writes anything. Keyed in team
-    /// id order so a refused trade names the same team every run.
+    /// id order so a refused trade names the same team every run, and so two trades that share two
+    /// teams cannot deadlock on the team rows `find_transaction_start` locks.
     starts_by_team_id: BTreeMap<i64, TransactionStart>,
 }
 
 impl TradeTransactions {
-    /// Reads the drops and each team's watermark. Call before the trade's first write.
+    /// Reads the drops and each team's watermark. Call before the trade's first write: the
+    /// watermark marks off the `team_update` rows this trade is about to write, and the drops are
+    /// one transaction with the legs.
     #[instrument(skip(db))]
     async fn read<C>(
         trade_id: i64,
@@ -299,8 +304,6 @@ impl TradeTransactions {
             trade_accommodating_drop_queries::find_accommodating_drops_for_trade(trade_id, db)
                 .await?;
 
-        // Team id order: `find_transaction_start` locks each team row, and two trades that share
-        // two teams would deadlock if they took those locks in opposite orders.
         let mut team_ids: BTreeSet<i64> = asset_team_ids.iter().copied().collect();
         team_ids.extend(
             accommodating_drops

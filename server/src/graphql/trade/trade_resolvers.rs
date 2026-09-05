@@ -321,6 +321,8 @@ async fn validate_accommodating_drops(
 /// reported the same way owner-facing roster moves report it (see `resolve_upcoming_roster_lock`),
 /// and so is a season missing any other deadline row the trade needs. A drop contract id named
 /// twice is owner input as well, so it names the repeated contract instead of reporting a fault.
+/// Anything left is a `RosterMoveRejection`: the trade plus one owner's accommodating drops broke
+/// T1 or T2, which the owner reads the same way a roster move does.
 fn map_trade_processing_error(error: &Report) -> GraphQlError {
     if let Some(missing) = error.downcast_ref::<MissingPreTradeSalary>() {
         return graphql_error(ErrorCode::MissingPreTradeSalary, missing.to_string());
@@ -338,8 +340,6 @@ fn map_trade_processing_error(error: &Report) -> GraphQlError {
         return graphql_error(ErrorCode::DuplicateDropContractId, duplicate.to_string());
     }
 
-    // A refused transaction reaches here as a `RosterMoveRejection`: the trade plus one owner's
-    // accommodating drops broke T1 or T2, which the owner reads the same way a roster move does.
     roster_move_error(error)
 }
 

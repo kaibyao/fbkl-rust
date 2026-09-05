@@ -14,6 +14,12 @@ use crate::roster::{
 
 use super::ir_team_update::create_ir_team_update;
 
+/// Moves a contract to the injured reserve (rules §10.3.2).
+///
+/// Rule §10.3.1 (an in-season acquisition has to be accommodated on the 22-man active roster
+/// before it goes to IR) is T2 in `roster::validate_transaction`, which the caller submitting the
+/// transaction runs: the ban lasts for the transaction that acquired the contract, and a lone move
+/// to IR is judged by roster legality alone (rules §13.1.6).
 #[instrument(skip(db))]
 pub async fn move_contract_to_ir<C>(
     contract_model: contract::Model,
@@ -23,10 +29,6 @@ pub async fn move_contract_to_ir<C>(
 where
     C: ConnectionTrait,
 {
-    // Rules §10.3.2. Rule §10.3.1 (an in-season acquisition has to be accommodated on the 22-man
-    // active roster before it goes to IR) is T2 in `roster::validate_transaction`, which the caller
-    // submitting the transaction runs: the ban lasts for the transaction that acquired the contract,
-    // and a lone move to IR is judged by roster legality alone (rules §13.1.6).
     if contract_model.is_ir {
         return Err(RosterMoveRejection::AlreadyInIr {
             contract_id: contract_model.id,

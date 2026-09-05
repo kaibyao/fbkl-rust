@@ -50,8 +50,10 @@ pub struct FreeAgentPickupFrozen {
 
 /// Ends a free agent auction: records the winner, or expires the contract when nobody bid.
 ///
-/// A recorded win signs no contract (rules §8.3.6) - see [`sign_won_auction`]. Returns the
-/// auction's contract as it stands afterwards: the expired one, or the still-pooled one for a win.
+/// A recorded win signs no contract (rules §8.3.6) - see [`sign_won_auction`]. The owner's pickup
+/// signs it, together with the drops that make room for it, or the roster lock signs any win nobody
+/// picked up. Returns the auction's contract as it stands afterwards: the expired one, or the
+/// still-pooled one for a win.
 #[instrument(skip(db))]
 pub async fn end_fa_auction<C>(
     deadline_model: &deadline::Model,
@@ -112,9 +114,7 @@ where
                     auction_model.id
                 );
 
-                // §8.3.6: the close only records who won. The contract is signed by the owner's
-                // pickup, which carries the drops that make room for it - or by the roster lock,
-                // which signs any win nobody picked up.
+                // §8.3.6: the close records the winner only.
                 auction_queries::update_auction_status(
                     auction_model.id,
                     AuctionStatus::Won,

@@ -332,7 +332,9 @@ impl AuctionMutation {
     /// and the removal are then in one transaction.
     ///
     /// A drop names the auctioned contract, not the signed one: the signed row does not exist when
-    /// the owner submits. `deadlineId` is the roster lock the transaction counts towards.
+    /// the owner submits. `deadlineId` is the roster lock the transaction counts towards. The wins
+    /// are read inside the transaction that signs them, so a pickup cannot act on a win the roster
+    /// lock has taken already.
     #[graphql(guard = "LeagueRoleGuard(RoleRequirement::Member)")]
     async fn pick_up_auction_wins(
         &self,
@@ -350,8 +352,6 @@ impl AuctionMutation {
             .await
             .map_err(|err| internal("failed to start database transaction", &err.into()))?;
 
-        // The wins are read inside the transaction that signs them, so a pickup cannot act on a
-        // win the roster lock has taken already.
         let wins = find_won_auctions_for_team(
             team_user.team_id,
             caller_team.league_id,

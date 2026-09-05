@@ -170,6 +170,10 @@ enum DispatchTask<'m> {
 }
 
 /// Shared claim → dispatch-in-DB-transaction → record-outcome flow for deadlines and sub-events.
+///
+/// Success is recorded inside the handler's DB transaction so the handler's effects and the
+/// Succeeded `job_run` commit atomically: a crash between commit and record would otherwise leave
+/// committed work behind a still-Running `job_run` and invite a re-run.
 async fn run_claimed<C>(
     db: &C,
     new_job_run: NewJobRun,
@@ -197,9 +201,6 @@ where
     };
     match dispatch_result {
         Ok(()) => {
-            // Record success inside the handler's DB transaction so the handler's effects and the
-            // Succeeded job_run commit atomically — otherwise a crash between commit and record
-            // would leave committed work behind a still-Running job_run and invite a re-run.
             mark_job_run_succeeded(job_run_model.id, None, &txn).await?;
             txn.commit().await?;
             info!(
@@ -313,6 +314,12 @@ where
 }
 
 /// Maps a sub-event to its `fbkl_logic` handler.
+///
+/// A closing free agent auction records its win against the lock it will be judged at (spec 08),
+/// the same deadline the owner's pickup files under. Weekly locks run through the playoff weeks to
+/// `SeasonEnd`, so no lock left means the season's deadlines are wrong: refuse rather than record a
+/// win for a week that is already settled. A close past the §8.1.3 free agency freeze is refused
+/// inside `end_fa_auction`.
 async fn dispatch_event<C>(event: ProcessableEvent, txn: &C) -> Result<()>
 where
     C: ConnectionTrait + TransactionTrait,
@@ -326,11 +333,6 @@ where
     let now = chrono::Utc::now().fixed_offset();
     match kind {
         ProcessableEventKind::FaAuctionClose | ProcessableEventKind::FaExtensionExpiry => {
-            // A win is recorded against the lock it will be judged at (spec 08), the same deadline
-            // the owner's pickup files under. Weekly locks run through the playoff weeks to
-            // `SeasonEnd`, so no lock left means the season's deadlines are wrong: refuse rather
-            // than record a win for a week that is already settled. A close past the §8.1.3 free
-            // agency freeze is refused inside `end_fa_auction`.
             let deadline_model = deadline_queries::find_upcoming_roster_lock(
                 league_id,
                 end_of_season_year,
