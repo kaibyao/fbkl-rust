@@ -13,6 +13,8 @@
 //! first and dropped in the second) and Kai's 2021-11-01 (six transactions, free-agent adds dropped
 //! by a later trade).
 
+use std::collections::BTreeMap;
+
 use chrono::Utc;
 use color_eyre::eyre::{Report, Result};
 use fbkl_entity::{
@@ -26,7 +28,7 @@ use fbkl_entity::{
     team_update::{
         self, ContractUpdate, ContractUpdateType, TeamUpdateAsset, TeamUpdateData, TeamUpdateStatus,
     },
-    team_update_queries,
+    team_update_queries::{self, find_transaction_start},
     team_user::LeagueRole,
     trade_asset,
 };
@@ -34,7 +36,7 @@ use fbkl_logic::{
     deadline_processing::{RosterRule, TeamRosterViolation, lock_rosters, validate_league_rosters},
     drop_contract::drop_contract_from_team,
     ir::move_contract_to_ir,
-    roster::{RosterMoveRejection, validate_transaction},
+    roster::{RosterMoveRejection, file_and_validate_transaction},
     trade::{TradeLegality, accept_trade, propose_trade},
 };
 use fbkl_test_support::{TestLeague, central, days_from_now};
@@ -215,63 +217,125 @@ enum Move {
     ToIr(contract::Model),
 }
 
-/// Applies `moves` to `team_id`'s live rows and judges them as one transaction (rules §13.1.6),
-/// i.e. the shape every transaction submission path shares.
+/// Applies `moves` to `team_id`'s live rows and files them as one transaction (rules §13.1.4),
+/// returning the number the transaction took.
+///
+/// This is the production pair every submission path uses: read the start of the transaction, apply
+/// the moves, then number and judge whatever they wrote. `submitTransaction` has no trade or
+/// auction move kind, so a trade or a win is applied to the contract row and its `team_update` is
+/// recorded here rather than through the full trade and auction paths; a drop and a move to the IR
+/// write their own row.
 ///
 /// A win joins the roster through the same chain replacement a trade uses; how the contract arrived
 /// is what its `ContractUpdate` records, and that is all T2 reads. Nothing rolls back on rejection,
-/// because these tests assert on the rejection rather than on what the caller would have kept.
+/// so a refused transaction leaves its rows applied and numbered; these tests assert on the
+/// rejection rather than on what the caller would have kept.
 async fn submit_transaction(
     league: &TestLeague,
     team_id: i64,
     deadline_model: &deadline::Model,
     moves: Vec<Move>,
-) -> Result<()> {
-    let mut contract_updates = Vec::with_capacity(moves.len());
+) -> Result<i16> {
+    let transaction_start = find_transaction_start(team_id, deadline_model.id, &league.db).await?;
 
     for move_to_apply in moves {
-        let (update_contract_id, update_type) = match move_to_apply {
+        match move_to_apply {
             Move::Win(named_contract_model) => {
                 let joining = named_contract_model.get_latest_in_chain(&league.db).await?;
                 let joined =
                     contract_queries::trade_contract_to_team(joining, team_id, &league.db).await?;
-                (joined.id, ContractUpdateType::AddViaAuction)
+                record_auction_add(league, &joined, deadline_model).await;
             }
             Move::TradeFor(named_contract_model) => {
                 let arriving = named_contract_model.get_latest_in_chain(&league.db).await?;
                 let arrived =
                     contract_queries::trade_contract_to_team(arriving, team_id, &league.db).await?;
-                (arrived.id, ContractUpdateType::AddViaTrade)
+                record_trade_move(
+                    league,
+                    team_id,
+                    deadline_model,
+                    (arrived.id, ContractUpdateType::AddViaTrade),
+                )
+                .await;
             }
             Move::TradeAway(named_contract_model, to_team_id) => {
                 let leaving = named_contract_model.get_latest_in_chain(&league.db).await?;
                 // The sending side records the row it gave up, so this id is the pre-trade one.
                 let given_up_contract_id = leaving.id;
                 contract_queries::trade_contract_to_team(leaving, to_team_id, &league.db).await?;
-                (given_up_contract_id, ContractUpdateType::TradedAway)
+                record_trade_move(
+                    league,
+                    team_id,
+                    deadline_model,
+                    (given_up_contract_id, ContractUpdateType::TradedAway),
+                )
+                .await;
             }
             Move::Drop(named_contract_model) => {
                 let to_drop = named_contract_model.get_latest_in_chain(&league.db).await?;
-                let dropped = drop_contract_from_team(to_drop, deadline_model, &league.db).await?;
-                (dropped.id, ContractUpdateType::Drop)
+                drop_contract_from_team(to_drop, deadline_model, &league.db).await?;
             }
             Move::ToIr(named_contract_model) => {
                 let to_park = named_contract_model.get_latest_in_chain(&league.db).await?;
-                let on_ir = move_contract_to_ir(to_park, deadline_model, &league.db).await?;
-                (on_ir.id, ContractUpdateType::ToIR)
+                move_contract_to_ir(to_park, deadline_model, &league.db).await?;
             }
-        };
-        contract_updates.push(contract_update(update_contract_id, update_type));
+        }
     }
 
-    validate_transaction(
+    file_and_validate_transaction(
         team_id,
-        &contract_updates,
         deadline_model,
+        &transaction_start,
         &deadline_model.date_time,
         &league.db,
     )
+    .await?;
+
+    Ok(transaction_start.transaction_number)
+}
+
+/// Records the `team_update` a trade leg leaves behind, i.e. the row the trade path would write.
+async fn record_trade_move(
+    league: &TestLeague,
+    team_id: i64,
+    deadline_model: &deadline::Model,
+    contract_move: (i64, ContractUpdateType),
+) {
+    record_move(
+        league,
+        team_id,
+        RecordedMove {
+            deadline_model,
+            kind: LeagueEventKind::Trade,
+            status: TeamUpdateStatus::Pending,
+            roster_contract_ids: vec![contract_move.0],
+            contract_moves: vec![contract_move],
+        },
+    )
+    .await;
+}
+
+/// How many of a team's week rows carry each transaction number, lowest number first.
+async fn moves_per_transaction(
+    league: &TestLeague,
+    team_id: i64,
+    deadline_model: &deadline::Model,
+) -> Vec<(Option<i16>, usize)> {
+    let mut counts: BTreeMap<Option<i16>, usize> = BTreeMap::new();
+    for team_update_model in team_update_queries::find_team_updates_by_team(
+        team_id,
+        None,
+        Some(deadline_model.id),
+        &league.db,
+    )
     .await
+    .expect("read the team's week")
+    {
+        *counts
+            .entry(team_update_model.transaction_number)
+            .or_default() += 1;
+    }
+    counts.into_iter().collect()
 }
 
 /// The rule rejection behind a refused transaction, i.e. what the GraphQL resolver downcasts to.
@@ -656,7 +720,7 @@ async fn steves_2015_02_22_week_is_legal_transaction_by_transaction() {
     let [carmelo, jerebko]: [contract::Model; 2] =
         first_package.try_into().expect("two incoming contracts");
 
-    submit_transaction(
+    let first_trade_number = submit_transaction(
         &league,
         steve_team_id,
         &week_1_lock,
@@ -669,6 +733,7 @@ async fn steves_2015_02_22_week_is_legal_transaction_by_transaction() {
     )
     .await
     .expect("the Larry-Kevin trade plus its accommodating drop is legal");
+    assert_eq!(first_trade_number, 0, "the week's first transaction");
     assert_eq!(counted_contracts(&league, steve_team_id).await, 22);
 
     let mike_yu_peter_team_id = league.add_team("MikeYu-Peter").await;
@@ -703,9 +768,17 @@ async fn steves_2015_02_22_week_is_legal_transaction_by_transaction() {
     second_trade_moves.push(Move::Drop(gibson));
     second_trade_moves.push(Move::Drop(smith));
 
-    submit_transaction(&league, steve_team_id, &week_1_lock, second_trade_moves)
-        .await
-        .expect("the MikeYu-Peter trade may drop the contract the first trade brought in");
+    let second_trade_number =
+        submit_transaction(&league, steve_team_id, &week_1_lock, second_trade_moves)
+            .await
+            .expect("the MikeYu-Peter trade may drop the contract the first trade brought in");
+    assert_eq!(second_trade_number, 1, "the week's second transaction");
+
+    assert_eq!(
+        moves_per_transaction(&league, steve_team_id, &week_1_lock).await,
+        vec![(Some(0), 4), (Some(1), 12)],
+        "each trade's rows carry that trade's number and no other's"
+    );
 
     assert_eq!(
         counted_contracts(&league, steve_team_id).await,
@@ -782,7 +855,7 @@ async fn kais_2021_11_01_week_is_legal_transaction_by_transaction() {
     let [neto, hartenstein, reaves, lee]: [contract::Model; 4] =
         free_agents.try_into().expect("four free agent wins");
 
-    submit_transaction(
+    let t1_number = submit_transaction(
         &league,
         kai_team_id,
         &week_1_lock,
@@ -793,9 +866,10 @@ async fn kais_2021_11_01_week_is_legal_transaction_by_transaction() {
     )
     .await
     .expect("T1: Giannis for Booker");
+    assert_eq!(t1_number, 0);
     assert_eq!(counted_contracts(&league, kai_team_id).await, 21);
 
-    submit_transaction(
+    let t2_number = submit_transaction(
         &league,
         kai_team_id,
         &week_1_lock,
@@ -803,9 +877,10 @@ async fn kais_2021_11_01_week_is_legal_transaction_by_transaction() {
     )
     .await
     .expect("T2: trade for Campazzo");
+    assert_eq!(t2_number, 1);
     assert_eq!(counted_contracts(&league, kai_team_id).await, 22);
 
-    submit_transaction(
+    let t3_number = submit_transaction(
         &league,
         kai_team_id,
         &week_1_lock,
@@ -816,9 +891,10 @@ async fn kais_2021_11_01_week_is_legal_transaction_by_transaction() {
     )
     .await
     .expect("T3: Jones Jr for Terence Davis");
+    assert_eq!(t3_number, 2);
     assert_eq!(counted_contracts(&league, kai_team_id).await, 22);
 
-    submit_transaction(
+    let t4_number = submit_transaction(
         &league,
         kai_team_id,
         &week_1_lock,
@@ -835,9 +911,10 @@ async fn kais_2021_11_01_week_is_legal_transaction_by_transaction() {
     )
     .await
     .expect("T4: the week's free agent adds, paid for by holdovers and by T2's Campazzo");
+    assert_eq!(t4_number, 3);
     assert_eq!(counted_contracts(&league, kai_team_id).await, 22);
 
-    submit_transaction(
+    let t5_number = submit_transaction(
         &league,
         kai_team_id,
         &week_1_lock,
@@ -850,9 +927,10 @@ async fn kais_2021_11_01_week_is_legal_transaction_by_transaction() {
     )
     .await
     .expect("T5: a later transaction may drop Reaves and Neto, won in T4");
+    assert_eq!(t5_number, 4);
     assert_eq!(counted_contracts(&league, kai_team_id).await, 22);
 
-    submit_transaction(
+    let t6_number = submit_transaction(
         &league,
         kai_team_id,
         &week_1_lock,
@@ -860,11 +938,24 @@ async fn kais_2021_11_01_week_is_legal_transaction_by_transaction() {
     )
     .await
     .expect("T6: trade Dragic away");
+    assert_eq!(t6_number, 5);
 
     assert_eq!(
         counted_contracts(&league, kai_team_id).await,
         21,
         "the week ends at 21 counted contracts, with Neto and Reaves dropped"
+    );
+    assert_eq!(
+        moves_per_transaction(&league, kai_team_id, &week_1_lock).await,
+        vec![
+            (Some(0), 2),
+            (Some(1), 1),
+            (Some(2), 2),
+            (Some(3), 8),
+            (Some(4), 4),
+            (Some(5), 1)
+        ],
+        "each transaction's rows carry its own number"
     );
     assert!(
         lock_rosters(&week_1_lock, &league.db)
