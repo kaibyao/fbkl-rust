@@ -13,6 +13,7 @@
 //! first and dropped in the second) and Kai's 2021-11-01 (six transactions, free-agent adds dropped
 //! by a later trade).
 
+use chrono::Utc;
 use color_eyre::eyre::{Report, Result, eyre};
 use fbkl_entity::{
     contract::{self, ContractKind, ContractStatus},
@@ -26,14 +27,17 @@ use fbkl_entity::{
         self, ContractUpdate, ContractUpdateType, TeamUpdateAsset, TeamUpdateData, TeamUpdateStatus,
     },
     team_update_queries,
+    team_user::LeagueRole,
+    trade_asset,
 };
 use fbkl_logic::{
     deadline_processing::{RosterRule, TeamRosterViolation, lock_rosters, validate_league_rosters},
     drop_contract::drop_contract_from_team,
     ir::move_contract_to_ir,
     roster::{RosterMoveRejection, validate_transaction},
+    trade::{TradeLegality, accept_trade, propose_trade},
 };
-use fbkl_test_support::{TestLeague, central};
+use fbkl_test_support::{TestLeague, central, days_from_now};
 
 const END_OF_SEASON_YEAR: i16 = 2026;
 /// Rules §11.2: a roster carries at most 22 veteran or rookie-scale contracts.
@@ -987,6 +991,121 @@ async fn a_weeks_moves_keep_the_order_their_owner_chose() {
     assert_eq!(transaction_number_of(added_ids[0]), Some(0));
     assert_eq!(transaction_number_of(added_ids[1]), Some(1));
     assert_eq!(transaction_number_of(added_ids[2]), None);
+}
+
+/// Rules 13.1.2: a team that ends the week over the 22-man limit keeps that week's moves open, so
+/// the commissioner can revert them. The drops and the trade leg are recorded Pending while the
+/// week runs and only the lock settles them, which is why an illegal team has rows left to hold.
+#[tokio::test]
+async fn an_illegal_teams_drops_and_trade_leg_stay_open_at_the_lock() {
+    let Some(league) =
+        TestLeague::create("weekly_moves_illegal_week_held", END_OF_SEASON_YEAR).await
+    else {
+        return;
+    };
+    // A lock still to fire, because the trade files its adds under the upcoming one.
+    league
+        .add_deadline(DeadlineKind::Week1RosterLock, days_from_now(3))
+        .await;
+    let week_1_lock = deadline_of(&league, DeadlineKind::Week1RosterLock).await;
+    let illegal_team_id = league.team_id;
+    let roster =
+        add_roster_contracts(&league, illegal_team_id, VET_OR_ROOKIE_LIMIT + 6, "Filler").await;
+
+    let mut illegal_team_update_ids = Vec::new();
+    for dropped in roster.iter().take(3) {
+        drop_contract_from_team(dropped.clone(), &week_1_lock, &league.db)
+            .await
+            .expect("drop a filler contract");
+    }
+
+    // The importer's mode, so the trade is recorded without T1 judging it: the lock is the check.
+    let sending_owner = league.add_team_user(LeagueRole::TeamOwner).await;
+    let receiving_team_id = league.add_team("Receiving team").await;
+    let receiving_owner = league
+        .add_team_user_for_team(receiving_team_id, LeagueRole::TeamOwner)
+        .await;
+    let traded_contract = &roster[3];
+    let proposed_trade = propose_trade(
+        league.league_id,
+        END_OF_SEASON_YEAR,
+        &sending_owner,
+        &[receiving_team_id],
+        vec![trade_asset::Model::from_contract(
+            None,
+            traded_contract.id,
+            trade_asset::FromTeamId(illegal_team_id),
+            trade_asset::ToTeamId(receiving_team_id),
+        )],
+        &[],
+        &league.db,
+    )
+    .await
+    .expect("propose the trade");
+    accept_trade(
+        proposed_trade,
+        &receiving_owner,
+        &Utc::now().fixed_offset(),
+        &[],
+        TradeLegality::CallerJudges,
+        &league.db,
+    )
+    .await
+    .expect("accept the trade")
+    .expect("both teams have responded, so the trade processes");
+
+    // 28 filler less three drops less the traded contract leaves 24 counted contracts.
+    let violations = lock_rosters(&week_1_lock, &league.db)
+        .await
+        .expect("lock rosters");
+    assert_eq!(
+        violations
+            .iter()
+            .map(|violation| (violation.team_id, violation.rule))
+            .collect::<Vec<_>>(),
+        vec![(illegal_team_id, RosterRule::VeteranOrRookieLimit)]
+    );
+
+    illegal_team_update_ids.extend(week_move_ids(&league, illegal_team_id, &week_1_lock).await);
+    assert_eq!(
+        illegal_team_update_ids.len(),
+        4,
+        "three drops and the trade leg make up the week"
+    );
+    for team_update_id in illegal_team_update_ids {
+        assert_eq!(
+            read_team_update_status(&league, team_update_id).await,
+            TeamUpdateStatus::Pending,
+            "team_update {team_update_id} of an illegal week waits for the commissioner"
+        );
+    }
+
+    let receiving_week = week_move_ids(&league, receiving_team_id, &week_1_lock).await;
+    assert_eq!(receiving_week.len(), 1, "the other leg of the same trade");
+    assert_eq!(
+        read_team_update_status(&league, receiving_week[0]).await,
+        TeamUpdateStatus::Done,
+        "the legal team's leg of the same trade still settles"
+    );
+}
+
+/// The ids of a team's `team_updates` filed under `deadline_model`.
+async fn week_move_ids(
+    league: &TestLeague,
+    team_id: i64,
+    deadline_model: &deadline::Model,
+) -> Vec<i64> {
+    team_update_queries::find_team_updates_by_team(
+        team_id,
+        None,
+        Some(deadline_model.id),
+        &league.db,
+    )
+    .await
+    .expect("read the team's week")
+    .into_iter()
+    .map(|team_update_model| team_update_model.id)
+    .collect()
 }
 
 async fn read_team_update_status(league: &TestLeague, team_update_id: i64) -> TeamUpdateStatus {

@@ -54,9 +54,11 @@ values from there; do not duplicate literals into logic.
    in trades (`validate_contract_is_latest_in_chain`).
 
 6. **team_update status convention:**
-   - `Done` — applied immediately (advancement, drop, completed trade).
-   - `Pending` — recorded now, finalized later by deadline/roster-lock processing (ir, rookie
-     activation, RDI moves, auction wins).
+   - `Done` — settled (contract advancement, rookie draft picks, RFA resolution, and any weekly
+     move whose team was legal at the roster lock that judged it).
+   - `Pending` — recorded now, settled later by the roster lock (drops, trade legs, ir, rookie
+     activation, RDI moves, auction wins). A team that ends the week illegal keeps its week's
+     rows Pending for the commissioner to revert (rules 13.1.2).
    - `InProgress`/`Error` — used by keeper-deadline batch processing.
 
 7. **Effective dates come from deadlines.** Most mutations look up the relevant `deadline` and

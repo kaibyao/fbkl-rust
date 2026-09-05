@@ -134,7 +134,8 @@ where
             data: ActiveValue::Set(team_update_data.to_json()?),
             effective_date: ActiveValue::Set(trade_datetime.date_naive()),
             transaction_number: ActiveValue::NotSet,
-            status: ActiveValue::Set(TeamUpdateStatus::Done),
+            // Pending until the roster lock, so an illegal team's leg stays open (rules 13.1.2).
+            status: ActiveValue::Set(TeamUpdateStatus::Pending),
             team_id: ActiveValue::Set(team_id),
             league_event_id: ActiveValue::Set(Some(trade_league_event.id)),
             created_at: ActiveValue::NotSet,
