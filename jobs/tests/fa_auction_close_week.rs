@@ -11,13 +11,16 @@ use fbkl_entity::{
     contract::ContractKind,
     contract_queries,
     deadline::DeadlineKind,
-    deadline_queries,
+    deadline_queries, roster_lock_violation_queries,
     team_update::TeamUpdateStatus,
     team_update_queries::find_team_updates_by_team,
     team_user::LeagueRole,
 };
+use fbkl_jobs::run_scheduler_tick;
 use fbkl_logic::{
-    auction::{find_auction_mode_deadlines, start_new_auction_for_nba_player},
+    auction::{
+        auction_quiet_window, find_auction_mode_deadlines, start_new_auction_for_nba_player,
+    },
     deadline_processing::{RosterRule, lock_rosters},
 };
 use fbkl_test_support::{TestLeague, central, days_ago, days_from_now};
@@ -484,5 +487,118 @@ async fn a_win_nobody_picked_up_is_signed_at_the_lock() {
             .collect::<Vec<_>>(),
         vec![(TeamUpdateStatus::Pending, Some(0))],
         "the signing files as the week's first transaction and stays Pending for the illegal team"
+    );
+}
+
+/// An auction clamped to a roster lock must be signed into that lock's week, not the next one.
+///
+/// `run_scheduler_tick` used to process the due deadlines first, so the lock read the week's wins
+/// while the auction was still Open. The winner became Won moments later and could only join a
+/// later week, which let it skip the checks its own week runs.
+#[tokio::test]
+async fn a_win_closing_on_the_lock_instant_joins_that_lock_s_week() {
+    let Some(league) = TestLeague::create("fa_auction_close_on_lock", END_OF_SEASON_YEAR).await
+    else {
+        return;
+    };
+    let lock_instant = days_ago(1);
+    let week_1_lock_id = league
+        .add_deadline(DeadlineKind::Week1RosterLock, lock_instant)
+        .await;
+    // The close needs a lock still to fire, which is what a real Monday tick has.
+    let next_lock_id = league
+        .add_deadline(DeadlineKind::InSeasonRosterLock, days_from_now(6))
+        .await;
+    league
+        .add_deadline(DeadlineKind::FreeAgentAuctionEnd, days_from_now(60))
+        .await;
+
+    // A roster already at the §11.2 limit, so the win it gains is a violation that week's lock records.
+    for index in 0..VET_OR_ROOKIE_LIMIT {
+        let player_id = league
+            .add_veteran_player(&format!("Week 1 Holdover {index}"))
+            .await;
+        league
+            .add_owned_contract(player_id, ContractKind::Veteran, 1, league.team_id)
+            .await;
+    }
+
+    let bidder = league.add_team_user(LeagueRole::TeamOwner).await;
+    let player_id = league.add_veteran_player("Monday Waiver Vet").await;
+    let pooled_contract = league
+        .add_unowned_contract(
+            player_id,
+            ContractKind::UnrestrictedFreeAgentVeteran,
+            WINNING_BID,
+        )
+        .await;
+    // A bid one quiet window before the lock closes the auction on the lock instant itself.
+    let auction = start_new_auction_for_nba_player(
+        &pooled_contract,
+        league.league_id,
+        END_OF_SEASON_YEAR,
+        lock_instant - auction_quiet_window(lock_instant, None),
+        AuctionKind::InSeasonFreeAgent,
+        WINNING_BID,
+        &league.db,
+    )
+    .await
+    .expect("start the in-season FA auction");
+    assert_eq!(
+        auction.close_at_timestamp, lock_instant,
+        "the fixture should close the auction on the lock instant"
+    );
+    auction_queries::insert_auction_bid(auction.id, bidder.id, WINNING_BID, None, &league.db)
+        .await
+        .expect("insert the winning bid");
+
+    let summary = run_scheduler_tick(&league.db).await.expect("run one tick");
+    assert_eq!(
+        (summary.failed, summary.errors),
+        (0, 0),
+        "the tick should close the auction and run the lock: {summary:?}"
+    );
+
+    assert_eq!(
+        auction_queries::find_auction_by_id(auction.id, &league.db)
+            .await
+            .expect("read the auction")
+            .status,
+        AuctionStatus::Completed,
+        "the same tick should close the auction and sign the win"
+    );
+    let week_1 = find_team_updates_by_team(league.team_id, None, Some(week_1_lock_id), &league.db)
+        .await
+        .expect("read week 1's moves");
+    assert_eq!(
+        week_1
+            .iter()
+            .map(|team_update| (team_update.status, team_update.transaction_number))
+            .collect::<Vec<_>>(),
+        vec![(TeamUpdateStatus::Pending, Some(0))],
+        "the win belongs to the week its auction closed in"
+    );
+    let next_week = find_team_updates_by_team(league.team_id, None, Some(next_lock_id), &league.db)
+        .await
+        .expect("read the next week's moves");
+    assert!(
+        next_week.is_empty(),
+        "the win should not slip into the next week: {next_week:?}"
+    );
+
+    let violations = roster_lock_violation_queries::find_violations_for_league(
+        league.league_id,
+        Some(week_1_lock_id),
+        &league.db,
+    )
+    .await
+    .expect("read week 1's violations");
+    assert_eq!(
+        violations
+            .iter()
+            .map(|violation| (violation.team_id, violation.rule))
+            .collect::<Vec<_>>(),
+        vec![(league.team_id, RosterRule::VeteranOrRookieLimit)],
+        "the signed win counts toward the week's own roster check"
     );
 }

@@ -81,7 +81,9 @@ values from there; do not duplicate literals into logic.
   tier slide only touches auctions untouched for a day, and the crunch sweep only moves close times
   earlier. **The release/slide tick must keep running before the close tick** — the tier ladder is
   an unbid veteran auction's only clock, so closing first expires it the day it becomes
-  slide-eligible (rules §6.3.4).
+  slide-eligible (rules §6.3.4). **Both must keep running before the due-deadline loop** — an
+  in-season FA auction's clock is clamped to the upcoming roster lock and a veteran auction's to
+  `PreseasonFinalRosterLock`, so a lock that runs first reads no win for the week it judges.
 - Every write of `auction.close_at_timestamp` goes through `logic::auction::auction_close_at`, which
   folds in the quiet window, the all-bid deadline and the hard deadline. Compute it there rather than
   writing a close time directly, or a write site quietly drops one of those clocks.
