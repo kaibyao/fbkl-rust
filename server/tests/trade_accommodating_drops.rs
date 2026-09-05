@@ -16,7 +16,9 @@ use fbkl_entity::{
     team_update_queries,
     team_user::{self, LeagueRole},
     trade::{self, TradeStatus},
-    trade_accommodating_drop_queries::find_accommodating_drops_for_trade,
+    trade_accommodating_drop_queries::{
+        DuplicateAccommodatingDrop, find_accommodating_drops_for_trade,
+    },
     trade_asset,
     trade_queries::find_trade_by_id,
 };
@@ -375,6 +377,121 @@ async fn a_proposer_cannot_accept_its_own_trade_and_wipe_its_drops() {
             .collect::<Vec<_>>(),
         vec![(league.team_id, proposer_roster[1].id)],
         "the drop the proposer submitted with the proposal is still on record"
+    );
+}
+
+#[tokio::test]
+async fn an_accept_naming_one_contract_twice_is_refused() {
+    let Some(league) = TestLeague::create("trade_drops_repeated_id", END_OF_SEASON_YEAR).await
+    else {
+        return;
+    };
+    add_season_under_way(&league).await;
+    let sending_owner = league.add_team_user(LeagueRole::TeamOwner).await;
+    let receiving_team_id = league.add_team("Receiving team").await;
+    let receiving_owner = league
+        .add_team_user_for_team(receiving_team_id, LeagueRole::TeamOwner)
+        .await;
+
+    let traded_contract = add_contracts(&league, league.team_id, 1, "Sent").await[0].clone();
+    let receiving_roster =
+        add_contracts(&league, receiving_team_id, VET_OR_ROOKIE_LIMIT, "Kept").await;
+
+    let proposed_trade =
+        propose(&league, &sending_owner, receiving_team_id, &traded_contract).await;
+    let trade_id = proposed_trade.id;
+    let repeated_id = receiving_roster[0].id;
+    let error = accept_trade(
+        proposed_trade,
+        &receiving_owner,
+        &now(),
+        &[repeated_id, repeated_id],
+        TradeLegality::JudgeNow,
+        &league.db,
+    )
+    .await
+    .expect_err("one contract cannot be dropped twice for one trade");
+
+    assert_eq!(
+        error.downcast_ref::<DuplicateAccommodatingDrop>(),
+        Some(&DuplicateAccommodatingDrop {
+            trade_id,
+            contract_id: repeated_id,
+        }),
+        "the refusal names the repeated contract, got {error}"
+    );
+    assert!(
+        find_accommodating_drops_for_trade(trade_id, &league.db)
+            .await
+            .expect("load the trade's accommodating drops")
+            .is_empty(),
+        "the refused accept records no drop"
+    );
+}
+
+#[tokio::test]
+async fn two_owners_cannot_drop_the_same_contract_for_one_trade() {
+    let Some(league) = TestLeague::create("trade_drops_two_owners", END_OF_SEASON_YEAR).await
+    else {
+        return;
+    };
+    add_season_under_way(&league).await;
+    let sending_owner = league.add_team_user(LeagueRole::TeamOwner).await;
+    let receiving_team_id = league.add_team("Receiving team").await;
+    let receiving_owner = league
+        .add_team_user_for_team(receiving_team_id, LeagueRole::TeamOwner)
+        .await;
+
+    // The sender drops the contract it sends, which the accepter then names as its own drop.
+    let traded_contract = add_contracts(&league, league.team_id, 1, "Sent").await[0].clone();
+    add_contracts(&league, receiving_team_id, VET_OR_ROOKIE_LIMIT, "Kept").await;
+
+    let proposed_trade = propose_trade(
+        league.league_id,
+        END_OF_SEASON_YEAR,
+        &sending_owner,
+        &[receiving_team_id],
+        vec![trade_asset::Model::from_contract(
+            None,
+            traded_contract.id,
+            trade_asset::FromTeamId(league.team_id),
+            trade_asset::ToTeamId(receiving_team_id),
+        )],
+        &[traded_contract.id],
+        &league.db,
+    )
+    .await
+    .expect("propose a trade whose sender drops the contract it sends");
+
+    let trade_id = proposed_trade.id;
+    let error = accept_trade(
+        proposed_trade,
+        &receiving_owner,
+        &now(),
+        &[traded_contract.id],
+        TradeLegality::JudgeNow,
+        &league.db,
+    )
+    .await
+    .expect_err("the sender already claimed that contract as its drop");
+
+    assert_eq!(
+        error.downcast_ref::<DuplicateAccommodatingDrop>(),
+        Some(&DuplicateAccommodatingDrop {
+            trade_id,
+            contract_id: traded_contract.id,
+        }),
+        "the refusal names the contract both owners claimed, got {error}"
+    );
+    assert_eq!(
+        find_accommodating_drops_for_trade(trade_id, &league.db)
+            .await
+            .expect("load the trade's accommodating drops")
+            .iter()
+            .map(|drop| (drop.team_id, drop.contract_id))
+            .collect::<Vec<_>>(),
+        vec![(league.team_id, traded_contract.id)],
+        "the drop the proposer submitted first is still on record"
     );
 }
 

@@ -65,6 +65,8 @@ pub enum ErrorCode {
     RosterIllegal,
     /// A league rule refuses this single roster move (IR eligibility, same-week-add drop, contract kind).
     RosterMoveRejected,
+    /// The same contract was named twice as a drop, or is already another owner's drop for this trade.
+    DuplicateDropContractId,
     /// Server-side fault; message is deliberately generic.
     Internal,
 }
@@ -98,6 +100,7 @@ impl ErrorCode {
             Self::DraftLotteryAlreadyRun => "DRAFT_LOTTERY_ALREADY_RUN",
             Self::RosterIllegal => "ROSTER_ILLEGAL",
             Self::RosterMoveRejected => "ROSTER_MOVE_REJECTED",
+            Self::DuplicateDropContractId => "DUPLICATE_DROP_CONTRACT_ID",
             Self::Internal => "INTERNAL",
         }
     }
@@ -136,6 +139,7 @@ impl ErrorCode {
             Self::DraftLotteryAlreadyRun => "this season's lottery has already been drawn",
             Self::RosterIllegal => "this roster breaks a roster rule",
             Self::RosterMoveRejected => "a league rule does not allow this roster move",
+            Self::DuplicateDropContractId => "that contract is already named as a drop",
             Self::Internal => "internal server error",
         }
     }

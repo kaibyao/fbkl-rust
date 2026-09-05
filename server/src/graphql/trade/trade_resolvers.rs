@@ -12,6 +12,7 @@ use fbkl_entity::{
     deadline_queries::{MissingSeasonDeadline, find_most_recent_deadline_by_datetime},
     sea_orm::DatabaseConnection,
     trade,
+    trade_accommodating_drop_queries::DuplicateAccommodatingDrop,
     trade_asset::{ToTeamId, TradeAssetType},
     trade_asset_queries::new_trade_asset_active_model_by_id,
     trade_queries::{find_active_trades_for_team, find_active_trades_in_league, find_trade_by_id},
@@ -171,7 +172,7 @@ impl TradeMutation {
             db,
         )
         .await
-        .map_err(|err| internal("failed to propose trade", &err))?;
+        .map_err(|err| map_trade_processing_error(&err))?;
 
         Ok(Trade::from_model(proposed))
     }
@@ -318,7 +319,8 @@ async fn validate_accommodating_drops(
 /// A trade whose teams have no cached pre-trade salary is a data problem the client can report,
 /// so it gets its own code rather than a bare server fault. A season missing its lock deadlines is
 /// reported the same way owner-facing roster moves report it (see `resolve_upcoming_roster_lock`),
-/// and so is a season missing any other deadline row the trade needs.
+/// and so is a season missing any other deadline row the trade needs. A drop contract id named
+/// twice is owner input as well, so it names the repeated contract instead of reporting a fault.
 fn map_trade_processing_error(error: &Report) -> GraphQlError {
     if let Some(missing) = error.downcast_ref::<MissingPreTradeSalary>() {
         return graphql_error(ErrorCode::MissingPreTradeSalary, missing.to_string());
@@ -331,6 +333,9 @@ fn map_trade_processing_error(error: &Report) -> GraphQlError {
     }
     if let Some(refused) = error.downcast_ref::<ProposerCannotAccept>() {
         return graphql_error(ErrorCode::BadRequest, refused.to_string());
+    }
+    if let Some(duplicate) = error.downcast_ref::<DuplicateAccommodatingDrop>() {
+        return graphql_error(ErrorCode::DuplicateDropContractId, duplicate.to_string());
     }
 
     // A refused transaction reaches here as a `RosterMoveRejection`: the trade plus one owner's
@@ -398,6 +403,20 @@ mod tests {
 
         assert_eq!(error_code(&error), Some("BAD_REQUEST".into()));
         assert!(error.message.contains("cannot accept it"));
+    }
+
+    #[test]
+    fn a_contract_named_twice_as_a_drop_is_reported_to_the_owner() {
+        let error = map_trade_processing_error(&Report::new(DuplicateAccommodatingDrop {
+            trade_id: 11,
+            contract_id: 7,
+        }));
+
+        assert_eq!(
+            error_code(&error),
+            Some("DUPLICATE_DROP_CONTRACT_ID".into())
+        );
+        assert!(error.message.contains("contract (id = 7)"));
     }
 
     #[test]
