@@ -16,12 +16,13 @@ use fbkl_entity::{
     team_update_queries,
     team_user::{self, LeagueRole},
     trade::{self, TradeStatus},
+    trade_accommodating_drop_queries::find_accommodating_drops_for_trade,
     trade_asset,
     trade_queries::find_trade_by_id,
 };
 use fbkl_logic::{
     roster::RosterMoveRejection,
-    trade::{TradeLegality, accept_trade, propose_trade},
+    trade::{ProposerCannotAccept, TradeLegality, accept_trade, propose_trade},
 };
 use fbkl_test_support::{TestLeague, central};
 
@@ -276,6 +277,104 @@ async fn a_multi_owner_trade_judges_every_involved_team() {
             .status,
         TradeStatus::Proposed,
         "one team's refused transaction refuses the whole trade"
+    );
+}
+
+#[tokio::test]
+async fn a_proposer_cannot_accept_its_own_trade_and_wipe_its_drops() {
+    let Some(league) = TestLeague::create("trade_drops_proposer_accept", END_OF_SEASON_YEAR).await
+    else {
+        return;
+    };
+    add_season_under_way(&league).await;
+    let sending_owner = league.add_team_user(LeagueRole::TeamOwner).await;
+    let roomy_team_id = league.add_team("Roomy team").await;
+    let roomy_owner = league
+        .add_team_user_for_team(roomy_team_id, LeagueRole::TeamOwner)
+        .await;
+    let third_team_id = league.add_team("Third team").await;
+    league
+        .add_team_user_for_team(third_team_id, LeagueRole::TeamOwner)
+        .await;
+
+    // The proposer is full and takes a contract back, so its own drop is what makes the trade fit.
+    let proposer_roster = add_contracts(&league, league.team_id, VET_OR_ROOKIE_LIMIT, "Kept").await;
+    let incoming = add_contracts(&league, third_team_id, 1, "Incoming").await[0].clone();
+
+    let proposed_trade = propose_trade(
+        league.league_id,
+        END_OF_SEASON_YEAR,
+        &sending_owner,
+        &[roomy_team_id, third_team_id],
+        vec![
+            trade_asset::Model::from_contract(
+                None,
+                proposer_roster[0].id,
+                trade_asset::FromTeamId(league.team_id),
+                trade_asset::ToTeamId(roomy_team_id),
+            ),
+            trade_asset::Model::from_contract(
+                None,
+                incoming.id,
+                trade_asset::FromTeamId(third_team_id),
+                trade_asset::ToTeamId(league.team_id),
+            ),
+        ],
+        &[proposer_roster[1].id],
+        &league.db,
+    )
+    .await
+    .expect("propose a three-team trade with the proposer's own drop");
+
+    let trade_id = proposed_trade.id;
+    let processed = accept_trade(
+        proposed_trade,
+        &roomy_owner,
+        &now(),
+        &[],
+        TradeLegality::JudgeNow,
+        &league.db,
+    )
+    .await
+    .expect("the team with room accepts");
+    assert!(
+        processed.is_none(),
+        "the third team has yet to respond, so nothing processes"
+    );
+
+    let awaiting_trade = find_trade_by_id(trade_id, &league.db)
+        .await
+        .expect("the trade is still on record");
+    let error = accept_trade(
+        awaiting_trade,
+        &sending_owner,
+        &now(),
+        &[],
+        TradeLegality::JudgeNow,
+        &league.db,
+    )
+    .await
+    .expect_err("the proposing team cannot accept its own proposal");
+
+    assert_eq!(
+        error.downcast_ref::<ProposerCannotAccept>(),
+        Some(&ProposerCannotAccept {
+            trade_id,
+            team_id: league.team_id,
+        }),
+        "the refusal names the proposer, got {error}"
+    );
+
+    let stored_drops = find_accommodating_drops_for_trade(trade_id, &league.db)
+        .await
+        .expect("load the trade's accommodating drops");
+    assert_eq!(
+        stored_drops
+            .iter()
+            .map(|drop| (drop.team_id, drop.contract_id))
+            .collect::<Vec<_>>(),
+        vec![(league.team_id, proposer_roster[1].id)],
+        "the drop the proposer submitted with the proposal is still on record"
     );
 }
 

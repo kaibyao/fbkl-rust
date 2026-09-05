@@ -17,8 +17,8 @@ use fbkl_entity::{
     trade_queries::{find_active_trades_for_team, find_active_trades_in_league, find_trade_by_id},
 };
 use fbkl_logic::trade::{
-    MissingPreTradeSalary, MissingUpcomingRosterLock, TradeLegality, accept_trade, propose_trade,
-    reject_trade,
+    MissingPreTradeSalary, MissingUpcomingRosterLock, ProposerCannotAccept, TradeLegality,
+    accept_trade, propose_trade, reject_trade,
 };
 
 use super::{ProposeTradeInput, Trade};
@@ -329,6 +329,9 @@ fn map_trade_processing_error(error: &Report) -> GraphQlError {
     if let Some(missing) = error.downcast_ref::<MissingSeasonDeadline>() {
         return graphql_error(ErrorCode::BadRequest, missing.to_string());
     }
+    if let Some(refused) = error.downcast_ref::<ProposerCannotAccept>() {
+        return graphql_error(ErrorCode::BadRequest, refused.to_string());
+    }
 
     // A refused transaction reaches here as a `RosterMoveRejection`: the trade plus one owner's
     // accommodating drops broke T1 or T2, which the owner reads the same way a roster move does.
@@ -384,6 +387,17 @@ mod tests {
 
         assert_eq!(error_code(&error), Some("BAD_REQUEST".into()));
         assert!(error.message.contains("PreseasonStart"));
+    }
+
+    #[test]
+    fn a_proposer_accepting_its_own_trade_is_named_not_a_server_fault() {
+        let error = map_trade_processing_error(&Report::new(ProposerCannotAccept {
+            trade_id: 11,
+            team_id: 4,
+        }));
+
+        assert_eq!(error_code(&error), Some("BAD_REQUEST".into()));
+        assert!(error.message.contains("cannot accept it"));
     }
 
     #[test]

@@ -1,6 +1,6 @@
 use std::collections::HashSet;
 
-use color_eyre::Result;
+use color_eyre::{Result, eyre::eyre};
 use fbkl_entity::{
     sea_orm::{
         ConnectionTrait, TransactionSession, TransactionTrait, prelude::DateTimeWithTimeZone,
@@ -14,6 +14,19 @@ use tracing::instrument;
 
 use super::{TradeLegality, process_trade};
 
+/// The proposing team tried to accept its own proposal.
+///
+/// Concrete (not an opaque `eyre!`) so the resolver can `downcast_ref` and tell the owner why,
+/// instead of reporting a bare server fault.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, thiserror::Error)]
+#[error(
+    "team (id = {team_id}) proposed trade (id = {trade_id}), so it cannot accept it: proposing already counts as accepting"
+)]
+pub struct ProposerCannotAccept {
+    pub trade_id: i64,
+    pub team_id: i64,
+}
+
 /// Accepts a trade by a `team_user`. Also processes the trade if the other teams involved in the trade have already accepted the trade proposal.
 ///
 /// `accommodating_drop_contract_ids` are the contracts the accepting owner drops to make the trade
@@ -22,6 +35,10 @@ use super::{TradeLegality, process_trade};
 ///
 /// `legality` says who judges the transactions the trade files; an owner-facing accept passes
 /// `TradeLegality::JudgeNow`.
+///
+/// The proposing team cannot accept: `propose_trade` already records its accommodating drops and
+/// `has_trade_been_accepted_by_all_teams` already counts its proposal as a response, so a second
+/// call from that team would only wipe the drops it submitted.
 ///
 /// Returns an option containing the updated trade if it's been processed, and None otherwise.
 #[instrument(skip(db))]
@@ -37,6 +54,14 @@ where
     C: ConnectionTrait + TransactionTrait,
 {
     trade_queries::validate_trade_is_latest_in_chain(&trade_model, db).await?;
+
+    if find_proposing_team_id(&trade_model, db).await? == accepting_team_user_model.team_id {
+        return Err(ProposerCannotAccept {
+            trade_id: trade_model.id,
+            team_id: accepting_team_user_model.team_id,
+        }
+        .into());
+    }
 
     let db_txn = db.begin().await?;
 
@@ -67,6 +92,28 @@ where
     db_txn.commit().await?;
 
     Ok(maybe_processed_trade)
+}
+
+/// The team whose owner proposed this trade.
+async fn find_proposing_team_id<C>(trade_model: &trade::Model, db: &C) -> Result<i64>
+where
+    C: ConnectionTrait,
+{
+    let propose_actions: Vec<_> = trade_model
+        .get_trade_actions(db)
+        .await?
+        .into_iter()
+        .filter(|trade_action| trade_action.action_type == TradeActionType::Propose)
+        .collect();
+
+    let teams_by_trade_action_ids =
+        team_queries::find_teams_by_trade_actions(&propose_actions, db).await?;
+
+    teams_by_trade_action_ids
+        .into_values()
+        .next()
+        .map(|team| team.id)
+        .ok_or_else(|| eyre!("trade (id = {}) has no proposal action", trade_model.id))
 }
 
 async fn has_trade_been_accepted_by_all_teams<C>(trade_model: &trade::Model, db: &C) -> Result<bool>
