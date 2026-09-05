@@ -150,6 +150,8 @@ pub struct TransactionStart {
 /// numbers decide the next one. The team row is locked first, so two overlapping submissions for
 /// one team run one after the other and cannot take the same number. Only meaningful inside a db
 /// transaction, which is where every caller applies its moves.
+///
+/// Only the two maxima are read, so the week's roster snapshots stay in the database.
 #[instrument(skip(db))]
 pub async fn find_transaction_start<C>(
     team_id: i64,
@@ -165,14 +167,26 @@ where
         .await?
         .ok_or_else(|| eyre!("Could not find team {team_id}."))?;
 
-    let week_moves = find_team_updates_by_team(team_id, None, Some(deadline_id), db).await?;
-    let highest_stored = week_moves
-        .iter()
-        .filter_map(|team_update| team_update.transaction_number)
-        .max();
+    let (newest_id, highest_stored) = team_update::Entity::find()
+        .join(
+            JoinType::InnerJoin,
+            team_update::Relation::LeagueEvent.def(),
+        )
+        .filter(team_update::Column::TeamId.eq(team_id))
+        .filter(league_event::Column::DeadlineId.eq(deadline_id))
+        .select_only()
+        .column_as(team_update::Column::Id.max(), "newest_id")
+        .column_as(
+            team_update::Column::TransactionNumber.max(),
+            "highest_stored",
+        )
+        .into_tuple::<(Option<i64>, Option<i16>)>()
+        .one(db)
+        .await?
+        .unwrap_or((None, None));
 
     Ok(TransactionStart {
-        after_team_update_id: week_moves.first().map_or(0, |team_update| team_update.id),
+        after_team_update_id: newest_id.unwrap_or(0),
         transaction_number: highest_stored.map_or(0, |number| number.saturating_add(1)),
     })
 }
