@@ -174,6 +174,25 @@ drops together with the moves that need them, inside one database transaction:
 
 Every `team_update` one submission writes shares one `transaction_number` value.
 
+### Historical import grouping (rules 13.1.8)
+
+The importer (`import-data/src/league/league_events/date_transactions.rs`) rebuilds transactions
+from a CSV of one row per move, so it has to decide which rows share a `transaction_number`. A row
+with a declaration decides it: rows sharing a group id are one transaction, and `own` is a
+transaction of one move. For undeclared rows the importer infers the grouping:
+
+- An owner's consecutive rows of one kind are one transaction: a run of trade rows between the same
+  owners, all of a date's free agent adds (rules 13.1.4.2), otherwise a single move.
+- Undeclared drops and moves to the IR go into a per-owner pool, handed to whichever transaction
+  fails T1. This is rules 13.1.5.3 read from the record rather than asked of the owner.
+- When the pool cannot make a transaction legal, that transaction takes in the owner's next moves
+  until it is legal (`WhenIllegal::Defer`). That is how an activation, a later trade or a free agent
+  add joins the transaction it makes legal.
+- A transaction still illegal at the end of a date stops the import.
+
+The commissioner confirmed this model on 2026-09-05. It covers the historical import only: a live
+submission carries its own grouping, per the section above.
+
 ## Frontend (Next.js + MUI v7)
 
 - **Weekly transaction tray**: a panel listing this week's `Pending` moves for the team, drag-to-
