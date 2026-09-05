@@ -163,8 +163,10 @@ drops together with the moves that need them, inside one database transaction:
   team's legs plus that team's drops are validated as that team's transaction. A rejected accept
   persists nothing, which is what §12.5.3 (no multi-part trades executed at different times) asks
   for.
-- **Free agent pickups**: `pickUpAuctionWins(deadlineId, dropContractIds)` signs every one of the owner's
-  won-but-unsigned auctions for the week and applies the listed drops as one transaction. All of
+- **Free agent pickups**: `pickUpAuctionWins(deadlineId, dropContractIds, irContractIds)` signs every
+  one of the owner's won-but-unsigned auctions for the week and applies the listed drops and moves to
+  the IR as one transaction. A move to the IR frees an active roster slot, so the owner may declare
+  it as the move that makes room (§13.1.5.4). All of
   the week's wins go on together or none do (§8.3.5), which is why §8.3.7's case is refused by T2
   rather than by a roster count.
 - **Single moves**: a lone drop, IR move or activation is a transaction of one move and runs through

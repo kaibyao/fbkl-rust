@@ -59,12 +59,12 @@ async fn a_pickup_signs_every_win_with_its_drops_as_one_transaction() {
     let session = session_for(owner.user_id, league.league_id).await;
 
     assert_eq!(
-        run(&schema, &pick_up(lock_id, &[]), &session).await,
+        run(&schema, &pick_up(lock_id, &[], &[]), &session).await,
         Err("ROSTER_ILLEGAL".to_owned()),
         "signing both wins with no drop leaves the roster one over the limit"
     );
 
-    let dropping_its_own_win = pick_up(lock_id, &[won[1]]);
+    let dropping_its_own_win = pick_up(lock_id, &[won[1]], &[]);
     assert_eq!(
         run(&schema, &dropping_its_own_win, &session).await,
         Err("ROSTER_MOVE_REJECTED".to_owned()),
@@ -87,7 +87,7 @@ async fn a_pickup_signs_every_win_with_its_drops_as_one_transaction() {
         "a refused pickup writes no move to number"
     );
 
-    let picked_up = run(&schema, &pick_up(lock_id, &[roster[0].id]), &session).await;
+    let picked_up = run(&schema, &pick_up(lock_id, &[roster[0].id], &[]), &session).await;
     assert!(
         picked_up.is_ok(),
         "a drop off the standing roster makes room: {picked_up:?}"
@@ -200,11 +200,11 @@ async fn a_pickup_waits_for_the_week_to_finish_closing() {
     let session = session_for(owner.user_id, league.league_id).await;
 
     assert_eq!(
-        run(&schema, &pick_up(lock_id, &[]), &session).await,
+        run(&schema, &pick_up(lock_id, &[], &[]), &session).await,
         Err("AUCTIONS_STILL_OPEN".to_owned()),
         "an early win cannot be signed while another of the week's auctions takes bids"
     );
-    let refusal = message(&schema, &pick_up(lock_id, &[]), &session).await;
+    let refusal = message(&schema, &pick_up(lock_id, &[], &[]), &session).await;
     assert!(
         refusal.contains(&still_open.id.to_string()),
         "the refusal should name the auction still open: {refusal}"
@@ -218,7 +218,7 @@ async fn a_pickup_waits_for_the_week_to_finish_closing() {
     auction_queries::update_auction_status(still_open.id, AuctionStatus::Won, &league.db)
         .await
         .expect("close the second auction");
-    let picked_up = run(&schema, &pick_up(lock_id, &[]), &session).await;
+    let picked_up = run(&schema, &pick_up(lock_id, &[], &[]), &session).await;
     assert!(
         picked_up.is_ok(),
         "the week has finished closing, so both wins go on: {picked_up:?}"
@@ -255,7 +255,7 @@ async fn a_pickup_naming_one_drop_twice_is_refused() {
     let schema = build_graphql_schema(league.db.clone());
     let session = session_for(owner.user_id, league.league_id).await;
 
-    let repeated = pick_up(lock_id, &[roster[0].id, roster[0].id]);
+    let repeated = pick_up(lock_id, &[roster[0].id, roster[0].id], &[]);
     assert_eq!(
         run(&schema, &repeated, &session).await,
         Err("DUPLICATE_DROP_CONTRACT_ID".to_owned()),
@@ -281,6 +281,65 @@ async fn a_pickup_naming_one_drop_twice_is_refused() {
             .await
             .is_empty(),
         "a refused pickup writes no move to number"
+    );
+}
+
+/// Rule §13.1.5.4: a move to the IR frees an active roster slot, so an owner may declare it as the
+/// move that makes room for the week's wins. Rule §10.3.1 is the other half of that: a player the
+/// same pickup won cannot go straight to the IR, which is T2's `ToIR` arm.
+#[tokio::test]
+async fn an_ir_move_makes_room_but_a_won_player_cannot_go_straight_to_the_ir() {
+    let Some(league) = TestLeague::create("fa_auction_pickup_ir", END_OF_SEASON_YEAR).await else {
+        return;
+    };
+    add_season_under_way(&league).await;
+    let owner = league.add_team_user(LeagueRole::TeamOwner).await;
+
+    // A full roster and one win waiting, so the win needs a slot the IR can free.
+    let roster = add_roster_contracts(&league, VET_OR_ROOKIE_LIMIT).await;
+    let won = add_won_auction(&league, &owner, "Donovan Mitchell").await;
+
+    let lock_id = lock_deadline(&league).await.id;
+    let schema = build_graphql_schema(league.db.clone());
+    let session = session_for(owner.user_id, league.league_id).await;
+
+    let straight_to_ir = pick_up(lock_id, &[], &[won]);
+    assert_eq!(
+        run(&schema, &straight_to_ir, &session).await,
+        Err("ROSTER_MOVE_REJECTED".to_owned()),
+        "a player won this week cannot go straight to the IR"
+    );
+    let refusal = message(&schema, &straight_to_ir, &session).await;
+    assert!(
+        refusal.contains("acquired in this transaction"),
+        "the refusal should be T2, not another rule: {refusal}"
+    );
+    assert_eq!(
+        active_contract_count(&league).await,
+        VET_OR_ROOKIE_LIMIT,
+        "a refused pickup signs nothing"
+    );
+    assert_eq!(
+        ir_contract_count(&league).await,
+        0,
+        "and sends nobody to the IR"
+    );
+
+    let picked_up = run(&schema, &pick_up(lock_id, &[], &[roster[0].id]), &session).await;
+    assert!(
+        picked_up.is_ok(),
+        "an IR move off the standing roster makes room: {picked_up:?}"
+    );
+    assert_eq!(ir_contract_count(&league).await, 1);
+    assert_eq!(
+        active_contract_count(&league).await,
+        VET_OR_ROOKIE_LIMIT + 1,
+        "an IR contract stays on the roster and stops counting against the 22"
+    );
+    assert_eq!(
+        stored_transaction_numbers(&league, lock_id).await,
+        vec![Some(0), Some(0)],
+        "the signing and the IR move that paid for it are one transaction"
     );
 }
 
@@ -341,17 +400,23 @@ async fn add_via_auction_move_count(league: &TestLeague, deadline_id: i64) -> us
     .count()
 }
 
-/// Signs `pick_up_auction_wins`, dropping the contracts named. A drop of one of the week's own wins
-/// names the auctioned contract, since the signed row does not exist when the owner submits.
-fn pick_up(deadline_id: i64, drop_contract_ids: &[i64]) -> String {
-    let drops = drop_contract_ids
+/// Signs `pick_up_auction_wins`, dropping the contracts named and moving `ir_contract_ids` to the
+/// IR. A move on one of the week's own wins names the auctioned contract, since the signed row does
+/// not exist when the owner submits.
+fn pick_up(deadline_id: i64, drop_contract_ids: &[i64], ir_contract_ids: &[i64]) -> String {
+    let drops = contract_id_list(drop_contract_ids);
+    let irs = contract_id_list(ir_contract_ids);
+    format!(
+        "mutation {{ pickUpAuctionWins(deadlineId: {deadline_id}, dropContractIds: [{drops}], irContractIds: [{irs}]) {{ id }} }}"
+    )
+}
+
+fn contract_id_list(contract_ids: &[i64]) -> String {
+    contract_ids
         .iter()
         .map(i64::to_string)
         .collect::<Vec<_>>()
-        .join(", ");
-    format!(
-        "mutation {{ pickUpAuctionWins(deadlineId: {deadline_id}, dropContractIds: [{drops}]) {{ id }} }}"
-    )
+        .join(", ")
 }
 
 /// An auction the owner's team has won but not picked up, i.e. what an in-season close leaves
@@ -477,6 +542,16 @@ async fn stored_transaction_numbers(league: &TestLeague, deadline_id: i64) -> Ve
         .iter()
         .map(|team_update| team_update.transaction_number)
         .collect()
+}
+
+/// The team's contracts on the IR, which do not count against the 22-man active roster.
+async fn ir_contract_count(league: &TestLeague) -> usize {
+    contract_queries::find_active_contracts_for_team(league.team_id, &league.db)
+        .await
+        .expect("load the team's contracts")
+        .iter()
+        .filter(|contract_model| contract_model.is_ir)
+        .count()
 }
 
 async fn active_contract_count(league: &TestLeague) -> usize {

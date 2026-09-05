@@ -23,7 +23,7 @@ use fbkl_entity::{
     },
     contract,
     contract_queries::find_contract_by_id,
-    deadline::DeadlineKind,
+    deadline::{self, DeadlineKind},
     deadline_queries::{MissingSeasonDeadline, find_sorted_deadlines_for_league_season},
     sea_orm::{ConnectionTrait, DatabaseConnection, TransactionTrait},
     team_update_queries::find_transaction_start,
@@ -35,6 +35,7 @@ use fbkl_logic::{
     auction::{BidRejection, place_auction_bid, sign_won_auction},
     deadline_processing::eligible_compensation_picks,
     drop_contract::drop_contract_from_team,
+    ir::move_contract_to_ir,
     roster::file_and_validate_transaction,
 };
 
@@ -331,17 +332,22 @@ impl AuctionMutation {
     /// refused. Dropping one of the week's own wins to fit another is refused by T2, since the add
     /// and the removal are then in one transaction.
     ///
-    /// A drop names the auctioned contract, not the signed one: the signed row does not exist when
-    /// the owner submits. `deadlineId` is the roster lock the transaction counts towards. The wins
-    /// are read inside the transaction that signs them, so a pickup cannot act on a win the roster
-    /// lock has taken already.
+    /// A move to the IR frees an active roster slot and its cap capacity, so `irContractIds` makes
+    /// room the way `dropContractIds` does (rules §13.1.5.4). The owner declares which it is; a
+    /// player the same pickup won cannot go straight to the IR, which is the other half of T2
+    /// (§10.3.1).
+    ///
+    /// A drop or an IR move names the auctioned contract, not the signed one: the signed row does
+    /// not exist when the owner submits. `deadlineId` is the roster lock the transaction counts
+    /// towards. The wins are read inside the transaction that signs them, so a pickup cannot act on
+    /// a win the roster lock has taken already.
     ///
     /// A pickup is refused while any free-agent auction closing on or before that lock is still
     /// taking bids. Otherwise an owner could sign an early win, drop it, and sign a later win as a
     /// second transaction, which is what §8.3.5 and T2 forbid.
     ///
-    /// A contract named twice in `dropContractIds` is refused with the same code the trade path
-    /// uses, since the second drop would otherwise read the replaced row and report a stale
+    /// A contract named twice across the two lists is refused with the same code the trade path
+    /// uses, since the second move would otherwise read the replaced row and report an outdated
     /// contract instead of the repeat.
     #[graphql(guard = "LeagueRoleGuard(RoleRequirement::Member)")]
     async fn pick_up_auction_wins(
@@ -349,20 +355,22 @@ impl AuctionMutation {
         ctx: &Context<'_>,
         deadline_id: i64,
         drop_contract_ids: Vec<i64>,
+        #[graphql(default)] ir_contract_ids: Vec<i64>,
     ) -> Result<Vec<Contract>> {
         let db = ctx.data_unchecked::<DatabaseConnection>();
         let (team_user, caller_team) = require_league_role(ctx, RoleRequirement::Member).await?;
         let deadline_model =
             resolve_upcoming_roster_lock(deadline_id, caller_team.league_id, db).await?;
 
-        let mut submitted = HashSet::with_capacity(drop_contract_ids.len());
+        let mut submitted = HashSet::with_capacity(drop_contract_ids.len() + ir_contract_ids.len());
         if let Some(repeated) = drop_contract_ids
             .iter()
+            .chain(ir_contract_ids.iter())
             .find(|contract_id| !submitted.insert(**contract_id))
         {
             return Err(graphql_error(
                 ErrorCode::DuplicateDropContractId,
-                format!("contract (id = {repeated}) is named as a drop twice"),
+                format!("contract (id = {repeated}) is named twice"),
             ));
         }
 
@@ -371,27 +379,8 @@ impl AuctionMutation {
             .await
             .map_err(|err| internal("failed to start database transaction", &err.into()))?;
 
-        let open_this_week = find_open_auctions_in_league(
-            caller_team.league_id,
-            deadline_model.end_of_season_year,
-            Some(AuctionKind::InSeasonFreeAgent),
-            &db_txn,
-        )
-        .await
-        .map_err(|err| internal("failed to load the league's open auctions", &err))?
-        .into_iter()
-        .take_while(|auction_model| auction_model.close_at_timestamp <= deadline_model.date_time)
-        .map(|auction_model| auction_model.id.to_string())
-        .collect::<Vec<_>>();
-        if !open_this_week.is_empty() {
-            return Err(graphql_error(
-                ErrorCode::AuctionsStillOpen,
-                format!(
-                    "this week's free agent auctions are still taking bids: {}",
-                    open_this_week.join(", ")
-                ),
-            ));
-        }
+        ensure_the_weeks_auctions_have_closed(caller_team.league_id, &deadline_model, &db_txn)
+            .await?;
 
         let wins = find_won_auctions_for_team(
             team_user.team_id,
@@ -424,7 +413,7 @@ impl AuctionMutation {
         }
 
         for drop_contract_id in drop_contract_ids {
-            let contract_model = resolve_drop(
+            let contract_model = resolve_accommodating_move(
                 drop_contract_id,
                 &signed_by_auctioned_id,
                 team_user.team_id,
@@ -433,6 +422,20 @@ impl AuctionMutation {
             )
             .await?;
             drop_contract_from_team(contract_model, &deadline_model, &db_txn)
+                .await
+                .map_err(|err| roster_move_error(&err))?;
+        }
+
+        for ir_contract_id in ir_contract_ids {
+            let contract_model = resolve_accommodating_move(
+                ir_contract_id,
+                &signed_by_auctioned_id,
+                team_user.team_id,
+                caller_team.league_id,
+                &db_txn,
+            )
+            .await?;
+            move_contract_to_ir(contract_model, &deadline_model, &db_txn)
                 .await
                 .map_err(|err| roster_move_error(&err))?;
         }
@@ -514,14 +517,48 @@ impl AuctionMutation {
     }
 }
 
-/// The roster row a pickup's drop names, in the caller's own team.
+/// Refuses a pickup while a free agent auction closing on or before `lock` is still taking bids.
+async fn ensure_the_weeks_auctions_have_closed<C>(
+    league_id: i64,
+    lock: &deadline::Model,
+    db: &C,
+) -> Result<()>
+where
+    C: ConnectionTrait,
+{
+    let open_this_week = find_open_auctions_in_league(
+        league_id,
+        lock.end_of_season_year,
+        Some(AuctionKind::InSeasonFreeAgent),
+        db,
+    )
+    .await
+    .map_err(|err| internal("failed to load the league's open auctions", &err))?
+    .into_iter()
+    .take_while(|auction_model| auction_model.close_at_timestamp <= lock.date_time)
+    .map(|auction_model| auction_model.id.to_string())
+    .collect::<Vec<_>>();
+    if open_this_week.is_empty() {
+        return Ok(());
+    }
+
+    Err(graphql_error(
+        ErrorCode::AuctionsStillOpen,
+        format!(
+            "this week's free agent auctions are still taking bids: {}",
+            open_this_week.join(", ")
+        ),
+    ))
+}
+
+/// The roster row a pickup's drop or IR move names, in the caller's own team.
 ///
-/// An owner submits before their wins are signed, so a drop of one of the week's own wins names the
-/// auctioned contract; the signed row it maps to is what gets dropped, which is what puts the add
-/// and the removal in one transaction for T2 to refuse. Every other drop is re-derived from the
+/// An owner submits before their wins are signed, so a move on one of the week's own wins names the
+/// auctioned contract; the signed row it maps to is what gets moved, which is what puts the add
+/// and the removal in one transaction for T2 to refuse. Every other move is re-derived from the
 /// stored row, never trusted from the request.
-async fn resolve_drop<C>(
-    drop_contract_id: i64,
+async fn resolve_accommodating_move<C>(
+    contract_id: i64,
     signed_by_auctioned_id: &HashMap<i64, contract::Model>,
     team_id: i64,
     league_id: i64,
@@ -530,11 +567,11 @@ async fn resolve_drop<C>(
 where
     C: ConnectionTrait,
 {
-    if let Some(signed_contract) = signed_by_auctioned_id.get(&drop_contract_id) {
+    if let Some(signed_contract) = signed_by_auctioned_id.get(&contract_id) {
         return Ok(signed_contract.clone());
     }
 
-    let contract_model = find_contract_by_id(drop_contract_id, db)
+    let contract_model = find_contract_by_id(contract_id, db)
         .await
         .map_err(|_| code_error(ErrorCode::NotFound))?;
     if contract_model.league_id != league_id {

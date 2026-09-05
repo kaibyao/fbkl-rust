@@ -139,7 +139,10 @@ impl TeamWeek {
 
 /// The roster moves a transaction can carry.
 ///
-/// No add variants: adds reach a transaction through the trade and FA-pickup paths.
+/// No add variants: adds reach a transaction through the trade and FA-pickup paths, which is also
+/// where the owner declares the drop or the move to the IR that makes room for them
+/// (`pickUpAuctionWins`'s `irContractIds`, rules §13.1.5.4). So T2's `ToIR` arm (§10.3.1) is
+/// reachable from the API even though no batch here can hold an add.
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Enum)]
 pub enum RosterMoveKind {
     Drop,
