@@ -1,22 +1,25 @@
 # Spec 08 — Weekly Moves & Roster Legalization
-**Rules ref:** §5, §10, §11.4, §13 · **Status:** 🔴 weekly model not built; lock validation exists · **Priority:** P1
+**Rules ref:** §5, §10, §11.4, §13 · **Status:** 🟡 backend built; frontend tray and wizard not built · **Priority:** P1
 
 ## Summary
 
-Today every in-season state change (`drop_contract`, `move_contract_to_ir`, `activate_rookie`,
-trade processing, auction wins) commits a `team_update` with status `Pending`/`Done`
-*immediately and independently*, and `validate_league_rosters`
-(`logic/src/deadline_processing/roster_lock/validate_rosters.rs`) only checks legality **at the
-lock deadline**. There is no concept of a **week** as a transaction container, no notion that
-moves within a week are reorderable, and no allowance for a roster being *transiently illegal*
-mid-week (§13.1.3 — e.g. won an auction before dropping the player to fit it). The lock validator
-also applies one flat ruleset and can't tell **season-start legalization** (32→22, direct-to-IR
-allowed, §5.1.3 / §11.4.3) apart from **in-season** moves (must-hit-22-man-first, §10.3.1).
+Every in-season state change (`drop_contract`, `move_contract_to_ir`, `activate_rookie`, trade
+processing, auction wins) records a `team_update` row, and every row one submission writes shares
+one `transaction_number`. That group is a **transaction**, the unit two rules judge (§13.1.6): T1,
+the roster must be legal after each transaction; and T2, a contract acquired in a transaction may
+not be dropped or moved to the IR in that same transaction. `validate_transaction`
+(`logic/src/roster/transaction.rs`) runs both the moment a transaction is submitted, so a roster
+may be *transiently illegal* part-way through one (§13.1.3) and never after one. The Monday lock is
+the last check of the week, not the only one: `validate_league_rosters`
+(`logic/src/deadline_processing/roster_lock/validate_rosters.rs`) runs T1 again there. T1 reads its
+limits from the period the moves are made in (`find_governing_deadline`), so **season-start
+legalization** (32→22, direct-to-IR allowed, §5.1.3 / §11.4.3) and **in-season** moves
+(must-hit-22-man-first, §10.3.1) are judged by different limits.
 
-This spec adds (1) a weekly-move grouping model where illegality is permitted only *within* a
-transaction and the roster must be legal after each one, (2) a season-start legalization flow with its
-special direct-to-IR + simultaneous IR/activate/$10-bump rule, (3) in-season IR-accommodation
-sequencing, and (4) RD/RDI overflow resolution at season start.
+The backend of this spec shipped: (1) the weekly-move grouping model where illegality is permitted
+only *within* a transaction, (2) the season-start legalization limits with their direct-to-IR
+allowance and $10 cap bump, and (3) in-season IR-accommodation sequencing. Still to build:
+(4) RD/RDI overflow resolution at season start, and the frontend tray and wizard below.
 
 ## Backend
 
@@ -30,9 +33,9 @@ The natural anchor already exists: each weekly `deadline` of kind `Week1RosterLo
   existing `team_update` rows, which already carry `effective_date` (stamped from a deadline, see
   `logic/CLAUDE.md` §7), `status` (`TeamUpdateStatus`), and `ContractUpdateType`
   (`Drop`/`ToIR`/`FromIR`/`ActivateRookie`/`AddViaAuction`/`ToRdi`/`FromRdi`/…). A week = the set
-  of `team_update` rows for one team whose `effective_date` maps to the same upcoming lock
-  deadline and whose `status = Pending`. Add a query
-  `team_update_queries::find_pending_team_updates_for_team_and_deadline(team_id, deadline_id)`.
+  of `team_update` rows for one team filed under the same lock deadline, whatever their status: a
+  move is applied when it is submitted, and its status says whether the lock has settled it yet.
+  `team_update_queries::find_team_updates_by_team(team_id, status, deadline_id)` reads them.
 - **Reorderability (§13.1.1)**: introduce a `transaction_number: i16` (nullable, owner-assigned)
   on `team_update` so the UI can present and reorder the week's transactions. Rows sharing a value
   are one transaction, judged together; transactions apply in ascending order. Order is not
@@ -42,12 +45,12 @@ The natural anchor already exists: each weekly `deadline` of kind `Week1RosterLo
   applied*, never after one. Each mutator records its `team_update`, and the roster may be
   over 22 or over cap part-way through a transaction, but every transaction is validated the
   moment it is submitted. The Monday lock is the last check of the week, not the only one.
-- **Commit / legalize at lock**: extend `lock_rosters`
-  (`logic/src/deadline_processing/roster_lock/lock_rosters.rs`). It already (a) calls
-  `validate_league_rosters`, then (b) flips that deadline's `team_update` rows to
-  `TeamUpdateStatus::Done`. Keep this; the change is that validation must now run against the
-  **end-of-week projected roster** = current `Done` contracts + all this-week `Pending` moves
-  applied. If validation fails, the week does not commit (see Edge cases).
+- **Commit / legalize at lock**: `lock_rosters`
+  (`logic/src/deadline_processing/roster_lock/lock_rosters.rs`) signs any auction win the owner
+  never picked up, then runs `validate_league_rosters` over each team's live contract rows. There is
+  no projection to build, because a move is applied to those rows when it is submitted. A legal
+  team's `team_update` rows for that deadline flip to `TeamUpdateStatus::Done`; an illegal team's
+  stay `Pending` and its broken rules are recorded as `roster_lock_violation` rows (see Edge cases).
 
 ### Season-start legalization flow (32→22+1IR+6RD+1RDI; direct-to-IR allowed ONLY here; §11.4.3 simultaneous IR+activate+$10 bump)
 
@@ -111,11 +114,9 @@ the $10 bump. No new limit logic; provide a legalization-wizard surface (fronten
     `FreeAgentAuctionEnd` / `TradeDeadlineAndPlayoffStart` — enforces must-hit-22-man-first for
     newly-acquired contracts before IR, drop-from-IR penalty, cap per period
     ($210 → $230 after `FreeAgentAuctionEnd`, see `POST_SEASON_TOTAL_SALARY_LIMIT`).
-- **Project end-of-week roster**: new helper
-  `project_roster_at_lock(team_id, lock_deadline, db) -> Vec<contract::Model>` = committed `Done`
-  contracts with this week's `Pending` `team_update` moves applied (drop removes, ToIR flips
-  `is_ir`, activate changes `ContractKind`, adds insert). Feed this into the existing
-  `validate_roster_*` helpers instead of the raw `find_active_contracts_in_league` set.
+- **No projection**: a move changes the contract rows as it is submitted, so `validate_team_roster`
+  and the league-wide sweep read the team's live contracts. Nothing rebuilds an end-of-week roster
+  from a move list.
 - **Sequencing validators (new)**: `validate_ir_accommodation_in_week` and
   `validate_rd_overflow_resolved` operate on the week's move list + projected roster.
 - Reuse constants only (`logic/CLAUDE.md`): `REGULAR_SEASON_VET_OR_ROOKIE_CONTRACTS_PER_ROSTER_LIMIT`
@@ -131,13 +132,25 @@ the $10 bump. No new limit logic; provide a legalization-wizard surface (fronten
 
 ### GraphQL (cross-ref spec 06)
 
-Expose the weekly tray and projection via the schema (see [spec 06](06-graphql-api-surface.md)):
-- `query teamWeek(teamId, deadlineId)` → committed roster + this-week `Pending` moves + projected
-  end-of-week roster + per-rule legality flags (overCap, over22, ir/rd/rdi counts).
-- `mutation reorderTransactions(teamId, orderedTransactions)` — sets `transaction_number`, one
-  value per transaction.
-- `mutation legalizeRoster(teamId, moves[])` for the season-start wizard (batch IR/activate/drop).
-- Lock-time validation failures surface as structured errors (which rule, which contract).
+Expose the weekly tray via the schema (see [spec 06](06-graphql-api-surface.md)):
+- `query teamWeek(teamId, deadlineId)` → the team's active `contracts`, the week's moves grouped
+  into `transactions` in the owner's order whatever their status, one `ruleLegality` flag per roster
+  rule, and an overall `isLegal`. No projected roster: the moves are already applied, so `contracts`
+  is the roster as it stands.
+- `mutation reorderTransactions(teamId, deadlineId, orderedTransactions: [[Int]])` — each inner list
+  is one transaction and its position becomes the `transaction_number` its moves store. It takes the
+  upcoming lock's week only, the list must hold that week's whole move set, and every proposed
+  transaction is re-judged against T2 with that lock's deadline kind. T1 is not re-run, because
+  reordering cannot change the roster the week ends with and §13.1.1 lets an owner reorder freely
+  (fbkl-rust-140.33 holds the open question).
+- `mutation submitTransaction(teamId, deadlineId, moves: [RosterMove])` — one transaction of drops,
+  IR moves and activations (`RosterMoveKind` is `DROP`, `MOVE_TO_IR`, `ACTIVATE_FROM_IR`,
+  `ACTIVATE_ROOKIE`). Every row it writes shares one transaction number, and T1 and T2 judge them
+  together before the database transaction commits. The season-start wizard batches its
+  IR/activate/drop moves through this same mutation.
+- Validation failures answer with a structured error: `ROSTER_ILLEGAL` carries a per-rule violation
+  list naming the team and the contract, and the commissioner query
+  `rosterLockViolations(deadlineId)` lists what each lock recorded.
 
 ### Atomic transaction submission (trades and FA pickups carry their accommodating drops)
 
@@ -150,7 +163,7 @@ drops together with the moves that need them, inside one database transaction:
   team's legs plus that team's drops are validated as that team's transaction. A rejected accept
   persists nothing, which is what §12.5.3 (no multi-part trades executed at different times) asks
   for.
-- **Free agent pickups**: `pickUpAuctionWins(deadlineId, drops)` signs every one of the owner's
+- **Free agent pickups**: `pickUpAuctionWins(deadlineId, dropContractIds)` signs every one of the owner's
   won-but-unsigned auctions for the week and applies the listed drops as one transaction. All of
   the week's wins go on together or none do (§8.3.5), which is why §8.3.7's case is refused by T2
   rather than by a roster count.
@@ -164,8 +177,9 @@ Every `team_update` one submission writes shares one `transaction_number` value.
 - **Weekly transaction tray**: a panel listing this week's `Pending` moves for the team, drag-to-
   reorder (writes `transaction_number` via `reorderTransactions`), each move showing its delta. A live
   **end-of-week legality preview** banner (green = legal at Monday lock; amber = transiently
-  illegal now but fixable; red = will fail lock) driven by `teamWeek.projected`. Make explicit that
-  amber is allowed (§13.1.3) and only red blocks the lock.
+  illegal now but fixable; red = will fail lock) driven by `teamWeek.ruleLegality` and
+  `teamWeek.isLegal`, which judge the roster as it stands. Make explicit that amber is allowed
+  (§13.1.3) and only red blocks the lock.
 - **Season-start legalization wizard** (shown only at `PreseasonFinalRosterLock`): steps owner from
   32 → 22+1IR+6RD+1RDI. Surfaces injured players eligible for **direct-to-IR**, over-limit RD/RDI
   players with **drop (penalty-free) vs activate** choices, the **$10 cap bump** in the running cap
@@ -208,7 +222,7 @@ Every `team_update` one submission writes shares one `transaction_number` value.
   isn't accidentally validated against the mid-week illegal roster.
 - **IR-salary exclusion timing**: at `PreseasonFinalRosterLock`, must the IR'd player's salary be
   excluded *before* checking the activated overflow RD/RDI fits (§11.4.3 simultaneity)? Yes per
-  rules; ensure the projection excludes `is_ir` salary in the cap tally.
+  rules; ensure the cap tally excludes `is_ir` salary.
 
 ## Dependencies
 
@@ -217,5 +231,5 @@ Every `team_update` one submission writes shares one `transaction_number` value.
 - [spec 05](05-deadline-scheduler-and-transaction-processor.md) — the lock deadlines that bound each
   week and trigger legalization.
 - [spec 07](07-trade-legality.md) — trade legality at processing time vs end-of-week roster legality.
-- [spec 06](06-graphql-api-surface.md) — `teamWeek` query, reorder/legalize mutations, structured
-  lock errors.
+- [spec 06](06-graphql-api-surface.md) — `teamWeek` query, `reorderTransactions` and
+  `submitTransaction`, structured errors.
