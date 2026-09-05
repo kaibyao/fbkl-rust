@@ -1,7 +1,9 @@
 use std::collections::HashSet;
 
 use color_eyre::{Result, eyre::eyre};
-use sea_orm::{ActiveValue, ColumnTrait, ConnectionTrait, EntityTrait, QueryFilter, QuerySelect};
+use sea_orm::{
+    ActiveValue, ColumnTrait, ConnectionTrait, EntityTrait, QueryFilter, QueryOrder, QuerySelect,
+};
 use tracing::instrument;
 
 use crate::{trade, trade_accommodating_drop};
@@ -47,7 +49,7 @@ where
         }
     }
 
-    // Serializes two owners answering one trade, so the clash check below sees the other's rows.
+    // Serializes two owners answering one trade, so the clash check below reads the other's rows.
     trade::Entity::find_by_id(trade_id)
         .lock_exclusive()
         .one(db)
@@ -91,6 +93,9 @@ where
 }
 
 /// Every owner's accommodating drops for a trade, oldest first.
+///
+/// The order is explicit because callers stop at the first bad row: without it Postgres may hand
+/// back a different row first after a plan change, and the refusal would name a different contract.
 #[instrument(skip(db))]
 pub async fn find_accommodating_drops_for_trade<C>(
     trade_id: i64,
@@ -101,6 +106,7 @@ where
 {
     let drops = trade_accommodating_drop::Entity::find()
         .filter(trade_accommodating_drop::Column::TradeId.eq(trade_id))
+        .order_by_asc(trade_accommodating_drop::Column::Id)
         .all(db)
         .await?;
 

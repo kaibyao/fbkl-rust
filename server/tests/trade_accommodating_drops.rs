@@ -496,6 +496,48 @@ async fn two_owners_cannot_drop_the_same_contract_for_one_trade() {
 }
 
 /// One contract offered from the league's own team to `receiving_team_id`, awaiting that owner.
+#[tokio::test]
+async fn the_first_of_two_bad_drops_is_the_one_reported() {
+    let Some(league) = TestLeague::create("trade_drops_two_bad", END_OF_SEASON_YEAR).await else {
+        return;
+    };
+    add_season_under_way(&league).await;
+    let sending_owner = league.add_team_user(LeagueRole::TeamOwner).await;
+    let receiving_team_id = league.add_team("Receiving team").await;
+    let receiving_owner = league
+        .add_team_user_for_team(receiving_team_id, LeagueRole::TeamOwner)
+        .await;
+
+    let traded_contract = add_contracts(&league, league.team_id, 1, "Sent").await[0].clone();
+    add_contracts(&league, receiving_team_id, VET_OR_ROOKIE_LIMIT - 1, "Kept").await;
+    // Both belong to the sender, so neither is the accepter's to drop.
+    let strangers = add_contracts(&league, league.team_id, 2, "Stranger").await;
+
+    let proposed_trade =
+        propose(&league, &sending_owner, receiving_team_id, &traded_contract).await;
+    let error = accept_trade(
+        proposed_trade,
+        &receiving_owner,
+        &now(),
+        // Submitted highest contract id first, so only row order can name this one.
+        &[strangers[1].id, strangers[0].id],
+        TradeLegality::JudgeNow,
+        &league.db,
+    )
+    .await
+    .expect_err("neither drop names a contract the accepter holds");
+
+    match error.downcast_ref::<RosterMoveRejection>() {
+        Some(RosterMoveRejection::AccommodatingDropNotOnRoster { contract_id, .. }) => {
+            assert_eq!(
+                *contract_id, strangers[1].id,
+                "the refusal names the drop submitted first, whichever row Postgres reads first"
+            );
+        }
+        other => panic!("expected a bad-drop rejection, got {other:?} from {error}"),
+    }
+}
+
 async fn propose(
     league: &TestLeague,
     sending_owner: &team_user::Model,
