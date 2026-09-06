@@ -36,6 +36,9 @@ The natural anchor already exists: each weekly `deadline` of kind `Week1RosterLo
   of `team_update` rows for one team filed under the same lock deadline, whatever their status: a
   move is applied when it is submitted, and its status says whether the lock has settled it yet.
   `team_update_queries::find_team_updates_by_team(team_id, status, deadline_id)` reads them.
+  Every weekly move - a drop, a move to or from the IR, a rookie activation, an in-season auction
+  win, a trade - files under the roster lock still to fire, so that lock settles it. A move filed
+  under any other deadline stays `Pending` for good, because no lock reads it.
 - **Reorderability (§13.1.1)**: introduce a `transaction_number: i16` (nullable, owner-assigned)
   on `team_update` so the UI can present and reorder the week's transactions. Rows sharing a value
   are one transaction, judged together; transactions apply in ascending order. Order is not
