@@ -191,8 +191,10 @@ transaction of one move. For undeclared rows the importer infers the grouping:
 
 - An owner's consecutive rows of one kind are one transaction: a run of trade rows between the same
   owners, all of a date's free agent adds (rules 13.1.4.2), otherwise a single move.
-- Undeclared drops and moves to the IR go into a per-owner pool, handed to whichever transaction
-  fails T1. This is rules 13.1.5.3 read from the record rather than asked of the owner.
+- Undeclared drops, moves to the IR, RD and RDI activations and RD-to-RDI moves go into a per-owner
+  pool, handed to whichever transaction fails T1. This is rules 13.1.5.3 read from the record rather
+  than asked of the owner. An activation from the IR is never pooled: rules 10.1.3 and 10.2.1 make it
+  a move that must itself be accommodated, so it stands as a transaction of its own (13.1.4.3).
 - When the pool cannot make a transaction legal, that transaction takes in the owner's next moves
   until it is legal (`WhenIllegal::Defer`). That is how an activation, a later trade or a free agent
   add joins the transaction it makes legal.
