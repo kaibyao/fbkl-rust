@@ -42,6 +42,10 @@ jobs:
               - 'server/**'
               - 'test-support/**'
               - 'transaction-processor/**'
+              # A submodule pointer bump diffs as the bare gitlink path, not as a file under it.
+              - 'import-data'
+              - 'import-data/**'
+              - '.gitmodules'
               - 'Cargo.toml'
               - 'Cargo.lock'
             frontend:
@@ -93,6 +97,10 @@ jobs:
       FBKL_DATABASE_URL: postgres://postgres:postgres@localhost:5432/postgres
     steps:
       - uses: actions/checkout@v7
+        with:
+          submodules: true
+          # GITHUB_TOKEN cannot read the private import-data repo, and checkout rewrites the SSH url in .gitmodules to https for this token.
+          token: ${{ secrets.IMPORT_DATA_TOKEN }}
       - uses: dtolnay/rust-toolchain@stable
         with:
           components: clippy, rustfmt
@@ -100,14 +108,22 @@ jobs:
       - uses: Swatinem/rust-cache@v2
         with:
           shared-key: rust-clippy-test
+          # import-data is its own workspace, so its lockfile and target dir need naming here.
+          workspaces: |
+            .
+            import-data
       - uses: taiki-e/install-action@v2
         with:
           tool: nextest
       - run: cargo fmt --all --check
+      - run: cargo fmt --all --check --manifest-path import-data/Cargo.toml
       # The one compile: lints and builds every target. --all-targets picks up the auth
       # bench, which `nextest run` alone would not build. nextest then links, not compiles.
       - run: cargo build --workspace --all-targets
+      # The same clippy-driver pass; the root workspace excludes import-data.
+      - run: cargo build --workspace --all-targets --manifest-path import-data/Cargo.toml
       - run: cargo nextest run --workspace
+      - run: cargo nextest run --workspace --manifest-path import-data/Cargo.toml
       # nextest cannot run doctests; separate step so they don't silently stop running.
       - run: cargo test --doc --workspace
 
