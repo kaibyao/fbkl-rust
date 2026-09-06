@@ -418,6 +418,27 @@ mod tests {
     }
 
     #[test]
+    fn an_add_moved_between_rd_and_rdi_in_the_same_transaction_is_allowed() {
+        // T2 (rules 10.3.1) names dropping and moving to the IR; an RD<->RDI move is neither.
+        for update_type in [ContractUpdateType::ToRdi, ContractUpdateType::FromRdi] {
+            let updates = [
+                update(3, ContractUpdateType::AddViaTrade),
+                update(3, update_type),
+            ];
+
+            assert!(
+                find_same_transaction_add_then_remove(
+                    &updates,
+                    &HashMap::new(),
+                    DeadlineKind::InSeasonRosterLock
+                )
+                .is_none(),
+                "{update_type:?} should not count as a removal"
+            );
+        }
+    }
+
+    #[test]
     fn a_drop_with_no_matching_add_is_allowed() {
         let updates = [update(6, ContractUpdateType::Drop)];
 

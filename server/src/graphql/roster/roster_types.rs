@@ -149,6 +149,8 @@ pub enum RosterMoveKind {
     MoveToIr,
     ActivateFromIr,
     ActivateRookie,
+    MoveToRdi,
+    MoveFromRdi,
 }
 
 /// One move in a `submitTransaction` batch.

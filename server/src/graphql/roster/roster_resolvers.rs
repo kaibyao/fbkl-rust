@@ -280,6 +280,22 @@ impl RosterMutation {
                     activate_rookie_development_contract(contract_model, &deadline_model, &db_txn)
                         .await
                 }
+                RosterMoveKind::MoveToRdi => {
+                    move_rookie_development_contract_to_international(
+                        contract_model,
+                        &deadline_model,
+                        &db_txn,
+                    )
+                    .await
+                }
+                RosterMoveKind::MoveFromRdi => {
+                    move_rookie_development_international_contract_to_stateside(
+                        contract_model,
+                        &deadline_model,
+                        &db_txn,
+                    )
+                    .await
+                }
             }
             .map_err(|err| roster_move_error(&err))?;
 

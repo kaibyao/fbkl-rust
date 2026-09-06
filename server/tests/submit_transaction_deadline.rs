@@ -410,6 +410,60 @@ async fn a_single_move_is_judged_and_numbered_as_its_own_transaction() {
     );
 }
 
+/// An RDI player moved back stateside stays an RD contract, so the move counts against neither the
+/// 22-man limit nor T2 (rules §11.7.1). The batch carries it alongside a drop to prove it files as
+/// an ordinary move of the same transaction.
+#[tokio::test]
+async fn a_batch_moves_an_rdi_contract_back_to_rd() {
+    let Some(league) = TestLeague::create("submit_transaction_rdi", END_OF_SEASON_YEAR).await
+    else {
+        return;
+    };
+    add_season_under_way(&league).await;
+    let owner = league.add_team_user(LeagueRole::TeamOwner).await;
+
+    let contracts = add_roster_contracts(&league, VET_OR_ROOKIE_LIMIT).await;
+    let overseas_player = league.add_veteran_player("Overseas Rookie").await;
+    let rdi_contract = league
+        .add_owned_contract(
+            overseas_player,
+            ContractKind::RookieDevelopmentInternational,
+            1,
+            league.team_id,
+        )
+        .await;
+    let lock_id = deadline_id(&league, DeadlineKind::InSeasonRosterLock).await;
+    let schema = build_graphql_schema(league.db.clone());
+    let session = session_for(owner.user_id, league.league_id).await;
+
+    let moves = format!(
+        "{}, {{contractId: {}, kind: MOVE_FROM_RDI}}",
+        drop_move(contracts[0].id),
+        rdi_contract.id
+    );
+    let batch = run(&schema, &submit(league.team_id, lock_id, &moves), &session).await;
+    assert!(batch.is_ok(), "expected the RDI move to apply: {batch:?}");
+
+    let kinds: Vec<ContractKind> =
+        contract_queries::find_active_contracts_for_team(league.team_id, &league.db)
+            .await
+            .expect("load the team's contracts")
+            .iter()
+            .map(|contract_model| contract_model.kind)
+            .filter(|kind| !matches!(kind, ContractKind::RookieExtension))
+            .collect();
+    assert_eq!(
+        kinds,
+        vec![ContractKind::RookieDevelopment],
+        "the RDI contract should now be an RD one"
+    );
+    assert_eq!(
+        stored_transaction_numbers(&league, lock_id).await,
+        vec![Some(0), Some(0)],
+        "both moves belong to the one submitted transaction"
+    );
+}
+
 /// A batch may move one player more than once, and every move writes a replacement contract row.
 /// So the id the client sent names a row an earlier move in the same batch has already replaced,
 /// and the client cannot name the live one: it does not exist when the batch is submitted. The
