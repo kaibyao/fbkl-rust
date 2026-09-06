@@ -58,10 +58,13 @@ where
 
 /// Validates rules §13.1.6 T2 alone: a transaction may not remove a player it also acquired.
 ///
-/// Split out of [`validate_transaction`] for `reorderTransactions`, which regroups moves that are
-/// already applied and so has no roster state of its own to hand T1. `deadline_kind` is the kind of
-/// the lock the moves are filed under, because rules §10.3.1 and §10.1.2 exempt the move to the IR
-/// from T2 at the preseason lock.
+/// Split out of [`validate_transaction`] for `reorderTransactions`, which judges T2 per proposed
+/// transaction and T1 with [`validate_transaction_order`], because the moves it regroups are
+/// already applied and the database holds only the roster they end at. `deadline_kind` is the kind
+/// of the lock the moves are filed under, because rules §10.3.1 and §10.1.2 exempt the move to the
+/// IR from T2 at the preseason lock.
+///
+/// [`validate_transaction_order`]: crate::roster::validate_transaction_order
 #[instrument(skip(db))]
 pub async fn validate_no_add_then_remove<C>(
     transaction_updates: &[ContractUpdate],

@@ -229,6 +229,11 @@ submission carries its own grouping, per the section above.
   purely presentational. The model change is `team_update.sequence` becoming
   `team_update.transaction_number`. Owners may still re-order a week's transactions freely
   (§13.1.1); what they cannot do is move a drop into the transaction that acquired the contract.
+  T1 is re-judged too, per transaction of the proposed order: `reorderTransactions` replays the
+  week's contract changes over the roster the week opened with (`validate_transaction_order` in
+  `logic/src/roster/transaction_order.rs`) and refuses an order whose roster is illegal part way
+  through, which the reversal of a drop and a pickup can produce even though the week's end state
+  never changes.
   The *audit log* and any FA-report email (§8.3.8, §12.2.3) read the same numbers.
 - **Interaction with auction pickups won mid-week (§8.3.5–.7) — SETTLED**: a transaction is
   "a set of one team's moves in a week that are applied and judged as a unit" (§13.1.4), and all of

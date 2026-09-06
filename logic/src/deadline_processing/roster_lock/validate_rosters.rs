@@ -79,7 +79,12 @@ where
     validate_roster_contracts(team_id, &team_contracts, roster_lock_deadline, db).await
 }
 
-async fn validate_roster_contracts<C>(
+/// Validate one already-known set of a team's contracts against the rules for a roster-lock
+/// deadline.
+///
+/// Takes the rows rather than reading them, so a caller that holds a roster the database does not
+/// (a replayed one, say) judges it with the same limits the lock uses.
+pub async fn validate_roster_contracts<C>(
     team_id: i64,
     team_contracts: &[contract::Model],
     roster_lock_deadline: &deadline::Model,

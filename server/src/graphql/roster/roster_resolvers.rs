@@ -16,7 +16,7 @@ use fbkl_entity::{
     roster_lock_violation_queries::find_violations_for_league,
     sea_orm::{ConnectionTrait, DatabaseConnection, DatabaseTransaction, TransactionTrait},
     team_queries::find_team_by_id_in_league,
-    team_update,
+    team_update::ContractUpdate,
     team_update_queries::{
         find_team_updates_by_team, find_transaction_start, update_team_update_transaction_numbers,
     },
@@ -31,7 +31,10 @@ use fbkl_logic::{
         move_rookie_development_contract_to_international,
         move_rookie_development_international_contract_to_stateside,
     },
-    roster::{RosterMoveRejection, file_and_validate_transaction, validate_no_add_then_remove},
+    roster::{
+        RosterMoveRejection, file_and_validate_transaction, find_governing_deadline,
+        validate_no_add_then_remove, validate_transaction_order,
+    },
     trade::MISSING_ROSTER_LOCK_ADVICE,
 };
 
@@ -132,11 +135,12 @@ impl RosterMutation {
     /// Each inner list is one transaction, and its position becomes the transaction number every
     /// move in it stores. Order is not presentational any more: which transaction a move sits in
     /// decides what T1 and T2 judge it with (rules §13.1.4-§13.1.6), so regrouping a week changes
-    /// what its moves mean. Every proposed transaction is therefore re-judged against T2: an order
-    /// that puts a player's acquisition and his later removal in one transaction is refused
-    /// (§13.1.6). T1 is not re-run, because reordering a week cannot change the roster it ends
-    /// with, and §13.1.1 lets an owner reorder freely; an end state that breaks T1 stays the roster
-    /// lock's to record.
+    /// what its moves mean. Every proposed transaction is therefore re-judged against both rules.
+    /// T2 refuses an order that puts a player's acquisition and his later removal in one
+    /// transaction (§13.1.6). T1 refuses an order whose roster is illegal after any of its
+    /// transactions, which reordering can produce even though the week's end state never changes:
+    /// a team at the contract limit that recorded a drop and then a pickup holds 23 contracts if
+    /// the two swap places.
     ///
     /// The order covers one week, named by its lock deadline, and has to list that week's moves and
     /// no others. Transaction numbers are positions in the list, so a partial list or a move from
@@ -163,11 +167,15 @@ impl RosterMutation {
         let week_move_models = find_team_updates_by_team(team_id, None, Some(deadline_id), db)
             .await
             .map_err(|err| internal("failed to load this week's moves", &err))?;
-        let week_moves_by_id: HashMap<i64, &team_update::Model> = week_move_models
-            .iter()
-            .map(|model| (model.id, model))
-            .collect();
-        let week_move_ids: HashSet<i64> = week_moves_by_id.keys().copied().collect();
+        let mut updates_by_move_id: HashMap<i64, Vec<ContractUpdate>> =
+            HashMap::with_capacity(week_move_models.len());
+        for move_model in &week_move_models {
+            let contract_updates = move_model
+                .get_contract_updates()
+                .map_err(|err| internal("failed to read a move's contract changes", &err))?;
+            updates_by_move_id.insert(move_model.id, contract_updates);
+        }
+        let week_move_ids: HashSet<i64> = updates_by_move_id.keys().copied().collect();
         let ordered_move_ids = ordered_transactions.concat();
         let requested_ids: HashSet<i64> = ordered_move_ids.iter().copied().collect();
         if requested_ids.len() != ordered_move_ids.len()
@@ -181,21 +189,39 @@ impl RosterMutation {
             ));
         }
 
-        for proposed_transaction in &ordered_transactions {
-            // T2 reads the moves in the order they were applied, whatever order the owner lists them in.
-            let mut applied_order = proposed_transaction.clone();
+        // Both rules read the moves in the order they were applied, which the row ids give.
+        let updates_in_applied_order = |move_ids: &[i64]| {
+            let mut applied_order = move_ids.to_vec();
             applied_order.sort_unstable();
-            let mut transaction_updates = vec![];
-            for move_id in &applied_order {
-                let contract_updates = week_moves_by_id[move_id]
-                    .get_contract_updates()
-                    .map_err(|err| internal("failed to read a move's contract changes", &err))?;
-                transaction_updates.extend(contract_updates);
-            }
+            applied_order
+                .iter()
+                .flat_map(|move_id| updates_by_move_id[move_id].clone())
+                .collect::<Vec<ContractUpdate>>()
+        };
+
+        let mut proposed_updates = Vec::with_capacity(ordered_transactions.len());
+        for proposed_transaction in &ordered_transactions {
+            let transaction_updates = updates_in_applied_order(proposed_transaction);
             validate_no_add_then_remove(&transaction_updates, deadline_model.kind, db)
                 .await
                 .map_err(|err| roster_move_error(&err))?;
+            proposed_updates.push(transaction_updates);
         }
+
+        // The owner is saving the order now, so now is the window whose limits it is judged by.
+        let governing_deadline =
+            find_governing_deadline(&Utc::now().fixed_offset(), &deadline_model, db)
+                .await
+                .map_err(|err| internal("failed to resolve the rules in force", &err))?;
+        validate_transaction_order(
+            team_id,
+            &updates_in_applied_order(&ordered_move_ids),
+            &proposed_updates,
+            &governing_deadline,
+            db,
+        )
+        .await
+        .map_err(|err| roster_move_error(&err))?;
 
         let db_txn = db
             .begin()

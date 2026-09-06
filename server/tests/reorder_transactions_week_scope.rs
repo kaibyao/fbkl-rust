@@ -3,10 +3,10 @@
 //! mixing weeks would write positions that clash with the ones already stored for the other week.
 //!
 //! Order is not presentational any more - the transaction a move sits in decides what T1 and T2
-//! judge it with. Rules §13.1.1 let an owner reorder freely, so the mutation stores whatever
-//! grouping it is given and leaves an illegal end state for the lock to record, with one exception:
-//! T2 is re-judged per proposed transaction, so an order that puts a player's acquisition and his
-//! later removal in one transaction is refused (§13.1.6, §8.3.7).
+//! judge it with. Rules §13.1.1 let an owner reorder freely, but both rules are re-judged per
+//! proposed transaction: T2 refuses an order that puts a player's acquisition and his later removal
+//! in one transaction, and T1 refuses an order whose roster is illegal after any of its
+//! transactions (§13.1.6, §8.3.7).
 //!
 //! Only the upcoming lock's week can be reordered. A week whose lock has fired is settled, and no
 //! later lock run would judge a new grouping of it.
@@ -48,6 +48,13 @@ async fn a_transaction_order_covers_one_week_and_nothing_else() {
         .await;
     league
         .add_deadline(DeadlineKind::InSeasonRosterLock, days_from_now(7))
+        .await;
+    // T1 prices the in-season cap against the free-agent auction end (rules §4.2.3).
+    league
+        .add_deadline(
+            DeadlineKind::FreeAgentAuctionEnd,
+            central("2026-03-01T18:00:00"),
+        )
         .await;
     let owner = league.add_team_user(team_user::LeagueRole::TeamOwner).await;
 
@@ -191,6 +198,13 @@ async fn regrouping_an_acquisition_with_its_own_drop_is_refused() {
     league
         .add_deadline(DeadlineKind::InSeasonRosterLock, days_from_now(7))
         .await;
+    // T1 prices the in-season cap against the free-agent auction end (rules §4.2.3).
+    league
+        .add_deadline(
+            DeadlineKind::FreeAgentAuctionEnd,
+            central("2026-03-01T18:00:00"),
+        )
+        .await;
     let owner = league.add_team_user(team_user::LeagueRole::TeamOwner).await;
     let this_week = deadline_id(&league, DeadlineKind::InSeasonRosterLock).await;
 
@@ -245,6 +259,95 @@ async fn regrouping_an_acquisition_with_its_own_drop_is_refused() {
     assert_eq!(
         stored_transaction_numbers(&league, this_week).await,
         vec![(pickup, Some(0)), (drop, Some(1))],
+        "the refused order leaves the stored one alone"
+    );
+}
+
+/// Rules §13.1.1 and §13.1.6 (T1): a week's end state is legal either way round, but the roster
+/// after each transaction is not, so the order that overruns the contract limit part way through is
+/// refused.
+#[tokio::test]
+async fn an_order_that_overruns_a_roster_limit_part_way_through_the_week_is_refused() {
+    let Some(league) =
+        TestLeague::create("reorder_transactions_prefix_t1", END_OF_SEASON_YEAR).await
+    else {
+        return;
+    };
+    league
+        .add_deadline(DeadlineKind::InSeasonRosterLock, days_from_now(7))
+        .await;
+    // T1 prices the in-season cap against the free-agent auction end (rules §4.2.3).
+    league
+        .add_deadline(
+            DeadlineKind::FreeAgentAuctionEnd,
+            central("2026-03-01T18:00:00"),
+        )
+        .await;
+    let owner = league.add_team_user(team_user::LeagueRole::TeamOwner).await;
+    let this_week = deadline_id(&league, DeadlineKind::InSeasonRosterLock).await;
+
+    // The team holds the 22 veteran contracts rules §5.1.1 allow, then swaps one for another.
+    let mut held = Vec::with_capacity(22);
+    for slot in 0..22 {
+        let player_id = league
+            .add_veteran_player(&format!("Held Player {slot}"))
+            .await;
+        held.push(
+            league
+                .add_owned_contract(player_id, ContractKind::Veteran, 1, league.team_id)
+                .await,
+        );
+    }
+    let dropped = contract_queries::drop_contract(
+        held.pop().expect("a contract to drop"),
+        PreseasonKeeperTiming::OnOrAfter,
+        &league.db,
+    )
+    .await
+    .expect("drop one of the held contracts");
+    let signed_player_id = league.add_veteran_player("Signed Player").await;
+    let signed = league
+        .add_owned_contract(signed_player_id, ContractKind::Veteran, 1, league.team_id)
+        .await;
+
+    let drop = record_move(
+        &league,
+        this_week,
+        vec![contract_update(&dropped, ContractUpdateType::Drop)],
+    )
+    .await;
+    let pickup = record_move(
+        &league,
+        this_week,
+        vec![contract_update(&signed, ContractUpdateType::AddViaAuction)],
+    )
+    .await;
+
+    let schema = build_graphql_schema(league.db.clone());
+    let session = session_for(owner.user_id, league.league_id).await;
+    let reorder = |transactions: Vec<Vec<i64>>| {
+        let transactions = format!("{transactions:?}");
+        format!(
+            "mutation {{ reorderTransactions(teamId: {}, deadlineId: {this_week}, orderedTransactions: {transactions}) {{ transactionNumber moves {{ id }} }} }}",
+            league.team_id
+        )
+    };
+
+    let as_recorded = run(&schema, &reorder(vec![vec![drop], vec![pickup]]), &session).await;
+    assert_eq!(
+        as_recorded.expect("dropping before signing keeps the roster at the limit throughout"),
+        vec![(Some(0_i16), vec![drop]), (Some(1), vec![pickup])]
+    );
+
+    let reversed = run(&schema, &reorder(vec![vec![pickup], vec![drop]]), &session).await;
+    assert_eq!(
+        reversed.err().as_deref(),
+        Some("ROSTER_ILLEGAL"),
+        "signing first leaves 23 contracts after the first transaction"
+    );
+    assert_eq!(
+        stored_transaction_numbers(&league, this_week).await,
+        vec![(drop, Some(0)), (pickup, Some(1))],
         "the refused order leaves the stored one alone"
     );
 }

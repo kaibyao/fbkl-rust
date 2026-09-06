@@ -338,7 +338,7 @@ Rules Document
 **13\. Weekly Moves**
 
 1. Explanation  
-   1. All in-season moves (adds, drops, IR moves, trades, RD activations) are made in a weekly timeframe.  The transactions in a single week may be re-ordered in any way an owner wants.  
+   1. All in-season moves (adds, drops, IR moves, trades, RD activations) are made in a weekly timeframe.  The transactions in a single week may be re-ordered in any way an owner wants, as long as T1 (13.1.6) holds after every transaction of the order the owner saves: an order that leaves the roster over a limit part way through the week is refused, even though the week ends the same either way.  
    2. Any complex sequences of weekly moves that may result in an illegal roster will be ruled on by the commissioner.  Any such illegal moves will have to be reverted.  
    3. While a transaction is being applied, there may be roster states that are currently illegal – e.g. winning a player in auction without having yet dropped a player to open up roster space.  This is fine as long as the roster is legal once the whole transaction is applied.  A roster is never left illegal after a transaction (T1, 13.1.6), so it is also legal at the end of the week (Sunday night/Monday morning, prior to Monday roster lock).  Rosters and other documents should be updated at the end of each week to reflect all of that week’s moves.  
    4. A transaction is a set of one team’s moves in a week that are applied and judged as a unit.  Some moves group by rule; every other move forms its own transaction.  
