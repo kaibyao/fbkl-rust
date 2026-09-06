@@ -12,13 +12,15 @@ use fbkl_entity::{
     },
     team_update_queries::{TransactionStart, find_transaction_start},
     trade::{self, TradeStatus},
-    trade_accommodating_drop, trade_accommodating_drop_queries,
+    trade_accommodating_drop::{self, AccommodatingMoveKind},
+    trade_accommodating_drop_queries,
     trade_asset::{self, TradeAssetType},
 };
 use tracing::instrument;
 
 use crate::{
     drop_contract::drop_contract_from_team,
+    ir::move_contract_to_ir,
     roster::{
         RosterMoveRejection, calculate_team_contract_salary, file_and_validate_transaction,
         find_governing_deadline,
@@ -325,15 +327,16 @@ impl TradeTransactions {
         })
     }
 
-    /// Applies each owner's drops, then judges every involved team's transaction (T1 and T2).
+    /// Applies each owner's accommodating moves, then judges every involved team's transaction
+    /// (T1 and T2).
     ///
     /// Every team's T1 failures are gathered, teams in id order, so an owner fixing a refused trade
     /// reads all of them at once instead of one per retry.
     ///
-    /// A drop may name a contract the trade brings in, whose row `process_trade_assets` has already
-    /// replaced; the trade asset's replacement is the row to remove, which puts the add and the
-    /// removal in one transaction and is what T2 refuses. A drop naming a contract the team no
-    /// longer holds - one it traded away in this same trade - has nothing to remove and is refused.
+    /// A move may name a contract the trade brings in, whose row `process_trade_assets` has already
+    /// replaced; the trade asset's replacement is the row to move, which puts the add and the
+    /// removal in one transaction and is what T2 refuses. A move naming a contract the team no
+    /// longer holds - one it traded away in this same trade - has nothing to move and is refused.
     #[instrument(skip(db))]
     async fn apply_drops_and_validate<C>(
         &self,
@@ -373,7 +376,14 @@ impl TradeTransactions {
                 .into());
             }
 
-            drop_contract_from_team(contract_model, upcoming_lock, db).await?;
+            match accommodating_drop.kind {
+                AccommodatingMoveKind::Drop => {
+                    drop_contract_from_team(contract_model, upcoming_lock, db).await?;
+                }
+                AccommodatingMoveKind::ToIr => {
+                    move_contract_to_ir(contract_model, upcoming_lock, db).await?;
+                }
+            }
         }
 
         if legality == TradeLegality::CallerJudges {

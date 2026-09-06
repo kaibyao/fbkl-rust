@@ -38,6 +38,7 @@ mod m20260827_000002_create_roster_lock_violation;
 mod m20260902_000001_rename_transaction_to_league_event;
 mod m20260902_000002_rename_team_update_sequence_to_transaction_number;
 mod m20260903_000001_create_trade_accommodating_drop;
+mod m20260905_000001_add_trade_accommodating_drop_kind;
 
 pub struct Migrator;
 
@@ -76,6 +77,7 @@ impl MigratorTrait for Migrator {
             Box::new(m20260902_000001_rename_transaction_to_league_event::Migration),
             Box::new(m20260902_000002_rename_team_update_sequence_to_transaction_number::Migration),
             Box::new(m20260903_000001_create_trade_accommodating_drop::Migration),
+            Box::new(m20260905_000001_add_trade_accommodating_drop_kind::Migration),
         ]
     }
 }

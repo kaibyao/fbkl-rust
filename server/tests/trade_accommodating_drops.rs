@@ -17,8 +17,9 @@ use fbkl_entity::{
     team_update_queries,
     team_user::{self, LeagueRole},
     trade::{self, TradeStatus},
+    trade_accommodating_drop::AccommodatingMoveKind,
     trade_accommodating_drop_queries::{
-        DuplicateAccommodatingDrop, find_accommodating_drops_for_trade,
+        AccommodatingMove, DuplicateAccommodatingDrop, find_accommodating_drops_for_trade,
     },
     trade_asset,
     trade_queries::find_trade_by_id,
@@ -57,7 +58,7 @@ async fn a_trades_legs_and_the_accepters_drop_are_one_transaction() {
         proposed_trade,
         &receiving_owner,
         &now(),
-        &[receiving_roster[0].id],
+        &[AccommodatingMove::drop_contract(receiving_roster[0].id)],
         TradeLegality::JudgeNow,
         &league.db,
     )
@@ -174,12 +175,50 @@ async fn dropping_a_contract_the_trade_brings_in_is_refused_by_t2() {
         proposed_trade,
         &receiving_owner,
         &now(),
-        &[traded_contract.id],
+        &[AccommodatingMove::drop_contract(traded_contract.id)],
         TradeLegality::JudgeNow,
         &league.db,
     )
     .await
     .expect_err("a contract acquired in this transaction cannot be dropped by it");
+
+    assert!(
+        matches!(
+            error.downcast_ref::<RosterMoveRejection>(),
+            Some(RosterMoveRejection::SameTransactionAddThenRemove { .. })
+        ),
+        "expected a T2 rejection, got {error}"
+    );
+}
+
+#[tokio::test]
+async fn sending_a_contract_the_trade_brings_in_to_the_ir_is_refused_by_t2() {
+    let Some(league) = TestLeague::create("trade_ir_own_add", END_OF_SEASON_YEAR).await else {
+        return;
+    };
+    add_season_under_way(&league).await;
+    let sending_owner = league.add_team_user(LeagueRole::TeamOwner).await;
+    let receiving_team_id = league.add_team("Receiving team").await;
+    let receiving_owner = league
+        .add_team_user_for_team(receiving_team_id, LeagueRole::TeamOwner)
+        .await;
+
+    let traded_contract = add_contracts(&league, league.team_id, 1, "Sent").await[0].clone();
+    // One under the limit, so only T2 can refuse this (rules §10.3.1).
+    add_contracts(&league, receiving_team_id, VET_OR_ROOKIE_LIMIT - 1, "Kept").await;
+
+    let proposed_trade =
+        propose(&league, &sending_owner, receiving_team_id, &traded_contract).await;
+    let error = accept_trade(
+        proposed_trade,
+        &receiving_owner,
+        &now(),
+        &[AccommodatingMove::to_ir(traded_contract.id)],
+        TradeLegality::JudgeNow,
+        &league.db,
+    )
+    .await
+    .expect_err("a contract acquired in this transaction cannot go to the IR in it");
 
     assert!(
         matches!(
@@ -325,7 +364,7 @@ async fn a_proposer_cannot_accept_its_own_trade_and_wipe_its_drops() {
                 trade_asset::ToTeamId(league.team_id),
             ),
         ],
-        &[proposer_roster[1].id],
+        &[AccommodatingMove::drop_contract(proposer_roster[1].id)],
         &league.db,
     )
     .await
@@ -408,7 +447,10 @@ async fn an_accept_naming_one_contract_twice_is_refused() {
         proposed_trade,
         &receiving_owner,
         &now(),
-        &[repeated_id, repeated_id],
+        &[
+            AccommodatingMove::drop_contract(repeated_id),
+            AccommodatingMove::drop_contract(repeated_id),
+        ],
         TradeLegality::JudgeNow,
         &league.db,
     )
@@ -460,7 +502,7 @@ async fn two_owners_cannot_drop_the_same_contract_for_one_trade() {
             trade_asset::FromTeamId(league.team_id),
             trade_asset::ToTeamId(receiving_team_id),
         )],
-        &[traded_contract.id],
+        &[AccommodatingMove::drop_contract(traded_contract.id)],
         &league.db,
     )
     .await
@@ -471,7 +513,7 @@ async fn two_owners_cannot_drop_the_same_contract_for_one_trade() {
         proposed_trade,
         &receiving_owner,
         &now(),
-        &[traded_contract.id],
+        &[AccommodatingMove::drop_contract(traded_contract.id)],
         TradeLegality::JudgeNow,
         &league.db,
     )
@@ -523,7 +565,10 @@ async fn the_first_of_two_bad_drops_is_the_one_reported() {
         &receiving_owner,
         &now(),
         // Submitted highest contract id first, so only row order can name this one.
-        &[strangers[1].id, strangers[0].id],
+        &[
+            AccommodatingMove::drop_contract(strangers[1].id),
+            AccommodatingMove::drop_contract(strangers[0].id),
+        ],
         TradeLegality::JudgeNow,
         &league.db,
     )
@@ -642,6 +687,122 @@ async fn a_trade_that_leaves_two_teams_illegal_reports_both() {
         TradeStatus::Proposed,
         "a refused trade applies none of its legs"
     );
+}
+
+#[tokio::test]
+async fn an_accepters_move_to_the_ir_makes_room_for_the_trade() {
+    let Some(league) = TestLeague::create("trade_accommodating_ir", END_OF_SEASON_YEAR).await
+    else {
+        return;
+    };
+    add_season_under_way(&league).await;
+    let sending_owner = league.add_team_user(LeagueRole::TeamOwner).await;
+    let receiving_team_id = league.add_team("Receiving team").await;
+    let receiving_owner = league
+        .add_team_user_for_team(receiving_team_id, LeagueRole::TeamOwner)
+        .await;
+
+    let traded_contract = add_contracts(&league, league.team_id, 1, "Sent").await[0].clone();
+    // The accepter is already full, so the incoming contract needs room made for it.
+    let receiving_roster =
+        add_contracts(&league, receiving_team_id, VET_OR_ROOKIE_LIMIT, "Kept").await;
+
+    let proposed_trade =
+        propose(&league, &sending_owner, receiving_team_id, &traded_contract).await;
+    let trade_id = proposed_trade.id;
+    accept_trade(
+        proposed_trade,
+        &receiving_owner,
+        &now(),
+        &[AccommodatingMove::to_ir(receiving_roster[0].id)],
+        TradeLegality::JudgeNow,
+        &league.db,
+    )
+    .await
+    .expect("the accepter's move to the IR makes room for the incoming contract")
+    .expect("both teams have responded, so the trade processes");
+
+    let lock_id = deadline_id(&league, DeadlineKind::InSeasonRosterLock).await;
+    assert_eq!(
+        transaction_numbers(&league, receiving_team_id, lock_id).await,
+        vec![Some(0), Some(0)],
+        "the accepter's incoming leg and their IR move are one transaction"
+    );
+    assert_eq!(
+        ir_contract_count(&league, receiving_team_id).await,
+        1,
+        "the contract the accepter declared is on the IR, not dropped"
+    );
+    assert_eq!(
+        active_contract_count(&league, receiving_team_id).await,
+        VET_OR_ROOKIE_LIMIT + 1,
+        "nothing left the roster, so the IR contract is still the accepter's"
+    );
+    assert_eq!(
+        find_accommodating_drops_for_trade(trade_id, &league.db)
+            .await
+            .expect("load the trade's accommodating moves")
+            .iter()
+            .map(|accommodating_move| (accommodating_move.contract_id, accommodating_move.kind))
+            .collect::<Vec<_>>(),
+        vec![(receiving_roster[0].id, AccommodatingMoveKind::ToIr)],
+        "the move the accepter declared is on record as an IR move"
+    );
+}
+
+#[tokio::test]
+async fn an_accept_dropping_and_ir_ing_one_contract_is_refused() {
+    let Some(league) = TestLeague::create("trade_accommodating_both", END_OF_SEASON_YEAR).await
+    else {
+        return;
+    };
+    add_season_under_way(&league).await;
+    let sending_owner = league.add_team_user(LeagueRole::TeamOwner).await;
+    let receiving_team_id = league.add_team("Receiving team").await;
+    let receiving_owner = league
+        .add_team_user_for_team(receiving_team_id, LeagueRole::TeamOwner)
+        .await;
+
+    let traded_contract = add_contracts(&league, league.team_id, 1, "Sent").await[0].clone();
+    let receiving_roster =
+        add_contracts(&league, receiving_team_id, VET_OR_ROOKIE_LIMIT, "Kept").await;
+
+    let proposed_trade =
+        propose(&league, &sending_owner, receiving_team_id, &traded_contract).await;
+    let trade_id = proposed_trade.id;
+    let repeated_id = receiving_roster[0].id;
+    let error = accept_trade(
+        proposed_trade,
+        &receiving_owner,
+        &now(),
+        &[
+            AccommodatingMove::drop_contract(repeated_id),
+            AccommodatingMove::to_ir(repeated_id),
+        ],
+        TradeLegality::JudgeNow,
+        &league.db,
+    )
+    .await
+    .expect_err("one contract cannot both be dropped and go to the IR for one trade");
+
+    assert_eq!(
+        error.downcast_ref::<DuplicateAccommodatingDrop>(),
+        Some(&DuplicateAccommodatingDrop {
+            trade_id,
+            contract_id: repeated_id,
+        }),
+        "the refusal names the repeated contract, got {error}"
+    );
+}
+
+/// The team's contracts on the IR, which do not count against the 22-man active roster.
+async fn ir_contract_count(league: &TestLeague, team_id: i64) -> usize {
+    contract_queries::find_active_contracts_for_team(team_id, &league.db)
+        .await
+        .expect("load the team's contracts")
+        .iter()
+        .filter(|contract_model| contract_model.is_ir)
+        .count()
 }
 
 /// The teams a T1 refusal names, one entry per broken rule, in the order it reports them.

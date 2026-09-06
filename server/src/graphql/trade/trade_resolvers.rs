@@ -12,7 +12,8 @@ use fbkl_entity::{
     deadline_queries::{MissingSeasonDeadline, find_most_recent_deadline_by_datetime},
     sea_orm::DatabaseConnection,
     trade,
-    trade_accommodating_drop_queries::DuplicateAccommodatingDrop,
+    trade_accommodating_drop::AccommodatingMoveKind,
+    trade_accommodating_drop_queries::{AccommodatingMove, DuplicateAccommodatingDrop},
     trade_asset::{ToTeamId, TradeAssetType},
     trade_asset_queries::new_trade_asset_active_model_by_id,
     trade_queries::{find_active_trades_for_team, find_active_trades_in_league, find_trade_by_id},
@@ -152,9 +153,13 @@ impl TradeMutation {
             }
         }
 
-        // A proposer receives nothing under this input shape, so every drop has to be theirs now.
-        validate_accommodating_drops(
+        let accommodating_moves = collect_accommodating_moves(
             &input.accommodating_drop_contract_ids,
+            &input.accommodating_ir_contract_ids,
+        );
+        // A proposer receives nothing under this input shape, so every move has to be theirs now.
+        validate_accommodating_moves(
+            &accommodating_moves,
             input.from_team_id,
             caller_team.league_id,
             &[],
@@ -168,7 +173,7 @@ impl TradeMutation {
             &team_user,
             &to_team_ids,
             trade_assets,
-            &input.accommodating_drop_contract_ids,
+            &accommodating_moves,
             db,
         )
         .await
@@ -177,18 +182,22 @@ impl TradeMutation {
         Ok(Trade::from_model(proposed))
     }
 
-    /// Accepts a trade, with the drops that make it fit the accepting owner's roster. Once every
+    /// Accepts a trade, with the moves that make it fit the accepting owner's roster. Once every
     /// involved team has accepted, the trade is processed immediately.
     ///
-    /// The accept is the owner's one chance to submit those drops: a trade and one owner's
-    /// accommodating drops are one transaction, judged together when the trade processes (rules
-    /// §12.5.3, §13.1.4). A drop may name a contract this trade brings in, which T2 then refuses.
+    /// The accept is the owner's one chance to submit those moves: a trade and one owner's
+    /// accommodating moves are one transaction, judged together when the trade processes (rules
+    /// §12.5.3, §13.1.4). A move may name a contract this trade brings in, which T2 then refuses.
+    ///
+    /// A contract may be dropped or sent to the injured reserve, which frees an active roster slot
+    /// and its cap space the same way (rules §13.1.5.4); the owner declares which.
     #[graphql(guard = "LeagueRoleGuard(RoleRequirement::Member)")]
     async fn accept_trade(
         &self,
         ctx: &Context<'_>,
         trade_id: i64,
         accommodating_drop_contract_ids: Vec<i64>,
+        #[graphql(default)] accommodating_ir_contract_ids: Vec<i64>,
     ) -> Result<Trade> {
         let db = ctx.data_unchecked::<DatabaseConnection>();
         let (team_user, caller_team) = require_league_role(ctx, RoleRequirement::Member).await?;
@@ -207,8 +216,12 @@ impl TradeMutation {
             })
             .filter_map(|trade_asset_model| trade_asset_model.contract_id)
             .collect();
-        validate_accommodating_drops(
+        let accommodating_moves = collect_accommodating_moves(
             &accommodating_drop_contract_ids,
+            &accommodating_ir_contract_ids,
+        );
+        validate_accommodating_moves(
+            &accommodating_moves,
             team_user.team_id,
             caller_team.league_id,
             &incoming_contract_ids,
@@ -220,7 +233,7 @@ impl TradeMutation {
             model.clone(),
             &team_user,
             &Utc::now().fixed_offset(),
-            &accommodating_drop_contract_ids,
+            &accommodating_moves,
             TradeLegality::JudgeNow,
             db,
         )
@@ -283,31 +296,55 @@ async fn load_actionable_trade(
     Ok(model)
 }
 
-/// Re-derives that every accommodating drop is a contract the submitting owner may drop with this
+/// Pairs each submitted contract id with the move the owner declared for it, drops first.
+///
+/// A contract named in both lists needs no check here: `replace_accommodating_drops` refuses the
+/// repeat before the trade is stored, and `map_trade_processing_error` reports it to the owner.
+fn collect_accommodating_moves(
+    drop_contract_ids: &[i64],
+    ir_contract_ids: &[i64],
+) -> Vec<AccommodatingMove> {
+    drop_contract_ids
+        .iter()
+        .map(|contract_id| AccommodatingMove::drop_contract(*contract_id))
+        .chain(
+            ir_contract_ids
+                .iter()
+                .map(|contract_id| AccommodatingMove::to_ir(*contract_id)),
+        )
+        .collect()
+}
+
+/// Re-derives that every accommodating move is a contract the submitting owner may move with this
 /// trade: an active one on their roster now, or one this trade brings them (which T2 then refuses
 /// at process time, rather than this reading as a request for someone else's player).
-async fn validate_accommodating_drops(
-    contract_ids: &[i64],
+async fn validate_accommodating_moves(
+    accommodating_moves: &[AccommodatingMove],
     submitting_team_id: i64,
     league_id: i64,
     incoming_contract_ids: &[i64],
     db: &DatabaseConnection,
 ) -> Result<()> {
-    for contract_id in contract_ids {
-        let contract_model = find_contract_by_id(*contract_id, db)
+    for accommodating_move in accommodating_moves {
+        let contract_id = accommodating_move.contract_id;
+        let contract_model = find_contract_by_id(contract_id, db)
             .await
             .map_err(|_| code_error(ErrorCode::NotFound))?;
         if contract_model.league_id != league_id {
             return Err(code_error(ErrorCode::NotFound));
         }
         if contract_model.status != ContractStatus::Active {
+            let move_name = match accommodating_move.kind {
+                AccommodatingMoveKind::Drop => "dropped",
+                AccommodatingMoveKind::ToIr => "moved to the injured reserve",
+            };
             return Err(graphql_error(
                 ErrorCode::BadRequest,
-                format!("contract {contract_id} is not active, so it cannot be dropped"),
+                format!("contract {contract_id} is not active, so it cannot be {move_name}"),
             ));
         }
         if contract_model.team_id != Some(submitting_team_id)
-            && !incoming_contract_ids.contains(contract_id)
+            && !incoming_contract_ids.contains(&contract_id)
         {
             return Err(code_error(ErrorCode::Forbidden));
         }

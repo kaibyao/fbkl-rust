@@ -135,6 +135,11 @@ pub struct ProposeTradeInput {
     /// with the trade's legs (rules §12.5.3), so this proposal is where the proposer submits them;
     /// each accepting owner submits their own with `acceptTrade`.
     pub accommodating_drop_contract_ids: Vec<i64>,
+    /// Contracts the proposer sends to the injured reserve instead of dropping, which frees an
+    /// active roster slot and its cap space the same way (rules §13.1.5.4). The owner declares
+    /// which move it is; a contract this trade brings in cannot go straight to the IR (§10.3.1).
+    #[graphql(default)]
+    pub accommodating_ir_contract_ids: Vec<i64>,
 }
 
 #[derive(InputObject)]
