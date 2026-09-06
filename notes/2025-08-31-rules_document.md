@@ -97,8 +97,8 @@ Rules Document
 2. Salary Cap by Period  
    1. $200 immediately after keeper deadline and during Veteran Auction and Rookie Draft.  
    2. $210 (increases $10) after conclusion of the Veteran Auction and Rookie Draft.  This cap increase can be used for activations of RD contracts (new in 2024-2025 season).  
-   3. $230 (increases $20) immediately after FA pickups freeze.  The week of the FA pickup freeze will generally be two weeks before the trade deadline and start of the playoffs.  The salary cap stays at $230 until the conclusion of the playoffs.  
-   4. There is no cap between the conclusion of the playoffs and the keeper deadline.  
+   3. $230 (increases $20) immediately after FA pickups freeze.  The week of the FA pickup freeze will generally be two weeks before the trade deadline and start of the playoffs.  The salary cap stays at $230 through the playoffs and until contract advancement runs after the season (see 4.2.4).  
+   4. There is no cap between the running of contract advancement after the season and the keeper deadline.  The $230 limit of 4.2.3 holds from the conclusion of the playoffs until contract advancement runs.  
 3. Penalties  
    1. Salary cap can be reduced by dropping players during the season and taking drop penalties (see 9\. Player Drops).  The drop penalties will occur based off of an owner’s current salary cap, and will not be carried over into the next season.
 

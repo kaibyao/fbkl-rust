@@ -105,12 +105,16 @@ where C: ConnectionTrait + TransactionTrait;
 
 - **$100** at/through `PreseasonKeeper` (keeper-eligible total only; not a real roster cap).
 - **$200** (`PRE_SEASON_TOTAL_SALARY_LIMIT`) after keeper deadline, through veteran auction + rookie
-  draft (`PreseasonVeteranAuctionStart` … `PreseasonFinalRosterLock`, `PreseasonFaAuctionStart/End`).
+  draft (`PreseasonVeteranAuctionStart`, `PreseasonRookieDraftStart`, `PreseasonFaAuctionStart/End`).
 - **$210** (`REGULAR_SEASON_TOTAL_SALARY_LIMIT`) after auction+draft conclude — enables RD activations
-  (§4.2.2, §11.4.3). Applies at `Week1*` and `InSeasonRosterLock` *before* FA freeze.
+  (§4.2.2, §11.4.3). Applies at `PreseasonFinalRosterLock` (which is after both the auction and the
+  draft, so §4.2.2 has already stepped the cap), at `Week1*`, and at `InSeasonRosterLock` *before*
+  the FA freeze.
 - **$230** (`POST_SEASON_TOTAL_SALARY_LIMIT`) after FA freeze (`FreeAgentAuctionEnd`, the $20 bump of
-  §8.1/§4.2.3), through `TradeDeadlineAndPlayoffStart` and the playoffs.
-- **no cap** between playoff conclusion (`SeasonEnd`) and the next keeper deadline (§4.2.4).
+  §8.1/§4.2.3), through `TradeDeadlineAndPlayoffStart`, the playoffs and `SeasonEnd`.
+- **no cap** between contract advancement (`PreseasonStart`) and the next keeper deadline (§4.2.4).
+  `SeasonEnd` still carries the $230 limit: league state stays at end-of-season values until
+  advancement runs, so the limit is lifted then, not at the end of the playoffs.
 
 **This resolver is built:** `entity::deadline::Model::get_salary_cap()`
 (`entity/src/entities/deadline.rs`) selects the cap from `self.kind`, and for
@@ -120,9 +124,7 @@ $210 vs $230. **Do not introduce a second cap-selection path.** Instead:
 1. Make this the single source of truth. The processor and any roster-lock handler must derive the cap
    from the deadline being processed via `get_salary_cap`, never from a local literal.
 2. Built: `get_salary_cap` returns `Option<i16>`, and `None` is the uncapped window. Only
-   `PreseasonStart` resolves to `None` today, and `PreseasonFinalRosterLock` resolves to $210, so
-   which kind maps to which cap still disagrees with the step function above. Tracked as
-   fbkl-rust-140.39.
+   `PreseasonStart` resolves to `None`.
 3. The `$210→$230` transition is *event-driven* (the `FreeAgentAuctionEnd` deadline firing), so the
    processor's handler for `FreeAgentAuctionEnd` is what conceptually "applies" the bump — but because
    cap is resolved per-deadline at read time, no stored cap field needs mutating. Document that the
