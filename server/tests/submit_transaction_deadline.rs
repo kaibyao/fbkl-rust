@@ -468,6 +468,10 @@ async fn a_batch_moves_an_rdi_contract_back_to_rd() {
 /// So the id the client sent names a row an earlier move in the same batch has already replaced,
 /// and the client cannot name the live one: it does not exist when the batch is submitted. The
 /// mutation resolves each id to its chain's latest row before it applies the move.
+///
+/// The T2 refusal is what proves the resolution: an unresolved id would name a `Replaced` row and
+/// fail as `ContractNotActive` instead. Rules §13.1.5.5 make an activation an acquisition, so
+/// activating a player in order to drop him in the same transaction breaks T2.
 #[tokio::test]
 async fn a_batch_follows_the_contract_chain_between_moves_on_one_player() {
     let Some(league) = TestLeague::create("submit_transaction_chain", END_OF_SEASON_YEAR).await
@@ -496,33 +500,56 @@ async fn a_batch_follows_the_contract_chain_between_moves_on_one_player() {
     );
     assert_eq!(ir_contract_count(&league).await, 1);
 
-    // The named id is two rows stale by the drop. T2 takes no offence because activating a player
-    // does not yet count as acquiring him (fbkl-rust-140.37).
+    // The named id is two rows stale by the drop, so only a resolved chain root matches it to the
+    // activation T2 refuses it for.
     let activate_then_drop = format!(
         "{{contractId: {named_id}, kind: ACTIVATE_FROM_IR}}, {}",
         drop_move(named_id)
     );
-    let applied = run(
+    let refusal = message(
         &schema,
         &submit(league.team_id, lock_id, &activate_then_drop),
         &session,
     )
     .await;
-    assert!(applied.is_ok(), "expected both moves to apply: {applied:?}");
+    assert!(
+        refusal.contains("acquired in this transaction"),
+        "activating a player in order to drop him breaks T2: {refusal}"
+    );
     assert_eq!(
         ir_contract_count(&league).await,
-        0,
-        "the activation should have taken the player off IR"
+        1,
+        "the refused transaction leaves the player on IR"
     );
     assert_eq!(
         active_contract_count(&league).await,
-        3,
-        "the drop should have taken the player off the roster"
+        4,
+        "the refused transaction drops nobody"
     );
     assert_eq!(
         stored_transaction_numbers(&league, lock_id).await,
-        vec![Some(0), Some(1), Some(1)],
-        "the two moves on one player share the transaction that applied them"
+        vec![Some(0)],
+        "only the move to IR is numbered; the refused batch writes nothing"
+    );
+
+    let rookie = league.add_veteran_player("Rookie Dev").await;
+    let rd_contract = league
+        .add_owned_contract(rookie, ContractKind::RookieDevelopment, 1, league.team_id)
+        .await;
+    let activate_then_drop_rookie = format!(
+        "{{contractId: {}, kind: ACTIVATE_ROOKIE}}, {}",
+        rd_contract.id,
+        drop_move(rd_contract.id)
+    );
+    let rookie_refusal = message(
+        &schema,
+        &submit(league.team_id, lock_id, &activate_then_drop_rookie),
+        &session,
+    )
+    .await;
+    assert!(
+        rookie_refusal.contains("acquired in this transaction"),
+        "activating a rookie in order to drop him breaks T2: {rookie_refusal}"
     );
 }
 

@@ -128,7 +128,8 @@ where
         .filter(league_event::Column::DeadlineId.eq(deadline_id))
         .filter(team_update::Column::Id.gt(after_team_update_id))
         .filter(team_update::Column::TransactionNumber.is_null())
-        .order_by_desc(team_update::Column::Id)
+        // Oldest first: T2 reads the transaction's moves in the order they were applied.
+        .order_by_asc(team_update::Column::Id)
         .all(db)
         .await?;
     Ok(week_moves)

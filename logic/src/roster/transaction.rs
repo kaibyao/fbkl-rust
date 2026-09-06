@@ -130,7 +130,15 @@ where
     Ok(chain_roots)
 }
 
-/// The update that breaks T2, i.e. the removal of a player this transaction also acquired.
+/// The update that breaks T2, i.e. the removal of a player this transaction acquired earlier in its
+/// move list.
+///
+/// The acquisition has to come first: rules §13.1.6.2 and §13.1.5.5 both name it before the
+/// removal. A contract moved to the IR and then activated in one transaction was never acquired by
+/// it, and the pair leaves the player where it found him.
+///
+/// `transaction_updates` has to arrive in the order the moves were applied, which is what every
+/// caller hands over: oldest `team_update` row first.
 ///
 /// `chain_roots` maps an update's `contract_id` to its chain root; an id it does not cover stands
 /// for itself, which is what the add-only and removal-only transactions rely on.
@@ -146,16 +154,18 @@ fn find_same_transaction_add_then_remove<'updates>(
             .unwrap_or(contract_id)
     };
 
-    let acquired_roots: HashSet<i64> = transaction_updates
-        .iter()
-        .filter(|update| is_add(update.update_type))
-        .map(|update| root_of(update.contract_id))
-        .collect();
+    let mut acquired_roots: HashSet<i64> = HashSet::new();
+    for update in transaction_updates {
+        let root = root_of(update.contract_id);
+        if is_removal(update.update_type, deadline_kind) && acquired_roots.contains(&root) {
+            return Some(update);
+        }
+        if is_add(update.update_type) {
+            acquired_roots.insert(root);
+        }
+    }
 
-    transaction_updates.iter().find(|update| {
-        is_removal(update.update_type, deadline_kind)
-            && acquired_roots.contains(&root_of(update.contract_id))
-    })
+    None
 }
 
 /// Numbers every move written since `transaction_start` as one transaction, returning what it did.
@@ -271,14 +281,19 @@ where
     .await
 }
 
-/// Whether the update type acquires a contract the team did not hold, i.e. T2's "acquired in a
-/// transaction".
+/// Whether the update type counts as acquiring the contract, i.e. T2's "acquired in a transaction".
+///
+/// Rules §13.1.5.5 count an activation from the IR and an RD or RDI activation as acquisitions, so
+/// a transaction may not activate a player in order to drop him or to put him on the IR. A move
+/// between the RD and RDI squads is not an activation and so not an acquisition (§13.1.5.6).
 const fn is_add(update_type: ContractUpdateType) -> bool {
     matches!(
         update_type,
         ContractUpdateType::AddViaAuction
             | ContractUpdateType::AddViaTrade
             | ContractUpdateType::AddViaRookieDraft
+            | ContractUpdateType::FromIR
+            | ContractUpdateType::ActivateRookie
     )
 }
 
@@ -412,6 +427,65 @@ mod tests {
                 &updates,
                 &HashMap::new(),
                 DeadlineKind::InSeasonRosterLock
+            )
+            .is_none()
+        );
+    }
+
+    #[test]
+    fn an_activation_removed_in_the_same_transaction_is_refused() {
+        // Rules 13.1.5.5: an activation from the IR or the RD squad is an acquisition for T2.
+        for activation in [
+            ContractUpdateType::FromIR,
+            ContractUpdateType::ActivateRookie,
+        ] {
+            for removal in [ContractUpdateType::Drop, ContractUpdateType::ToIR] {
+                let updates = [update(9, activation), update(9, removal)];
+
+                assert!(
+                    find_same_transaction_add_then_remove(
+                        &updates,
+                        &HashMap::new(),
+                        DeadlineKind::InSeasonRosterLock
+                    )
+                    .is_some(),
+                    "{activation:?} then {removal:?} should break T2"
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn a_move_to_ir_undone_by_an_activation_in_the_same_transaction_is_allowed() {
+        // The player was never acquired: the pair leaves him where the transaction found him.
+        let updates = [
+            update(9, ContractUpdateType::ToIR),
+            update(9, ContractUpdateType::FromIR),
+        ];
+
+        assert!(
+            find_same_transaction_add_then_remove(
+                &updates,
+                &HashMap::new(),
+                DeadlineKind::InSeasonRosterLock
+            )
+            .is_none()
+        );
+    }
+
+    #[test]
+    fn an_activation_sent_to_ir_at_the_preseason_lock_is_allowed() {
+        // Rules 10.1.2 exempt the move to the IR at the season start, the one exemption 13.1.5.5 names.
+        let updates = [
+            update(9, ContractUpdateType::FromIR),
+            update(9, ContractUpdateType::ToIR),
+        ];
+
+        assert!(
+            find_same_transaction_add_then_remove(
+                &updates,
+                &HashMap::new(),
+                DeadlineKind::PreseasonFinalRosterLock
             )
             .is_none()
         );

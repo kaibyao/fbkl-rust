@@ -77,9 +77,14 @@ This is the `PreseasonFinalRosterLock` deadline. Distinct rules from in-season:
 For `Week1RosterLock` / `InSeasonRosterLock`:
 
 - **Must hit 22-man first (§10.3.1, §10.1.2)**: this is T2 applied to the IR. A contract acquired
-  in a transaction via auction (`AddViaAuction`), trade (`AddViaTrade`) or rookie draft
-  (`AddViaRookieDraft`) may not be moved to the IR in that same transaction; it may be moved to the
+  in a transaction via auction (`AddViaAuction`), trade (`AddViaTrade`), rookie draft
+  (`AddViaRookieDraft`), an activation from the IR (`FromIR`) or an RD/RDI activation
+  (`ActivateRookie`) may not be moved to the IR in that same transaction; it may be moved to the
   IR in any later transaction, which is where §10.3.1's "accommodate on the 22-man first" lands.
+  The two activations join the add set because §13.1.5.5 counts an activation as an acquisition; a
+  move between the RD and RDI squads (`ToRdi`, `FromRdi`) is not an activation and is not in the
+  set. T2 reads the transaction's moves in order, so a `ToIR` undone by a `FromIR` later in the same
+  transaction acquires nobody and is allowed (§13.1.6.2).
   `validate_transaction` enforces it over the transaction's own `ContractUpdate` list, so no scan
   of earlier committed roster states is needed and none is done — an earlier design that scanned
   for a `Done` non-IR row passed or failed by accident depending on what other moves that week had

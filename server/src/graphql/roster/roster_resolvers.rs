@@ -182,8 +182,11 @@ impl RosterMutation {
         }
 
         for proposed_transaction in &ordered_transactions {
+            // T2 reads the moves in the order they were applied, whatever order the owner lists them in.
+            let mut applied_order = proposed_transaction.clone();
+            applied_order.sort_unstable();
             let mut transaction_updates = vec![];
-            for move_id in proposed_transaction {
+            for move_id in &applied_order {
                 let contract_updates = week_moves_by_id[move_id]
                     .get_contract_updates()
                     .map_err(|err| internal("failed to read a move's contract changes", &err))?;
