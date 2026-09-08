@@ -1,9 +1,9 @@
 //! A roster move a league rule refuses is the owner's fault, not a server fault.
 //!
-//! The logic layer's guards carry a specific message ("must be committed without IR first"), and
-//! the resolver used to throw all of it away behind a bare INTERNAL, so an owner could not tell a
-//! rule rejection from a database outage. A rejection now carries the `ROSTER_MOVE_REJECTED` code
-//! plus the rule message, and only genuine faults stay INTERNAL.
+//! The logic layer's guards carry a specific message ("is not in IR"), and the resolver used to
+//! throw all of it away behind a bare INTERNAL, so an owner could not tell a rule rejection from a
+//! database outage. A rejection now carries the `ROSTER_MOVE_REJECTED` code plus the rule message,
+//! and only genuine faults stay INTERNAL.
 
 use std::sync::Arc;
 
@@ -22,14 +22,13 @@ use tower_sessions::{MemoryStore, Session};
 
 const END_OF_SEASON_YEAR: i16 = 2026;
 
-/// Rules §10.3.1: in season a contract has to sit on a committed roster without IR before it can
-/// go to IR, and rules §10.3.2: only a contract on IR can come off it. Both refusals name the rule.
+/// Rules §10.3.2: only a contract on IR can come off it, and the refusal names the rule.
 #[tokio::test]
 async fn a_rule_rejection_names_the_rule_instead_of_reading_as_a_server_fault() {
     let Some(league) = TestLeague::create("roster_move_rejection", END_OF_SEASON_YEAR).await else {
         return;
     };
-    // A regular-season lock, i.e. not the preseason lock the straight-to-IR ban exempts.
+    // The lock this move gets judged at.
     let upcoming_lock = Utc::now()
         .checked_add_days(Days::new(3))
         .expect("3 days from now")
@@ -44,20 +43,7 @@ async fn a_rule_rejection_names_the_rule_instead_of_reading_as_a_server_fault() 
     let schema = build_graphql_schema(league.db.clone());
     let session = session_for(owner.user_id, league.league_id).await;
 
-    // The contract has no committed team_update, so it is an add and cannot be parked on IR.
-    let (code, message) = run(&schema, &move_to_ir(fresh_contract.id, lock_id), &session).await;
-    assert_eq!(code, Some("ROSTER_MOVE_REJECTED".to_owned()));
-    assert!(
-        message.contains("straight to IR"),
-        "the owner should be told which rule stopped the move: {message}"
-    );
-    assert_eq!(
-        ir_contract_count(&league).await,
-        0,
-        "the rejected move should not have been applied"
-    );
-
-    // The same holds for the move back: this contract was never on IR.
+    // This contract was never on IR, so there is nothing to activate off it.
     let (code, message) = run(
         &schema,
         &activate_from_ir(fresh_contract.id, lock_id),
@@ -69,12 +55,11 @@ async fn a_rule_rejection_names_the_rule_instead_of_reading_as_a_server_fault() 
         message.contains("not in IR"),
         "the owner should be told which rule stopped the move: {message}"
     );
-}
-
-fn move_to_ir(contract_id: i64, deadline_id: i64) -> String {
-    format!(
-        "mutation {{ moveContractToIr(contractId: {contract_id}, deadlineId: {deadline_id}) {{ id }} }}"
-    )
+    assert_eq!(
+        ir_contract_count(&league).await,
+        0,
+        "the rejected move should not have been applied"
+    );
 }
 
 fn activate_from_ir(contract_id: i64, deadline_id: i64) -> String {

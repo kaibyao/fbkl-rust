@@ -6,6 +6,10 @@
 //! is owned by the transaction-processor's `job_run` claims, so `EventBridge`
 //! double-fires (and retries) are safe: an already-processed deadline is a no-op.
 
+// The top-level async block nests the whole deadline-processing future, so its
+// layout depth outgrows the default 128-query limit under clippy.
+#![recursion_limit = "256"]
+
 use fbkl_jobs::run_scheduler_tick;
 use fbkl_lambdas::db;
 use lambda_runtime::{Error, LambdaEvent, run, service_fn, tracing};

@@ -27,14 +27,14 @@ values from there; do not duplicate literals into logic.
 | `rookie_draft/` | Live rookie draft: order from standings + lottery, make/pass picks, re-draft ban. |
 | `rookie_development_activation/` | Activate an RD/RDI contract into a rookie contract. |
 | `rookie_development_international/` | Move contracts RD↔RDI (stateside ↔ international). |
-| `roster/` | Salary + cap calculation (incl. dropped-contract penalties). |
+| `roster/` | Salary + cap calculation (incl. dropped-contract penalties); filing a week's moves as a numbered transaction and judging it (T1 roster legality, T2 acquire-then-remove). |
 | `team_ownership/` | Resolve which team a user owns in a league. |
 
 ## Conventions (follow these when adding logic)
 
-1. **Every state change is a transaction + team_update.** A mutation almost always: mutates
-   the contract/asset, inserts a row in `transaction` (a `TransactionKind`), and inserts one or
-   more `team_update` rows. The transaction is the league's audit log; team_updates drive the
+1. **Every state change is a league_event + team_update.** A mutation almost always: mutates
+   the contract/asset, inserts a row in `league_event` (a `LeagueEventKind`), and inserts one or
+   more `team_update` rows. `league_event` is the league's audit log; team_updates drive the
    per-team UI/state. Don't mutate state without recording both.
 
 2. **Wrap multi-step mutations in a DB transaction** — `db.begin()` … `commit()`. Trade and
@@ -53,11 +53,22 @@ values from there; do not duplicate literals into logic.
    linked) rather than editing in place. Validate "latest in chain" before acting on a contract
    in trades (`validate_contract_is_latest_in_chain`).
 
-6. **team_update status convention:**
-   - `Done` — applied immediately (advancement, drop, completed trade).
-   - `Pending` — recorded now, finalized later by deadline/roster-lock processing (ir, rookie
-     activation, RDI moves, auction wins).
-   - `InProgress`/`Error` — used by keeper-deadline batch processing.
+6. **team_update status convention.** A weekly move is `Pending` when it is recorded and turns
+   `Done` at the roster lock; a deadline event is `Done` when it is written, because no lock reads
+   its rows. Which writer produces which status:
+   - `Pending` at the write — `drop_contract_team_update`, `create_trade_team_update`,
+     `ir_team_update`, `rookie_activation_team_update`, `rdi_team_update`,
+     `sign_auction_contract_to_team` (in-season free agent wins, whether an owner picked the win up
+     or `lock_rosters` signed it for them), and `keeper_team_update` (before its batch runs).
+   - `Done` at the write — `create_team_contracts_for_annual_advancement`, `make_pick`,
+     `rfa_league_event`, and `update_team_update_for_auction`, whose one caller is
+     `preseason_veteran_auction`.
+   - `Pending` → `Done` later — `lock_rosters` flips the week's rows for every team that was legal
+     at the lock. A team that ends the week illegal keeps its rows Pending for the commissioner to
+     revert (rules 13.1.2).
+   - `InProgress`/`Error`, then `Done` — `process_keeper_deadline` runs its own batch over the
+     keeper rows and never involves a roster lock.
+   Add a new weekly mutator to the Pending list; a new deadline event goes in the Done list.
 
 7. **Effective dates come from deadlines.** Most mutations look up the relevant `deadline` and
    stamp `team_update.effective_date` from it. Some accept an override (`maybe_override_effective_date`).
@@ -66,17 +77,29 @@ values from there; do not duplicate literals into logic.
 
 - `insert_team_updates_from_completed_trade` errors if a team's pre-trade salary is missing
   from the cache — ensure salaries are computed for every involved team before calling.
-- Trades validate **asset ownership only** — there is no cap/roster legality check at trade time.
+- Trades validate asset ownership, and an owner-facing trade also validates **T1 and T2 for every
+  involved team**: `process_trade` files each team's moves as one transaction and runs
+  `file_and_validate_transaction` on it, so the roster must be legal after the trade and no team may
+  acquire and remove one contract in the same transaction (rules §13.1.6). T1 reads the limits of
+  the period the trade is made in (`roster::find_governing_deadline`): in season those are the
+  upcoming lock's own limits; in the preseason and offseason they are the wider limits of that
+  window. The historical import passes `TradeLegality::CallerJudges`, which skips both checks
+  because it keeps adding the date's drops to the same transaction and validates it itself.
 - `end_fa_auction` and `end_veteran_auction` both route through `auction_close_outcome`: no bid
   expires the contract (`AuctionStatus::Expired`), an RFA closes to `AuctionStatus::Closed`
-  WITHOUT signing (the raise/match flow completes it), anything else signs the winning bid.
+  WITHOUT signing (the raise/match flow completes it), anything else has a winner. The veteran
+  auction signs that winner immediately; an in-season FA auction only records it
+  (`AuctionStatus::Won`, rules §8.3.6) and `sign_won_auction` turns it into a contract when the
+  owner picks it up or when the roster lock signs it for them.
 - Auction opens/closes/tier slides are driven by `fbkl_jobs::{run_auction_close_tick,
   run_veteran_auction_release_tick}` on every scheduler tick, so both must stay idempotent:
   `open_scheduled_auction` returns an existing auction rather than opening a second one, the
   tier slide only touches auctions untouched for a day, and the crunch sweep only moves close times
   earlier. **The release/slide tick must keep running before the close tick** — the tier ladder is
   an unbid veteran auction's only clock, so closing first expires it the day it becomes
-  slide-eligible (rules §6.3.4).
+  slide-eligible (rules §6.3.4). **Both must keep running before the due-deadline loop** — an
+  in-season FA auction's clock is clamped to the upcoming roster lock and a veteran auction's to
+  `PreseasonFinalRosterLock`, so a lock that runs first reads no win for the week it judges.
 - Every write of `auction.close_at_timestamp` goes through `logic::auction::auction_close_at`, which
   folds in the quiet window, the all-bid deadline and the hard deadline. Compute it there rather than
   writing a close time directly, or a write site quietly drops one of those clocks.

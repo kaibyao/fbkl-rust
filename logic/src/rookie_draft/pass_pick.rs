@@ -2,7 +2,7 @@
 //!
 //! Passing asks nothing of the owner — no roster room, no eligible player — so the only guards are
 //! that the row is still unresolved and still on the clock. Unlike every other state change this
-//! records a transaction and NO `team_update`: no asset changed hands.
+//! records a league event and NO `team_update`: no asset changed hands.
 //!
 //! The passed row stays in the slate as `Skipped`, so it keeps consuming its `order` slot and the
 //! draft moves on to the next `Unused` row rather than snaking back — same as the importer.
@@ -10,11 +10,10 @@
 use color_eyre::Result;
 use fbkl_entity::{
     deadline::DeadlineKind,
-    deadline_queries, draft_pick_queries,
+    deadline_queries, draft_pick_queries, league_event_queries,
     rookie_draft_selection::{self, RookieDraftSelectionStatus},
     rookie_draft_selection_queries,
     sea_orm::{ConnectionTrait, TransactionSession, TransactionTrait},
-    transaction_queries,
 };
 use tracing::instrument;
 
@@ -59,13 +58,13 @@ where
     )
     .await?;
 
-    let transaction_model = transaction_queries::insert_rookie_draft_selection_transaction(
+    let league_event_model = league_event_queries::insert_rookie_draft_selection_league_event(
         &deadline_model,
         updated_selection_model.id,
         &db_txn,
     )
     .await?;
-    updated_selection_model.transaction_id = Some(transaction_model.id);
+    updated_selection_model.league_event_id = Some(league_event_model.id);
 
     db_txn.commit().await?;
 

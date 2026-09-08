@@ -1,13 +1,13 @@
-//! The league's read-only audit feed. Transactions are only ever written as a side effect of the
+//! The league's read-only audit feed. League events are only ever written as a side effect of the
 //! trade / auction / draft / keeper / roster engines, so this module exposes no mutations.
 
 use async_graphql::{Context, Object, Result};
 use fbkl_entity::{
+    league_event_queries::{find_league_event_by_id, find_league_events_in_league},
     sea_orm::DatabaseConnection,
-    transaction_queries::{find_transaction_by_id, find_transactions_in_league},
 };
 
-use super::{PagedTransactions, Transaction, TransactionFilter};
+use super::{LeagueEvent, LeagueEventFilter, PagedLeagueEvents};
 use crate::graphql::{
     ErrorCode, LeagueRoleGuard, RoleRequirement, code_error, require_league_role,
 };
@@ -16,25 +16,25 @@ use crate::graphql::{
 const MAX_PAGE_SIZE: u64 = 100;
 
 #[derive(Default)]
-pub struct TransactionQuery;
+pub struct LeagueEventQuery;
 
 #[Object]
-impl TransactionQuery {
-    /// One page of the caller's league's transaction history, newest first.
+impl LeagueEventQuery {
+    /// One page of the caller's league's league event history, newest first.
     #[graphql(guard = "LeagueRoleGuard(RoleRequirement::Member)")]
-    async fn transactions(
+    async fn league_events(
         &self,
         ctx: &Context<'_>,
-        filter: Option<TransactionFilter>,
+        filter: Option<LeagueEventFilter>,
         #[graphql(default = 0)] page: u64,
         #[graphql(default = 25)] page_size: u64,
-    ) -> Result<PagedTransactions> {
+    ) -> Result<PagedLeagueEvents> {
         let db = ctx.data_unchecked::<DatabaseConnection>();
         let (_, caller_team) = require_league_role(ctx, RoleRequirement::Member).await?;
 
         let (maybe_team_id, maybe_kind) = filter.map_or((None, None), |f| (f.team_id, f.kind));
 
-        let paged = find_transactions_in_league(
+        let paged = find_league_events_in_league(
             caller_team.league_id,
             maybe_team_id,
             maybe_kind,
@@ -44,23 +44,23 @@ impl TransactionQuery {
         )
         .await
         .map_err(|db_err| {
-            tracing::error!(error = ?db_err, league_id = caller_team.league_id, "failed to load transactions");
+            tracing::error!(error = ?db_err, league_id = caller_team.league_id, "failed to load league_events");
             code_error(ErrorCode::Internal)
         })?;
 
-        Ok(PagedTransactions {
-            items: paged.items.iter().map(Transaction::from_model).collect(),
+        Ok(PagedLeagueEvents {
+            items: paged.items.iter().map(LeagueEvent::from_model).collect(),
             total_items: paged.total_items,
         })
     }
 
-    /// A single transaction, scoped to the caller's selected league.
+    /// A single league event, scoped to the caller's selected league.
     #[graphql(guard = "LeagueRoleGuard(RoleRequirement::Member)")]
-    async fn transaction(&self, ctx: &Context<'_>, id: i64) -> Result<Transaction> {
+    async fn league_event(&self, ctx: &Context<'_>, id: i64) -> Result<LeagueEvent> {
         let db = ctx.data_unchecked::<DatabaseConnection>();
         let (_, caller_team) = require_league_role(ctx, RoleRequirement::Member).await?;
 
-        let model = find_transaction_by_id(id, db)
+        let model = find_league_event_by_id(id, db)
             .await
             .map_err(|_| code_error(ErrorCode::NotFound))?;
 
@@ -68,6 +68,6 @@ impl TransactionQuery {
             return Err(code_error(ErrorCode::NotFound));
         }
 
-        Ok(Transaction::from_model(&model))
+        Ok(LeagueEvent::from_model(&model))
     }
 }

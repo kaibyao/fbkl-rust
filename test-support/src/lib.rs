@@ -300,9 +300,15 @@ impl TestLeague {
         kind: ContractKind,
         salary: i16,
     ) -> contract::Model {
+        // Rookie, RookieDevelopment and Veteran contracts only run to year 3, so year 4 is refused
+        // for them; every other kind the harness uses accepts it.
+        let year_number = match kind {
+            ContractKind::Rookie | ContractKind::RookieDevelopment | ContractKind::Veteran => 3,
+            _ => 4,
+        };
         contract_queries::create_new_contract(
             contract::ActiveModel {
-                year_number: ActiveValue::Set(4),
+                year_number: ActiveValue::Set(year_number),
                 kind: ActiveValue::Set(kind),
                 is_ir: ActiveValue::Set(false),
                 salary: ActiveValue::Set(salary),

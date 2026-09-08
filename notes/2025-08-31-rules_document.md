@@ -97,8 +97,8 @@ Rules Document
 2. Salary Cap by Period  
    1. $200 immediately after keeper deadline and during Veteran Auction and Rookie Draft.  
    2. $210 (increases $10) after conclusion of the Veteran Auction and Rookie Draft.  This cap increase can be used for activations of RD contracts (new in 2024-2025 season).  
-   3. $230 (increases $20) immediately after FA pickups freeze.  The week of the FA pickup freeze will generally be two weeks before the trade deadline and start of the playoffs.  The salary cap stays at $230 until the conclusion of the playoffs.  
-   4. There is no cap between the conclusion of the playoffs and the keeper deadline.  
+   3. $230 (increases $20) immediately after FA pickups freeze.  The week of the FA pickup freeze will generally be two weeks before the trade deadline and start of the playoffs.  The salary cap stays at $230 through the playoffs and until contract advancement runs after the season (see 4.2.4).  
+   4. There is no cap between the running of contract advancement after the season and the keeper deadline.  The $230 limit of 4.2.3 holds from the conclusion of the playoffs until contract advancement runs.  
 3. Penalties  
    1. Salary cap can be reduced by dropping players during the season and taking drop penalties (see 9\. Player Drops).  The drop penalties will occur based off of an owner’s current salary cap, and will not be carried over into the next season.
 
@@ -137,7 +137,8 @@ Rules Document
    3. An opening bid on a player must be equal to or greater than his minimum bid value.  
    4. Auctions are open as long as there has been a bid in the last 24 hours of the auction.  After 24 hours have elapsed since the last bid in an auction, the auction is concluded and the player is awarded to the last bidder at a salary equal to the final bid, subject to any UFA/RFA exceptions.  
    5. Trades are allowed during the Veteran Auction.  
-   6. Players already on an owner’s roster (keepers and already acquired players) may not be dropped during the Veteran Auction.
+   6. Players already on an owner’s roster (keepers and already acquired players) may not be dropped during the Veteran Auction.  
+   7. Each player won in the Veteran Auction is a transaction on its own.  A bid counts only when the owner already holds the cap and the roster space for it (6.4.1), and no player may be dropped during the auction (6.4.6), so a win needs no other move with it.  Section 13, which groups a week’s free agent adds (13.1.4.2), covers in-season moves only.
 
 **7\. Rookie Draft:**
 
@@ -161,6 +162,7 @@ Rules Document
    3. Trades and drops (with the associated cap penalty) are allowed during the Rookie Draft.  
    4. A player dropped during the Rookie Draft may not be drafted during that same Rookie Draft (even if still eligible).  For example, if an owner drafts Ricky Rubio during the 2010 Rookie Draft, he may not drop Rubio right before his 5th round pick in the 2011 Rookie Draft and draft him again (even though Rubio is still eligible for that Rookie Draft) and reset his salary to $1.  Such a player drafted would be eligible for in-season free agency, or the next year’s Rookie Draft, if he retains eligibility.  
    5. Free agent bids are not allowed during the Rookie Draft.  
+   6. Each Rookie Draft selection is a transaction on its own.  An owner must already hold an open roster slot to make a pick (7.3.2), so a drop or trade made for a pick (7.3.3) comes before the pick, not with it.  Section 13, which groups a week’s free agent adds (13.1.4.2), covers in-season moves only.  
 4. Salaries and Contracts  
    1. All Rookie Draft picks have a fixed salary.  The salary is as follows:  
       1. 1st round: $4  
@@ -204,8 +206,8 @@ Rules Document
    4. Minimum bid increment is $1 at all times.  
    5. Any player won via auction must be picked up by the winning owner, and any drops/trades must be made in order to accommodate the pickup.  An owner is not limited to any salary cap limitations when bidding on a player; he may bid above the free cap he has available, as long as drops/trades are made accordingly if he wins the player, to free up cap space.  A player won via auction also cannot be dropped immediately; he must be legally accommodated on the owner’s roster first.  
    6. After a player is won via auction, the owner must pick him up on the league website.  The player is added to the owner’s roster and may be played (added to starting lineup) the next week.  
-   7. All players added in a single week, must be added to the owner’s roster legally before being dropped, and players added in a single week may not be dropped to accommodate another player added that week.  
-      1. Example: Joe wins Davion Mitchell for $7 and Jose Alvarado for $1 in Week 2\.  He must add both Davion Mitchell and Jose Alvarado for that week; he may not add Jose Alvarado, then drop him to make space and add Davion Mitchell after that.  However, he is free to drop either Mitchell or Alvarado after they are both legally added to his roster.  
+   7. All of a week’s free agent adds are one transaction (13.1.4), so all players added in a single week must be added to the owner’s roster legally before any of them is dropped.  A player added this week may not be dropped to accommodate another player added the same week, because T2 (13.1.6) forbids dropping a contract in the transaction that acquired it.  He may be dropped in a later transaction that same week, once all of the week’s adds are legally on the roster.  
+      1. Example: Joe wins Davion Mitchell for $7 and Jose Alvarado for $1 in Week 2\.  He must add both Davion Mitchell and Jose Alvarado for that week; he may not add Jose Alvarado, then drop him to make space and add Davion Mitchell after that.  That is illegal because a week’s free agent adds are one transaction, so dropping Alvarado to fit Mitchell puts an add and its drop in the same transaction.  However, he is free to drop either Mitchell or Alvarado in a later transaction, once they are both legally added to his roster.  
    8. Once a player(s) is won in auction, owners must send out an FA report email to the Google Group, specifying his pickups and drops for the week, and his new salary cap figures after pickups/drops.  
 4. Eligibility  
    1. Any players (including rookies) that were eligible in the Veteran Auction or the Rookie Draft, are eligible for bidding.  This includes: any NBA veterans (has played in an NBA game at any point in his career), NBA rookies (drafted or undrafted), NBA G League players, previously drafted foreign players, and former American collegiates playing overseas.  
@@ -246,7 +248,7 @@ Rules Document
 2. Injured Player Exception  
    1. The player in the IR slot has an Injured Player exception.  This player’s salary does not count against the cap.  When the player is reactivated and moved to the active roster, he counts fully against the cap, and trades/drops must be made to accommodate his salary, just as if he were acquired otherwise.  
 3. Trades and Adds/Drops  
-   1. A player may not be added directly to the IR after being acquired in in-season free agency or in-season trade (even if he is IR-eligible).  If he is acquired in-season, he must first be accommodated on the 22 man active roster (with the appropriate trades/drops necessary to free up roster or cap space), then moved to the IR after that if desired.  
+   1. A player acquired in a transaction (13.1.4) may not be moved to the IR in that same transaction, even if he is IR-eligible.  He must first be accommodated on the 22 man active roster in the transaction that acquired him (with the appropriate trades/drops necessary to free up roster or cap space), and may then be moved to the IR in a later transaction if desired.  This is T2 (13.1.6) applied to the IR.  The one exemption is the start of the season, per 10.1.2.  
    2. If a player on IR is traded, he must be moved off of the IR to the active roster and accommodated accordingly (drop/trade a player to make room for him).  
    3. A player may be dropped directly from the IR without being accommodated on the active roster first, however, the standard cap penalty will still be applied when he is dropped.  If this causes an illegal cap situation (where salary cap is less than total salaries), drops/trades must be made until the roster is legal again.
 
@@ -275,7 +277,7 @@ Rules Document
 5. Activation  
    1. To activate an RD/RDI player (to add him to starting lineup, or because you are adding another RD/RDI player via trade and will be above the 6 player RD / 1 player RDI limit), it is similar to activating an IR player (must make cap/roster room, and drop/trade players if necessary). The player may not be moved back to an RD contract, incurs drop penalties, and has normal salary increases.  That player's contract is now changed to a first year rookie (R) contract at the same salary as before, even if the player was a 2nd or 3rd year RD/RDI player.  
 6. Injured Reserve  
-   1. RD/RDI players can not be added to IR, directly as an RD/RDI player.  However, you may activate the RD/RDI player (changing his contract to R, and opening up cap/roster space as usual), then IR him immediately.  
+   1. RD/RDI players can not be added to IR, directly as an RD/RDI player.  However, you may activate the RD/RDI player (changing his contract to R, and opening up cap/roster space as usual), then IR him in the next transaction (13.1.5.5).  
 7. Trades  
    1. RD/RDI players may be traded without having to be activated to an R contract first (unlike IR players, which must be moved off IR first).  When acquiring an RD/RDI player via trade, the new owner may add him to his RD squad or activate the player (change to R contract, must make cap/roster space) immediately, without having to add the player to his RD squad first.  If adding the player to RD squad and already at the 6 player RD / 1 player RDI limit, then must activate another RD/RDI player, or drop an RD/RDI player to make room.  If adding an RDI player to a team that already has an RDI player, the current RDI player may be dropped, or moved to an RD/1 contract (which then may be activated to an R contract, or a different RD player may be dropped or activated to an R contract, in order to not go over the 6 player RD limit).  
    2. There are no restrictions on number of RD/RDI players involved in a trade, trading RD/RDI players for active roster players, trading RD/RDI players for picks, etc.  
@@ -336,9 +338,69 @@ Rules Document
 **13\. Weekly Moves**
 
 1. Explanation  
-   1. All in-season transactions (adds, drops, IR moves, trades, RD activations) are made in a weekly timeframe.  Transactions in a single week may be re-ordered in any way an owner wants.  
-   2. Any complex sequences of weekly moves that may result in illegal transactions will be ruled on by the commissioner.  Any such illegal transactions will have to be reverted.  
-   3. During a single week, there may be roster states that are currently illegal – e.g. winning a player in auction without having yet dropped a player to open up roster space.  This is fine as long the roster state is legal by the end of the week (Sunday night/Monday morning, prior to Monday roster lock).  Rosters and other documents should be updated at the end of each week to reflect all transactions during that week.
+   1. All in-season moves (adds, drops, IR moves, trades, RD activations) are made in a weekly timeframe.  The transactions in a single week may be re-ordered in any way an owner wants, as long as T1 (13.1.6) holds after every transaction of the order the owner saves: an order that leaves the roster over a limit part way through the week is refused, even though the week ends the same either way.  
+   2. Any complex sequences of weekly moves that may result in an illegal roster will be ruled on by the commissioner.  Any such illegal moves will have to be reverted.  
+   3. While a transaction is being applied, there may be roster states that are currently illegal – e.g. winning a player in auction without having yet dropped a player to open up roster space.  This is fine as long as the roster is legal once the whole transaction is applied.  A roster is never left illegal after a transaction (T1, 13.1.6), so it is also legal at the end of the week (Sunday night/Monday morning, prior to Monday roster lock).  Rosters and other documents should be updated at the end of each week to reflect all of that week’s moves.  
+   4. A transaction is a set of one team’s moves in a week that are applied and judged as a unit.  Some moves group by rule; every other move forms its own transaction.  
+      1. One trade is one transaction.  A trade is never part of another transaction, and two trades are never one transaction.  The phrase “drop/trade a player to make room” in 10.1.3, 10.2.1 and 10.3.1 means an earlier, separate transaction: a team in two trades may give more players away in the first trade to make room for the players coming in the second.  
+      2. All of the week’s free agent adds are one transaction (8.3.7).  An owner may not split them.  
+      3. An activation from the IR always forms one transaction of its own.  It accommodates no other transaction (13.1.5.7), so there is nothing to attach it to.  Each RD or RDI activation and each move between the RD and RDI squads forms one transaction of its own when the owner does not attach it to a transaction it accommodates (13.1.5.7).  
+      4. A drop or a move to the IR forms its own transaction when the owner does not attach it to another transaction (13.1.5).  
+      5. Keeper declarations, contract advancement, RFA/UFA designation and RFA re-signings happen at a deadline, not in a week of moves.  Section 13 does not govern them.  The preseason Veteran Auction and Rookie Draft are outside section 13 as well: each win and each selection is a transaction on its own (6.4.7, 7.3.6).  
+   5. Accommodation.  A team has four roster limits: the 22 man active roster with its salary cap, the 1 IR slot, the 6 RD slots and the 1 RDI slot.  Every move is a transfer between these pools: it releases capacity under one limit and uses capacity under another.  One move enables another when it releases capacity under the same limit the other uses; the rules call this accommodating.  An activation from the IR is the one move outside this: 10.1.3 and 10.2.1 make it a move that must itself be accommodated, so the IR slot it empties is never released as an accommodation and it may not carry another move.  The commissioner ruled this on 2026-09-06, in place of an earlier reading that let the freed IR slot accommodate.  The table below applies the rule to every weekly move, so a new move kind needs no ruling of its own.  
+      1. Accommodation is optional.  No move kind needs an accommodating move by itself; T1 (13.1.6) decides.  If the roster is legal after the move, nothing has to be attached to it.  The “must be accommodated” wording in 10.1.3, 10.2.1, 10.3.1, 11.5.1 and 11.7.1 is T1 restated case by case, and adds no separate rule.  
+      2. Accommodation is per limit, not global.  Dropping an RD player releases an RD slot and makes no room on the 22 man active roster.  Activating an RD player releases an RD slot and uses an active roster slot plus cap, so the same move is an accommodating move and a transaction of its own at once, depending on which limit is in question.  Activating from the IR is not that case: it uses an active roster slot plus cap and releases nothing another move may take, because the IR slot it empties is never released as an accommodation (10.1.3, 10.2.1).  
+      3. The owner says which transaction a drop or a move to the IR belongs to.  A wrong declaration is refused, so the owner gains nothing by it: calling a needed drop standalone fails T1, and attaching a drop to the transaction that acquired that contract fails T2.  The week’s free agent adds still group by rule (13.1.4.2) whatever the owner says.  
+      4. A move to the IR may accommodate any transaction, including the week’s free agent adds.  A move to the IR releases an active roster slot and its cap room, so it may accommodate any transaction that uses that room, the same way a drop does.  The commissioner ruled this on 2026-09-04.  The historical import applies the same rule in is\_accommodating\_move (import-data/src/league/league\_events/date\_transactions.rs), which pools a Drop row, an Ir row, an RD or RDI activation and an RD-to-RDI move, and never an IrActivate row (13.1.5.2).  A change to this item, or to that list, needs the same change there, and the other way round.  
+      5. T2 (13.1.6) counts an activation from the IR and an RD or RDI activation as acquisitions.  You may not activate a player in order to drop him, or to put him on the IR, in the same transaction.  Rule 11.6.1’s activate-then-IR sequence is therefore two transactions.  The one exemption is the start of the season (10.1.2).  
+      6. RD and RDI moves accommodate each other, per 11.7.1.  Moving the current RDI player to an RD contract releases the RDI slot for an incoming RDI player and uses an RD slot, which a drop or an activation of another RD player can then release.  Rule 11.1.4 blocks only the RD to active roster to RD path, and says nothing about RD and RDI moves.  
+      7. The table.  “Releases” and “Uses” name the limits each move transfers between.  A move may accommodate another transaction when the limit it releases is one that transaction uses.  
+
+| Move | Releases | Uses | Forms its own transaction | May accommodate |
+| :---- | :---- | :---- | :---- | :---- |
+| Drop | whichever pool held the contract | nothing | yes, when the owner does not attach it to another transaction | yes |
+| Trade away | whichever pool held the contract | nothing | no, it is part of its trade | no (13.1.4.1) |
+| Add via trade | nothing | whichever pool receives the contract | no, it is part of its trade | no (13.1.4.1) |
+| Add via auction (in-season free agency) | nothing | active roster and cap | no, all of the week’s free agent adds are one transaction (13.1.4.2) | no |
+| Add via rookie draft | nothing | an offseason roster slot (11.4.1); the RD and RDI limits are counted only from the in-season declaration | yes, one per selection (preseason, 7.3.6) | no |
+| Activate an RD or RDI player | an RD slot, or the RDI slot | active roster and cap | yes, one per activation | yes, of the RD or RDI slot it releases |
+| Move to the IR | active roster and cap | the IR slot | yes, when the owner does not attach it to another transaction | yes |
+| Activate from the IR | nothing another move may take (10.1.3, 10.2.1) | active roster and cap | yes, always, one per activation | no; it must itself be accommodated (10.1.3, 10.2.1) |
+| Move an RD player to RDI | an RD slot | the RDI slot | yes, one per move | yes, of the RD slot it releases |
+| Move an RDI player to RD | the RDI slot | an RD slot | yes, one per move | yes, of the RDI slot it releases |
+
+   6. Two rules govern every transaction:  
+      1. T1: the roster must be legal after each transaction.  
+      2. T2: a contract acquired in a transaction may not be dropped, or moved to the IR, in that same transaction.  It may be dropped or moved to the IR in any later transaction.  Activating a contract from the IR or from the RD squad counts as acquiring it (13.1.5.5).  The acquisition comes first: a contract moved to the IR and then activated in the same transaction was never acquired by it, and the pair leaves the player where the transaction found him.  
+      3. Historical exceptions.  Fourteen rows in the league's record break T2, and they stand as recorded.  Each one drops a contract, or moves one to the IR, that the same transaction brought in, and nobody caught it at the time.  The 2026-09-04 ruling covers the three Mike rows; the 2026-09-05 ruling covers the next ten, which came to light once the import judged a merged transaction as one T2 scope (13.1.8).  The last row, Kai's 2021-04-12 drop of Anthony Davis, came to light when 13.1.5.5 made an activation an acquisition: Kai activated Davis from the IR and dropped him in the same transaction, and no other move of that date could make room for the activation.  The commissioner ruled the rule, not that row; it is listed so the import applies the record as written:  
+         1. Larry/Kevin, 2016-03-07, Anderson Varejao (drop).  
+         2. Larry/Kevin, 2016-03-07, Jared Dudley (drop).  
+         3. Larry/Kevin, 2016-03-07, Kevin Martin (drop).  
+         4. Mike, 2017-11-27, Malcolm Delaney (drop).  
+         5. Mike, 2017-11-27, Brice Johnson (drop).  
+         6. Mike, 2017-12-25, Jordan Crawford (drop).  
+         7. SeanClement/Pat, 2020-02-10, Al-Farouq Aminu (drop).  
+         8. SeanClement/Pat, 2020-02-10, Ante Zizic (drop).  
+         9. Edwin, 2020-02-24, Klay Thompson (move to the IR).  
+         10. Kai, 2021-04-12, Anthony Davis (drop, after activating him from the IR).  
+         11. Edwin, 2023-01-09, Karl-Anthony Towns (move to the IR).  
+         12. JeffPerri, 2025-11-10, Quenton Jackson (drop).  
+         13. JeffPerri, 2025-11-10, Tyrese Martin (drop).  
+         14. MikeYu, 2026-02-09, Jimmy Butler III (drop).  
+      4. Nothing else is exempt from T2.  The 2022-11-28 drops by Vince looked like another exception, because the league records list a date’s trades in one run with no column saying where one deal ends and the next begins, so three deals that day read as one.  The commissioner ruled on 2026-09-04 that they were three deals, which puts the drops in a later transaction than the trade that brought the players in.  The date needs no exemption from T2, so do not add it to 13.1.6.3.  A declaration only helps when each deal is legal on its own, which is why the 13.1.6.3 rows are not the same case: on 2016-03-07 Larry/Kevin's first trade brings in two rookie development contracts and puts them over the six-contract RD limit, and only a later activation clears it, so no grouping of that date's drops makes that trade legal by itself.  The commissioner ruled on 2026-09-05 that every row of that shape is an exception under 13.1.6.3.  
+      5. The historical import holds the same rows in HISTORICAL\_T2\_EXCEPTIONS (import-data/src/league/league\_events/date\_transactions.rs).  A change to 13.1.6.3 needs the same change there, and the other way round.  
+   7. Worked example – Kai, week of 2021-11-01, starting at 21 counted contracts.  Every transaction below leaves the roster legal (T1), and no contract is acquired and removed within one transaction (T2), so the whole week is legal.  Neto and Reaves are added in transaction 4 and dropped in transaction 5; T2 allows this because the drops are in a later transaction.  Dropping Neto inside transaction 4 to make room for Reaves would break T2.  
+
+| Transaction | Moves | Counted contracts after |
+| :---- | :---- | :---- |
+| 1 | Trade Giannis away for Booker | 21 |
+| 2 | Trade for Campazzo | 22 |
+| 3 | Trade Jones Jr. away for Terence Davis | 22 |
+| 4 | Free agency: add Neto, Hartenstein, Reaves and Lee; drop Prince, Alize Johnson, Joseph and Campazzo | 22 |
+| 5 | Trade for Dragic and Grimes; drop Reaves and Neto | 22 |
+| 6 | Trade Dragic away | 21 |
+
+   8. Historical import.  The league's records before this system are a CSV with one row per move, and most rows carry no transaction declaration.  For those rows the importer infers the grouping.  An owner's consecutive rows of one kind are one transaction: a run of trade rows between the same owners, all of a date's free agent adds (13.1.4.2), otherwise one move on its own.  An undeclared drop or move to the IR goes into a pool of that owner's accommodating moves, and the pool is handed to a transaction that fails T1.  When the pool cannot make a transaction legal, that transaction takes in the owner's next move, and the next after that, until it is legal.  This is how a move the pool cannot hold - an activation, a later trade, a free agent add - joins the transaction it makes legal.  A transaction still illegal when the date ends is refused and the import stops.  A declaration in the CSV overrides all of it: rows sharing a group id are one transaction, and a row marked “own” is a transaction of its own.  The commissioner ruled on 2026-09-05 that this inference is the rule for undeclared rows, and that a declaration is how the league record corrects it where the two disagree.  The import applies this in `WhenIllegal::Defer` at `begin_row` (import-data/src/league/league\_events/date\_transactions.rs).  A change to this item needs the same change there, and the other way round.  
 
 **V. KEEPERS AND RFA/UFA**
 

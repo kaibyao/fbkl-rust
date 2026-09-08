@@ -1,10 +1,10 @@
 use color_eyre::eyre::{Result, eyre};
 use fbkl_entity::{
     contract, contract_queries, deadline,
+    league_event::{self, LeagueEventKind},
+    league_event_queries,
     sea_orm::{ActiveValue, ConnectionTrait},
     team_update::ContractUpdateType,
-    transaction::{self, TransactionKind},
-    transaction_queries,
 };
 use tracing::instrument;
 
@@ -38,18 +38,18 @@ where
 
     let updated_contract = contract_queries::activate_contract_from_ir(contract_model, db).await?;
 
-    // create transaction
-    let ir_transaction_to_insert = transaction::ActiveModel {
+    // create league event
+    let ir_league_event_to_insert = league_event::ActiveModel {
         id: ActiveValue::NotSet,
         end_of_season_year: ActiveValue::Set(updated_contract.end_of_season_year),
-        kind: ActiveValue::Set(TransactionKind::TeamUpdateFromIr),
+        kind: ActiveValue::Set(LeagueEventKind::TeamUpdateFromIr),
         league_id: ActiveValue::Set(updated_contract.league_id),
         deadline_id: ActiveValue::Set(deadline_model.id),
         contract_id: ActiveValue::Set(Some(updated_contract.id)),
         ..Default::default()
     };
-    let ir_transaction =
-        transaction_queries::insert_transaction(ir_transaction_to_insert, db).await?;
+    let ir_league_event =
+        league_event_queries::insert_league_event(ir_league_event_to_insert, db).await?;
 
     // create team_update
     create_ir_team_update(
@@ -58,7 +58,7 @@ where
         &team_model,
         ContractUpdateType::FromIR,
         (original_salary, original_salary_cap),
-        ir_transaction.id,
+        ir_league_event.id,
         db,
     )
     .await?;

@@ -1,23 +1,31 @@
 use std::{
-    collections::{HashMap, HashSet},
+    collections::{BTreeMap, BTreeSet, HashMap, HashSet},
     fmt::Debug,
 };
 
 use color_eyre::{Result, eyre::eyre};
 use fbkl_entity::{
-    contract, contract_queries,
-    deadline::{self, DeadlineKind},
-    deadline_queries, draft_pick, draft_pick_option,
+    contract, contract_queries, deadline, deadline_queries, draft_pick, draft_pick_option,
+    league_event_queries,
     sea_orm::{
         ActiveModelTrait, ActiveValue, ConnectionTrait, LoaderTrait, prelude::DateTimeWithTimeZone,
     },
+    team_update_queries::{TransactionStart, find_transaction_start},
     trade::{self, TradeStatus},
+    trade_accommodating_drop::{self, AccommodatingMoveKind},
+    trade_accommodating_drop_queries,
     trade_asset::{self, TradeAssetType},
-    transaction_queries,
 };
 use tracing::instrument;
 
-use crate::roster::calculate_team_contract_salary;
+use crate::{
+    drop_contract::drop_contract_from_team,
+    ir::move_contract_to_ir,
+    roster::{
+        RosterMoveRejection, calculate_team_contract_salary, file_and_validate_transaction,
+        find_governing_deadline,
+    },
+};
 
 use super::{
     create_trade_team_update::{
@@ -44,6 +52,19 @@ pub const MISSING_ROSTER_LOCK_ADVICE: &str = "weekly locks run through the playo
 pub struct MissingUpcomingRosterLock {
     pub league_id: i64,
     pub end_of_season_year: i16,
+}
+
+/// Who judges the transactions a trade files (rules §13.1.6).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum TradeLegality {
+    /// `process_trade` judges each involved team's transaction and refuses the trade when one
+    /// breaks T1 or T2. What an owner-facing accept passes: the accept is the owner's last chance
+    /// to submit the drops that make the trade fit, so nothing more joins the transaction later.
+    JudgeNow,
+    /// The caller judges the transactions itself, because it goes on adding moves to them. The
+    /// historical import drives a date's accommodating drops from its own pool after the trade
+    /// applies, so it - not this - decides when a replayed transaction is legal.
+    CallerJudges,
 }
 
 /// Stores the trade assets + their related models for a given trade. This exists so that we aren't constantly querying the DB for the same models all the time.
@@ -125,20 +146,27 @@ impl TradeAssetRelatedModelCache {
     }
 }
 
-/// Moves assets between teams for a created trade, updates the trade status to `completed`, creates the appropriate transaction, and invalidates all other pending trades that include any of the traded assets.
-/// Returns the updated trade model.
+/// Moves a created trade's assets between teams and completes it.
+///
+/// Updates the trade status to `completed`, creates the league event, and invalidates every other
+/// pending trade that includes any of the traded assets. Returns the updated trade model.
+///
+/// A trade is a transaction, and a transaction is judged at the lock it is filed under (rules
+/// §13.1.4-§13.1.6), so the trade files under the lock still to fire - not the next deadline of
+/// any kind, which can sit before that lock and put the trade in a week it was never judged in.
+///
+/// The trade's `team_update` snapshots report the cap in force when the trade was made, not the
+/// coming lock's, which is the same deadline its transactions are judged against.
 #[instrument(skip(db))]
 pub async fn process_trade<C>(
     trade_model: trade::Model,
     trade_datetime: &DateTimeWithTimeZone,
+    legality: TradeLegality,
     db: &C,
 ) -> Result<trade::Model>
 where
     C: ConnectionTrait,
 {
-    // Spec 08: an add joins the week it will be judged in, so the trade files under the lock still
-    // to fire - not the next deadline of any kind, which can sit before that lock and drop the add
-    // out of its own week (rules 8.3.7, 10.3.1).
     let upcoming_lock = deadline_queries::find_upcoming_roster_lock(
         trade_model.league_id,
         trade_model.end_of_season_year,
@@ -151,8 +179,7 @@ where
         end_of_season_year: trade_model.end_of_season_year,
     })?;
     let salary_snapshot_deadline =
-        find_trade_salary_snapshot_deadline(&trade_model, trade_datetime, &upcoming_lock, db)
-            .await?;
+        find_governing_deadline(trade_datetime, &upcoming_lock, db).await?;
     let traded_trade_assets = trade_model.get_trade_assets(db).await?;
     let mut all_team_ids = HashSet::new();
     for traded_trade_asset in &traded_trade_assets {
@@ -183,13 +210,17 @@ where
         team_salaries_before_trade.insert(*team_id, team_salary_and_cap);
     }
 
+    let trade_transactions =
+        TradeTransactions::read(trade_model.id, &all_team_ids, &upcoming_lock, db).await?;
+
     // process trade / create new contracts
     let updated_trade_asset_models = process_trade_assets(&trade_asset_related_models, db).await?;
     let updated_trade = update_trade_status(trade_model, db).await?;
 
-    // create transaction
-    let trade_transaction =
-        transaction_queries::insert_trade_transaction(&upcoming_lock, updated_trade.id, db).await?;
+    // create league event
+    let trade_league_event =
+        league_event_queries::insert_trade_league_event(&upcoming_lock, updated_trade.id, db)
+            .await?;
 
     // Create team_update
     let trade_asset_contracts: Vec<(trade_asset::Model, contract::Model)> =
@@ -221,7 +252,7 @@ where
     insert_team_updates_from_completed_trade(
         team_update_assets_by_team_id,
         trade_datetime,
-        &trade_transaction,
+        &trade_league_event,
         &salary_snapshot_deadline,
         &team_salaries_before_trade,
         all_team_ids.into_iter().collect(),
@@ -229,54 +260,164 @@ where
     )
     .await?;
 
+    trade_transactions
+        .apply_drops_and_validate(
+            &trade_asset_contracts,
+            &updated_trade_asset_models.contracts_by_trade_asset_id,
+            &upcoming_lock,
+            trade_datetime,
+            legality,
+            db,
+        )
+        .await?;
+
     invalidate_external_trades_with_traded_assets(&updated_trade, &trade_asset_related_models, db)
         .await?;
 
     Ok(updated_trade)
 }
 
-/// The deadline whose salary cap the trade's `team_update` snapshots report.
-///
-/// Normally the lock the trade is judged at, so the recorded cap is the one the roster has to be
-/// legal against. Two preseason windows report their own cap instead, because the coming lock's
-/// $210 is not yet in force: the §4.2.4 window from contract advancement to the keeper deadline is
-/// uncapped (and §9.1 penalizes no drop made there), and §4.2.1 holds the cap at $200 from the
-/// keeper deadline until the veteran auction and rookie draft conclude, which is what the
-/// `PreseasonFinalRosterLock` marks the end of.
-#[instrument(skip(db))]
-async fn find_trade_salary_snapshot_deadline<C>(
-    trade_model: &trade::Model,
-    trade_datetime: &DateTimeWithTimeZone,
-    upcoming_lock: &deadline::Model,
-    db: &C,
-) -> Result<deadline::Model>
-where
-    C: ConnectionTrait,
-{
-    let is_before_keeper_deadline = deadline_queries::find_next_deadline_for_season_by_datetime(
-        trade_model.league_id,
-        trade_model.end_of_season_year,
-        *trade_datetime,
-        Some(DeadlineKind::PreseasonKeeper),
-        db,
-    )
-    .await?
-    .is_some();
-    let window_kind = if is_before_keeper_deadline {
-        DeadlineKind::PreseasonStart
-    } else if upcoming_lock.kind == DeadlineKind::PreseasonFinalRosterLock {
-        DeadlineKind::PreseasonRookieDraftStart
-    } else {
-        return Ok(upcoming_lock.clone());
-    };
+/// The transactions a trade files: one per involved team, each holding that team's legs and the
+/// drops that owner submitted to accommodate them (rules §12.5.3, §13.1.4).
+#[derive(Debug)]
+struct TradeTransactions {
+    accommodating_drops: Vec<trade_accommodating_drop::Model>,
+    /// Where each team's transaction starts, read before the trade writes anything. Keyed in team
+    /// id order so a refused trade names the same team every run, and so two trades that share two
+    /// teams cannot deadlock on the team rows `find_transaction_start` locks.
+    starts_by_team_id: BTreeMap<i64, TransactionStart>,
+}
 
-    deadline_queries::find_deadline_for_season_by_type(
-        trade_model.league_id,
-        trade_model.end_of_season_year,
-        window_kind,
-        db,
-    )
-    .await
+impl TradeTransactions {
+    /// Reads the drops and each team's watermark. Call before the trade's first write: the
+    /// watermark marks off the `team_update` rows this trade is about to write, and the drops are
+    /// one transaction with the legs.
+    #[instrument(skip(db))]
+    async fn read<C>(
+        trade_id: i64,
+        asset_team_ids: &HashSet<i64>,
+        upcoming_lock: &deadline::Model,
+        db: &C,
+    ) -> Result<Self>
+    where
+        C: ConnectionTrait,
+    {
+        let accommodating_drops =
+            trade_accommodating_drop_queries::find_accommodating_drops_for_trade(trade_id, db)
+                .await?;
+
+        let mut team_ids: BTreeSet<i64> = asset_team_ids.iter().copied().collect();
+        team_ids.extend(
+            accommodating_drops
+                .iter()
+                .map(|accommodating_drop| accommodating_drop.team_id),
+        );
+
+        let mut starts_by_team_id = BTreeMap::new();
+        for team_id in team_ids {
+            starts_by_team_id.insert(
+                team_id,
+                find_transaction_start(team_id, upcoming_lock.id, db).await?,
+            );
+        }
+
+        Ok(Self {
+            accommodating_drops,
+            starts_by_team_id,
+        })
+    }
+
+    /// Applies each owner's accommodating moves, then judges every involved team's transaction
+    /// (T1 and T2).
+    ///
+    /// Every team's T1 failures are gathered, teams in id order, so an owner fixing a refused trade
+    /// reads all of them at once instead of one per retry.
+    ///
+    /// A move may name a contract the trade brings in, whose row `process_trade_assets` has already
+    /// replaced; the trade asset's replacement is the row to move, which puts the add and the
+    /// removal in one transaction and is what T2 refuses. A move naming a contract the team no
+    /// longer holds - one it traded away in this same trade - has nothing to move and is refused.
+    #[instrument(skip(db))]
+    async fn apply_drops_and_validate<C>(
+        &self,
+        trade_asset_contracts: &[(trade_asset::Model, contract::Model)],
+        replacement_contracts_by_trade_asset_id: &HashMap<i64, contract::Model>,
+        upcoming_lock: &deadline::Model,
+        trade_datetime: &DateTimeWithTimeZone,
+        legality: TradeLegality,
+        db: &C,
+    ) -> Result<()>
+    where
+        C: ConnectionTrait,
+    {
+        let mut replacements_by_traded_contract_id = HashMap::new();
+        for (trade_asset_model, traded_contract) in trade_asset_contracts {
+            if let Some(replacement) =
+                replacement_contracts_by_trade_asset_id.get(&trade_asset_model.id)
+            {
+                replacements_by_traded_contract_id.insert(traded_contract.id, replacement.clone());
+            }
+        }
+
+        for accommodating_drop in &self.accommodating_drops {
+            let contract_model =
+                match replacements_by_traded_contract_id.get(&accommodating_drop.contract_id) {
+                    Some(replacement) => replacement.clone(),
+                    None => {
+                        contract_queries::find_contract_by_id(accommodating_drop.contract_id, db)
+                            .await?
+                    }
+                };
+            if contract_model.team_id != Some(accommodating_drop.team_id) {
+                return Err(RosterMoveRejection::AccommodatingDropNotOnRoster {
+                    contract_id: accommodating_drop.contract_id,
+                    team_id: accommodating_drop.team_id,
+                }
+                .into());
+            }
+
+            match accommodating_drop.kind {
+                AccommodatingMoveKind::Drop => {
+                    drop_contract_from_team(contract_model, upcoming_lock, db).await?;
+                }
+                AccommodatingMoveKind::ToIr => {
+                    move_contract_to_ir(contract_model, upcoming_lock, db).await?;
+                }
+            }
+        }
+
+        if legality == TradeLegality::CallerJudges {
+            return Ok(());
+        }
+
+        let mut violations = vec![];
+        for (team_id, transaction_start) in &self.starts_by_team_id {
+            let Err(report) = file_and_validate_transaction(
+                *team_id,
+                upcoming_lock,
+                transaction_start,
+                trade_datetime,
+                db,
+            )
+            .await
+            else {
+                continue;
+            };
+            // Only T1 is gathered: every other rejection names one move, so it needs no other team.
+            match report.downcast_ref::<RosterMoveRejection>() {
+                Some(RosterMoveRejection::TransactionLeavesRosterIllegal {
+                    violations: team_violations,
+                    ..
+                }) => violations.extend(team_violations.iter().cloned()),
+                _ => return Err(report),
+            }
+        }
+        if !violations.is_empty() {
+            return Err(RosterMoveRejection::TradeLeavesRostersIllegal { violations }.into());
+        }
+
+        Ok(())
+    }
 }
 
 #[instrument(skip(db))]

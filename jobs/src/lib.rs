@@ -65,6 +65,10 @@ impl TickSummary {
 /// first deadline that doesn't reach `Succeeded`. Later deadlines build on earlier ones, so a
 /// failed week-2 lock must block week-3 rather than let the scheduler skip ahead into corrupt
 /// state. Leagues are independent, so one stuck league never blocks another.
+///
+/// The auction release and close ticks run before that loop. An in-season FA auction's clock is
+/// clamped to the upcoming roster lock and a veteran auction's to `PreseasonFinalRosterLock`, so
+/// closing first is what puts a win in the week its lock judges.
 #[instrument(skip(db))]
 pub async fn run_scheduler_tick(db: &DatabaseConnection) -> Result<TickSummary> {
     let now = Utc::now().fixed_offset();
@@ -80,6 +84,13 @@ pub async fn run_scheduler_tick(db: &DatabaseConnection) -> Result<TickSummary> 
     }
 
     let mut summary = TickSummary::default();
+
+    // Auctions close first: one clamped to a due roster lock must be Won before the lock reads the
+    // week's wins, or its winner waits for the next lock and misses this week's checks.
+    // Slide before that: it is an unbid auction's only clock, so closing first expires it (§6.3.4).
+    summary.merge(run_veteran_auction_release_tick(db, now).await?);
+    summary.merge(run_auction_close_tick(db, now).await?);
+
     for league_deadlines in deadlines_by_league.values() {
         let mut league_blocked = false;
         for deadline_model in league_deadlines {
@@ -112,10 +123,6 @@ pub async fn run_scheduler_tick(db: &DatabaseConnection) -> Result<TickSummary> 
         }
     }
 
-    // Slide first: it is an unbid auction's only clock, so closing first expires it (rules §6.3.4).
-    summary.merge(run_veteran_auction_release_tick(db, now).await?);
-    summary.merge(run_auction_close_tick(db, now).await?);
-
     summary.merge(run_rfa_window_tick(db, now).await?);
 
     if summary != TickSummary::default() {
@@ -131,8 +138,9 @@ pub async fn run_scheduler_tick(db: &DatabaseConnection) -> Result<TickSummary> 
 /// Closes every auction whose `close_at` has passed (rules §6.4.4 / §8.3.1-.2).
 ///
 /// Runs on every tick, after the release/slide tick so the tier ladder gets to move an unbid
-/// auction's clock first. Each close goes through `process_event`, so the `job_run` claim is the
-/// double-fire guard.
+/// auction's clock first, and before the due-deadline loop so an auction clamped to a roster lock
+/// is Won by the time that lock reads the week's wins. Each close goes through `process_event`, so
+/// the `job_run` claim is the double-fire guard.
 #[instrument(skip(db))]
 pub async fn run_auction_close_tick(
     db: &DatabaseConnection,

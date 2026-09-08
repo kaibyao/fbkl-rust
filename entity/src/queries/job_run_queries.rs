@@ -83,7 +83,7 @@ where
         status: ActiveValue::Set(JobRunStatus::Succeeded),
         attempts: ActiveValue::Set(1),
         idempotency_key: ActiveValue::Set(deadline_idempotency_key(deadline_model)),
-        transaction_id: ActiveValue::Set(None),
+        league_event_id: ActiveValue::Set(None),
         error: ActiveValue::Set(None),
         created_at: ActiveValue::NotSet,
         updated_at: ActiveValue::NotSet,
@@ -121,7 +121,7 @@ where
         status: ActiveValue::Set(JobRunStatus::Running),
         attempts: ActiveValue::Set(1),
         idempotency_key: ActiveValue::Set(new_job_run.idempotency_key.clone()),
-        transaction_id: ActiveValue::Set(None),
+        league_event_id: ActiveValue::Set(None),
         error: ActiveValue::Set(None),
         created_at: ActiveValue::NotSet,
         updated_at: ActiveValue::NotSet,
@@ -246,7 +246,7 @@ where
 #[instrument(skip(db))]
 pub async fn mark_job_run_succeeded<C>(
     job_run_id: i64,
-    transaction_id: Option<i64>,
+    league_event_id: Option<i64>,
     db: &C,
 ) -> Result<()>
 where
@@ -257,7 +257,7 @@ where
             job_run::Column::Status,
             Expr::value(JobRunStatus::Succeeded),
         )
-        .col_expr(job_run::Column::TransactionId, Expr::value(transaction_id))
+        .col_expr(job_run::Column::LeagueEventId, Expr::value(league_event_id))
         .col_expr(job_run::Column::Error, Expr::value(Option::<String>::None))
         .filter(job_run::Column::Id.eq(job_run_id))
         .exec(db)

@@ -10,7 +10,9 @@ use fbkl_entity::{
     deadline::{self, DeadlineKind},
     deadline_queries,
     roster_lock_violation::RosterRule,
-    roster_lock_violation_queries::{TeamRosterViolation, replace_violations_for_deadline},
+    roster_lock_violation_queries::{
+        TeamRosterViolation, find_violations_for_league, replace_violations_for_teams,
+    },
     team_user::LeagueRole,
 };
 use fbkl_server::{AppSchema, build_graphql_schema};
@@ -98,18 +100,69 @@ async fn seed_recorded_violation(league: &TestLeague) -> deadline::Model {
     .await
     .expect("find the week 1 lock");
 
-    replace_violations_for_deadline(
+    replace_violations_for_teams(
         &week_1_lock,
-        &[TeamRosterViolation {
-            team_id: league.team_id,
-            rule: RosterRule::VeteranOrRookieLimit,
-            message: "23 of a possible 22 veteran or rookie contracts".to_owned(),
-        }],
+        &[league.team_id],
+        &[veteran_limit_violation(league.team_id)],
         &league.db,
     )
     .await
     .expect("record the violation");
     week_1_lock
+}
+
+/// The veteran-limit failure `lock_rosters` records for an over-full roster.
+fn veteran_limit_violation(team_id: i64) -> TeamRosterViolation {
+    TeamRosterViolation {
+        team_id,
+        rule: RosterRule::VeteranOrRookieLimit,
+        message: "23 of a possible 22 veteran or rookie contracts".to_owned(),
+    }
+}
+
+#[tokio::test]
+async fn rewriting_one_teams_violations_leaves_the_other_teams_alone() {
+    let Some(league) = TestLeague::create("violations_team_scope", END_OF_SEASON_YEAR).await else {
+        return;
+    };
+    let week_1_lock = seed_recorded_violation(&league).await;
+    let other_team_id = league.add_team("Other Team").await;
+    replace_violations_for_teams(
+        &week_1_lock,
+        &[other_team_id],
+        &[veteran_limit_violation(other_team_id)],
+        &league.db,
+    )
+    .await
+    .expect("record the other team's violation");
+
+    // Clearing the other team's rows must not touch the first team's.
+    replace_violations_for_teams(&week_1_lock, &[other_team_id], &[], &league.db)
+        .await
+        .expect("clear the other team's violations");
+
+    let remaining = find_violations_for_league(league.league_id, Some(week_1_lock.id), &league.db)
+        .await
+        .expect("read the deadline's violations");
+    assert_eq!(
+        remaining
+            .iter()
+            .map(|violation| violation.team_id)
+            .collect::<Vec<i64>>(),
+        vec![league.team_id]
+    );
+
+    assert!(
+        replace_violations_for_teams(
+            &week_1_lock,
+            &[other_team_id],
+            &[veteran_limit_violation(league.team_id)],
+            &league.db,
+        )
+        .await
+        .is_err(),
+        "a violation for a team outside the replaced scope is refused"
+    );
 }
 
 /// Runs `rosterLockViolations` as `user_id` in the test league.

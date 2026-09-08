@@ -15,8 +15,8 @@ use crate::{
     auction,
     contract::{self, ContractKind, ContractStatus, FreeAgentException},
     deadline::{self, DeadlineKind},
+    league_event::{self, LeagueEventKind},
     league_player, player,
-    transaction::{self, TransactionKind},
 };
 
 /// Moves a contract to IR and returns the new contract in the contract chain
@@ -350,14 +350,14 @@ where
     let dropped_team_contracts = contract::Entity::find()
         .join(
             JoinType::LeftJoin,
-            contract::Relation::DroppedContractTransaction.def(),
+            contract::Relation::DroppedContractLeagueEvent.def(),
         )
-        .join(JoinType::LeftJoin, transaction::Relation::Deadline.def())
+        .join(JoinType::LeftJoin, league_event::Relation::Deadline.def())
         .filter(
             contract::Column::TeamId
                 .eq(team_id)
                 .and(contract::Column::EndOfSeasonYear.eq(end_of_season_year))
-                .and(transaction::Column::Kind.eq(TransactionKind::TeamUpdateDropContract))
+                .and(league_event::Column::Kind.eq(LeagueEventKind::TeamUpdateDropContract))
                 .and(
                     deadline::Column::Kind
                         .is_not_in([DeadlineKind::PreseasonStart, DeadlineKind::PreseasonKeeper]),

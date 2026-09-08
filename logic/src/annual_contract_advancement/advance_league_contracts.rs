@@ -3,9 +3,8 @@ use fbkl_entity::{
     contract::{self},
     contract_queries,
     deadline::DeadlineKind,
-    deadline_queries,
+    deadline_queries, league_event, league_event_queries,
     sea_orm::ConnectionTrait,
-    transaction, transaction_queries,
 };
 use tracing::instrument;
 
@@ -44,8 +43,8 @@ where
         db,
     )
     .await?;
-    let contract_advancement_transaction = transaction_queries::insert_transaction(
-        transaction::Model::new_preseason_start_transaction(&preseason_start_deadline),
+    let contract_advancement_league_event = league_event_queries::insert_league_event(
+        league_event::Model::new_preseason_start_league_event(&preseason_start_deadline),
         db,
     )
     .await?;
@@ -53,7 +52,7 @@ where
     create_team_updates_for_advanced_team_contracts(
         &advanced_contracts,
         &preseason_start_deadline,
-        contract_advancement_transaction.id,
+        contract_advancement_league_event.id,
         db,
     )
     .await?;

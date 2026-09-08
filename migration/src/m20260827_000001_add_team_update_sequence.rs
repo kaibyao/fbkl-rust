@@ -8,6 +8,9 @@
 //! The column is nullable with no backfill, because a move made outside the weekly tray (a trade,
 //! an auction win, anything the processor writes) has no owner-chosen place. Those rows fall back
 //! to insertion order when the week is rendered.
+//!
+//! Superseded: `m20260902_000002` renames the column to `transaction_number`, and validators do
+//! read it now (rules §13.1.6).
 
 use sea_orm_migration::{
     prelude::*,

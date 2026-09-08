@@ -1,4 +1,4 @@
-//! The transaction + `team_update` rows every RFA handshake step writes (rules §15.3).
+//! The league event + `team_update` rows every RFA handshake step writes (rules §15.3).
 //!
 //! All of them date themselves from `PreseasonFaAuctionStart`, the same deadline the veteran
 //! auction's own signings use: the handshake is the tail of that auction, and the league has no
@@ -8,21 +8,21 @@ use color_eyre::Result;
 use fbkl_entity::{
     contract, contract_queries, deadline,
     deadline::DeadlineKind,
-    deadline_queries, draft_pick, rfa_resolution,
+    deadline_queries, draft_pick,
+    league_event::{self, LeagueEventKind},
+    league_event_queries, rfa_resolution,
     sea_orm::{ActiveValue, ConnectionTrait},
     team_update::{
         self, ContractUpdate, ContractUpdateType, DraftPickUpdate, DraftPickUpdateType,
         TeamUpdateAsset, TeamUpdateData, TeamUpdateStatus,
     },
     team_update_queries::{self, ContractUpdatePlayerData},
-    transaction::{self, TransactionKind},
-    transaction_queries,
 };
 use tracing::instrument;
 
 use crate::roster::{SalarySnapshot, calculate_team_contract_salary};
 
-/// The deadline every RFA handshake transaction is tied to.
+/// The deadline every RFA handshake league event is tied to.
 #[instrument(skip(db))]
 pub(super) async fn find_rfa_handshake_deadline<C>(
     rfa_resolution_model: &rfa_resolution::Model,
@@ -43,17 +43,17 @@ where
 /// Records one handshake step. `maybe_contract_id` names the contract the step acted on, and is
 /// NULL for a raise, which changes no contract.
 #[instrument(skip(db))]
-pub(super) async fn insert_rfa_transaction<C>(
+pub(super) async fn insert_rfa_league_event<C>(
     rfa_resolution_model: &rfa_resolution::Model,
-    kind: TransactionKind,
+    kind: LeagueEventKind,
     maybe_contract_id: Option<i64>,
     deadline_model: &deadline::Model,
     db: &C,
-) -> Result<transaction::Model>
+) -> Result<league_event::Model>
 where
     C: ConnectionTrait,
 {
-    let transaction_to_insert = transaction::ActiveModel {
+    let league_event_to_insert = league_event::ActiveModel {
         end_of_season_year: ActiveValue::Set(rfa_resolution_model.end_of_season_year),
         kind: ActiveValue::Set(kind),
         league_id: ActiveValue::Set(rfa_resolution_model.league_id),
@@ -61,7 +61,7 @@ where
         contract_id: ActiveValue::Set(maybe_contract_id),
         ..Default::default()
     };
-    transaction_queries::insert_transaction(transaction_to_insert, db).await
+    league_event_queries::insert_league_event(league_event_to_insert, db).await
 }
 
 /// The roster history entry for the original owner re-signing the player (rules §15.3.2).
@@ -70,7 +70,7 @@ pub(super) async fn insert_rfa_resign_team_update<C>(
     signed_contract_model: &contract::Model,
     deadline_model: &deadline::Model,
     (previous_salary, previous_salary_cap): (i16, i16),
-    transaction_id: i64,
+    league_event_id: i64,
     db: &C,
 ) -> Result<team_update::Model>
 where
@@ -109,7 +109,7 @@ where
         team_update_data,
         signing_team_id,
         deadline_model,
-        transaction_id,
+        league_event_id,
         db,
     )
     .await
@@ -123,7 +123,7 @@ pub(super) async fn insert_compensation_pick_team_update<C>(
     forfeited_draft_pick_model: &draft_pick::Model,
     update_type: DraftPickUpdateType,
     deadline_model: &deadline::Model,
-    transaction_id: i64,
+    league_event_id: i64,
     db: &C,
 ) -> Result<team_update::Model>
 where
@@ -154,7 +154,7 @@ where
         team_update_data,
         team_id,
         deadline_model,
-        transaction_id,
+        league_event_id,
         db,
     )
     .await
@@ -165,7 +165,7 @@ async fn insert_team_update<C>(
     team_update_data: TeamUpdateData,
     team_id: i64,
     deadline_model: &deadline::Model,
-    transaction_id: i64,
+    league_event_id: i64,
     db: &C,
 ) -> Result<team_update::Model>
 where
@@ -176,7 +176,7 @@ where
         effective_date: ActiveValue::Set(deadline_model.date_time.date_naive()),
         status: ActiveValue::Set(TeamUpdateStatus::Done),
         team_id: ActiveValue::Set(team_id),
-        transaction_id: ActiveValue::Set(Some(transaction_id)),
+        league_event_id: ActiveValue::Set(Some(league_event_id)),
         ..Default::default()
     };
     team_update_queries::insert_team_update(team_update_to_insert, db).await

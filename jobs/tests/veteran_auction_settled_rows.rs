@@ -234,7 +234,7 @@ async fn seeded_league(test_name: &str) -> Option<TestLeague> {
             central("2025-09-01T12:00:00"),
         )
         .await;
-    // Signing a winning bid stamps its transaction with the FA auction start deadline.
+    // Signing a winning bid stamps its league event with the FA auction start deadline.
     league
         .add_deadline(
             DeadlineKind::PreseasonFaAuctionStart,

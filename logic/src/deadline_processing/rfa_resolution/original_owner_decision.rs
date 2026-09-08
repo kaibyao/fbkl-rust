@@ -17,6 +17,7 @@ use fbkl_entity::{
     auction_queries,
     contract::{self, FreeAgentException},
     contract_queries, deadline, draft_pick, draft_pick_queries,
+    league_event::LeagueEventKind,
     rfa_resolution::{self, RfaResolutionStatus},
     rfa_resolution_queries,
     sea_orm::{
@@ -24,7 +25,6 @@ use fbkl_entity::{
         prelude::DateTimeWithTimeZone,
     },
     team_update::DraftPickUpdateType,
-    transaction::TransactionKind,
 };
 use tracing::instrument;
 
@@ -33,9 +33,9 @@ use crate::{
     roster::{SalarySnapshot, calculate_team_contract_salary_at_datetime},
 };
 
-use super::rfa_transaction::{
-    find_rfa_handshake_deadline, insert_compensation_pick_team_update,
-    insert_rfa_resign_team_update, insert_rfa_transaction,
+use super::rfa_league_event::{
+    find_rfa_handshake_deadline, insert_compensation_pick_team_update, insert_rfa_league_event,
+    insert_rfa_resign_team_update,
 };
 
 /// What the original owner does with a winning bid on his restricted free agent (rules §15.3.2).
@@ -243,9 +243,9 @@ where
     )
     .await?;
 
-    let transaction_model = insert_rfa_transaction(
+    let league_event_model = insert_rfa_league_event(
         rfa_resolution_model,
-        TransactionKind::RfaResign,
+        LeagueEventKind::RfaResign,
         Some(signed_contract_model.id),
         deadline_model,
         db,
@@ -255,7 +255,7 @@ where
         &signed_contract_model,
         deadline_model,
         (previous_salary, previous_salary_cap),
-        transaction_model.id,
+        league_event_model.id,
         db,
     )
     .await?;
@@ -304,9 +304,9 @@ where
         ActiveValue::Set(rfa_resolution_model.original_owner_team_id);
     let moved_draft_pick_model = draft_pick_to_move.update(db).await?;
 
-    let transaction_model = insert_rfa_transaction(
+    let league_event_model = insert_rfa_league_event(
         rfa_resolution_model,
-        TransactionKind::RfaDeclineAndForfeit,
+        LeagueEventKind::RfaDeclineAndForfeit,
         None,
         deadline_model,
         db,
@@ -317,7 +317,7 @@ where
         &moved_draft_pick_model,
         DraftPickUpdateType::ForfeitedAsRfaCompensation,
         deadline_model,
-        transaction_model.id,
+        league_event_model.id,
         db,
     )
     .await?;
@@ -326,7 +326,7 @@ where
         &moved_draft_pick_model,
         DraftPickUpdateType::AddViaRfaCompensation,
         deadline_model,
-        transaction_model.id,
+        league_event_model.id,
         db,
     )
     .await?;

@@ -43,6 +43,10 @@ pub enum ErrorCode {
     BidMissingCompensationPick,
     /// The named pick cannot settle what the bid would owe, or the auction owes nothing (rules §15.3.3).
     BidIneligibleCompensationPick,
+    /// The auction win was signed by another writer already (a co-owner, or the roster lock).
+    AuctionAlreadyPickedUp,
+    /// A free-agent auction closing in this week is still taking bids (rules §8.3.5).
+    AuctionsStillOpen,
     /// Season config (tiers, ranked list) is locked because the veteran auction pool is assembled (rules §6.3.6).
     VeteranAuctionStarted,
     /// The rookie draft has not been started for this league season.
@@ -63,6 +67,8 @@ pub enum ErrorCode {
     RosterIllegal,
     /// A league rule refuses this single roster move (IR eligibility, same-week-add drop, contract kind).
     RosterMoveRejected,
+    /// The same contract was named twice as a drop, or is already another owner's drop for this trade.
+    DuplicateDropContractId,
     /// Server-side fault; message is deliberately generic.
     Internal,
 }
@@ -85,6 +91,8 @@ impl ErrorCode {
             Self::BidOriginalOwner => "BID_ORIGINAL_OWNER",
             Self::BidMissingCompensationPick => "BID_MISSING_COMPENSATION_PICK",
             Self::BidIneligibleCompensationPick => "BID_INELIGIBLE_COMPENSATION_PICK",
+            Self::AuctionAlreadyPickedUp => "AUCTION_ALREADY_PICKED_UP",
+            Self::AuctionsStillOpen => "AUCTIONS_STILL_OPEN",
             Self::VeteranAuctionStarted => "VETERAN_AUCTION_STARTED",
             Self::DraftNotStarted => "DRAFT_NOT_STARTED",
             Self::DraftNotOnTheClock => "DRAFT_NOT_ON_THE_CLOCK",
@@ -95,6 +103,7 @@ impl ErrorCode {
             Self::DraftLotteryAlreadyRun => "DRAFT_LOTTERY_ALREADY_RUN",
             Self::RosterIllegal => "ROSTER_ILLEGAL",
             Self::RosterMoveRejected => "ROSTER_MOVE_REJECTED",
+            Self::DuplicateDropContractId => "DUPLICATE_DROP_CONTRACT_ID",
             Self::Internal => "INTERNAL",
         }
     }
@@ -120,6 +129,8 @@ impl ErrorCode {
             Self::BidIneligibleCompensationPick => {
                 "that draft pick cannot settle what the bid would owe"
             }
+            Self::AuctionAlreadyPickedUp => "that auction win has already been picked up",
+            Self::AuctionsStillOpen => "this week's free agent auctions are still taking bids",
             Self::VeteranAuctionStarted => {
                 "the veteran auction has started, so this season's config is locked"
             }
@@ -132,6 +143,7 @@ impl ErrorCode {
             Self::DraftLotteryAlreadyRun => "this season's lottery has already been drawn",
             Self::RosterIllegal => "this roster breaks a roster rule",
             Self::RosterMoveRejected => "a league rule does not allow this roster move",
+            Self::DuplicateDropContractId => "that contract is already named as a drop",
             Self::Internal => "internal server error",
         }
     }

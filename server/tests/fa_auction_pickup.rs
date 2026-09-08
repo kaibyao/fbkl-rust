@@ -1,0 +1,701 @@
+//! An owner turns a week's free-agent auction wins into contracts by picking them up, together
+//! with the drops that make room (rules §8.3.5-§8.3.7).
+//!
+//! The close records a win and signs nothing, so the pickup is where the in-season cap and roster
+//! check actually happens: an owner may bid above their free cap as long as they free the space if
+//! they win. All of a week's wins go on together, which is what makes the Mitchell/Alvarado case a
+//! T2 refusal - dropping one of the two wins to fit the other puts an add and its removal in one
+//! transaction.
+
+use std::sync::Arc;
+
+use async_graphql::{Request, Value};
+use chrono::{Days, Utc};
+use fbkl_entity::{
+    auction::{self, AuctionKind, AuctionStatus},
+    auction_bid, auction_queries,
+    contract::{self, ContractKind},
+    contract_queries,
+    deadline::{self, DeadlineKind},
+    deadline_queries,
+    league_event::LeagueEventKind,
+    league_event_queries,
+    sea_orm::{DatabaseTransaction, TransactionTrait, prelude::DateTimeWithTimeZone},
+    team_update::{ContractUpdateType, TeamUpdateStatus},
+    team_update_queries,
+    team_user::{self, LeagueRole},
+};
+use fbkl_logic::auction::{sign_won_auction, start_new_auction_for_nba_player};
+use fbkl_server::{AppSchema, build_graphql_schema};
+use fbkl_test_support::{TestLeague, central};
+use tower_sessions::{MemoryStore, Session};
+
+const END_OF_SEASON_YEAR: i16 = 2026;
+/// Rules §11.2: a roster carries at most 22 veteran or rookie-scale contracts.
+const VET_OR_ROOKIE_LIMIT: usize = 22;
+const WINNING_BID: i16 = 5;
+
+/// The Mitchell/Alvarado case: an owner one slot short of their two wins cannot drop one of the two
+/// to fit the other, because §8.3.5 says every win must be picked up and T2 refuses a transaction
+/// that removes what it just acquired. Dropping someone already on the roster is what works, and
+/// the wins and that drop are then one transaction.
+#[tokio::test]
+async fn a_pickup_signs_every_win_with_its_drops_as_one_transaction() {
+    let Some(league) = TestLeague::create("fa_auction_pickup", END_OF_SEASON_YEAR).await else {
+        return;
+    };
+    add_season_under_way(&league).await;
+    let owner = league.add_team_user(LeagueRole::TeamOwner).await;
+
+    // One slot free, two wins waiting: the second needs a drop to fit.
+    let roster = add_roster_contracts(&league, VET_OR_ROOKIE_LIMIT - 1).await;
+    let won = [
+        add_won_auction(&league, &owner, "Donovan Mitchell").await,
+        add_won_auction(&league, &owner, "Jose Alvarado").await,
+    ];
+
+    let lock_id = lock_deadline(&league).await.id;
+    let schema = build_graphql_schema(league.db.clone());
+    let session = session_for(owner.user_id, league.league_id).await;
+
+    assert_eq!(
+        run(&schema, &pick_up(lock_id, &[], &[]), &session).await,
+        Err("ROSTER_ILLEGAL".to_owned()),
+        "signing both wins with no drop leaves the roster one over the limit"
+    );
+
+    let dropping_its_own_win = pick_up(lock_id, &[won[1]], &[]);
+    assert_eq!(
+        run(&schema, &dropping_its_own_win, &session).await,
+        Err("ROSTER_MOVE_REJECTED".to_owned()),
+        "dropping one of the week's own wins to fit the other is refused by T2"
+    );
+    let refusal = message(&schema, &dropping_its_own_win, &session).await;
+    assert!(
+        refusal.contains("acquired in this transaction"),
+        "the refusal should be T2, not another rule: {refusal}"
+    );
+    assert_eq!(
+        active_contract_count(&league).await,
+        VET_OR_ROOKIE_LIMIT - 1,
+        "no refused pickup should have signed anything"
+    );
+    assert!(
+        stored_transaction_numbers(&league, lock_id)
+            .await
+            .is_empty(),
+        "a refused pickup writes no move to number"
+    );
+
+    let picked_up = run(&schema, &pick_up(lock_id, &[roster[0].id], &[]), &session).await;
+    assert!(
+        picked_up.is_ok(),
+        "a drop off the standing roster makes room: {picked_up:?}"
+    );
+    assert_eq!(
+        active_contract_count(&league).await,
+        VET_OR_ROOKIE_LIMIT,
+        "both wins are signed and the drop leaves the roster at the limit"
+    );
+    assert!(
+        won_auction_ids(&league, &owner).await.is_empty(),
+        "a picked-up win is no longer waiting for a pickup"
+    );
+    assert_eq!(
+        stored_transaction_numbers(&league, lock_id).await,
+        vec![Some(0), Some(0), Some(0)],
+        "both signings and the drop are one transaction"
+    );
+    assert_eq!(
+        pending_move_count(&league, lock_id).await,
+        3,
+        "a pickup is a weekly move, so it waits for the lock like the drop beside it"
+    );
+}
+
+/// A pickup and the roster lock can reach the same win at once. The signing claims the `Won` row
+/// first, so only one of the two writers signs it: the other is told it was already picked up and
+/// leaves no contract, league event or roster move behind (rules §8.3.6).
+#[tokio::test]
+async fn two_writers_racing_for_one_win_sign_it_once() {
+    let Some(league) = TestLeague::create("fa_auction_pickup_race", END_OF_SEASON_YEAR).await
+    else {
+        return;
+    };
+    add_season_under_way(&league).await;
+    let owner = league.add_team_user(LeagueRole::TeamOwner).await;
+    add_won_auction(&league, &owner, "Donovan Mitchell").await;
+
+    let lock = lock_deadline(&league).await;
+    let wins = auction_queries::find_won_auctions_for_team(
+        owner.team_id,
+        league.league_id,
+        END_OF_SEASON_YEAR,
+        lock.date_time,
+        &league.db,
+    )
+    .await
+    .expect("read the team's unsigned wins");
+    let (won_auction, winning_bid) = wins.first().expect("one win waiting for a pickup");
+
+    let first = league
+        .db
+        .begin()
+        .await
+        .expect("start the first transaction");
+    let second = league
+        .db
+        .begin()
+        .await
+        .expect("start the second transaction");
+    let (first_outcome, second_outcome) = tokio::join!(
+        sign_and_commit(won_auction, winning_bid, &lock, first),
+        sign_and_commit(won_auction, winning_bid, &lock, second),
+    );
+
+    let refusal = match (first_outcome, second_outcome) {
+        (Ok(()), Err(refusal)) | (Err(refusal), Ok(())) => refusal,
+        (first_outcome, second_outcome) => panic!(
+            "one writer signs the win and the other is refused, got {first_outcome:?} and {second_outcome:?}"
+        ),
+    };
+    assert!(
+        refusal.contains("already been picked up"),
+        "the second writer should be told the win is taken, not given a server fault: {refusal}"
+    );
+
+    assert_eq!(
+        active_contract_count(&league).await,
+        1,
+        "one win signs one contract"
+    );
+    assert_eq!(
+        auction_league_event_count(&league).await,
+        1,
+        "one win writes one AuctionDone league event"
+    );
+    assert_eq!(
+        add_via_auction_move_count(&league, lock.id).await,
+        1,
+        "one win writes one AddViaAuction roster move"
+    );
+}
+
+/// Rule §8.3.5: all of a week's wins go on together. An owner who could sign the first auction to
+/// close, drop that player, and sign the next close as a second transaction would make the T2 check
+/// vacuous for the pair, so the pickup waits until the week's auctions have all closed.
+#[tokio::test]
+async fn a_pickup_waits_for_the_week_to_finish_closing() {
+    let Some(league) = TestLeague::create("fa_auction_pickup_open", END_OF_SEASON_YEAR).await
+    else {
+        return;
+    };
+    add_season_under_way(&league).await;
+    let owner = league.add_team_user(LeagueRole::TeamOwner).await;
+    add_roster_contracts(&league, 2).await;
+    add_won_auction(&league, &owner, "Donovan Mitchell").await;
+    let (still_open, _) = add_open_auction(
+        &league,
+        &owner,
+        "Jose Alvarado",
+        central("2025-10-27T18:00:00"),
+    )
+    .await;
+
+    let lock_id = lock_deadline(&league).await.id;
+    let schema = build_graphql_schema(league.db.clone());
+    let session = session_for(owner.user_id, league.league_id).await;
+
+    assert_eq!(
+        run(&schema, &pick_up(lock_id, &[], &[]), &session).await,
+        Err("AUCTIONS_STILL_OPEN".to_owned()),
+        "an early win cannot be signed while another of the week's auctions takes bids"
+    );
+    let refusal = message(&schema, &pick_up(lock_id, &[], &[]), &session).await;
+    assert!(
+        refusal.contains(&still_open.id.to_string()),
+        "the refusal should name the auction still open: {refusal}"
+    );
+    assert_eq!(
+        active_contract_count(&league).await,
+        2,
+        "a refused pickup signs nothing"
+    );
+
+    auction_queries::update_auction_status(still_open.id, AuctionStatus::Won, &league.db)
+        .await
+        .expect("close the second auction");
+    let picked_up = run(&schema, &pick_up(lock_id, &[], &[]), &session).await;
+    assert!(
+        picked_up.is_ok(),
+        "the week has finished closing, so both wins go on: {picked_up:?}"
+    );
+    assert_eq!(
+        active_contract_count(&league).await,
+        4,
+        "both wins are signed"
+    );
+    assert_eq!(
+        stored_transaction_numbers(&league, lock_id).await,
+        vec![Some(0), Some(0)],
+        "the week's wins land under one transaction number"
+    );
+}
+
+/// A repeat in `dropContractIds` is the owner's mistake, so the refusal names the contract they
+/// sent twice. Without the check the first drop applies and the second reads the replaced row,
+/// which reports a stale contract and hides the real fault.
+#[tokio::test]
+async fn a_pickup_naming_one_drop_twice_is_refused() {
+    let Some(league) = TestLeague::create("fa_auction_pickup_duplicate", END_OF_SEASON_YEAR).await
+    else {
+        return;
+    };
+    add_season_under_way(&league).await;
+    let owner = league.add_team_user(LeagueRole::TeamOwner).await;
+
+    let roster = add_roster_contracts(&league, VET_OR_ROOKIE_LIMIT - 1).await;
+    add_won_auction(&league, &owner, "Donovan Mitchell").await;
+    add_won_auction(&league, &owner, "Jose Alvarado").await;
+
+    let lock_id = lock_deadline(&league).await.id;
+    let schema = build_graphql_schema(league.db.clone());
+    let session = session_for(owner.user_id, league.league_id).await;
+
+    let repeated = pick_up(lock_id, &[roster[0].id, roster[0].id], &[]);
+    assert_eq!(
+        run(&schema, &repeated, &session).await,
+        Err("DUPLICATE_DROP_CONTRACT_ID".to_owned()),
+        "the same contract cannot pay for two of the week's wins"
+    );
+    let refusal = message(&schema, &repeated, &session).await;
+    assert!(
+        refusal.contains(&roster[0].id.to_string()),
+        "the refusal should name the repeated contract: {refusal}"
+    );
+    assert_eq!(
+        active_contract_count(&league).await,
+        VET_OR_ROOKIE_LIMIT - 1,
+        "a refused pickup signs nothing and drops nothing"
+    );
+    assert_eq!(
+        won_auction_ids(&league, &owner).await.len(),
+        2,
+        "both wins are still waiting for a pickup"
+    );
+    assert!(
+        stored_transaction_numbers(&league, lock_id)
+            .await
+            .is_empty(),
+        "a refused pickup writes no move to number"
+    );
+}
+
+/// Rule §13.1.5.4: a move to the IR frees an active roster slot, so an owner may declare it as the
+/// move that makes room for the week's wins. Rule §10.3.1 is the other half of that: a player the
+/// same pickup won cannot go straight to the IR, which is T2's `ToIR` arm.
+#[tokio::test]
+async fn an_ir_move_makes_room_but_a_won_player_cannot_go_straight_to_the_ir() {
+    let Some(league) = TestLeague::create("fa_auction_pickup_ir", END_OF_SEASON_YEAR).await else {
+        return;
+    };
+    add_season_under_way(&league).await;
+    let owner = league.add_team_user(LeagueRole::TeamOwner).await;
+
+    // A full roster and one win waiting, so the win needs a slot the IR can free.
+    let roster = add_roster_contracts(&league, VET_OR_ROOKIE_LIMIT).await;
+    let won = add_won_auction(&league, &owner, "Donovan Mitchell").await;
+
+    let lock_id = lock_deadline(&league).await.id;
+    let schema = build_graphql_schema(league.db.clone());
+    let session = session_for(owner.user_id, league.league_id).await;
+
+    let straight_to_ir = pick_up(lock_id, &[], &[won]);
+    assert_eq!(
+        run(&schema, &straight_to_ir, &session).await,
+        Err("ROSTER_MOVE_REJECTED".to_owned()),
+        "a player won this week cannot go straight to the IR"
+    );
+    let refusal = message(&schema, &straight_to_ir, &session).await;
+    assert!(
+        refusal.contains("acquired in this transaction"),
+        "the refusal should be T2, not another rule: {refusal}"
+    );
+    assert_eq!(
+        active_contract_count(&league).await,
+        VET_OR_ROOKIE_LIMIT,
+        "a refused pickup signs nothing"
+    );
+    assert_eq!(
+        ir_contract_count(&league).await,
+        0,
+        "and sends nobody to the IR"
+    );
+
+    let picked_up = run(&schema, &pick_up(lock_id, &[], &[roster[0].id]), &session).await;
+    assert!(
+        picked_up.is_ok(),
+        "an IR move off the standing roster makes room: {picked_up:?}"
+    );
+    assert_eq!(ir_contract_count(&league).await, 1);
+    assert_eq!(
+        active_contract_count(&league).await,
+        VET_OR_ROOKIE_LIMIT + 1,
+        "an IR contract stays on the roster and stops counting against the 22"
+    );
+    assert_eq!(
+        stored_transaction_numbers(&league, lock_id).await,
+        vec![Some(0), Some(0)],
+        "the signing and the IR move that paid for it are one transaction"
+    );
+}
+
+/// One writer's attempt at a win: commits what it signed, or rolls back with what it was told.
+async fn sign_and_commit(
+    won_auction: &auction::Model,
+    winning_bid: &auction_bid::Model,
+    lock: &deadline::Model,
+    db_txn: DatabaseTransaction,
+) -> Result<(), String> {
+    match sign_won_auction(won_auction, winning_bid, lock, None, &db_txn).await {
+        Ok(_) => {
+            db_txn.commit().await.expect("commit the signing");
+            Ok(())
+        }
+        Err(error) => {
+            db_txn
+                .rollback()
+                .await
+                .expect("roll back the refused signing");
+            Err(error.to_string())
+        }
+    }
+}
+
+async fn auction_league_event_count(league: &TestLeague) -> u64 {
+    league_event_queries::find_league_events_in_league(
+        league.league_id,
+        None,
+        Some(LeagueEventKind::AuctionDone),
+        0,
+        100,
+        &league.db,
+    )
+    .await
+    .expect("load the league's auction events")
+    .total_items
+}
+
+/// The week's roster moves that added a contract off an auction win.
+async fn add_via_auction_move_count(league: &TestLeague, deadline_id: i64) -> usize {
+    team_update_queries::find_team_updates_by_team(
+        league.team_id,
+        None,
+        Some(deadline_id),
+        &league.db,
+    )
+    .await
+    .expect("load the week's moves")
+    .iter()
+    .filter(|team_update| {
+        team_update
+            .get_contract_updates()
+            .expect("read a move's contract updates")
+            .iter()
+            .any(|contract_update| contract_update.update_type == ContractUpdateType::AddViaAuction)
+    })
+    .count()
+}
+
+/// Signs `pick_up_auction_wins`, dropping the contracts named and moving `ir_contract_ids` to the
+/// IR. A move on one of the week's own wins names the auctioned contract, since the signed row does
+/// not exist when the owner submits.
+fn pick_up(deadline_id: i64, drop_contract_ids: &[i64], ir_contract_ids: &[i64]) -> String {
+    let drops = contract_id_list(drop_contract_ids);
+    let irs = contract_id_list(ir_contract_ids);
+    format!(
+        "mutation {{ pickUpAuctionWins(deadlineId: {deadline_id}, dropContractIds: [{drops}], irContractIds: [{irs}]) {{ id }} }}"
+    )
+}
+
+fn contract_id_list(contract_ids: &[i64]) -> String {
+    contract_ids
+        .iter()
+        .map(i64::to_string)
+        .collect::<Vec<_>>()
+        .join(", ")
+}
+
+/// A win is the latest bid's, and it counts towards the roster lock its auction closed by (rules
+/// §8.3.5-§8.3.6). An owner who was outbid has no win to pick up, and a win whose bidding runs past
+/// this lock waits for the next one.
+#[tokio::test]
+async fn a_win_goes_to_the_last_bidder_and_to_the_lock_its_auction_closed_by() {
+    let Some(league) = TestLeague::create("fa_auction_pickup_winner", END_OF_SEASON_YEAR).await
+    else {
+        return;
+    };
+    add_season_under_way(&league).await;
+    let outbid_owner = league.add_team_user(LeagueRole::TeamOwner).await;
+    let second_team_id = league.add_team("Second Bidder").await;
+    let winning_owner = league
+        .add_team_user_for_team(second_team_id, LeagueRole::TeamOwner)
+        .await;
+    let lock = lock_deadline(&league).await;
+
+    let (contested, _) = add_open_auction(
+        &league,
+        &outbid_owner,
+        "Donovan Mitchell",
+        central("2025-10-27T18:00:00"),
+    )
+    .await;
+    auction_queries::insert_auction_bid(
+        contested.id,
+        winning_owner.id,
+        WINNING_BID + 1,
+        None,
+        &league.db,
+    )
+    .await
+    .expect("insert the higher bid");
+    auction_queries::update_auction_status(contested.id, AuctionStatus::Won, &league.db)
+        .await
+        .expect("record the win");
+
+    let (late, _) =
+        add_open_auction(&league, &winning_owner, "Jose Alvarado", lock.date_time).await;
+    assert!(
+        late.close_at_timestamp > lock.date_time,
+        "the fixture needs an auction whose bidding runs past the lock"
+    );
+    auction_queries::update_auction_status(late.id, AuctionStatus::Won, &league.db)
+        .await
+        .expect("record the late win");
+
+    assert_eq!(
+        won_auction_ids(&league, &winning_owner).await,
+        vec![contested.id],
+        "the last bidder won the auction that closed by the lock"
+    );
+    assert!(
+        won_auction_ids(&league, &outbid_owner).await.is_empty(),
+        "an owner who was outbid has no win to pick up"
+    );
+
+    let wins_by_team = auction_queries::find_won_auctions_by_team(
+        league.league_id,
+        END_OF_SEASON_YEAR,
+        lock.date_time,
+        &league.db,
+    )
+    .await
+    .expect("read the league's unsigned wins");
+    assert_eq!(
+        wins_by_team
+            .iter_all()
+            .map(|(team_id, wins)| (*team_id, wins.iter().map(|(won, _)| won.id).collect()))
+            .collect::<Vec<(i64, Vec<i64>)>>(),
+        vec![(winning_owner.team_id, vec![contested.id])],
+        "the lock sees one win, filed under the team that made the last bid"
+    );
+}
+
+/// An auction the owner's team has won but not picked up, i.e. what an in-season close leaves
+/// behind. Returns the auctioned contract's id, which is what a drop of that win names.
+async fn add_won_auction(league: &TestLeague, owner: &team_user::Model, name: &str) -> i64 {
+    let (auction, pooled_contract_id) =
+        add_open_auction(league, owner, name, central("2025-10-27T18:00:00")).await;
+    auction_queries::update_auction_status(auction.id, AuctionStatus::Won, &league.db)
+        .await
+        .expect("record the win");
+
+    pooled_contract_id
+}
+
+/// An in-season free agent auction still taking bids, with the owner's team high bidder. Returns
+/// the auction and the auctioned contract's id.
+async fn add_open_auction(
+    league: &TestLeague,
+    owner: &team_user::Model,
+    name: &str,
+    start: DateTimeWithTimeZone,
+) -> (auction::Model, i64) {
+    let player_id = league.add_veteran_player(name).await;
+    let pooled_contract = league
+        .add_unowned_contract(
+            player_id,
+            ContractKind::UnrestrictedFreeAgentVeteran,
+            WINNING_BID,
+        )
+        .await;
+    let auction = start_new_auction_for_nba_player(
+        &pooled_contract,
+        league.league_id,
+        END_OF_SEASON_YEAR,
+        start,
+        AuctionKind::InSeasonFreeAgent,
+        WINNING_BID,
+        &league.db,
+    )
+    .await
+    .expect("start the in-season FA auction");
+    auction_queries::insert_auction_bid(auction.id, owner.id, WINNING_BID, None, &league.db)
+        .await
+        .expect("insert the winning bid");
+
+    (auction, pooled_contract.id)
+}
+
+async fn won_auction_ids(league: &TestLeague, owner: &team_user::Model) -> Vec<i64> {
+    auction_queries::find_won_auctions_for_team(
+        owner.team_id,
+        league.league_id,
+        END_OF_SEASON_YEAR,
+        lock_deadline(league).await.date_time,
+        &league.db,
+    )
+    .await
+    .expect("read the team's unsigned wins")
+    .iter()
+    .map(|(auction_model, _)| auction_model.id)
+    .collect()
+}
+
+/// The deadlines of a season already under way, with an in-season lock still to fire. The lock
+/// prices its cap against the free-agent auction end (rules §4.2.3).
+async fn add_season_under_way(league: &TestLeague) {
+    league
+        .add_deadline(
+            DeadlineKind::Week1RosterLock,
+            central("2025-10-20T18:00:00"),
+        )
+        .await;
+    league
+        .add_deadline(
+            DeadlineKind::FreeAgentAuctionEnd,
+            central("2026-03-01T18:00:00"),
+        )
+        .await;
+    let upcoming_lock = Utc::now()
+        .checked_add_days(Days::new(3))
+        .expect("3 days from now")
+        .fixed_offset();
+    league
+        .add_deadline(DeadlineKind::InSeasonRosterLock, upcoming_lock)
+        .await;
+}
+
+/// `count` $1 contracts owned by the league's team, i.e. roster filler that never breaks the cap.
+async fn add_roster_contracts(league: &TestLeague, count: usize) -> Vec<contract::Model> {
+    let mut contracts = Vec::with_capacity(count);
+    for index in 0..count {
+        let player_id = league.add_veteran_player(&format!("Filler {index}")).await;
+        contracts.push(
+            league
+                .add_owned_contract(player_id, ContractKind::RookieExtension, 1, league.team_id)
+                .await,
+        );
+    }
+    contracts
+}
+
+/// Every transaction number stored for the team's week, oldest move first.
+async fn pending_move_count(league: &TestLeague, deadline_id: i64) -> usize {
+    team_update_queries::find_team_updates_by_team(
+        league.team_id,
+        Some(TeamUpdateStatus::Pending),
+        Some(deadline_id),
+        &league.db,
+    )
+    .await
+    .expect("load the week's pending moves")
+    .len()
+}
+
+async fn stored_transaction_numbers(league: &TestLeague, deadline_id: i64) -> Vec<Option<i16>> {
+    let mut week_moves = team_update_queries::find_team_updates_by_team(
+        league.team_id,
+        None,
+        Some(deadline_id),
+        &league.db,
+    )
+    .await
+    .expect("load the week's moves");
+    week_moves.sort_by_key(|team_update| team_update.id);
+    week_moves
+        .iter()
+        .map(|team_update| team_update.transaction_number)
+        .collect()
+}
+
+/// The team's contracts on the IR, which do not count against the 22-man active roster.
+async fn ir_contract_count(league: &TestLeague) -> usize {
+    contract_queries::find_active_contracts_for_team(league.team_id, &league.db)
+        .await
+        .expect("load the team's contracts")
+        .iter()
+        .filter(|contract_model| contract_model.is_ir)
+        .count()
+}
+
+async fn active_contract_count(league: &TestLeague) -> usize {
+    contract_queries::find_active_contracts_for_team(league.team_id, &league.db)
+        .await
+        .expect("load the team's contracts")
+        .len()
+}
+
+async fn lock_deadline(league: &TestLeague) -> deadline::Model {
+    deadline_queries::find_deadline_for_season_by_type(
+        league.league_id,
+        END_OF_SEASON_YEAR,
+        DeadlineKind::InSeasonRosterLock,
+        &league.db,
+    )
+    .await
+    .expect("find the in-season roster lock")
+}
+
+/// Runs one mutation as the session's user, returning its field value or the error's stable code.
+async fn run(schema: &AppSchema, mutation: &str, session: &Session) -> Result<Value, String> {
+    let response = schema
+        .execute(Request::new(mutation).data(session.clone()))
+        .await;
+    if let Some(error) = response.errors.first() {
+        let code = error
+            .extensions
+            .as_ref()
+            .and_then(|extensions| extensions.get("code"))
+            .map_or_else(|| error.message.clone(), ToString::to_string);
+        return Err(code.trim_matches('"').to_owned());
+    }
+    Ok(response.data)
+}
+
+/// The message of a failing mutation's error, i.e. what the owner is told.
+async fn message(schema: &AppSchema, mutation: &str, session: &Session) -> String {
+    let response = schema
+        .execute(Request::new(mutation).data(session.clone()))
+        .await;
+    response
+        .errors
+        .first()
+        .expect("the mutation should fail")
+        .message
+        .clone()
+}
+
+/// A logged-in session for one user in one league, i.e. what the session layer would have built.
+async fn session_for(user_id: i64, league_id: i64) -> Session {
+    let session = Session::new(None, Arc::new(MemoryStore::default()), None);
+    session
+        .insert("user_id", user_id)
+        .await
+        .expect("set the session user");
+    session
+        .insert("selected_league_id", league_id)
+        .await
+        .expect("set the session league");
+    session
+}

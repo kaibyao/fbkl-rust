@@ -6,10 +6,10 @@ use fbkl_entity::{
     contract, contract_queries,
     deadline::DeadlineKind,
     deadline_queries,
+    league_event::{self, LeagueEventKind},
     sea_orm::{ColumnTrait, ConnectionTrait, ModelTrait, QueryFilter},
     team_update::{self, ContractUpdateType, TeamUpdateAsset, TeamUpdateData, TeamUpdateStatus},
     team_update_queries,
-    transaction::{self, TransactionKind},
 };
 use std::collections::HashMap;
 use tracing::instrument;
@@ -18,7 +18,7 @@ use super::seed_rfa_resolutions;
 
 /// Processes the `team_updates` that have been created for the Keeper Deadline and sets the status for them.
 #[instrument(skip(db))]
-pub async fn process_keeper_deadline_transaction<C>(
+pub async fn process_keeper_deadline_league_event<C>(
     league_id: i64,
     end_of_season_year: i16,
     db: &C,
@@ -36,7 +36,7 @@ where
             db,
         )
         .await?;
-        match process_keeper_deadline_transaction_inner(
+        match process_keeper_deadline_league_event_inner(
             status_set_to_in_progress.clone(),
             &mut active_league_contracts_by_id,
             db,
@@ -71,7 +71,7 @@ where
 
 /// Processes the `team_updates` that have been created for the Keeper Deadline. Returns a tuple containing the number of contracts kept and dropped.
 #[instrument(skip(db))]
-async fn process_keeper_deadline_transaction_inner<C>(
+async fn process_keeper_deadline_league_event_inner<C>(
     team_update_model: team_update::Model,
     active_league_contracts_by_id: &mut HashMap<i64, contract::Model>,
     db: &C,
@@ -137,13 +137,13 @@ where
     )
     .await?;
 
-    let maybe_keeper_deadline_transaction = deadline_model
-        .find_related(transaction::Entity)
-        .filter(transaction::Column::Kind.eq(TransactionKind::PreseasonKeeper))
+    let maybe_keeper_deadline_league_event = deadline_model
+        .find_related(league_event::Entity)
+        .filter(league_event::Column::Kind.eq(LeagueEventKind::PreseasonKeeper))
         .one(db)
         .await?;
-    let keeper_deadline_transaction_model = maybe_keeper_deadline_transaction.ok_or_else(||eyre!("Could not find transaction associated with keeper deadline. One should already exist for the league and season when processing the keeper deadline."))?;
-    let keeper_team_updates = keeper_deadline_transaction_model
+    let keeper_deadline_league_event_model = maybe_keeper_deadline_league_event.ok_or_else(||eyre!("Could not find league_event associated with keeper deadline. One should already exist for the league and season when processing the keeper deadline."))?;
+    let keeper_team_updates = keeper_deadline_league_event_model
         .find_related(team_update::Entity)
         .filter(
             team_update::Column::Status

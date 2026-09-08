@@ -10,7 +10,7 @@ mod validate_trade_assets;
 pub use accept_trade::*;
 pub use create_trade_team_update::MissingPreTradeSalary;
 use process_trade::process_trade;
-pub use process_trade::{MISSING_ROSTER_LOCK_ADVICE, MissingUpcomingRosterLock};
+pub use process_trade::{MISSING_ROSTER_LOCK_ADVICE, MissingUpcomingRosterLock, TradeLegality};
 use process_trade_assets::process_trade_assets;
 pub use propose_trade::*;
 pub use reject_trade::*;

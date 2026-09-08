@@ -11,12 +11,12 @@ use self::{
     eligibility::{EligibilityMutation, EligibilityQuery},
     keeper::{KeeperMutation, KeeperQuery},
     league::{LeagueMutation, LeagueQuery},
+    league_event::LeagueEventQuery,
     player::PlayerQuery,
     rfa::{RfaMutation, RfaQuery},
     roster::{RosterMutation, RosterQuery},
     team::TeamQuery,
     trade::{TradeMutation, TradeQuery},
-    transaction::TransactionQuery,
     user::UserQuery,
 };
 
@@ -31,6 +31,7 @@ mod eligibility;
 mod error;
 mod keeper;
 mod league;
+mod league_event;
 mod loaders;
 mod player;
 mod rfa;
@@ -38,7 +39,6 @@ mod roster;
 mod season;
 mod team;
 mod trade;
-mod transaction;
 mod user;
 
 pub type FbklSchema = Schema<QueryRoot, MutationRoot, EmptySubscription>;
@@ -51,7 +51,7 @@ pub struct QueryRoot(
     PlayerQuery,
     ContractQuery,
     TradeQuery,
-    TransactionQuery,
+    LeagueEventQuery,
     KeeperQuery,
     DeadlineQuery,
     AuctionQuery,
