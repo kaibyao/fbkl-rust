@@ -1,173 +1,214 @@
-# Spec 07 — Trade Legality, Deadline & Picks
+# Spec 07 - Trade Legality, Deadline & Picks
 
-**Rules ref:** §12 · **Status:** 🟡 core trades work; legality/deadline/conditions missing · **Priority:** P1
+**Rules ref:** §12 · **Status:** 🟡 core trades + T1/T2 legality work; deadline gate, pick window, auction guard and conditional picks missing · **Priority:** P1
+
+Revised 2026-09-11 after the d1r transaction model (#143) and a review of epic fbkl-rust-8zs.
 
 ## Summary
 
-Propose/accept/process is solid (`logic/src/trade/`): `propose_trade`, `accept_trade`
-(auto-processes once every involved team's latest `trade_action` is `Propose`/`Accept`),
-`process_trade`, multi-owner + one-way trades, and `external_trade_invalidation`. **Do not respec
-that.** This spec adds the missing *gating* and *resolution* around it:
+Propose/accept/process is built (`logic/src/trade/`): `propose_trade`, `accept_trade`, `process_trade`,
+`reject_trade`, multi-owner + one-way trades, `external_trade_invalidation`, and accommodating drops
+carried by the proposer and each accepter (spec 08). `accept_trade` processes once every recorded
+`trade_action` is `Propose`/`Accept` and every involved team has responded. **Do not respec that.**
 
-1. **Trade-time legality** — trades validate asset *ownership only* (`validate_trade_assets`); no
-   cap or roster-size check (§12, §4.1).
-2. **Trade deadline** (§12.3) — `DeadlineKind::TradeDeadlineAndPlayoffStart` exists but nothing
-   blocks proposing/accepting after it; no trades until after the playoffs.
-3. **Pick tradability window** (§12.4) — picks tradable up to 2 years out; "next year" begins the
-   moment the Rookie Draft concludes. `generate_future_draft_picks` makes N+2 picks but the
-   eligibility window isn't enforced when proposing.
-4. **Conditional trades** (§12.5.1) — only draft-pick *position* conditions allowed. `draft_pick_option`
-   table + `Proposed`/`Active`/`Used` statuses exist, but the *resolution* logic (evaluate the
-   position condition once the pick slot is known, then transfer the correct pick) is unbuilt.
-5. **Harden `insert_team_updates_from_completed_trade`** — currently `.expect()` panics on a missing
-   pre-trade salary.
+Trade legality is also built. One trade is one rules §13.1.4.1 transaction, so `process_trade`
+applies the legs plus each side's accommodating moves and then runs `file_and_validate_transaction`
+per involved team (T1 roster legality including cap, T2 no same-transaction add-then-remove,
+`logic/src/trade/process_trade.rs`). A trade that leaves a team illegal is rejected with
+`TradeLeavesRostersIllegal`, which the resolver maps through `roster_move_error`. An earlier draft
+of this spec proposed a warn-only legality report; rules §13.1.6 T1 rules that out.
+
+This spec adds the missing gates and the conditional-pick resolution:
+
+1. **Trade deadline** (§12.3) - `DeadlineKind::TradeDeadlineAndPlayoffStart` exists but nothing
+   blocks proposing/accepting after it. Epic child fbkl-rust-8zs.1.
+2. **Pick tradability window** (§12.4) - picks tradable up to 2 years out; "next year" begins when
+   the Rookie Draft concludes. Nothing enforces the window. fbkl-rust-8zs.2.
+3. **Auction guard** - a contract that an unresolved auction references can be traded, which leaves
+   `auction.contract_id` on a `Replaced` row. fbkl-rust-8zs.3.
+4. **Conditional trades** (§12.5.1) - `draft_pick_option` and its statuses exist, but nothing
+   creates an option, nothing evaluates the condition, and `Used` is never set. fbkl-rust-8zs.6/.7.
+
+Done since the first draft: the `.expect()` panic on a missing pre-trade salary is gone
+(`MissingPreTradeSalary`, `logic/src/trade/create_trade_team_update.rs`, commit ad8232b).
 
 Out of scope (cross-ref [spec 12](12-out-of-scope-and-external.md)): §12.5.3 multi-part / players-to-be-named-later
 (not allowed), §12.5.4 rentals (not allowed), §12.6 collusion (commissioner discretion, no auto-veto).
 
 ## Backend
 
-### Trade-time legality validation (cap + roster)
+### Rejection policy
 
-Today `validate_trade_assets` (`logic/src/trade/validate_trade_assets.rs`) only checks:
-contract latest-in-chain + owned by `from_team`; draft pick owned by `from_team`; option `Proposed`.
-No post-trade cap or roster-size check on either side.
+Every check below is a hard rejection with a typed error, mapped in `map_trade_processing_error`
+(`server/src/graphql/trade/trade_resolvers.rs`). A bare `eyre!` error falls through
+`roster_move_error` and reaches the client as `ErrorCode::Internal` with no message. The full set
+of trade rejections after this spec: T1/T2 (built), the deadline gate, the pick window, the
+auction guard, and an invalid conditional clause.
 
-- **Decision: warn at propose-time, block only at process-time — and even then defer cap.** §13
-  explicitly permits *transient* mid-week illegality (e.g. winning an auction before dropping to
-  open a slot), and §12.1.3 requires a trade be legal "on its own merits" but the *roster* is
-  reconciled by week-end roster lock. So:
-  - **Roster-size legality is NOT a hard block on a trade.** It's resolved at the week-end lock
-    (`validate_league_rosters` in `roster_lock/validate_rosters.rs`, already enforces RD≤6 / RDI≤1 /
-    vet+rookie≤22 + cap). A trade that leaves a team over a roster limit is legal mid-week as long
-    as it's reconciled (drop/IR/further trade) before the next `InSeasonRosterLock`.
-  - **Cap legality**: same treatment — do not hard-block in `process_trade`. Compute and surface the
-    *projected* post-trade salary/cap per side (we already compute both pre- and post-trade salaries
-    in `process_trade` via `calculate_team_contract_salary` and `create_trade_team_update.rs`).
-- **Implementation**: add a `validate_trade_legality` helper alongside `validate_trade_assets` that
-  reuses `roster::calculate_team_contract_salary` for each `to_team` post-trade and the per-type
-  count logic from `validate_roster_contract_type_limits_not_exceeded` /
-  `validate_roster_ir_slot_limits` (refactor those out of `validate_rosters.rs` into shared fns so
-  trade and roster-lock share one source of truth — do not duplicate the limit literals; they come
-  from `constants::config_settings`). Return a structured `TradeLegalityReport { over_cap_by, over_roster_by }`
-  per team rather than a `bail!`, so the GraphQL layer can render a non-blocking warning.
-- **Do NOT block** on transient illegality. The only hard `bail!` additions in this spec are the
-  deadline gate and the pick-window check below (both are absolute rule violations, not transient).
+**Import replay.** The historical import calls `propose_trade` and `accept_trade` for every CSV
+trade (`import-data/src/league/league_events/seasonal_trade_league_events.rs`).
+`TradeLegality::CallerJudges` skips T1/T2 only; every new gate runs during replay with no bypass.
+Each child carries the fresh-league replay recipe (`bd memories fresh-league`) as an acceptance gate. Add
+a bypass only if the replay shows a historical trade the gate refuses.
+
+### Trade-time legality (built)
+
+`validate_trade_assets` (`logic/src/trade/validate_trade_assets.rs`) checks contract
+latest-in-chain + owned by `from_team`; draft pick owned by `from_team`; option `Proposed`. It runs
+from `process_trade` only. Roster and cap legality run after it, per team, through
+`validate_team_roster` (`logic/src/deadline_processing/roster_lock/validate_rosters.rs`, pub) via
+`logic/src/roster/transaction.rs`. Tests: `server/tests/trade_accommodating_drops.rs`,
+`server/tests/trade_add_joins_lock_week.rs`.
+
+If a pre-accept advisory preview is wanted for the frontend, it is a new issue. It must project each
+team's whole transaction (legs plus that team's accommodating drops and IR moves, which
+`process_trade` applies after the asset snapshot), not the asset-only salary snapshot.
 
 ### Trade deadline gate (`DeadlineKind::TradeDeadlineAndPlayoffStart`)
 
 §12.3: deadline = roster lock the first week of the playoffs; no trades until after the playoffs
 (`SeasonEnd`). Nothing enforces this today.
 
-- Add `validate_trade_window_open(league_id, end_of_season_year, action_datetime, db)` (new fn in
-  `logic/src/trade/`). Reject if `action_datetime` falls in the closed window:
-  `TradeDeadlineAndPlayoffStart ≤ action_datetime < SeasonEnd`. Resolve both deadlines via
-  `deadline_queries::find_deadline_for_season_by_type` and compare against
-  `find_most_recent_deadline_by_datetime` / `find_next_deadline_for_season_by_datetime`.
-- Call it in **both** `propose_trade` (using a propose datetime — propose currently takes none; thread
-  one through) **and** `accept_trade` (uses `accept_datetime`). Both must gate, because a trade
-  proposed before the deadline must not be *accepted/processed* after it.
-- `bail!` with a clear message ("trades are closed from the playoff trade deadline until season end").
+- Add `validate_trade_window_open(league_id, end_of_season_year, action_datetime, db)` in
+  `logic/src/trade/`. Look up `TradeDeadlineAndPlayoffStart` and `SeasonEnd` for the season with
+  `deadline_queries::find_deadline_for_season_by_type` and compare `action_datetime` against their
+  `date_time` directly: closed iff `TradeDeadlineAndPlayoffStart <= action_datetime < SeasonEnd`.
+  Do not use `find_most_recent_deadline_by_datetime`: `InSeasonRosterLock` deadlines continue
+  through the playoff weeks (`server/tests/playoff_week_roster_moves.rs`), so the most recent
+  deadline inside the closed window is a lock.
+- `propose_trade` takes no datetime today; add `propose_datetime`. Callers: the GraphQL resolver,
+  the historical import (pass `args.trade_datetime`), and the test callers in `server/tests/` and
+  `jobs/tests/`. `accept_trade` already takes `accept_datetime`.
+- Call the check in **both** `propose_trade` and `accept_trade`, because a trade proposed before
+  the deadline must not be accepted after it.
+- Known limit, own issue: `process_trade` needs an upcoming roster lock in the trade's season
+  (`find_upcoming_roster_lock`, season-scoped). Between `SeasonEnd` and the next season's first lock
+  none exists, so an accept there fails with `MissingUpcomingRosterLock` even though §12.3 reopens
+  trades, and the resolver still selects the ended season. Offseason trade filing is not this spec.
 
-### Pick tradability window (§12.4 two-year rule; window resets after Rookie Draft)
+### Pick tradability window (§12.4 two-year rule; window advances after the Rookie Draft)
 
 §12.4: picks tradable up to two years out; the "next year" begins immediately after the Rookie
 Draft concludes. `draft_pick.end_of_season_year` is the discriminator; `FUTURE_DRAFT_PICK_SEASONS_LIMIT = 2`.
 
-- Add `validate_draft_pick_trade_asset` window check (extend the existing fn in
-  `validate_trade_assets.rs`, which today only checks ownership). A pick with `end_of_season_year`
-  is tradable iff it is within the open window for the trade's datetime:
-  - **Before that year's Rookie Draft concludes** (`PreseasonRookieDraftStart`/its end deadline for
-    the current `end_of_season_year`): the current draft year + next year are tradable
-    (`current_year` and `current_year + 1`).
-  - **After the Rookie Draft concludes**: the window advances — `current_year + 1` and
-    `current_year + 2` (the just-completed year's picks are spent / no longer tradable).
-  - Concretely: `pick.end_of_season_year` must be `> latest_completed_draft_year` and
-    `≤ latest_completed_draft_year + FUTURE_DRAFT_PICK_SEASONS_LIMIT`, where
-    `latest_completed_draft_year` is derived from whether the Rookie Draft for the season containing
-    the trade datetime has concluded (deadline lookup as above).
-- `bail!` on out-of-window picks (this is an absolute rule violation, not transient).
-- Apply the same check to `draft_pick_option` assets via their referenced pick
-  (`draft_pick_queries::get_draft_picks_affected_by_options`).
+- Extend `validate_draft_pick_trade_asset` (`validate_trade_assets.rs`, ownership only today).
+  `pick.end_of_season_year` must be `> N` and `<= N + FUTURE_DRAFT_PICK_SEASONS_LIMIT`, where N is
+  the latest concluded draft year. Rules examples: before and during the 2010 draft N = 2009; after
+  it concludes N = 2010.
+- **Draft conclusion has no schema marker.** `DeadlineKind` has `PreseasonRookieDraftStart` only and
+  `rookie_draft_selection` has no completion timestamp. Define it per pick: the draft for season Y
+  has concluded iff every `draft_pick` row for (league, Y) has a `rookie_draft_selection` row and
+  none of them is `Unused`. A pick with no selection, or any `Unused` selection, means not concluded.
+  The per-pick form matters because `start_rookie_draft` inserts the whole slate as `Unused` up
+  front while the historical import inserts one selection per replayed pick or pass, so a
+  rows-exist-and-none-`Unused` test would read as concluded after the first replayed pick. For a
+  trade in season Y: N = Y if concluded(Y), else Y - 1. Do not infer conclusion from the start
+  deadline having passed; §7.3.3 and §12.4.1 allow trades during the draft.
+- **Consumed picks.** A selection becomes `PlayerSelected` or `Skipped` while the `draft_pick` row
+  stays. Reject a pick whose selection is no longer `Unused`; the year window alone lets a used pick
+  trade during the draft.
+- **Where it runs.** `validate_trade_assets` is called from `process_trade` only. Call the pick check
+  from `propose_trade` with `propose_datetime` as well, then again at process (eligibility can
+  change between the two).
+- Apply the same check to every pick linked to a `draft_pick_option` asset through
+  `draft_pick_draft_pick_option` (`draft_pick_queries::get_draft_picks_affected_by_options`), not to
+  the one related pick `new_trade_asset_active_model_by_id` reads today.
+- Prerequisite gap: `generate_future_draft_picks` is never called live (its only call site is
+  commented out in `roster_lock/lock_rosters.rs`), so in a live league the N+2 picks do not exist.
+  fbkl-rust-e1q.
 
-### Conditional draft-pick trades (`draft_pick_option` resolution)
+### Auction guard (fbkl-rust-8zs.3, absorbs fbkl-rust-tox)
 
-The option lifecycle today: created `Proposed` in a proposal → `process_trade` flips it to `Active`
-(`process_trade_assets`) → external invalidation can set `InvalidatedByExternalTrade` /
-`CancelledViaTradeRejection`. The terminal `Used` status is defined but **never set** — no code
-evaluates the condition and transfers the conditioned pick. That's the gap.
+A trade replaces the contract row, so `auction.contract_id` then points at a `Replaced` row. The RFA
+decline path reads that stale row (`logic/src/auction/preseason_veteran_auction.rs`); the match path
+walks the chain. Reject a trade of a contract with an auction in `Pending`, `Open`, `Closed` or
+`Won`. `Closed` is included on purpose: RFA auctions park there for the raise/match window.
+`Completed` and `Expired` do not block. Add an `auction_queries` lookup by contract id; none exists.
 
-- **Condition representation**: `draft_pick_option.clause` is a free-text `String` today. Replace
-  (or back) it with a structured, position-only condition so it can be machine-evaluated, e.g. a
-  `ConditionalPickClause { source_draft_pick_id, if_position_in: RangeInclusive<i16>, then_pick_ids,
-  else_pick_ids }` serialized to the `clause` column (keep the human string for display). Per §12.5.1
-  **only draft-pick position** conditions are allowed — no player/team performance. Reject anything
-  else at propose-time.
-- **Trigger / timing**: the condition can only resolve once the *source* pick's final position is
-  known. The source pick's slot is determined by the standings/lottery feeding the Rookie Draft
-  ([spec 02](02-rookie-draft-engine.md)). Add a resolution step that runs when draft order is finalized
-  (the lottery/seeding step in spec 02), iterating `Active` options whose source pick now has a known
-  position:
-  1. Evaluate `if_position_in` against the resolved position.
-  2. Transfer the correct pick set (`then_pick_ids` vs `else_pick_ids`) by reassigning
-     `draft_pick.current_owner_team_id` to the option's beneficiary (mirror the reassignment in
-     `process_trade_assets`).
-  3. Set the option `Used`; record a `transaction` + per-team `team_update`
-     (`DraftPickUpdateType::DraftPickOptionAdded` already exists — add a "resolved/used" variant) so
-     the audit log + UI reflect it. Wrap in a `db.begin()`/`commit()` per `logic/CLAUDE.md` convention.
-- Edge: the two examples in §12.5.1 both transfer *different pick bundles* depending on a range
-  (1-3 vs else; 7-12 vs else) — model `then`/`else` as pick *sets*, not single picks.
+### Conditional draft-pick trades (`draft_pick_option`)
 
-### Harden `insert_team_updates_from_completed_trade` panic
+The option lifecycle today: `process_trade` flips `Proposed` -> `Active` (`process_trade_assets`);
+external invalidation sets `InvalidatedByExternalTrade`. Three gaps: **no code creates an option**
+(`propose_trade` inserts `trade_asset` rows only; the GraphQL input takes the id of an option that
+must already exist), `reject_trade` never writes `CancelledViaTradeRejection`, and nothing evaluates
+the condition or sets `Used`.
 
-`logic/src/trade/create_trade_team_update.rs:95-98` does
-`team_salaries_before_trade.get(&team_id).expect(...)`. If a `to_team` that receives an asset never
-had its salary precomputed (e.g. a team that only *receives* and whose id wasn't in the pre-trade
-salary map), this panics.
+- **Condition representation** (fbkl-rust-8zs.6): `clause` is a free-text `String`. Serialize a
+  structured, position-only condition into it as JSON:
+  `{ source_draft_pick_id, position_range: [lo, hi] inclusive, then_pick_ids, else_pick_ids }`,
+  plus a rendered string for display. Per §12.5.1 only draft-pick position conditions are allowed;
+  reject anything else at propose time.
+- **Position coordinate:** one-based overall draft order, the value `rookie_draft_selection.order`
+  stores. `draft_pick` has a round but no position. Both §12.5.1 examples condition on a first-round
+  pick, where overall order equals in-round position; a later-round source uses overall order too.
+  Validate `lo <= hi` within 1..=slate size.
+- **Pick links:** `draft_pick_draft_pick_option` lists every pick an option can affect (source, then
+  set, else set) so existing queries keep working; the JSON assigns roles. Write both in one
+  database transaction. The two §12.5.1 examples transfer different pick bundles per range, so
+  then/else are pick *sets*.
+- **Creation path:** the `proposeTrade` input carries the clause; `propose_trade` inserts the option
+  (`Proposed`), its junction rows and the `DraftPickOption` `trade_asset` atomically, after
+  validating that the source and every then/else pick exist, belong to the league, are owned by the
+  option's from team, and pass the pick window.
+- **Beneficiary:** `draft_pick_option` has no owner column. The beneficiary is the `to_team_id` of
+  the `trade_asset` that carried the option in its completed trade. Re-trading the source pick later
+  does not change it; trading an `Active` option is already rejected.
+- **Rejection:** `reject_trade` sets the trade's options to `CancelledViaTradeRejection`.
+- **Audit fix:** `create_trade_team_update.rs` zips the flattened pick list against the option list,
+  so a multi-pick option yields one `DraftPickOptionAdded` row and mispairs the next option. Group
+  picks by option id and write one row per affected pick.
+- **Resolution** (fbkl-rust-8zs.7): `resolve_draft_pick_options` in `logic/src/rookie_draft/`,
+  idempotent, walking `Active` options whose source pick has a selection row. Triggers: (a)
+  `start_rookie_draft` after it persists the slate ([spec 02](02-rookie-draft-engine.md)); (b)
+  `process_trade` when an option becomes `Active` and the slate already exists (§7.3.3 allows
+  trades during the draft). Steps:
+  1. position = `rookie_draft_selection.order` of the source pick; in range -> then set, else ->
+     else set.
+  2. For each pick in the chosen set, set `draft_pick.current_owner_team_id` to the beneficiary
+     (mirror `update_trade_asset_draft_pick`) **and** the pick's `Unused`
+     `rookie_draft_selection.current_owner_team_id`. `make_pick` awards the player to the selection's
+     owner and the draft resolver authorizes against it, so updating `draft_pick` alone gives the pick
+     to the wrong team.
+  3. Set the option `Used`; insert a `league_event` (the table formerly named `transaction`) with a
+     new `LeagueEventKind` variant, plus a `team_update` per affected team with a new
+     `DraftPickUpdateType` variant next to `DraftPickOptionAdded`. This event is neither
+     `team_update.transaction_number` (the §13 weekly transaction) nor the SQL transaction. Wrap in
+     `db.begin()`/`commit()` per `logic/CLAUDE.md`.
 
-- Replace `.expect()` with `.ok_or_else(|| eyre!(...))?` so a missing salary is a recoverable error,
-  not a panic. (`process_trade` builds the map from `all_team_ids` = union of every `from_team_id`
-  and `to_team_id`, so it *should* be complete — but defend it anyway; the panic is the documented
-  gotcha in `logic/CLAUDE.md`.)
-- Add a regression test: a one-way trade to a team that owns no contracts (empty `EMPTY_VEC` path)
-  must still produce a valid `team_update`, not panic.
+## Frontend (React/Vite + TanStack Router + shadcn/Base UI + Tailwind + urql)
 
-## Frontend (Next.js + MUI v7 + urql)
-
-Note: per `IMPLEMENTED.md`, team/player/contract GraphQL resolvers are commented out — these depend
-on [spec 06](#dependencies) wiring trade queries/mutations first.
+The GraphQL trade API exists (`proposeTrade`, `acceptTrade`, `rejectTrade` in
+`server/src/graphql/trade/`). New fields this spec adds (structured clause input, typed rejection
+codes) go on that API. Frontend work is deferred and is not a child of fbkl-rust-8zs.
 
 - **Trade builder UI**: multi-team asset picker (contracts + picks + conditional options), reflecting
-  one-way and multi-owner trades. Asset lists filtered to assets the `from_team` actually owns
-  (latest-in-chain contracts, in-window picks only).
-- **Legality preview**: render the `TradeLegalityReport` per team — projected post-trade salary/cap
-  and roster counts, with a **non-blocking warning** (not an error) when a side ends over cap/roster,
-  worded to reflect §13's "reconcile by week-end lock" rule.
-- **Conditional-pick condition editor**: position-range builder only (e.g. "picks 1-3 → bundle A,
-  else bundle B"). No player/team performance inputs (disallowed by §12.5.1).
+  one-way and multi-owner trades, with the accommodating-drop input spec 08 defines. Asset lists
+  filtered to assets the `from_team` owns (latest-in-chain contracts, in-window unused picks only).
+- **Rejection display**: render the typed rejection (T1/T2 violations, deadline, pick window,
+  auction guard, clause) as the rule message the resolver returns.
+- **Conditional-pick condition editor**: position-range builder only (e.g. "picks 1-3 -> bundle A,
+  else bundle B"). No player/team performance inputs (§12.5.1).
 - **Deadline-closed state**: when the trade window is closed (between `TradeDeadlineAndPlayoffStart`
   and `SeasonEnd`), disable propose/accept actions and show why.
 
 ## Edge cases & open questions
 
-- **Transient-illegality window**: confirm with commissioner that trade-time cap/roster overage is a
-  *warning*, reconciled by the next roster lock, vs a hard block. This spec assumes warn (§13). If the
-  league wants hard blocks, flip the legality helper to `bail!`.
-- **Condition evaluation timing**: resolution depends on the lottery/seeding step that finalizes the
-  Rookie Draft order (spec 02). If an `Active` option's source pick is itself traded again before
-  resolution, ensure the beneficiary tracks the *option*, not the team-at-proposal-time.
-- **Picks acquired after a bid (spec 03 interplay)**: §15.2 forbids forfeiting RFA-compensation picks
-  acquired *after* the winning bid. A pick mid-flight in a conditional option must not double as an
-  eligible compensation pick — coordinate the "acquired-after" timestamp logic with
-  [spec 03](03-rfa-resolution-and-compensation.md).
-- **Window boundary precision**: the §12.4 window flips exactly at Rookie Draft *conclusion*. Confirm
-  which deadline marks "conclusion" (`PreseasonRookieDraftStart` + draft duration vs a dedicated end
-  deadline) so the window-advance is unambiguous.
+- **Offseason trade filing**: see the known limit under the deadline gate. Needs a decision on which
+  lock an offseason trade files under and how the resolver picks the season; §4.2.4 keeps the $230
+  cap until contract advancement runs, so the period must not resolve as uncapped.
+- **Source pick re-traded before resolution**: the beneficiary is fixed by the option's trade asset,
+  so the resolution transfers to that team whoever owns the source pick at the time.
+- **Conditional picks and live RFA obligations (spec 03 interplay)**: RFA compensation is enforced by
+  bid-time naming (`rfa_compensation_pick`, `find_reserved_compensation_pick_ids`), not by an
+  acquired-after timestamp. A pick in a then/else set must not double as a named compensation pick;
+  coordinate with fbkl-rust-abp, which adds the reservation check to trade validation.
+- **Window boundary precision**: settled above; conclusion = every pick has a selection and none is `Unused`. If the league
+  ever wants a commissioner-declared end instead, add a completion instant to the slate.
 
 ## Dependencies
 
-- [spec 02](02-rookie-draft-engine.md) — draft order / lottery finalization triggers conditional-pick resolution.
-- [spec 03](03-rfa-resolution-and-compensation.md) — shared "pick acquired after a point in time" eligibility logic.
-- [spec 05](05-deadline-scheduler-and-transaction-processor.md) — deadline scheduling powers the trade-deadline gate.
-- [spec 06](#) — GraphQL trade queries/mutations (team/player/contract resolvers currently disabled).
-- [spec 08](#) — weekly-moves legality (week-end roster lock that reconciles transient trade illegality).
+- [spec 02](02-rookie-draft-engine.md) - `start_rookie_draft` persists the slate that resolves conditional picks.
+- [spec 03](03-rfa-resolution-and-compensation.md) - named compensation picks (`rfa_compensation_pick`) vs picks inside conditional options.
+- [spec 05](05-deadline-scheduler-and-transaction-processor.md) - season deadlines the trade-deadline gate reads.
+- [spec 06](06-graphql-api-surface.md) - trade queries/mutations (built); new clause input and rejection codes extend them.
+- [spec 08](08-weekly-moves-and-roster-legalization.md) - the transaction model (T1/T2, accommodating drops) that trade processing already runs.

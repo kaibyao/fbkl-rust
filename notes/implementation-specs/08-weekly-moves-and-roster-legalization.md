@@ -266,6 +266,6 @@ submission carries its own grouping, per the section above.
   same-transaction add-then-remove rule (T2).
 - [spec 05](05-deadline-scheduler-and-transaction-processor.md) — the lock deadlines that bound each
   week and trigger legalization.
-- [spec 07](07-trade-legality.md) — trade legality at processing time vs end-of-week roster legality.
+- [spec 07](07-trade-legality-deadline-picks.md) — trade legality at processing time vs end-of-week roster legality.
 - [spec 06](06-graphql-api-surface.md) — `teamWeek` query, `reorderTransactions` and
   `submitTransaction`, structured errors.

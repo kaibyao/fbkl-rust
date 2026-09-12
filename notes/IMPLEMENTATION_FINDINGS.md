@@ -81,10 +81,10 @@ to drive draft order.
 | §11.9.2 RD/3 → R/2 year-4 conversion (+20% increase) | ✅ | `annual_contract_advancement` handles RD/3 → Rookie year 2. |
 | §11.4/§11.5 RD limit overflow at season start (drop/activate beyond 6+1) | 🟡 | Roster-lock validates the 6/1 limits but the simultaneous IR+activate transition isn't a modeled flow. See [spec 8](implementation-specs/08-weekly-moves-and-roster-legalization.md). |
 | §12 Trade propose/accept/process, multi-owner, one-way | ✅ | `trade` domain fully handles asset transfer + external invalidation. |
-| §12.5.1 Conditional trades (draft-pick position) | 🟡 | `draft_pick_option` modeled; conditional *resolution* logic not built. See [spec 7](implementation-specs/07-trade-legality-deadline-picks.md). |
-| §12 Trade-time cap/roster legality | 🔴 | Trades validate **ownership only**. See [spec 7](implementation-specs/07-trade-legality-deadline-picks.md). |
+| §12.5.1 Conditional trades (draft-pick position) | 🔴 | `draft_pick_option` modeled, but no code creates an option and no resolution logic exists. See [spec 7](implementation-specs/07-trade-legality-deadline-picks.md). |
+| §12 Trade-time cap/roster legality | ✅ | `process_trade` runs T1/T2 per involved team (d1r transaction model, #143) and rejects an illegal result. See [spec 7](implementation-specs/07-trade-legality-deadline-picks.md). |
 | §12.3 Trade deadline enforcement | 🔴 | Deadline kind exists; no enforcement gate. See [spec 7](implementation-specs/07-trade-legality-deadline-picks.md). |
-| §12.4 Picks tradable 2 years out (window resets after Rookie Draft) | 🟡 | `generate_future_draft_picks` makes N+2 picks; the *tradability window* rule isn't enforced. See [spec 7](implementation-specs/07-trade-legality-deadline-picks.md). |
+| §12.4 Picks tradable 2 years out (window resets after Rookie Draft) | 🔴 | `generate_future_draft_picks` exists but is never called live (fbkl-rust-e1q); the *tradability window* rule isn't enforced. See [spec 7](implementation-specs/07-trade-legality-deadline-picks.md). |
 | §13 Weekly moves (intra-week illegal OK, legal by Monday lock; reorderable) | 🔴 | No weekly batching / end-of-week legalization model. See [spec 8](implementation-specs/08-weekly-moves-and-roster-legalization.md). |
 
 ### V. Keepers & RFA/UFA (§14–18)
